@@ -6,7 +6,7 @@ import torch.nn as nn
 from base_model import BaseModel
 from dataset.dataset_utils import load_pkl, save_pkl
 from model_utils import BasicFuser, BBoxList, EuclidianMatcher, SpaceCompensator, TimeCompensator, inference_detector, inference_mono_3d_detector, init_model
-from v2x_utils import diff_label_filt, get_arrow_end, mkdir
+from utils import diff_label_filt, get_arrow_end, mkdir
 
 logger = logging.getLogger(__name__)
 

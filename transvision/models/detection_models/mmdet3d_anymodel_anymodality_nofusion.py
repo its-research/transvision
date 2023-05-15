@@ -6,7 +6,7 @@ from base_model import BaseModel
 from dataset.dataset_utils import load_pkl, save_pkl
 from mmdet3d_anymodel_anymodality_late import LateFusionInf, LateFusionVeh
 from model_utils import inference_detector, inference_mono_3d_detector, init_model
-from v2x_utils import mkdir
+from utils import mkdir
 
 logger = logging.getLogger(__name__)
 

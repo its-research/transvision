@@ -8,7 +8,7 @@ import torch.nn as nn
 from base_model import BaseModel
 from dataset.dataset_utils import load_pkl, save_pkl
 from model_utils import concatenate_pcd2bin, inference_detector, init_model, read_pcd
-from v2x_utils import get_arrow_end, mkdir
+from utils import get_arrow_end, mkdir
 
 logger = logging.getLogger(__name__)
 

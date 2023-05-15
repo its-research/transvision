@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
-from opencood.data_utils.datasets.early_fusion_dataset_dair import EarlyFusionDatasetDAIR
-from opencood.data_utils.datasets.intermediate_fusion_dataset_dair import IntermediateFusionDatasetDAIR
-from opencood.data_utils.datasets.late_fusion_dataset_dair import LateFusionDatasetDAIR
+
+from transvision.data_utils.datasets.early_fusion_dataset_dair import EarlyFusionDatasetDAIR
+from transvision.data_utils.datasets.intermediate_fusion_dataset_dair import IntermediateFusionDatasetDAIR
+from transvision.data_utils.datasets.late_fusion_dataset_dair import LateFusionDatasetDAIR
 
 __all__ = {"EarlyFusionDatasetDAIR": EarlyFusionDatasetDAIR, "IntermediateFusionDatasetDAIR": IntermediateFusionDatasetDAIR, "LateFusionDatasetDAIR": LateFusionDatasetDAIR}
 
@@ -17,7 +16,7 @@ COM_RANGE = 70
 
 def build_dataset(dataset_cfg, visualize=False, train="train"):
     dataset_name = dataset_cfg["fusion"]["core_method"]
-    # error_message = f"{dataset_name} is not found. " f"Please add your processor file's name in opencood/" f"data_utils/datasets/init.py"
+    # error_message = f"{dataset_name} is not found. " f"Please add your processor file's name in transvision/" f"data_utils/datasets/init.py"
 
     dataset = __all__[dataset_name](params=dataset_cfg, visualize=visualize, train=train)
 

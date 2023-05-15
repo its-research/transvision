@@ -1,7 +1,7 @@
 import numpy as np
 from config import name2id
 from dataset.dataset_utils import load_json
-from v2x_utils import get_3d_8points
+from utils import get_3d_8points
 
 
 class Label(dict):

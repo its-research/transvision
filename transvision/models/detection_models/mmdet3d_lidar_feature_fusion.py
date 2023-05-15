@@ -12,7 +12,7 @@ from mmcv.parallel import collate, scatter
 from mmdet3d.core.bbox import get_box_type
 from mmdet3d.datasets.pipelines import Compose
 from model_utils import init_model
-from v2x_utils import get_arrow_end, mkdir
+from utils import get_arrow_end, mkdir
 
 logger = logging.getLogger(__name__)
 

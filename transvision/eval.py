@@ -11,7 +11,7 @@ from dataset.dataset_utils import save_pkl
 from models import SUPPROTED_MODELS
 from models.model_utils import Channel
 from tqdm import tqdm
-from v2x_utils import Evaluator, range2box
+from utils import Evaluator, range2box
 
 sys.path.append("..")
 sys.path.extend([os.path.join(root, name) for root, dirs, _ in os.walk("../") for name in dirs])

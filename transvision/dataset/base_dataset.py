@@ -4,7 +4,7 @@ import os.path as osp
 
 from dataset.dataset_utils import load_json
 from torch.utils.data import Dataset
-from v2x_utils import get_trans
+from utils import get_trans
 
 
 def get_annos(path, prefix, single_frame, sensortype="camera"):

@@ -3,7 +3,7 @@ import os.path as osp
 
 from base_dataset import DAIRV2XDataset, build_path_to_info, get_annos
 from dataset.dataset_utils import InfFrame, Label, VehFrame, VICFrame, load_json
-from v2x_utils import Filter, RectFilter, id_to_str
+from utils import Filter, RectFilter, id_to_str
 
 logger = logging.getLogger(__name__)
 
