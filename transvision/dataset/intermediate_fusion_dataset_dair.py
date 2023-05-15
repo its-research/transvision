@@ -8,7 +8,6 @@ Dataset class for intermediate fusion (DAIR-V2X)
 """
 import copy
 import json
-import math
 import os
 from collections import OrderedDict
 
@@ -18,7 +17,6 @@ import opencood.utils.pcd_utils as pcd_utils
 import torch
 from opencood.data_utils.augmentor.data_augmentor import DataAugmentor
 from opencood.data_utils.pre_processor import build_preprocessor
-from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils import box_utils
 from opencood.utils.pcd_utils import downsample_lidar_minimum, mask_ego_points, mask_points_by_range, shuffle_points
 from opencood.utils.pose_utils import add_noise_data_dict
@@ -126,11 +124,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
         transformation_matrix = veh_side_rot_and_trans_to_trasnformation_matrix(lidar_to_novatel_json_file, novatel_to_world_json_file)
         data[0]["params"]["lidar_pose"] = tfm_to_pose(transformation_matrix)
 
-        ######################## Single View GT ########################
+        # Single View GT
         vehicle_side_path = os.path.join(self.root_dir, "vehicle-side/label/lidar/{}.json".format(veh_frame_id))
         if self.train != "test":
             data[0]["params"]["vehicles_single"] = load_json(vehicle_side_path)
-        ######################## Single View GT ########################
+        # Single View GT
 
         data[0]["lidar_np"], _ = pcd_utils.read_pcd(os.path.join(self.root_dir, frame_info["vehicle_pointcloud_path"]))
         if self.clip_pc:
@@ -143,11 +141,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
         transformation_matrix1 = inf_side_rot_and_trans_to_trasnformation_matrix(virtuallidar_to_world_json_file, system_error_offset)
         data[1]["params"]["lidar_pose"] = tfm_to_pose(transformation_matrix1)
 
-        ######################## Single View GT ########################
+        # Single View GT
         infra_side_path = os.path.join(self.root_dir, "infrastructure-side/label/virtuallidar/{}.json".format(inf_frame_id))
         if self.train != "test":
             data[1]["params"]["vehicles_single"] = load_json(infra_side_path)
-        ######################## Single View GT ########################
+        # Single View GT
 
         data[1]["lidar_np"], _ = pcd_utils.read_pcd(os.path.join(self.root_dir, frame_info["infrastructure_pointcloud_path"]))
         return data
@@ -373,7 +371,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             object_stack.append(selected_cav_processed["object_bbx_center"])
             object_id_stack += selected_cav_processed["object_ids"]
 
-            ######################## Single View GT ########################
+            # Single View GT
             # if self.train != "test":
             if cav_id == 0:
                 object_stack_single_v.append(selected_cav_processed["object_bbx_center_single"])
@@ -381,7 +379,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             else:
                 object_stack_single_i.append(selected_cav_processed["object_bbx_center_single"])
                 object_id_stack_single_i += selected_cav_processed["object_ids_single"]
-            ######################## Single View GT ########################
+            # Single View GT
 
             processed_features.append(selected_cav_processed["processed_features"])
 
@@ -391,7 +389,6 @@ class IntermediateFusionDatasetDAIR(Dataset):
             if self.visualize:
                 projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
 
-        ########## Added by Yifan Lu 2022.4.5 ################
         # filter those out of communicate range
         # then we can calculate get_pairwise_transformation
         for cav_id in too_far:
@@ -401,9 +398,8 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         lidar_poses = np.array(lidar_pose_list).reshape(-1, 6)  # [N_cav, 6]
         lidar_poses_clean = np.array(lidar_pose_clean_list).reshape(-1, 6)  # [N_cav, 6]
-        ######################################################
 
-        ############ for disconet ###########
+        # for disconet
         if self.kd_flag:
             stack_lidar_np = np.vstack(projected_lidar_clean_list)
             stack_lidar_np = mask_points_by_range(stack_lidar_np, self.params["preprocess"]["cav_lidar_range"])
@@ -411,11 +407,11 @@ class IntermediateFusionDatasetDAIR(Dataset):
 
         object_bbx_center, mask, object_id_stack = self.get_unique_label(object_stack, object_id_stack)
 
-        ######################## Single View GT ########################
+        # Single View GT
         # if self.train != "test":
         object_bbx_center_single_v, mask_single_v, object_id_stack_single_v = self.get_unique_label(object_stack_single_v, object_id_stack_single_v)
         object_bbx_center_single_i, mask_single_i, object_id_stack_single_i = self.get_unique_label(object_stack_single_i, object_id_stack_single_i)
-        ######################## Single View GT ########################
+        # Single View GT
 
         # merge preprocessed features from different cavs into the same dict
         cav_num = len(processed_features)
@@ -476,7 +472,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         object_ids = []
         label_dict_list = []
 
-        ######################## Single View GT ########################
+        # Single View GT
         object_bbx_center_single_v = []
         object_bbx_mask_single_v = []
         object_ids_single_v = []
@@ -486,7 +482,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
         object_bbx_mask_single_i = []
         object_ids_single_i = []
         label_dict_list_single_i = []
-        ######################## Single View GT ########################
+        # Single View GT
 
         processed_lidar_list = []
         # used to record different scenario
@@ -511,7 +507,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             object_ids.append(ego_dict["object_ids"])
             label_dict_list.append(ego_dict["label_dict"])
 
-            ######################## Single View GT ########################
+            # Single View GT
             object_bbx_center_single_v.append(ego_dict["object_bbx_center_single_v"])
             object_bbx_mask_single_v.append(ego_dict["object_bbx_mask_single_v"])
             object_ids_single_v.append(ego_dict["object_ids_single_v"])
@@ -521,7 +517,7 @@ class IntermediateFusionDatasetDAIR(Dataset):
             object_bbx_mask_single_i.append(ego_dict["object_bbx_mask_single_i"])
             object_ids_single_i.append(ego_dict["object_ids_single_i"])
             label_dict_list_single_i.append(ego_dict["label_dict_single_i"])
-            ######################## Single View GT ########################
+            # Single View GT
 
             lidar_pose_list.append(ego_dict["lidar_poses"])  # ego_dict['lidar_pose'] is np.ndarray [N,6]
             lidar_pose_clean_list.append(ego_dict["lidar_poses_clean"])
@@ -542,13 +538,13 @@ class IntermediateFusionDatasetDAIR(Dataset):
         object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
         object_bbx_mask = torch.from_numpy(np.array(object_bbx_mask))
 
-        ######################## Single View GT ########################
+        # Single View GT
         object_bbx_center_single_v = torch.from_numpy(np.array(object_bbx_center_single_v))
         object_bbx_mask_single_v = torch.from_numpy(np.array(object_bbx_mask_single_v))
 
         object_bbx_center_single_i = torch.from_numpy(np.array(object_bbx_center_single_i))
         object_bbx_mask_single_i = torch.from_numpy(np.array(object_bbx_mask_single_i))
-        ######################## Single View GT ########################
+        # Single View GT
 
         # example: {'voxel_features':[np.array([1,2,3]]),
         # np.array([3,5,6]), ...]}
@@ -572,13 +568,13 @@ class IntermediateFusionDatasetDAIR(Dataset):
         label_torch_dict["pairwise_t_matrix"] = pairwise_t_matrix
         label_torch_dict["record_len"] = record_len
 
-        ######################## Single View GT ########################
+        # Single View GT
         label_torch_dict_single_v["pairwise_t_matrix"] = pairwise_t_matrix
         label_torch_dict_single_v["record_len"] = record_len
 
         label_torch_dict_single_i["pairwise_t_matrix"] = pairwise_t_matrix
         label_torch_dict_single_i["record_len"] = record_len
-        ######################## Single View GT ########################
+        # Single View GT
 
         # object id is only used during inference, where batch size is 1.
         # so here we only get the first element.

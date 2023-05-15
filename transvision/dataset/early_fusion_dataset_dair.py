@@ -1,14 +1,8 @@
-# -*- coding: utf-8 -*-
-# Author: Quanhao Li <quanhaoli2022@163.com> Yifan Lu <yifan_lu@sjtu.edu.cn>,
-# License: TDG-Attribution-NonCommercial-NoDistrib
-
 """
 Dataset class for early fusion
 """
 import json
-import math
 import os
-import random
 from collections import OrderedDict
 
 import numpy as np
@@ -18,11 +12,9 @@ from opencood.data_utils.augmentor.data_augmentor import DataAugmentor
 from opencood.data_utils.datasets.basedataset import BaseDataset
 from opencood.data_utils.post_processor import build_postprocessor
 from opencood.data_utils.pre_processor import build_preprocessor
-from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils import box_utils
 from opencood.utils.pcd_utils import downsample_lidar_minimum, mask_ego_points, mask_points_by_range, shuffle_points
 from opencood.utils.transformation_utils import inf_side_rot_and_trans_to_trasnformation_matrix, tfm_to_pose, veh_side_rot_and_trans_to_trasnformation_matrix, x1_to_x2
-from torch.utils.data import DataLoader, Dataset
 
 
 def load_json(path):
@@ -200,7 +192,8 @@ class EarlyFusionDatasetDAIR(BaseDataset):
         # loop over all CAVs to process information
         for cav_id, selected_cav_base in base_data_dict.items():
             # check if the cav is within the communication range with ego
-            distance = math.sqrt((selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]) ** 2 + (selected_cav_base["params"]["lidar_pose"][1] - ego_lidar_pose[1]) ** 2)
+            # distance = math.sqrt((selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]) ** 2 +
+            # (selected_cav_base["params"]["lidar_pose"][1] - ego_lidar_pose[1]) ** 2)
             # if distance > self.params['comm_range']:
             #     continue
 
