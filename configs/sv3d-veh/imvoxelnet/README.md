@@ -72,13 +72,13 @@ python tools/create_data.py kitti --root-path data/DAIR-V2X/single-vehicle-side/
 
 ### Training & Evaluation
 
-* Implementation Framework. We directly implement the benchmark with [mmdetection3d-0.17.1](https://github.com/open-mmlab/mmdetection3d/tree/v0.17.1).
+* Implementation Framework. We directly implement the benchmark with [mmdetection3d-1.1.0](https://github.com/open-mmlab/mmdetection3d/tree/v1.1.0).
 * Training & Evaluation details.
   Before training the detectors, we should follow MMDetection3D to convert the "./data/DAIR-V2X/single-vehicle-side" into specific training format.
   We train the ImVoxelNet for 12 epochs.
   We evaluate the models on the valid part of DAIR-V2X-V.
   We set [0.5, 0.25, 0.25] as the IoU threshold for [Car, Pedestrain, Cyclist].
-  Please refer [trainval_config.py](./trainval_config.py) for more evaluation details.
+  Please refer [imvoxelnet_dair_v_3d_3class.py](./imvoxelnet_dair_v_3d_3class.py) for more evaluation details.
   We provide the evaluation results with 3D Average Precision.
 
 ## Citation

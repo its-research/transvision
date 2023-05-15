@@ -1,7 +1,6 @@
-_base_ = ["./mmdet_schedule_1x.py", "./default_runtime.py"]
+_base_ = ["../../mmdet_schedule_1x.py", "../../default_runtime.py"]
 
-work_dir = "./work_dirs/ss3d_veh_imvoxelnet"
-
+work_dir = "./work_dirs/imvoxelnet_veh"
 
 dataset_type = "KittiDataset"
 data_root = "./data/DAIR-V2X/single-vehicle-side/"
@@ -50,7 +49,6 @@ anchor_size_cyc = [0.6, 1.76, 1.73]
 anchor_size_car = [1.6, 3.9, 1.56]
 
 
-
 model = dict(
     type="ImVoxelNet",
     data_preprocessor=dict(type="Det3DDataPreprocessor", mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], bgr_to_rgb=True, pad_size_divisor=32),
@@ -74,8 +72,11 @@ model = dict(
         feat_channels=256,
         use_direction_classifier=True,
         anchor_generator=dict(
-            type="AlignedAnchor3DRangeGenerator", ranges=[anchor_range_ped, anchor_range_cyc, anchor_range_car],
-            sizes=[anchor_size_pred, anchor_size_cyc, anchor_size_car], rotations=[0, 1.57], reshape_out=False
+            type="AlignedAnchor3DRangeGenerator",
+            ranges=[anchor_range_ped, anchor_range_cyc, anchor_range_car],
+            sizes=[anchor_size_pred, anchor_size_cyc, anchor_size_car],
+            rotations=[0, 1.57],
+            reshape_out=False,
         ),
         diff_rad_by_sin=True,
         bbox_coder=dict(type="DeltaXYZWLHRBBoxCoder"),
@@ -90,7 +91,7 @@ model = dict(
         assigner=[
             dict(  # for Pedestrian
                 type="Max3DIoUAssigner",
-                iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'),
+                iou_calculator=dict(type="mmdet3d.BboxOverlapsNearest3D"),
                 pos_iou_thr=0.5,
                 neg_iou_thr=0.35,
                 min_pos_iou=0.35,
@@ -98,7 +99,7 @@ model = dict(
             ),
             dict(  # for Cyclist
                 type="Max3DIoUAssigner",
-                iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'),
+                iou_calculator=dict(type="mmdet3d.BboxOverlapsNearest3D"),
                 pos_iou_thr=0.5,
                 neg_iou_thr=0.35,
                 min_pos_iou=0.35,
@@ -106,7 +107,7 @@ model = dict(
             ),
             dict(  # for Car
                 type="Max3DIoUAssigner",
-                iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'),
+                iou_calculator=dict(type="mmdet3d.BboxOverlapsNearest3D"),
                 pos_iou_thr=0.6,
                 neg_iou_thr=0.45,
                 min_pos_iou=0.45,
@@ -119,7 +120,6 @@ model = dict(
     ),
     test_cfg=dict(use_rotate_nms=True, nms_across_levels=False, nms_thr=0.01, score_thr=0.1, min_bbox_size=0, nms_pre=100, max_num=50),
 )
-
 
 
 backend_args = None
