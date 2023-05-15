@@ -1,5 +1,6 @@
 import os
-from .utils import mkdir_p, read_json, get_files_path
+
+from .utils import get_files_path, mkdir_p, read_json
 
 
 def write_kitti_in_txt(my_json, path_txt):

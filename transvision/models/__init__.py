@@ -1,6 +1,6 @@
-import sys
 import os
 import os.path as osp
+import sys
 
 sys.path.append("..")
 sys.path.extend([os.path.join(root, name) for root, dirs, _ in os.walk("../") for name in dirs])
@@ -13,6 +13,6 @@ SUPPROTED_MODELS = {
     "early_fusion": EarlyFusion,
     "veh_only": VehOnly,
     "inf_only": InfOnly,
-    "feature_fusion":FeatureFusion,
-    "feature_flow":FeatureFlow
+    "feature_fusion": FeatureFusion,
+    "feature_flow": FeatureFlow,
 }

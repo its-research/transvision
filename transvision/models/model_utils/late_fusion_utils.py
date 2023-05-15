@@ -1,5 +1,6 @@
-import numpy as np
 import pickle
+
+import numpy as np
 from scipy.optimize import linear_sum_assignment
 from sklearn.linear_model import LinearRegression
 
@@ -10,24 +11,9 @@ def box2info(boxes):
     num_boxes = boxes.shape[0]
     center = np.mean(boxes, axis=1)
     size = np.zeros((num_boxes, 3))
-    size[:, 0] = (
-        np.sum((boxes[:, 2, :] - boxes[:, 1, :]) ** 2, axis=1) ** 0.5
-        + np.sum((boxes[:, 6, :] - boxes[:, 5, :]) ** 2, axis=1) ** 0.5
-    ) / 2
-    size[:, 1] = (
-        np.sum((boxes[:, 4, :] - boxes[:, 0, :]) ** 2, axis=1) ** 0.5
-        + np.sum((boxes[:, 6, :] - boxes[:, 2, :]) ** 2, axis=1) ** 0.5
-    ) / 2
-    size[:, 2] = (
-        boxes[:, 1, :]
-        + boxes[:, 2, :]
-        + boxes[:, 5, :]
-        + boxes[:, 6, :]
-        - boxes[:, 0, :]
-        - boxes[:, 3, :]
-        - boxes[:, 4, :]
-        - boxes[:, 7, :]
-    )[:, 2] / 4
+    size[:, 0] = (np.sum((boxes[:, 2, :] - boxes[:, 1, :]) ** 2, axis=1) ** 0.5 + np.sum((boxes[:, 6, :] - boxes[:, 5, :]) ** 2, axis=1) ** 0.5) / 2
+    size[:, 1] = (np.sum((boxes[:, 4, :] - boxes[:, 0, :]) ** 2, axis=1) ** 0.5 + np.sum((boxes[:, 6, :] - boxes[:, 2, :]) ** 2, axis=1) ** 0.5) / 2
+    size[:, 2] = (boxes[:, 1, :] + boxes[:, 2, :] + boxes[:, 5, :] + boxes[:, 6, :] - boxes[:, 0, :] - boxes[:, 3, :] - boxes[:, 4, :] - boxes[:, 7, :])[:, 2] / 4
     return center, size
 
 
@@ -99,24 +85,9 @@ class StaticBBoxList(BBoxList):
             self.num_dims = 3
             self.center = np.sum(boxes, axis=1) / 8
             self.size = np.zeros((self.num_boxes, 3))
-            self.size[:, 0] = (
-                np.sum((boxes[:, 2, :] - boxes[:, 1, :]) ** 2, axis=1) ** 0.5
-                + np.sum((boxes[:, 6, :] - boxes[:, 5, :]) ** 2, axis=1) ** 0.5
-            ) / 2
-            self.size[:, 1] = (
-                np.sum((boxes[:, 4, :] - boxes[:, 0, :]) ** 2, axis=1) ** 0.5
-                + np.sum((boxes[:, 6, :] - boxes[:, 2, :]) ** 2, axis=1) ** 0.5
-            ) / 2
-            self.size[:, 2] = (
-                boxes[:, 1, :]
-                + boxes[:, 2, :]
-                + boxes[:, 5, :]
-                + boxes[:, 6, :]
-                - boxes[:, 0, :]
-                - boxes[:, 3, :]
-                - boxes[:, 4, :]
-                - boxes[:, 7, :]
-            )[:, 2] / 4
+            self.size[:, 0] = (np.sum((boxes[:, 2, :] - boxes[:, 1, :]) ** 2, axis=1) ** 0.5 + np.sum((boxes[:, 6, :] - boxes[:, 5, :]) ** 2, axis=1) ** 0.5) / 2
+            self.size[:, 1] = (np.sum((boxes[:, 4, :] - boxes[:, 0, :]) ** 2, axis=1) ** 0.5 + np.sum((boxes[:, 6, :] - boxes[:, 2, :]) ** 2, axis=1) ** 0.5) / 2
+            self.size[:, 2] = (boxes[:, 1, :] + boxes[:, 2, :] + boxes[:, 5, :] + boxes[:, 6, :] - boxes[:, 0, :] - boxes[:, 3, :] - boxes[:, 4, :] - boxes[:, 7, :])[:, 2] / 4
 
             """
             arrows = np.array(data['arrows'])
@@ -203,7 +174,7 @@ class SpaceCompensator(Compensator):
                         for j in range(frame2.num_boxes):
                             size = frame1.size[i]
                             diff = np.abs(frame1.center[i] + np.array([delta_x, delta_y, 0]) - frame2.center[j]) / size
-                            cost[i][j] = np.sum(diff ** 2) ** 0.5
+                            cost[i][j] = np.sum(diff**2) ** 0.5
                             if diff[0] > 2 or diff[1] > 2 or diff[2] > 2:
                                 cost[i][j] = 1e6
                     index1, index2 = linear_sum_assignment(cost)
@@ -294,14 +265,8 @@ class BasicFuser(object):
             confidence1 = np.ones_like(confidence1)
             confidence2 = 1 - confidence1
 
-        center = frame1.center[ind1] * np.repeat(confidence1[:, np.newaxis], 3, axis=1) + frame2.center[
-            ind2
-        ] * np.repeat(confidence2[:, np.newaxis], 3, axis=1)
-        boxes = (
-            frame1.boxes[ind1]
-            + np.repeat(center[:, np.newaxis, :], 8, axis=1)
-            - np.repeat(frame1.center[ind1][:, np.newaxis, :], 8, axis=1)
-        )
+        center = frame1.center[ind1] * np.repeat(confidence1[:, np.newaxis], 3, axis=1) + frame2.center[ind2] * np.repeat(confidence2[:, np.newaxis], 3, axis=1)
+        boxes = frame1.boxes[ind1] + np.repeat(center[:, np.newaxis, :], 8, axis=1) - np.repeat(frame1.center[ind1][:, np.newaxis, :], 8, axis=1)
         label = frame1.label[ind1]
         confidence = frame1.confidence[ind1] * confidence1 + frame2.confidence[ind2] * confidence2
         # arrows = frame1.arrows[ind1]

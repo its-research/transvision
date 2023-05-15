@@ -1,8 +1,9 @@
-import os
-import numpy as np
-import json
 import errno
+import json
 import math
+import os
+
+import numpy as np
 
 
 def read_json(path_json):
@@ -53,9 +54,7 @@ def normalize_angle(angle):
 
 
 def get_camera_3d_8points(obj_size, yaw_lidar, center_lidar, center_in_cam, r_velo2cam, t_velo2cam):
-    liadr_r = np.matrix(
-        [[math.cos(yaw_lidar), -math.sin(yaw_lidar), 0], [math.sin(yaw_lidar), math.cos(yaw_lidar), 0], [0, 0, 1]]
-    )
+    liadr_r = np.matrix([[math.cos(yaw_lidar), -math.sin(yaw_lidar), 0], [math.sin(yaw_lidar), math.cos(yaw_lidar), 0], [0, 0, 1]])
     l, w, h = obj_size
     corners_3d_lidar = np.matrix(
         [
@@ -121,9 +120,7 @@ def gen_lidar2cam(source_root, target_root, label_type="lidar"):
             obj_size = [l, w, h]
 
             bottom_center_in_cam = r_velo2cam * np.matrix(bottom_center).T + t_velo2cam
-            alpha, yaw = get_camera_3d_8points(
-                obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, r_velo2cam, t_velo2cam
-            )
+            alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, r_velo2cam, t_velo2cam)
             cam_x, cam_y, cam_z = convert_point(np.array([x, y, z, 1]).T, Tr_velo_to_cam)
 
             set_label(label, h, w, l, cam_x, cam_y, cam_z, alpha, yaw)

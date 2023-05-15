@@ -1,6 +1,7 @@
-from .geometry_utils import point_in_box
-from config import superclass
 import numpy as np
+from config import superclass
+
+from .geometry_utils import point_in_box
 
 
 def diff_label_filt(frame1, frame2, i, j):

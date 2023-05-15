@@ -1,6 +1,8 @@
 import os
+
 import numpy as np
-from .utils import mkdir_p, read_json, get_files_path
+
+from .utils import get_files_path, mkdir_p, read_json
 
 
 def convert_calib_v2x_to_kitti(cam_D, cam_K, t_velo2cam, r_velo2cam):
@@ -61,19 +63,5 @@ def gen_calib2kitti(path_camera_intrisinc, path_lidar_to_camera, path_calib):
         str_Tr_imu_to_velo = str_Tr_velo_to_cam
 
         with open(json_path, "w") as fp:
-            gt_line = (
-                str_P0
-                + "\n"
-                + str_P1
-                + "\n"
-                + str_P2
-                + "\n"
-                + str_P3
-                + "\n"
-                + str_R0_rect
-                + "\n"
-                + str_Tr_velo_to_cam
-                + "\n"
-                + str_Tr_imu_to_velo
-            )
+            gt_line = str_P0 + "\n" + str_P1 + "\n" + str_P2 + "\n" + str_P3 + "\n" + str_R0_rect + "\n" + str_Tr_velo_to_cam + "\n" + str_Tr_imu_to_velo
             fp.write(gt_line)

@@ -1,13 +1,13 @@
-import os
-import json
 import argparse
-import numpy as np
-from pypcd import pypcd
-import open3d as o3d
-from tqdm import tqdm
 import errno
-
+import json
+import os
 from concurrent import futures as futures
+
+import numpy as np
+import open3d as o3d
+from pypcd import pypcd
+from tqdm import tqdm
 
 
 def read_json(path_json):
@@ -135,22 +135,20 @@ def trans_pcd_i2v(path_pcd, path_virtuallidar2world, path_novatel2world, path_li
     new_points = trans_point_i2v(points.T, path_virtuallidar2world, path_novatel2world, path_lidar2novatel)
     write_pcd(path_pcd, new_points, path_save)
 
-    
+
 def map_func(data, path_c, path_dest, i_data_info, v_data_info):
     path_pcd_i = os.path.join(path_c, data["infrastructure_pointcloud_path"])
     path_pcd_v = os.path.join(path_c, data["vehicle_pointcloud_path"])
     i_data = get_data(i_data_info, path_pcd_i)
     v_data = get_data(v_data_info, path_pcd_v)
-    path_virtuallidar2world = os.path.join(
-        path_c, "infrastructure-side", i_data["calib_virtuallidar_to_world_path"]
-    )
+    path_virtuallidar2world = os.path.join(path_c, "infrastructure-side", i_data["calib_virtuallidar_to_world_path"])
     path_novatel2world = os.path.join(path_c, "vehicle-side", v_data["calib_novatel_to_world_path"])
     path_lidar2novatel = os.path.join(path_c, "vehicle-side", v_data["calib_lidar_to_novatel_path"])
     name = os.path.split(path_pcd_i)[-1]
     path_save = os.path.join(path_dest, name)
     trans_pcd_i2v(path_pcd_i, path_virtuallidar2world, path_novatel2world, path_lidar2novatel, path_save)
-    
-    
+
+
 def get_i2v(path_c, path_dest, num_worker):
     mkdir_p(path_dest)
     path_c_data_info = os.path.join(path_c, "cooperative/data_info.json")
@@ -159,7 +157,7 @@ def get_i2v(path_c, path_dest, num_worker):
     c_data_info = read_json(path_c_data_info)
     i_data_info = read_json(path_i_data_info)
     v_data_info = read_json(path_v_data_info)
-    
+
     total = len(c_data_info)
     with tqdm(total=total) as pbar:
         with futures.ProcessPoolExecutor(num_worker) as executor:
@@ -167,7 +165,7 @@ def get_i2v(path_c, path_dest, num_worker):
             for _ in futures.as_completed(res):
                 pbar.update(1)
 
-                
+
 parser = argparse.ArgumentParser("Convert The Point Cloud from Infrastructure to Ego-vehicle")
 parser.add_argument(
     "--source-root",
@@ -195,4 +193,3 @@ if __name__ == "__main__":
     num_worker = args.num_worker
 
     get_i2v(source_root, target_root, num_worker)
-

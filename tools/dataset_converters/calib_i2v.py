@@ -1,9 +1,9 @@
-import os
-import numpy as np
 import argparse
-from pypcd import pypcd
-from gen_kitti.utils import read_json, write_json, pcd2bin
 import json
+import os
+
+import numpy as np
+from gen_kitti.utils import read_json
 
 
 def get_calibs(calib_path):
@@ -46,15 +46,11 @@ def trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2wo
 
     veh_novatel2world_r, veh_novatel2world_t = get_calibs(veh_novatel2world_path)
     veh_world2novatel_r, veh_world2novatel_t = rev_matrix(veh_novatel2world_r, veh_novatel2world_t)
-    inf_lidar2novatel_r, inf_lidar2novatel_t = mul_matrix(
-        inf_lidar2world_r, inf_lidar2world_t, veh_world2novatel_r, veh_world2novatel_t
-    )
+    inf_lidar2novatel_r, inf_lidar2novatel_t = mul_matrix(inf_lidar2world_r, inf_lidar2world_t, veh_world2novatel_r, veh_world2novatel_t)
 
     veh_lidar2novatel_r, veh_lidar2novatel_t = get_calibs(veh_lidar2novatel_path)
     veh_novatel2lidar_r, veh_novatel2lidar_t = rev_matrix(veh_lidar2novatel_r, veh_lidar2novatel_t)
-    inf_lidar2lidar_r, inf_lidar2lidar_t = mul_matrix(
-        inf_lidar2novatel_r, inf_lidar2novatel_t, veh_novatel2lidar_r, veh_novatel2lidar_t
-    )
+    inf_lidar2lidar_r, inf_lidar2lidar_t = mul_matrix(inf_lidar2novatel_r, inf_lidar2novatel_t, veh_novatel2lidar_r, veh_novatel2lidar_t)
 
     return inf_lidar2lidar_r, inf_lidar2lidar_t
 
@@ -68,9 +64,7 @@ def trans_point(input_point, rotation, translation):
 
 
 parser = argparse.ArgumentParser("Generate label from world coordinate to vehicle lidar coordinate.")
-parser.add_argument(
-    "--source-root", type=str, default="data/cooperative-vehicle-infrastructure", help="Raw data root about DAIR-V2X-C."
-)
+parser.add_argument("--source-root", type=str, default="data/cooperative-vehicle-infrastructure", help="Raw data root about DAIR-V2X-C.")
 
 
 if __name__ == "__main__":
@@ -81,22 +75,14 @@ if __name__ == "__main__":
 
     for c_json in c_jsons:
         inf_idx = c_json["infrastructure_image_path"].split("/")[-1].replace(".jpg", "")
-        inf_lidar2world_path = os.path.join(
-            dair_v2x_c_root, "infrastructure-side/calib/virtuallidar_to_world/" + inf_idx + ".json"
-        )
+        inf_lidar2world_path = os.path.join(dair_v2x_c_root, "infrastructure-side/calib/virtuallidar_to_world/" + inf_idx + ".json")
         veh_idx = c_json["vehicle_image_path"].split("/")[-1].replace(".jpg", "")
-        veh_lidar2novatel_path = os.path.join(
-            dair_v2x_c_root, "vehicle-side/calib/lidar_to_novatel/" + veh_idx + ".json"
-        )
-        veh_novatel2world_path = os.path.join(
-            dair_v2x_c_root, "vehicle-side/calib/novatel_to_world/" + veh_idx + ".json"
-        )
+        veh_lidar2novatel_path = os.path.join(dair_v2x_c_root, "vehicle-side/calib/lidar_to_novatel/" + veh_idx + ".json")
+        veh_novatel2world_path = os.path.join(dair_v2x_c_root, "vehicle-side/calib/novatel_to_world/" + veh_idx + ".json")
         system_error_offset = c_json["system_error_offset"]
         if system_error_offset == "":
             system_error_offset = None
-        calib_lidar_i2v_r, calib_lidar_i2v_t = trans_lidar_i2v(
-            inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2world_path, system_error_offset
-        )
+        calib_lidar_i2v_r, calib_lidar_i2v_t = trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2world_path, system_error_offset)
         print("calib_lidar_i2v: ", calib_lidar_i2v_r, calib_lidar_i2v_t)
         calib_lidar_i2v = {}
         calib_lidar_i2v["rotation"] = calib_lidar_i2v_r.tolist()

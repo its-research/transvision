@@ -1,8 +1,9 @@
-import os
-import json
-from tqdm import tqdm
 import argparse
 import errno
+import json
+import os
+
+from tqdm import tqdm
 
 
 def read_json(path_json):

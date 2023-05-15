@@ -66,6 +66,10 @@ In the end, the data and info files should be organized as follows
         └───── calib
 ```
 
+```shell
+python tools/create_data.py kitti --root-path data/DAIR-V2X/single-vehicle-side/ --out-dir data/DAIR-V2X/single-vehicle-side/ --extra-tag kitti
+```
+
 ### Training & Evaluation
 
 * Implementation Framework. We directly implement the benchmark with [mmdetection3d-0.17.1](https://github.com/open-mmlab/mmdetection3d/tree/v0.17.1).

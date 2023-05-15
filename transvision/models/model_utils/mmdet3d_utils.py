@@ -1,23 +1,15 @@
 # Comment: Not sure what it is used for, move it here.
 # Copyright (c) OpenMMLab. All rights reserved.
-import mmcv
-import numpy as np
 import re
-import torch
 from copy import deepcopy
-from mmcv.parallel import collate, scatter
-from mmcv.runner import load_checkpoint
 from os import path as osp
 
-from mmdet3d.core import (
-    Box3DMode,
-    CameraInstance3DBoxes,
-    DepthInstance3DBoxes,
-    LiDARInstance3DBoxes,
-    show_multi_modality_result,
-    show_result,
-    show_seg_result,
-)
+import mmcv
+import numpy as np
+import torch
+from mmcv.parallel import collate, scatter
+from mmcv.runner import load_checkpoint
+from mmdet3d.core import Box3DMode, CameraInstance3DBoxes, DepthInstance3DBoxes, LiDARInstance3DBoxes, show_multi_modality_result, show_result, show_seg_result
 from mmdet3d.core.bbox import get_box_type
 from mmdet3d.datasets.pipelines import Compose
 from mmdet3d.models import build_model
@@ -422,9 +414,7 @@ def show_proj_det_result_meshlab(data, result, out_dir, score_thr=0.0, show=Fals
 
         show_bboxes = CameraInstance3DBoxes(pred_bboxes, box_dim=pred_bboxes.shape[-1], origin=(0.5, 1.0, 0.5))
 
-        show_multi_modality_result(
-            img, None, show_bboxes, data["img_metas"][0][0]["cam2img"], out_dir, file_name, box_mode="camera", show=show
-        )
+        show_multi_modality_result(img, None, show_bboxes, data["img_metas"][0][0]["cam2img"], out_dir, file_name, box_mode="camera", show=show)
     else:
         raise NotImplementedError(f"visualization of {box_mode} bbox is not supported")
 

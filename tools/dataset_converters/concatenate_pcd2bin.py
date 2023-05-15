@@ -1,10 +1,11 @@
-import numpy as np
-from pypcd import pypcd
-import os
+import argparse
 import errno
 import json
+import os
+
+import numpy as np
+from pypcd import pypcd
 from tqdm import tqdm
-import argparse
 
 
 def mkdir_p(path):
