@@ -1,0 +1,15 @@
+# B905: zip() without an explicit strict= parameter set.
+#       strict=True causes the resulting iterator to raise a ValueError if the arguments are exhausted at differing lengths.
+#       The strict= argument was added in Python 3.10, so don�[m~@~Yt enable this flag for code that should work on <3.10.
+
+[flake8]
+ignore = W503, E203, E221, C901, C408, E741, C407, B017, B905, F811, C101, EXE001, EXE002, E722
+max-line-length = 180
+max-complexity = 18
+select = B,C,E,F,W,T4,B9
+exclude = build, 3rdparty
+per-file-ignores =
+  **/__init__.py:F401,F403,F405,E402
+  **/configs/**.py:F401,E402
+  configs/**.py:F401,E402
+  
