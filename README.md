@@ -14,7 +14,8 @@ mim install 'mmdet>=3.0.0'
 mim install "mmdet3d>=1.1.0"
 ```
 
-## References
+## Reference
 
-+ [DAIR-V2X]()
++ [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)
++ [DAIR-V2X](https://github.com/AIR-THU/DAIR-V2X)
 + [Where2comm](https://github.com/MediaBrain-SJTU/Where2comm)

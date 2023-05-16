@@ -151,3 +151,4 @@ cython_debug/
 /tmp_file
 /work_dirs/
 nohup.out
+transvision/utils/box_overlaps.c
