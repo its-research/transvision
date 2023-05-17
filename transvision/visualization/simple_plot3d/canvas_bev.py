@@ -30,7 +30,6 @@ class Canvas_BEV(object):
 
         # Sanity check ratios
         if (canvas_shape[0] / canvas_shape[1]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
-
             print("Not an error, but the x & y ranges are not " "proportional to canvas height & width.")
 
         self.canvas_shape = canvas_shape
@@ -199,7 +198,6 @@ class Canvas_BEV(object):
         # Draw the outer boundaries
         idx_draw_pairs = [(0, 1), (1, 2), (2, 3), (3, 0)]
         for i, (color, curr_box_corners) in enumerate(zip(colors.tolist(), bev_corners_canvas)):
-
             curr_box_corners = curr_box_corners.astype(np.int32)
             for start, end in idx_draw_pairs:
                 self.canvas = cv2.line(
@@ -239,7 +237,6 @@ class Canvas_BEV_heading_right(object):
 
         # Sanity check ratios
         if (canvas_shape[1] / canvas_shape[0]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
-
             print("Not an error, but the x & y ranges are not " "proportional to canvas height & width.")
 
         self.canvas_shape = canvas_shape
@@ -416,7 +413,6 @@ class Canvas_BEV_heading_right(object):
         # Draw the outer boundaries
         idx_draw_pairs = [(0, 1), (1, 2), (2, 3), (3, 0)]
         for i, (color, curr_box_corners) in enumerate(zip(colors.tolist(), bev_corners_canvas)):
-
             curr_box_corners = curr_box_corners.astype(np.int32)
             for start, end in idx_draw_pairs:
                 # Notice Difference Here

@@ -24,7 +24,6 @@ class PointPillar(nn.Module):
             self.use_dir = False
 
     def forward(self, data_dict):
-
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

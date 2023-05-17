@@ -95,7 +95,7 @@ class BaseDataset(Dataset):
         self.len_record = []
 
         # loop over all scenarios
-        for (i, scenario_folder) in enumerate(scenario_folders):
+        for i, scenario_folder in enumerate(scenario_folders):
             self.scenario_database.update({i: OrderedDict()})
 
             # at least 1 cav should show up
@@ -103,7 +103,7 @@ class BaseDataset(Dataset):
             assert len(cav_list) > 0
 
             # loop over all CAV data
-            for (j, cav_id) in enumerate(cav_list):
+            for j, cav_id in enumerate(cav_list):
                 if j > self.max_cav - 1:
                     print("too many cavs")
                     break

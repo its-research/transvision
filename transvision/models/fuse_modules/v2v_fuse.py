@@ -91,11 +91,9 @@ class V2VNetFusion(nn.Module):
         batch_node_features = split_x
         # iteratively update the features for num_iteration times
         for l in range(self.num_iteration):
-
             batch_updated_node_features = []
             # iterate each batch
             for b in range(B):
-
                 # number of valid agent
                 N = record_len[b]
                 # (N,N,4,4)

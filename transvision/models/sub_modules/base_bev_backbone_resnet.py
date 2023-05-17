@@ -13,7 +13,6 @@ class ResNetBEVBackbone(nn.Module):
         self.model_cfg = model_cfg
 
         if "layer_nums" in self.model_cfg:
-
             assert len(self.model_cfg["layer_nums"]) == len(self.model_cfg["layer_strides"]) == len(self.model_cfg["num_filters"])
 
             layer_nums = self.model_cfg["layer_nums"]

@@ -18,7 +18,6 @@ class PointPillarDiscoNetTeacher(nn.Module):
         self.reg_head = nn.Conv2d(128 * 3, 7 * args["anchor_num"], kernel_size=1)
 
     def forward(self, data_dict):
-
         voxel_features = data_dict["teacher_processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["teacher_processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["teacher_processed_lidar"]["voxel_num_points"]

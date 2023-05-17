@@ -731,7 +731,6 @@ def nms_pytorch(boxes: torch.tensor, thresh_iou: float):
     keep = []
 
     while len(order) > 0:
-
         # extract the index of the
         # prediction with highest score
         # we call this prediction S

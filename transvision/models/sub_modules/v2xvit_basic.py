@@ -143,7 +143,6 @@ class V2XTEncoder(nn.Module):
             )
 
     def forward(self, x, mask, spatial_correction_matrix):
-
         # transform the features to the current timestamp
         # velocity, time_delay, infra
         # (B,L,H,W,3)

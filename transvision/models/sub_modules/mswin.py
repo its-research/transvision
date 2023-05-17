@@ -82,7 +82,7 @@ class PyramidWindowAttention(nn.Module):
 
         self.pwmsa = nn.ModuleList([])
 
-        for (head, dim_head, ws) in zip(heads, dim_heads, window_size):
+        for head, dim_head, ws in zip(heads, dim_heads, window_size):
             self.pwmsa.append(BaseWindowAttention(dim, head, dim_head, drop_out, ws, relative_pos_embedding))
         self.fuse_mehod = fuse_method
         if fuse_method == "split_attn":

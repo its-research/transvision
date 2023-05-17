@@ -211,7 +211,6 @@ class Canvas_3D(object):
         end_pts_xy, end_pts_valid_mask, end_pts_d = self.get_canvas_coords(end_xyz, True)
 
         for idx, (color, start_pt_xy, end_pt_xy) in enumerate(zip(colors.tolist(), start_pts_xy.tolist(), end_pts_xy.tolist())):
-
             if start_pts_valid_mask[idx] and end_pts_valid_mask[idx]:
                 self.canvas = cv2.line(self.canvas, tuple(start_pt_xy[::-1]), tuple(end_pt_xy[::-1]), color=color, thickness=thickness, lineType=cv2.LINE_AA)
 
@@ -267,7 +266,6 @@ class Canvas_3D(object):
 
         # Now draw them with lines in correct places
         for i, (color, curr_corners_xy, curr_valid_mask) in enumerate(zip(colors.tolist(), corners_xy.tolist(), valid_mask.tolist())):
-
             if not draw_incomplete_boxes and sum(curr_valid_mask) != 8:
                 # Some corner is invalid, don't draw the box at all.
                 continue

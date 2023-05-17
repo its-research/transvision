@@ -31,7 +31,7 @@ class DownsampleConv(nn.Module):
         self.layers = nn.ModuleList([])
         input_dim = config["input_dim"]
 
-        for (ksize, dim, stride, padding) in zip(config["kernal_size"], config["dim"], config["stride"], config["padding"]):
+        for ksize, dim, stride, padding in zip(config["kernal_size"], config["dim"], config["stride"], config["padding"]):
             self.layers.append(DoubleConv(input_dim, dim, kernel_size=ksize, stride=stride, padding=padding))
             input_dim = dim
 

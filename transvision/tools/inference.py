@@ -97,7 +97,6 @@ def main():
                 inference_utils.save_prediction_gt(pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"][0], i, npy_save_path)
 
             if opt.save_vis_n and opt.save_vis_n > i:
-
                 vis_save_path = os.path.join(opt.model_dir, "vis_3d")
                 if not os.path.exists(vis_save_path):
                     os.makedirs(vis_save_path)

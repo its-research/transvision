@@ -30,25 +30,10 @@ We implement ImVoxelNet and provide the results and checkpoints on DAIR-V2X-V da
      └───── data_info.json        
 ```
 
-#### Create a symlink to the dataset root
-
-```
-cd ${dair-v2x_root}/dair-v2x
-mkdir ./data/DAIR-V2X
-ln -s ${DAIR-V2X-V_DATASET_ROOT}/single-vehicle-side ./data/DAIR-V2X
-```
 
 #### Create Kitti-format data (Option for model training)
 
 Data creation should be under the gpu environment.
-```commandline
-# Kitti Format
-cd ${dair-v2x_root}/dair-v2x
-python tools/dataset_converter/dair2kitti.py --source-root ./data/DAIR-V2X/single-vehicle-side \
-    --target-root ./data/DAIR-V2X/single-vehicle-side \
-    --split-path ./data/split_datas/single-vehicle-split-data.json \
-    --label-type camera --sensor-view vehicle
-```
 
 In the end, the data and info files should be organized as follows
 ```
@@ -64,10 +49,6 @@ In the end, the data and info files should be organized as follows
         ├───── velodyne
         ├───── label_2
         └───── calib
-```
-
-```shell
-python tools/create_data.py kitti --root-path data/DAIR-V2X/single-vehicle-side/ --out-dir data/DAIR-V2X/single-vehicle-side/ --extra-tag kitti
 ```
 
 ### Training & Evaluation

@@ -32,7 +32,6 @@ def calc_bin_inds(PC, n_bins, axis, mode):
 
 
 def voxelGrid_filter_inner(PC, num_samples, mode):
-
     if "equal_nbins_per_axis" in mode:
         n_bins = int(np.ceil(num_samples ** (1.0 / 3)))
         n_bins_x = n_bins

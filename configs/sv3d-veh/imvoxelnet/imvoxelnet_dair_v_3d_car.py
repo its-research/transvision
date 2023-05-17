@@ -32,7 +32,13 @@ anchor_size_car = [1.6, 3.9, 1.56]
 
 model = dict(
     type="ImVoxelNet",
-    data_preprocessor=dict(type="Det3DDataPreprocessor", mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], bgr_to_rgb=True, pad_size_divisor=32),
+    data_preprocessor=dict(
+        type="Det3DDataPreprocessor",
+        mean=[123.675, 116.28, 103.53],
+        std=[58.395, 57.12, 57.375],
+        bgr_to_rgb=True,
+        pad_size_divisor=32,
+    ),
     backbone=dict(
         type="mmdet.ResNet",
         depth=50,
@@ -44,7 +50,12 @@ model = dict(
         init_cfg=dict(type="Pretrained", checkpoint="torchvision://resnet50"),
         style="pytorch",
     ),
-    neck=dict(type="mmdet.FPN", in_channels=[256, 512, 1024, 2048], out_channels=64, num_outs=4),
+    neck=dict(
+        type="mmdet.FPN",
+        in_channels=[256, 512, 1024, 2048],
+        out_channels=64,
+        num_outs=4,
+    ),
     neck_3d=dict(type="OutdoorImVoxelNeck", in_channels=64, out_channels=256),
     bbox_head=dict(
         type="Anchor3DHead",
@@ -61,13 +72,23 @@ model = dict(
         ),
         diff_rad_by_sin=True,
         bbox_coder=dict(type="DeltaXYZWLHRBBoxCoder"),
-        loss_cls=dict(type="mmdet.FocalLoss", use_sigmoid=True, gamma=2.0, alpha=0.25, loss_weight=1.0),
+        loss_cls=dict(
+            type="mmdet.FocalLoss",
+            use_sigmoid=True,
+            gamma=2.0,
+            alpha=0.25,
+            loss_weight=1.0,
+        ),
         loss_bbox=dict(type="mmdet.SmoothL1Loss", beta=1.0 / 9.0, loss_weight=2.0),
         loss_dir=dict(type="mmdet.CrossEntropyLoss", use_sigmoid=False, loss_weight=0.2),
     ),
     n_voxels=n_voxels,
     coord_type="LIDAR",
-    prior_generator=dict(type="AlignedAnchor3DRangeGenerator", ranges=[[0, -39.68, -3.08, 69.12, 39.68, 0.76]], rotations=[0.0]),
+    prior_generator=dict(
+        type="AlignedAnchor3DRangeGenerator",
+        ranges=[[0, -39.68, -3.08, 69.12, 39.68, 0.76]],
+        rotations=[0.0],
+    ),
     train_cfg=dict(
         assigner=[
             dict(  # for Car
@@ -83,7 +104,15 @@ model = dict(
         pos_weight=-1,
         debug=False,
     ),
-    test_cfg=dict(use_rotate_nms=True, nms_across_levels=False, nms_thr=0.01, score_thr=0.1, min_bbox_size=0, nms_pre=100, max_num=50),
+    test_cfg=dict(
+        use_rotate_nms=True,
+        nms_across_levels=False,
+        nms_thr=0.01,
+        score_thr=0.1,
+        min_bbox_size=0,
+        nms_pre=100,
+        max_num=50,
+    ),
 )
 
 
@@ -146,7 +175,12 @@ val_dataloader = dict(
 )
 test_dataloader = val_dataloader
 
-val_evaluator = dict(type="KittiMetric", ann_file=data_root + "kitti_infos_val.pkl", metric="bbox", backend_args=backend_args)
+val_evaluator = dict(
+    type="KittiMetric",
+    ann_file=data_root + "kitti_infos_val.pkl",
+    metric="bbox",
+    backend_args=backend_args,
+)
 test_evaluator = val_evaluator
 
 # optimizer
@@ -156,7 +190,16 @@ optim_wrapper = dict(
     paramwise_cfg=dict(custom_keys={"backbone": dict(lr_mult=0.1, decay_mult=1.0)}),
     clip_grad=dict(max_norm=35.0, norm_type=2),
 )
-param_scheduler = [dict(type="MultiStepLR", begin=0, end=12, by_epoch=True, milestones=[8, 11], gamma=0.1)]
+param_scheduler = [
+    dict(
+        type="MultiStepLR",
+        begin=0,
+        end=12,
+        by_epoch=True,
+        milestones=[8, 11],
+        gamma=0.1,
+    )
+]
 
 # hooks
 default_hooks = dict(checkpoint=dict(type="CheckpointHook", max_keep_ckpts=1))

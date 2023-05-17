@@ -204,14 +204,13 @@ def seq_generate():
         # lidar: path, cameras:list of path}}}}
 
         # loop over all scenarios
-        for (i, scenario_folder) in enumerate(scenario_folders):
+        for i, scenario_folder in enumerate(scenario_folders):
             # at least 1 cav should show up
             cav_list = sorted([x for x in os.listdir(scenario_folder) if os.path.isdir(os.path.join(scenario_folder, x))])
             assert len(cav_list) > 0
 
             # loop over all CAV data
-            for (j, cav_id) in enumerate(cav_list):
-
+            for j, cav_id in enumerate(cav_list):
                 # save all yaml files to the dictionary
                 cav_path = os.path.join(scenario_folder, cav_id)
 
@@ -226,7 +225,6 @@ def seq_generate():
                     timestamps.append(timestamp)
 
                 for timestamp in timestamps:
-
                     # yaml_file = os.path.join(cav_path, timestamp + ".yaml")
                     lidar_file = os.path.join(cav_path, timestamp + ".pcd")
 
@@ -246,7 +244,6 @@ def seq_generate():
 
 
 def parallel_generate(scenario_folder, scenario_folder_name):
-
     kp_store_path = "/GPFS/rhome/yifanlu/workspace/transvision/keypoints_file/bev_keypoints"
     lidar_range = [-140, -80, -1.5, 140, 80, 1]
 
@@ -255,7 +252,7 @@ def parallel_generate(scenario_folder, scenario_folder_name):
     print(cav_list)
 
     # loop over all CAV data
-    for (j, cav_id) in enumerate(cav_list):
+    for j, cav_id in enumerate(cav_list):
         print(cav_id)
         # save all yaml files to the dictionary
         cav_path = os.path.join(scenario_folder, cav_id)
@@ -271,7 +268,6 @@ def parallel_generate(scenario_folder, scenario_folder_name):
             timestamps.append(timestamp)
 
         for timestamp in timestamps:
-
             # yaml_file = os.path.join(cav_path, timestamp + ".yaml")
             lidar_file = os.path.join(cav_path, timestamp + ".pcd")
 

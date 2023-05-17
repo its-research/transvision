@@ -90,7 +90,6 @@ class When2comFusion(nn.Module):
         batch_node_features = split_x
         updated_node_features = []
         for b in range(B):
-
             # number of valid agent
             N = record_len[b]
             # (N,N,4,4)
