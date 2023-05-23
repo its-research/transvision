@@ -1,24 +1,24 @@
-import argparse
-import logging
+import sys
 import os
 import os.path as osp
-import sys
-
-import numpy as np
-from config import add_arguments
-from dataset import SUPPROTED_DATASETS
-from dataset.dataset_utils import save_pkl
-from models.model_utils import Channel
-from tqdm import tqdm
-from utils import Evaluator, range2box
-
-from models import SUPPROTED_MODELS
 
 sys.path.append("..")
 sys.path.extend([os.path.join(root, name) for root, dirs, _ in os.walk("../") for name in dirs])
 
+import argparse
+import logging
 
 logger = logging.getLogger(__name__)
+
+from tqdm import tqdm
+import numpy as np
+
+from v2x_utils import range2box, id_to_str, Evaluator
+from config import add_arguments
+from dataset import SUPPROTED_DATASETS
+from dataset.dataset_utils import save_pkl
+from models import SUPPROTED_MODELS
+from models.model_utils import Channel
 
 
 def eval_vic(args, dataset, model, evaluator):
@@ -85,7 +85,14 @@ if __name__ == "__main__":
     extended_range = range2box(np.array(args.extended_range))
     logger.info("loading dataset")
 
-    dataset = SUPPROTED_DATASETS[args.dataset](args.input, args, split=args.split, sensortype=args.sensortype, extended_range=extended_range, val_data_path=args.val_data_path)
+    dataset = SUPPROTED_DATASETS[args.dataset](
+        args.input,
+        args,
+        split=args.split,
+        sensortype=args.sensortype,
+        extended_range=extended_range,
+        val_data_path=args.val_data_path
+    )
 
     logger.info("loading evaluator")
     evaluator = Evaluator(args.pred_classes)
@@ -97,8 +104,9 @@ if __name__ == "__main__":
     else:
         pipe = Channel()
         model = SUPPROTED_MODELS[args.model](args, pipe)
-        # Patch for FFNet evaluation
-        if args.model == "feature_flow":
+        ### Patch for FFNet evaluation ###
+        if args.model =='feature_flow':
             model.model.data_root = args.input
             model.model.test_mode = args.test_mode
+        #############################
         eval_vic(args, dataset, model, evaluator)

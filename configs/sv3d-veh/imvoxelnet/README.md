@@ -27,7 +27,7 @@ We implement ImVoxelNet and provide the results and checkpoints on DAIR-V2X-V da
      ├───── velodyne
      ├───── calib
      ├───── label
-     └───── data_info.json        
+     └───── data_info.json
 ```
 
 

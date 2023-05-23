@@ -1,11 +1,12 @@
-import logging
 import os.path as osp
-
-from base_dataset import DAIRV2XDataset, build_path_to_info, get_annos
-from dataset.dataset_utils import InfFrame, Label, VehFrame, VICFrame, load_json
-from utils import Filter, RectFilter, id_to_str
+from functools import cmp_to_key
+import logging
 
 logger = logging.getLogger(__name__)
+
+from base_dataset import DAIRV2XDataset, get_annos, build_path_to_info
+from dataset.dataset_utils import load_json, InfFrame, VehFrame, VICFrame, Label
+from v2x_utils import Filter, RectFilter, id_cmp, id_to_str, get_trans, box_translation
 
 
 class DAIRV2XI(DAIRV2XDataset):
@@ -131,8 +132,8 @@ class VICDataset(DAIRV2XDataset):
             sensortype,
         )
 
-        # Patch for FFNet evaluation ###
-        if args.model == "feature_flow":
+        ### Patch for FFNet evaluation ###
+        if args.model =='feature_flow':
             frame_pairs = load_json(val_data_path)
         else:
             frame_pairs = load_json(osp.join(path, "cooperative/data_info.json"))
@@ -252,7 +253,10 @@ class VICAsyncDataset(VICDataset):
     def prev_inf_frame(self, index, sensortype="lidar"):
         if sensortype == "lidar":
             cur = self.inf_path2info["infrastructure-side/velodyne/" + index + ".pcd"]
-            if int(index) - self.k < int(cur["batch_start_id"]) or "infrastructure-side/velodyne/" + id_to_str(int(index) - self.k) + ".pcd" not in self.inf_path2info:
+            if (
+                int(index) - self.k < int(cur["batch_start_id"])
+                or "infrastructure-side/velodyne/" + id_to_str(int(index) - self.k) + ".pcd" not in self.inf_path2info
+            ):
                 return None, None
             prev = self.inf_path2info["infrastructure-side/velodyne/" + id_to_str(int(index) - self.k) + ".pcd"]
             return (
@@ -272,8 +276,8 @@ class VICAsyncDataset(VICDataset):
 
 
 if __name__ == "__main__":
-    import numpy as np
     from tqdm import tqdm
+    import numpy as np
 
     input = "../data/cooperative-vehicle-infrastructure/"
     split = "val"
