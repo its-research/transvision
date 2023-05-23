@@ -1,0 +1,3 @@
+import mmdet3d
+from mmdet3d.utils import register_all_modules
+register_all_modules(init_default_scope=False)

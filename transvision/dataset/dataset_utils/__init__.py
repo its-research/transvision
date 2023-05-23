@@ -1,3 +1,3 @@
-from file_io import *
-from frame import *
-from label import *
+from .file_io import *
+from .frame import *
+from .label import *

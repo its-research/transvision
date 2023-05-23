@@ -12,6 +12,14 @@
 conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
 pip install -U openmim
 mim install mmengine mmcv-lite 'mmdet>=3.0.0' "mmdet3d>=1.1.0"
+
+```shell
+git clone https://github.com/klintan/pypcd.git
+cd pypcd
+python setup.py install
+```
+
+```shell
 pip install -v -e .
 ```
 
@@ -83,8 +91,17 @@ else:
 	return None
 ```
 
+3. kitti_annos['name'].append(label2cat[label]) KeyError: -1
+
+mmdet3d/evaluation/metrics/kitti_metric.py
+```python
+label = instance['bbox_label']
+if label == -1:
+    continue
+```
+
 ## Reference
 
 + [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)
-+ [DAIR-V2X](https://github.com/AIR-THU/DAIR-V2X)
++ [DAIR-V2X](https://github.com/AIR-THU/DAIR-V2X) commit: cf92b8d9d91bd54bbdecc254550fcbc7c65b5dc7
 + [Where2comm](https://github.com/MediaBrain-SJTU/Where2comm)

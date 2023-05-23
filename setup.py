@@ -20,7 +20,7 @@ except Exception:
 def write_version_file():
     version_path = os.path.join(cwd, "transvision", "version.py")
     with open(version_path, "w") as f:
-        f.write(f"__version__ = {version}\n")
+        f.write(f"__version__ = {version!r}\n")
         f.write(f"git_version = {repr(sha)}\n")
 
 

@@ -11,14 +11,10 @@ from mmdet3d.registry import MODELS
 from mmdet3d.structures import Box3DMode, Det3DDataSample, get_box_type
 from mmdet3d.structures.det3d_data_sample import SampleList
 
-# from mmdet3d.core import (
-#     show_multi_modality_result,
-#     show_result,
-#     show_seg_result,
-# )
 from mmengine.config import Config
 from mmengine.dataset import Compose, pseudo_collate
 from mmengine.runner import load_checkpoint
+from mmengine.registry import init_default_scope
 
 
 def convert_SyncBN(config):
@@ -52,14 +48,16 @@ def init_model(config: Union[str, Path, Config], checkpoint: Optional[str] = Non
     if isinstance(config, (str, Path)):
         config = Config.fromfile(config)
     elif not isinstance(config, Config):
-        raise TypeError("config must be a filename or Config object, " f"but got {type(config)}")
+        raise TypeError('config must be a filename or Config object, '
+                        f'but got {type(config)}')
     if cfg_options is not None:
         config.merge_from_dict(cfg_options)
 
     convert_SyncBN(config.model)
     config.model.train_cfg = None
+    init_default_scope(config.get('default_scope', 'mmdet3d'))
     model = MODELS.build(config.model)
-
+    
     if checkpoint is not None:
         checkpoint = load_checkpoint(model, checkpoint, map_location="cpu")
         dataset_meta = checkpoint["meta"].get("dataset_meta", None)
@@ -87,7 +85,6 @@ def init_model(config: Union[str, Path, Config], checkpoint: Optional[str] = Non
     model.to(device)
     model.eval()
     return model
-
 
 PointsType = Union[str, np.ndarray, Sequence[str], Sequence[np.ndarray]]
 ImagesType = Union[str, np.ndarray, Sequence[str], Sequence[np.ndarray]]
@@ -236,9 +233,12 @@ def inference_multi_modality_detector(
     else:
         return results, data
 
-
-def inference_mono_3d_detector(model: nn.Module, imgs: ImagesType, ann_file: Union[str, Sequence[str]], cam_type: str = "CAM_FRONT"):
+def inference_mono_3d_detector(model: nn.Module,
+                               imgs: ImagesType,
+                               ann_file: Union[str, Sequence[str]],
+                               cam_type: str = 'CAM_2'):
     """Inference image with the monocular 3D detector.
+
     Args:
         model (nn.Module): The loaded detector.
         imgs (str, Sequence[str]):
@@ -248,6 +248,7 @@ def inference_mono_3d_detector(model: nn.Module, imgs: ImagesType, ann_file: Uni
             For kitti dataset, it should be 'CAM_2',
             and for nuscenes dataset, it should be
             'CAM_FRONT'. Defaults to 'CAM_FRONT'.
+
     Returns:
         :obj:`Det3DDataSample` or list[:obj:`Det3DDataSample`]:
         If pcds is a list or tuple, the same length list type results
@@ -266,20 +267,23 @@ def inference_mono_3d_detector(model: nn.Module, imgs: ImagesType, ann_file: Uni
     test_pipeline = Compose(test_pipeline)
     box_type_3d, box_mode_3d = get_box_type(cfg.test_dataloader.dataset.box_type_3d)
 
-    data_list = mmengine.load(ann_file)
+    data_list = mmengine.load(ann_file)['data_list']
     assert len(imgs) == len(data_list)
 
     data = []
     for index, img in enumerate(imgs):
         # get data info containing calib
         data_info = data_list[index]
-        img_path = data_info["images"][cam_type]["img_path"]
+        img_path = data_info['images'][cam_type]['img_path']
         if osp.basename(img_path) != osp.basename(img):
-            raise ValueError(f"the info file of {img_path} is not provided.")
+            raise ValueError(f'the info file of {img_path} is not provided.')
 
         # replace the img_path in data_info with img
-        data_info["images"][cam_type]["img_path"] = img
-        data_ = dict(images=data_info["images"], box_type_3d=box_type_3d, box_mode_3d=box_mode_3d)
+        data_info['images'][cam_type]['img_path'] = img
+        data_ = dict(
+            images=data_info['images'],
+            box_type_3d=box_type_3d,
+            box_mode_3d=box_mode_3d)
 
         data_ = test_pipeline(data_)
         data.append(data_)
@@ -294,6 +298,7 @@ def inference_mono_3d_detector(model: nn.Module, imgs: ImagesType, ann_file: Uni
         return results[0]
     else:
         return results
+
 
 
 def inference_segmentor(model: nn.Module, pcds: PointsType):

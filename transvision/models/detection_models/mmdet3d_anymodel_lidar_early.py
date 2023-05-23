@@ -1,16 +1,39 @@
-import logging
-import os
 import os.path as osp
 import sys
-
+import os
 import numpy as np
 import torch.nn as nn
-from base_model import BaseModel
-from dataset.dataset_utils import load_pkl, save_pkl
-from model_utils import concatenate_pcd2bin, inference_detector, init_model, read_pcd
-from v2x_utils import get_arrow_end, mkdir
+import logging
 
 logger = logging.getLogger(__name__)
+
+from transvision.models.base_model import BaseModel
+from transvision.models.model_utils import (
+    init_model,
+    inference_detector,
+    inference_mono_3d_detector,
+    BBoxList,
+    EuclidianMatcher,
+    SpaceCompensator,
+    TimeCompensator,
+    BasicFuser,
+    read_pcd,
+    concatenate_pcd2bin,
+)
+from transvision.dataset.dataset_utils import (
+    load_json,
+    save_pkl,
+    load_pkl,
+    read_jpg,
+)
+from transvision.v2x_utils import (
+    mkdir,
+    get_arrow_end,
+    box_translation,
+    points_translation,
+    get_trans,
+    diff_label_filt,
+)
 
 
 def get_box_info(result):
@@ -42,7 +65,7 @@ def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
 
 
 class EarlyFusion(BaseModel):
-    def add_arguments(self, parser):
+    def add_arguments(parser):
         parser.add_argument("--inf-config-path", type=str, default="")
         parser.add_argument("--inf-model-path", type=str, default="")
         parser.add_argument("--veh-config-path", type=str, default="")
@@ -73,7 +96,9 @@ class EarlyFusion(BaseModel):
         Veh_points = read_pcd(osp.join(vic_frame.path, "vehicle-side", vic_frame.veh_frame["pointcloud_path"]))
         vic_frame_trans = vic_frame.transform(from_coord="Infrastructure_lidar", to_coord="Vehicle_lidar")
         for i in range(len(Inf_points.pc_data)):
-            temp = vic_frame_trans.single_point_transformation([Inf_points.pc_data[i][0], Inf_points.pc_data[i][1], Inf_points.pc_data[i][2]])
+            temp = vic_frame_trans.single_point_transformation(
+                [Inf_points.pc_data[i][0], Inf_points.pc_data[i][1], Inf_points.pc_data[i][2]]
+            )
             for j in range(3):
                 Inf_points.pc_data[i][j] = temp[j]
             Inf_points.pc_data[i][3] = Inf_points.pc_data[i][3] * 255

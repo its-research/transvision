@@ -1,10 +1,13 @@
 import os
 import os.path as osp
 from abc import ABC, abstractmethod
-
 import torch
-from dataset.dataset_utils import load_json, read_jpg, read_pcd
+
+from .file_io import read_pcd, read_jpg, load_json
 from v2x_utils.transformation_utils import Coord_transformation
+from v2x_utils import get_trans, box_translation
+import json
+import numpy as np
 
 
 class Frame(dict, ABC):
@@ -113,7 +116,9 @@ class VICFrame(Frame):
         self.time_diff = time_diff
         self.transformation = None
         if offset is None:
-            offset = load_json(osp.join(self.inf_frame.path, self.inf_frame["calib_virtuallidar_to_world_path"]))["relative_error"]
+            offset = load_json(osp.join(self.inf_frame.path, self.inf_frame["calib_virtuallidar_to_world_path"]))[
+                "relative_error"
+            ]
         self.offset = offset
 
     def vehicle_frame(self):

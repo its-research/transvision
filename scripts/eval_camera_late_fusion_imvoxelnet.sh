@@ -1,22 +1,21 @@
-DATA="../data/DAIR-V2X/cooperative-vehicle-infrastructure"
-OUTPUT="../cache/vic-late-camera"
+DATA="./data/DAIR-V2X/cooperative-vehicle-infrastructure"
+OUTPUT="./cache/vic-late-camera"
 rm -r $OUTPUT
-rm -r ../cache
+rm -r ./cache
 mkdir -p $OUTPUT/result
 mkdir -p $OUTPUT/inf/camera
 mkdir -p $OUTPUT/veh/camera
 
-INFRA_MODEL_PATH="../configs/vic3d/late-fusion-image/imvoxelnet"
-INFRA_CONFIG_NAME="trainval_config_i.py"
-INFRA_MODEL_NAME="vic3d_latefusion_inf_imvoxelnet_973cefc0b2c14fee1b8775aa996ac779.pth"
+INFRA_MODEL_PATH="./configs/vic3d/late-fusion-image/imvoxelnet"
+INFRA_CONFIG_NAME="imvoxelnet_dair_c_i_3d_car.py"
+INFRA_MODEL_NAME="../../../../models/vic3d_latefusion_inf_imvoxelnet_973cefc0b2c14fee1b8775aa996ac779.pth"
 
-VEHICLE_MODEL_PATH="../configs/vic3d/late-fusion-image/imvoxelnet"
-VEHICLE_CONFIG_NAME="trainval_config_v.py"
-VEHICLE_MODEL_NAME="vic3d_latefusion_veh_imvoxelnet_9d0ad4d4930c41d62839d45c06f86326.pth"
+VEHICLE_MODEL_PATH="./configs/vic3d/late-fusion-image/imvoxelnet"
+VEHICLE_CONFIG_NAME="imvoxelnet_dair_c_v_3d_car.py"
+VEHICLE_MODEL_NAME="../../../../models/vic3d_latefusion_veh_imvoxelnet_9d0ad4d4930c41d62839d45c06f86326.pth"
 
-SPLIT_DATA_PATH="../data/split_datas/cooperative-split-data.json"
+SPLIT_DATA_PATH="./data/split_datas/cooperative-split-data.json"
 
-# srun --gres=gpu:a100:1 --time=1-0:0:0 --job-name "dair-v2x" \
 CUDA_VISIBLE_DEVICES=$1
 FUSION_METHOD=$2
 DELAY_K=$3
@@ -27,7 +26,7 @@ python3 transvision/eval.py \
   --input $DATA \
   --output $OUTPUT \
   --model $FUSION_METHOD \
-  --dataset vic-async \
+  --dataset vic-sync \
   --k $DELAY_K \
   --split val \
   --split-data-path $SPLIT_DATA_PATH \

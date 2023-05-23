@@ -1,34 +1,26 @@
-_base_ = ["../../mmdet_schedule_1x.py", "../../default_runtime.py"]
-
-work_dir = "./work_dirs/imvoxelnet_veh"
+_base_ = ["../../../mmdet_schedule_1x.py", "../../../default_runtime.py"]
+work_dir = "./work_dirs/imvoxelnet_dair_c_v"
 
 dataset_type = "KittiDataset"
-data_root = "./data/DAIR-V2X/single-vehicle-side/"
+data_root = "./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/"
 class_names = ["Car"]
 input_modality = dict(use_lidar=False, use_camera=True)
 metainfo = dict(classes=class_names)
 
-point_cloud_range = [0, -39.68, -3, 69.12, 39.68, 1]
-voxel_size = [0.32, 0.32, 0.32]
+point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
+voxel_size = [0.32, 0.32, 0.33]
 n_voxels = [int((point_cloud_range[i + 3] - point_cloud_range[i]) / voxel_size[i]) for i in range(3)]
 
+length = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
+width = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
+height = int((point_cloud_range[5] - point_cloud_range[2]) / voxel_size[2])
+output_shape = [width, length, height]
+
 img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
-img_scale = (1280, 384)
-img_resize_scale = [(1173, 352), (1387, 416)]
+img_scale = (960, 540)
+img_resize_scale = [(912, 513), (1008, 567)]
 
 car_center = -1.78
-
-
-anchor_range_car = [
-    point_cloud_range[0],
-    point_cloud_range[1],
-    car_center,
-    point_cloud_range[3] - voxel_size[0],
-    point_cloud_range[4] - voxel_size[1],
-    car_center,
-]
-
-anchor_size_car = [1.6, 3.9, 1.56]
 
 
 model = dict(
@@ -65,11 +57,7 @@ model = dict(
         feat_channels=256,
         use_direction_classifier=True,
         anchor_generator=dict(
-            type="AlignedAnchor3DRangeGenerator",
-            ranges=[anchor_range_car],
-            sizes=[anchor_size_car],
-            rotations=[0, 1.57],
-            reshape_out=False,
+            type="AlignedAnchor3DRangeGenerator", ranges=[[0, -39.68, -1.78, 92.16, 39.68, -1.78]], sizes=[[3.9, 1.6, 1.56]], rotations=[0, 1.57], reshape_out=True
         ),
         diff_rad_by_sin=True,
         bbox_coder=dict(type="DeltaXYZWLHRBBoxCoder"),
@@ -83,7 +71,7 @@ model = dict(
         loss_bbox=dict(type="mmdet.SmoothL1Loss", beta=1.0 / 9.0, loss_weight=2.0),
         loss_dir=dict(type="mmdet.CrossEntropyLoss", use_sigmoid=False, loss_weight=0.2),
     ),
-    n_voxels=n_voxels,
+    n_voxels=output_shape,
     coord_type="LIDAR",
     prior_generator=dict(
         type="AlignedAnchor3DRangeGenerator",

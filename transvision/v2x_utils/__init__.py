@@ -1,16 +1,16 @@
 import os
 import os.path as osp
 
-from .eval_utils import *
-from .filter_utils import *
-from .geometry_utils import *
-from .iou_utils import *
 from .transformation_utils import *
+from .geometry_utils import *
+from .filter_utils import *
+from .eval_utils import *
+from .iou_utils import *
 
 
 def id_to_str(id, digits=6):
     result = ""
-    for _ in range(digits):
+    for i in range(digits):
         result = str(id % 10) + result
         id //= 10
     return result

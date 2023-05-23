@@ -32,7 +32,9 @@ def add_arguments(parser):
     parser.add_argument("--input", type=str, default="")
     parser.add_argument("--output", type=str, default="")
     parser.add_argument("--split", type=str, default="val")
-    parser.add_argument("--split-data-path", type=str, default="../data/split_datas/example-cooperative-split-data.json")
+    parser.add_argument(
+        "--split-data-path", type=str, default="../data/split_datas/example-cooperative-split-data.json"
+    )
     parser.add_argument("--dataset", type=str, default="vic-sync")
     parser.add_argument("--k", type=int, default=0)
     parser.add_argument("--pred-classes", nargs="+", default=["car"])
@@ -46,4 +48,4 @@ def add_arguments(parser):
     parser.add_argument("--sensortype", type=str, default="lidar")
     parser.add_argument("--eval-single", action="store_true")
     parser.add_argument("--val-data-path", type=str, default="", help="Help evaluate feature flow net")
-    parser.add_argument("--test-mode", type=str, default="FlowPred", help="Feature Flow Net mode: {'FlowPred', 'OriginFeat', 'Async'}")
+    parser.add_argument("--test-mode",  type=str, default="FlowPred", help="Feature Flow Net mode: {'FlowPred', 'OriginFeat', 'Async'}")
