@@ -34,7 +34,7 @@ def write_txt(path, file):
 
 def get_files_path(path_my_dir, extention=".json"):
     path_list = []
-    for dirpath, dirnames, filenames in os.walk(path_my_dir):
+    for dirpath, _, filenames in os.walk(path_my_dir):
         for filename in filenames:
             if os.path.splitext(filename)[1] == extention:
                 path_list.append(os.path.join(dirpath, filename))

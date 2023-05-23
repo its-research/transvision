@@ -1,9 +1,10 @@
 import json
-import yaml
 import pickle
-import numpy as np
-from pypcd import pypcd
+
 import mmcv
+import numpy as np
+import yaml
+from pypcd import pypcd
 
 
 def load_json(path):

@@ -810,7 +810,7 @@ def update_waymo_infos(pkl_path, out_dir):
         # image path
         base_img_path = Path(ori_info_dict["image"]["image_path"]).name
 
-        for cam_idx, cam_key in enumerate(camera_types):
+        for _, cam_key in enumerate(camera_types):
             temp_data_info["images"][cam_key]["timestamp"] = ori_info_dict["timestamp"]
             temp_data_info["images"][cam_key]["img_path"] = base_img_path
 
@@ -849,7 +849,7 @@ def update_waymo_infos(pkl_path, out_dir):
             image_sweep["ego2global"] = ori_sweep["pose"]
             image_sweep["timestamp"] = ori_sweep["timestamp"]
             img_path = Path(ori_sweep["image_path"]).name
-            for cam_idx, cam_key in enumerate(camera_types):
+            for _, cam_key in enumerate(camera_types):
                 image_sweep["images"][cam_key]["img_path"] = img_path
 
             temp_data_info["lidar_sweeps"].append(lidar_sweep)

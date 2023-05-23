@@ -36,7 +36,7 @@ def _parse_coco_ann_info(ann_info):
     gt_bboxes_ignore = []
     gt_masks_ann = []
 
-    for i, ann in enumerate(ann_info):
+    for _, ann in enumerate(ann_info):
         if ann.get("ignore", False):
             continue
         x1, y1, w, h = ann["bbox"]

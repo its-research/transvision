@@ -1,36 +1,14 @@
+import logging
 import os.path as osp
+
 import numpy as np
 import torch.nn as nn
-import logging
+from base_model import BaseModel
+from dataset.dataset_utils import load_pkl, save_pkl
+from model_utils import BasicFuser, BBoxList, EuclidianMatcher, SpaceCompensator, TimeCompensator, inference_detector, inference_mono_3d_detector, init_model
+from v2x_utils import diff_label_filt, get_arrow_end, mkdir
 
 logger = logging.getLogger(__name__)
-
-from base_model import BaseModel
-from model_utils import (
-    init_model,
-    inference_detector,
-    inference_mono_3d_detector,
-    BBoxList,
-    EuclidianMatcher,
-    SpaceCompensator,
-    TimeCompensator,
-    BasicFuser,
-)
-from dataset.dataset_utils import (
-    load_json,
-    save_pkl,
-    load_pkl,
-    read_pcd,
-    read_jpg,
-)
-from v2x_utils import (
-    mkdir,
-    get_arrow_end,
-    box_translation,
-    points_translation,
-    get_trans,
-    diff_label_filt,
-)
 
 
 def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
@@ -298,7 +276,7 @@ class LateFusionVeh(nn.Module):
 
 
 class LateFusion(BaseModel):
-    def add_arguments(parser):
+    def add_arguments(self, parser):
         parser.add_argument("--inf-config-path", type=str, default="")
         parser.add_argument("--inf-model-path", type=str, default="")
         parser.add_argument("--veh-config-path", type=str, default="")

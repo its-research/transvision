@@ -2,16 +2,17 @@
 
 ## Dependencies
 
-+ mmdetection3d==v1.1.0
-+ mmcv==2.0.0
++ torch==2.0.1
++ mmengine
++ mmdet3d==1.1.0
++ mmcv-lite==2.0.0
 + mmdet==3.0.0
 
 ```shell
+conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
 pip install -U openmim
-mim install mmengine
-mim install 'mmcv>=2.0.0rc4'
-mim install 'mmdet>=3.0.0'
-mim install "mmdet3d>=1.1.0"
+mim install mmengine mmcv-lite 'mmdet>=3.0.0' "mmdet3d>=1.1.0"
+pip install -v -e .
 ```
 
 ## Data Preparation

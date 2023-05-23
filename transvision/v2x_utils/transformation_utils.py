@@ -1,8 +1,9 @@
 # Copyright (c) DAIR-V2X(AIR). All rights reserved.
-import numpy as np
+import json
 import math
 import os
-import json
+
+import numpy as np
 
 
 def get_trans(info):
@@ -101,7 +102,6 @@ class Coord_transformation(object):
         self.delta_y = None
 
     def __call__(self, point):
-
         path_all = {
             "path_root": self.path_root,
             "path_lidar2world": "infrastructure-side/calib/virtuallidar_to_world/" + self.infra_name + ".json",
@@ -127,9 +127,9 @@ class Coord_transformation(object):
             if from_coord == "World" and to_coord == "Vehicle_lidar":
                 rotation, translation = self.Coord_world2vehicel_lidar(path_all)
                 return rotation, translation
-        else:
-            raise ("error: wrong coordinate name")
-        
+        # else:
+        #     raise ("error: wrong coordinate name")
+
     def get_rot_trans(self):
         path_all = {
             "path_root": self.path_root,
@@ -137,7 +137,7 @@ class Coord_transformation(object):
             "path_lidar2novatel": "vehicle-side/calib/lidar_to_novatel/" + self.veh_name + ".json",
             "path_novatel2world": "vehicle-side/calib/novatel_to_world/" + self.veh_name + ".json",
         }
-        
+
         return self.forward(self.from_coord, self.to_coord, path_all)
 
     def rev_matrix(self, R):
@@ -163,7 +163,7 @@ class Coord_transformation(object):
     def trans(self, input_point, translation, rotation):
         translation = np.array(translation).reshape(3, 1)
         rotation = np.array(rotation).reshape(3, 3)
-        for point in input_point:
+        for _ in input_point:
             output_point = np.dot(rotation, input_point.reshape(3, 1)).reshape(3) + np.array(translation).reshape(3)
         return np.array(output_point)
 
@@ -198,40 +198,28 @@ class Coord_transformation(object):
         return my_json
 
     def Coord_Infrastructure_lidar2world(self, path_all):
-        rotation, translation, delta_x, delta_y = self.get_lidar2world(
-            os.path.join(path_all["path_root"], path_all["path_lidar2world"])
-        )
+        rotation, translation, delta_x, delta_y = self.get_lidar2world(os.path.join(path_all["path_root"], path_all["path_lidar2world"]))
         return rotation, translation
 
     def Coord_world2vehicel_lidar(self, path_all):
         # world to novatel
-        rotation, translation = self.get_novatel2world(
-            os.path.join(path_all["path_root"], path_all["path_novatel2world"])
-        )
+        rotation, translation = self.get_novatel2world(os.path.join(path_all["path_root"], path_all["path_novatel2world"]))
         rotationA2B, translationA2B = self.reverse(rotation, translation)
         # novatel to lidar
-        rotation, translation = self.get_lidar2novatel(
-            os.path.join(path_all["path_root"], path_all["path_lidar2novatel"])
-        )
+        rotation, translation = self.get_lidar2novatel(os.path.join(path_all["path_root"], path_all["path_lidar2novatel"]))
         rotationB2C, translationB2C = self.reverse(rotation, translation)
         new_rotationA2C, new_translationA2C = self.muilt_coord(rotationA2B, translationA2B, rotationB2C, translationB2C)
         return new_rotationA2C, new_translationA2C
 
     def Coord_Vehicle_lidar2world(self, path_all):
-        rotationA2B, translationA2B = self.get_lidar2novatel(
-            os.path.join(path_all["path_root"], path_all["path_lidar2novatel"])
-        )
-        rotationB2C, translationB2C = self.get_novatel2world(
-            os.path.join(path_all["path_root"], path_all["path_novatel2world"])
-        )
+        rotationA2B, translationA2B = self.get_lidar2novatel(os.path.join(path_all["path_root"], path_all["path_lidar2novatel"]))
+        rotationB2C, translationB2C = self.get_novatel2world(os.path.join(path_all["path_root"], path_all["path_novatel2world"]))
         new_rotationA2C, new_translationA2C = self.muilt_coord(rotationA2B, translationA2B, rotationB2C, translationB2C)
 
         return new_rotationA2C, new_translationA2C
 
     def Coord_Infrastructure_lidar2Vehicle_lidar(self, path_all):
-        rotationA2B, translationA2B, delta_x, delta_y = self.get_lidar2world(
-            os.path.join(path_all["path_root"], path_all["path_lidar2world"])
-        )
+        rotationA2B, translationA2B, delta_x, delta_y = self.get_lidar2world(os.path.join(path_all["path_root"], path_all["path_lidar2world"]))
         if self.delta_x is not None:
             delta_x = self.delta_x
             delta_y = self.delta_y

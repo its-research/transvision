@@ -3,11 +3,6 @@ r"""Adapted from `Waymo to KITTI converter
     <https://github.com/caizhongang/waymo_kitti_converter>`_.
 """
 
-try:
-    from waymo_open_dataset import dataset_pb2
-except ImportError:
-    raise ImportError('Please run "pip install waymo-open-dataset-tf-2-6-0" ' ">1.4.5 to install the official devkit first.")
-
 import os
 from glob import glob
 from os.path import exists, join
@@ -15,6 +10,7 @@ from os.path import exists, join
 import mmengine
 import numpy as np
 import tensorflow as tf
+from waymo_open_dataset import dataset_pb2
 from waymo_open_dataset.utils import range_image_utils, transform_utils
 from waymo_open_dataset.utils.frame_utils import parse_range_image_and_camera_projection
 
@@ -534,7 +530,7 @@ def create_ImageSets_img_ids(root_dir, splits):
         os.mkdir(save_dir)
 
     idx_all = [[] for i in splits]
-    for i, split in enumerate(splits):
+    for i, _ in enumerate(splits):
         path = join(root_dir, splits[i], "calib")
         if not exists(path):
             RawNames = []

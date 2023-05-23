@@ -84,7 +84,7 @@ def get_img_annos(nuim, img_info, cat2id, out_dir, data_root, seg_root):
     # The 0 index is reserved for background; thus, the instances
     # should start from index 1.
     annotations = []
-    for i, ann in enumerate(object_anns, start=1):
+    for _, ann in enumerate(object_anns, start=1):
         # Get color, box, mask and name.
         category_token = ann["category_token"]
         category_name = nuim.get("category", category_token)["name"]
