@@ -12,6 +12,7 @@ from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.geometry_utils import view_points
 from pyquaternion import Quaternion
 from shapely.geometry import MultiPoint, box
+from shapely.geometry.polygon import Polygon
 
 nus_categories = ("car", "truck", "trailer", "bus", "construction_vehicle", "bicycle", "motorcycle", "pedestrian", "traffic_cone", "barrier")
 
@@ -485,16 +486,18 @@ def post_process_coords(corner_coords: List, imsize: Tuple[int, int] = (1600, 90
 
     if polygon_from_2d_box.intersects(img_canvas):
         img_intersection = polygon_from_2d_box.intersection(img_canvas)
-        intersection_coords = np.array([coord for coord in img_intersection.exterior.coords])
-
-        min_x = min(intersection_coords[:, 0])
-        min_y = min(intersection_coords[:, 1])
-        max_x = max(intersection_coords[:, 0])
-        max_y = max(intersection_coords[:, 1])
-
-        return min_x, min_y, max_x, max_y
+        if isinstance(img_intersection, Polygon):
+            intersection_coords = np.array(
+                [coord for coord in img_intersection.exterior.coords])
+            min_x = min(intersection_coords[:, 0])
+            min_y = min(intersection_coords[:, 1])
+            max_x = max(intersection_coords[:, 0])
+            max_y = max(intersection_coords[:, 1])
+            return min_x, min_y, max_x, max_y
+        else:
+            return None
     else:
-        return None
+    	return None
 
 
 def generate_record(ann_rec: dict, x1: float, y1: float, x2: float, y2: float, sample_data_token: str, filename: str) -> OrderedDict:
