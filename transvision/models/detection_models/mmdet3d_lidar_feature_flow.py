@@ -110,7 +110,7 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
 
 
 class FeatureFlow(BaseModel):
-    def add_arguments(self, parser):
+    def add_arguments(parser):
         parser.add_argument("--inf-config-path", type=str, default="")
         parser.add_argument("--inf-model-path", type=str, default="")
         parser.add_argument("--veh-config-path", type=str, default="")

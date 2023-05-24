@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class SingleSide(BaseModel):
     @staticmethod
-    def add_arguments(self, parser):
+    def add_arguments(parser):
         parser.add_argument("--config-path", type=str, default="")
         parser.add_argument("--model-path", type=str, default="")
         parser.add_argument("--sensor-type", type=str, default="lidar")
@@ -104,7 +104,7 @@ class SingleSide(BaseModel):
 
 class InfOnly(BaseModel):
     @staticmethod
-    def add_arguments(self, parser):
+    def add_arguments(parser):
         parser.add_argument("--inf-config-path", type=str, default="")
         parser.add_argument("--inf-model-path", type=str, default="")
         parser.add_argument("--veh-config-path", type=str, default="")
@@ -133,7 +133,7 @@ class InfOnly(BaseModel):
 
 class VehOnly(BaseModel):
     @staticmethod
-    def add_arguments(self, parser):
+    def add_arguments(parser):
         parser.add_argument("--inf-config-path", type=str, default="")
         parser.add_argument("--inf-model-path", type=str, default="")
         parser.add_argument("--veh-config-path", type=str, default="")

@@ -28,7 +28,7 @@ superclass = {
 }
 
 
-def add_arguments(self, parser):
+def add_arguments(parser):
     parser.add_argument("--input", type=str, default="")
     parser.add_argument("--output", type=str, default="")
     parser.add_argument("--split", type=str, default="val")

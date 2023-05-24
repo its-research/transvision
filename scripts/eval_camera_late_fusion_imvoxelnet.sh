@@ -26,7 +26,7 @@ python3 transvision/eval.py \
   --input $DATA \
   --output $OUTPUT \
   --model $FUSION_METHOD \
-  --dataset vic-sync \
+  --dataset vic-async \
   --k $DELAY_K \
   --split val \
   --split-data-path $SPLIT_DATA_PATH \

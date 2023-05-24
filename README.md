@@ -103,6 +103,12 @@ if label == -1:
     continue
 ```
 
+4. i15 = str(-eval(item["rotation"])) TypeError: eval() arg 1 must be a string, bytes or code object
+
+```python
+i15 = str(-eval(str(item["rotation"])))
+```
+
 ## Reference
 
 + [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)

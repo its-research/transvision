@@ -43,7 +43,7 @@ def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
 
 
 class EarlyFusion(BaseModel):
-    def add_arguments(self, parser):
+    def add_arguments(parser):
         parser.add_argument("--inf-config-path", type=str, default="")
         parser.add_argument("--inf-model-path", type=str, default="")
         parser.add_argument("--veh-config-path", type=str, default="")
