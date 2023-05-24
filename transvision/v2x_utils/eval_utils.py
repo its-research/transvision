@@ -1,11 +1,12 @@
-import numpy as np
-from scipy.spatial import ConvexHull
-from functools import cmp_to_key
 import logging
+from functools import cmp_to_key
+
+import numpy as np
+from config import superclass
+from scipy.spatial import ConvexHull
 
 logger = logging.getLogger(__name__)
 
-from config import superclass
 
 iou_threshold_dict = {
     "car": [0.3, 0.5, 0.7],
@@ -209,7 +210,6 @@ def compute_type(gt_annos, pred_annos, cla, iou_threshold, view):
                     iou, _ = box3d_iou(gt_anno['box'][perm_label], pred_anno['box'][perm_pred], debug=True)
             """
             if iou >= mx:
-
                 mx = iou
                 mx_pred = i
         if mx_pred is not None:

@@ -1,10 +1,11 @@
-import os.path as osp
 import json
 import os
+import os.path as osp
 
 from torch.utils.data import Dataset
-from v2x_utils import get_trans
+
 from transvision.dataset.dataset_utils import load_json
+from transvision.v2x_utils import get_trans
 
 
 def get_annos(path, prefix, single_frame, sensortype="camera"):

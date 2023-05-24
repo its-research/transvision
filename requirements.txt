@@ -5,3 +5,5 @@ flake8
 flake8-bugbear
 flake8-comprehensions
 uarray
+pyarrow
+bottleneck

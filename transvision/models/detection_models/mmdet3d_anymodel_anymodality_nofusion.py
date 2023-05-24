@@ -1,19 +1,21 @@
-import os.path as osp
 import logging
+import os.path as osp
 
-logger = logging.getLogger(__name__)
 import numpy as np
 
-from transvision.dataset.dataset_utils import save_pkl, load_pkl, read_jpg
-from transvision.v2x_utils import mkdir
-from transvision.models.model_utils import init_model, inference_detector, inference_mono_3d_detector
+from transvision.dataset.dataset_utils import load_pkl, save_pkl
 from transvision.models.base_model import BaseModel
-from .mmdet3d_anymodel_anymodality_late import LateFusionVeh, LateFusionInf
+from transvision.models.model_utils import inference_detector, inference_mono_3d_detector, init_model
+from transvision.v2x_utils import mkdir
+
+from .mmdet3d_anymodel_anymodality_late import LateFusionInf, LateFusionVeh
+
+logger = logging.getLogger(__name__)
 
 
 class SingleSide(BaseModel):
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(self, parser):
         parser.add_argument("--config-path", type=str, default="")
         parser.add_argument("--model-path", type=str, default="")
         parser.add_argument("--sensor-type", type=str, default="lidar")
@@ -102,7 +104,7 @@ class SingleSide(BaseModel):
 
 class InfOnly(BaseModel):
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(self, parser):
         parser.add_argument("--inf-config-path", type=str, default="")
         parser.add_argument("--inf-model-path", type=str, default="")
         parser.add_argument("--veh-config-path", type=str, default="")
@@ -131,7 +133,7 @@ class InfOnly(BaseModel):
 
 class VehOnly(BaseModel):
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(self, parser):
         parser.add_argument("--inf-config-path", type=str, default="")
         parser.add_argument("--inf-model-path", type=str, default="")
         parser.add_argument("--veh-config-path", type=str, default="")

@@ -1,8 +1,8 @@
-import sys
 import os
 import os.path as osp
+import sys
 
-from .detection_models import *
+from transvision.models.detection_models import *
 
 SUPPROTED_MODELS = {
     "single_side": SingleSide,
@@ -10,6 +10,6 @@ SUPPROTED_MODELS = {
     "early_fusion": EarlyFusion,
     "veh_only": VehOnly,
     "inf_only": InfOnly,
-    # "feature_fusion":FeatureFusion,
-    # "feature_flow":FeatureFlow
+    "feature_fusion": FeatureFusion,
+    "feature_flow": FeatureFlow,
 }

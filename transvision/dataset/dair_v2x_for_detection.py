@@ -1,12 +1,13 @@
-import os.path as osp
-from functools import cmp_to_key
 import logging
+import os.path as osp
 
-from .base_dataset import DAIRV2XDataset, get_annos, build_path_to_info
-from .dataset_utils import load_json, InfFrame, VehFrame, VICFrame, Label
-from transvision.v2x_utils import Filter, RectFilter, id_cmp, id_to_str, get_trans, box_translation
+from transvision.v2x_utils import Filter, RectFilter, id_to_str
+
+from .base_dataset import DAIRV2XDataset, build_path_to_info, get_annos
+from .dataset_utils import InfFrame, Label, VehFrame, VICFrame, load_json
 
 logger = logging.getLogger(__name__)
+
 
 class DAIRV2XI(DAIRV2XDataset):
     def __init__(self, path, args, split="train", sensortype="lidar", extended_range=None):
@@ -131,8 +132,8 @@ class VICDataset(DAIRV2XDataset):
             sensortype,
         )
 
-        ### Patch for FFNet evaluation ###
-        if args.model =='feature_flow':
+        # Patch for FFNet evaluation
+        if args.model == "feature_flow":
             frame_pairs = load_json(val_data_path)
         else:
             frame_pairs = load_json(osp.join(path, "cooperative/data_info.json"))
@@ -252,10 +253,7 @@ class VICAsyncDataset(VICDataset):
     def prev_inf_frame(self, index, sensortype="lidar"):
         if sensortype == "lidar":
             cur = self.inf_path2info["infrastructure-side/velodyne/" + index + ".pcd"]
-            if (
-                int(index) - self.k < int(cur["batch_start_id"])
-                or "infrastructure-side/velodyne/" + id_to_str(int(index) - self.k) + ".pcd" not in self.inf_path2info
-            ):
+            if int(index) - self.k < int(cur["batch_start_id"]) or "infrastructure-side/velodyne/" + id_to_str(int(index) - self.k) + ".pcd" not in self.inf_path2info:
                 return None, None
             prev = self.inf_path2info["infrastructure-side/velodyne/" + id_to_str(int(index) - self.k) + ".pcd"]
             return (
@@ -275,8 +273,8 @@ class VICAsyncDataset(VICDataset):
 
 
 if __name__ == "__main__":
-    from tqdm import tqdm
     import numpy as np
+    from tqdm import tqdm
 
     input = "../data/cooperative-vehicle-infrastructure/"
     split = "val"
@@ -295,7 +293,7 @@ if __name__ == "__main__":
     extended_range = np.array([[box_range[index] for index in indexs]])
     dataset = VICSyncDataset(input, split, sensortype, extended_range=extended_range)
 
-    for VICFrame_data, label, filt in tqdm(dataset):
+    for VICFrame_data, _label, _filt in tqdm(dataset):
         veh_image_path = VICFrame_data.vehicle_frame()["image_path"][-10:-4]
         inf_image_path = VICFrame_data.infrastructure_frame()["image_path"][-10:-4]
         print(veh_image_path, inf_image_path)

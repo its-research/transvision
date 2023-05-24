@@ -3,7 +3,7 @@ import os
 from concurrent import futures as futures
 from os import path as osp
 
-import mmengine
+import mmcv
 import numpy as np
 
 
@@ -14,7 +14,7 @@ class S3DISData(object):
 
     Args:
         root_path (str): Root path of the raw data.
-        split (str, optional): Set split type of the data. Default: 'Area_1'.
+        split (str): Set split type of the data. Default: 'Area_1'.
     """
 
     def __init__(self, root_path, split="Area_1"):
@@ -42,11 +42,9 @@ class S3DISData(object):
         This method gets information from the raw data.
 
         Args:
-            num_workers (int, optional): Number of threads to be used.
-                Default: 4.
-            has_label (bool, optional): Whether the data has label.
-                Default: True.
-            sample_id_list (list[int], optional): Index list of the sample.
+            num_workers (int): Number of threads to be used. Default: 4.
+            has_label (bool): Whether the data has label. Default: True.
+            sample_id_list (list[int]): Index list of the sample.
                 Default: None.
 
         Returns:
@@ -63,12 +61,12 @@ class S3DISData(object):
             pts_semantic_mask_path = osp.join(self.root_dir, "s3dis_data", f"{self.split}_{sample_idx}_sem_label.npy")
 
             points = np.load(pts_filename).astype(np.float32)
-            pts_instance_mask = np.load(pts_instance_mask_path).astype(np.int64)
-            pts_semantic_mask = np.load(pts_semantic_mask_path).astype(np.int64)
+            pts_instance_mask = np.load(pts_instance_mask_path).astype(np.int)
+            pts_semantic_mask = np.load(pts_semantic_mask_path).astype(np.int)
 
-            mmengine.mkdir_or_exist(osp.join(self.root_dir, "points"))
-            mmengine.mkdir_or_exist(osp.join(self.root_dir, "instance_mask"))
-            mmengine.mkdir_or_exist(osp.join(self.root_dir, "semantic_mask"))
+            mmcv.mkdir_or_exist(osp.join(self.root_dir, "points"))
+            mmcv.mkdir_or_exist(osp.join(self.root_dir, "instance_mask"))
+            mmcv.mkdir_or_exist(osp.join(self.root_dir, "semantic_mask"))
 
             points.tofile(osp.join(self.root_dir, "points", f"{self.split}_{sample_idx}.bin"))
             pts_instance_mask.tofile(osp.join(self.root_dir, "instance_mask", f"{self.split}_{sample_idx}.bin"))
@@ -103,7 +101,7 @@ class S3DISData(object):
                 - gt_num (int): Number of boxes.
         """
         bboxes, labels = [], []
-        for i in range(1, pts_instance_mask.max() + 1):
+        for i in range(1, pts_instance_mask.max()):
             ids = pts_instance_mask == i
             # check if all instance points have same semantic label
             assert pts_semantic_mask[ids].min() == pts_semantic_mask[ids].max()
@@ -131,16 +129,15 @@ class S3DISSegData(object):
     Args:
         data_root (str): Root path of the raw data.
         ann_file (str): The generated scannet infos.
-        split (str, optional): Set split type of the data. Default: 'train'.
-        num_points (int, optional): Number of points in each data input.
-            Default: 8192.
-        label_weight_func (function, optional): Function to compute the
-            label weight. Default: None.
+        split (str): Set split type of the data. Default: 'train'.
+        num_points (int): Number of points in each data input. Default: 8192.
+        label_weight_func (function): Function to compute the label weight.
+            Default: None.
     """
 
     def __init__(self, data_root, ann_file, split="Area_1", num_points=4096, label_weight_func=None):
         self.data_root = data_root
-        self.data_infos = mmengine.load(ann_file)
+        self.data_infos = mmcv.load(ann_file)
         self.split = split
         self.num_points = num_points
 
@@ -148,7 +145,7 @@ class S3DISSegData(object):
         self.cat_ids = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])  # used for seg task
         self.ignore_index = len(self.cat_ids)
 
-        self.cat_id2class = np.ones((self.all_ids.shape[0],), dtype=np.int64) * self.ignore_index
+        self.cat_id2class = np.ones((self.all_ids.shape[0],), dtype=np.int) * self.ignore_index
         for i, cat_id in enumerate(self.cat_ids):
             self.cat_id2class[cat_id] = i
 
@@ -159,7 +156,7 @@ class S3DISSegData(object):
     def get_seg_infos(self):
         scene_idxs, label_weight = self.get_scene_idxs_and_label_weight()
         save_folder = osp.join(self.data_root, "seg_info")
-        mmengine.mkdir_or_exist(save_folder)
+        mmcv.mkdir_or_exist(save_folder)
         np.save(osp.join(save_folder, f"{self.split}_resampled_scene_idxs.npy"), scene_idxs)
         np.save(osp.join(save_folder, f"{self.split}_label_weight.npy"), label_weight)
         print(f"{self.split} resampled scene index and label weight saved")
@@ -170,12 +167,12 @@ class S3DISSegData(object):
             if mask.endswith("npy"):
                 mask = np.load(mask)
             else:
-                mask = np.fromfile(mask, dtype=np.int64)
+                mask = np.fromfile(mask, dtype=np.long)
         label = self.cat_id2class[mask]
         return label
 
     def get_scene_idxs_and_label_weight(self):
-        """Compute scene_idxs for data sampling and label weight for loss
+        """Compute scene_idxs for data sampling and label weight for loss \
         calculation.
 
         We sample more times for scenes with more points. Label_weight is

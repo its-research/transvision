@@ -3,14 +3,17 @@ r"""Adapted from `Waymo to KITTI converter
     <https://github.com/caizhongang/waymo_kitti_converter>`_.
 """
 
-import os
-from glob import glob
-from os.path import exists, join
+try:
+    from waymo_open_dataset import dataset_pb2
+except ImportError:
+    raise ImportError('Please run "pip install waymo-open-dataset-tf-2-1-0==1.2.0" ' "to install the official devkit first.")
 
-import mmengine
+from glob import glob
+from os.path import join
+
+import mmcv
 import numpy as np
 import tensorflow as tf
-from waymo_open_dataset import dataset_pb2
 from waymo_open_dataset.utils import range_image_utils, transform_utils
 from waymo_open_dataset.utils.frame_utils import parse_range_image_and_camera_projection
 
@@ -26,15 +29,11 @@ class Waymo2KITTI(object):
         save_dir (str): Directory to save data in KITTI format.
         prefix (str): Prefix of filename. In general, 0 for training, 1 for
             validation and 2 for testing.
-        workers (int, optional): Number of workers for the parallel process.
-            Defaults to 64.
-        test_mode (bool, optional): Whether in the test_mode.
-            Defaults to False.
-        save_cam_sync_labels (bool, optional): Whether to save cam sync labels.
-            Defaults to True.
+        workers (str): Number of workers for the parallel process.
+        test_mode (bool): Whether in the test_mode. Default: False.
     """
 
-    def __init__(self, load_dir, save_dir, prefix, workers=64, test_mode=False, save_cam_sync_labels=True):
+    def __init__(self, load_dir, save_dir, prefix, workers=64, test_mode=False):
         self.filter_empty_3dboxes = True
         self.filter_no_label_zone_points = True
 
@@ -50,15 +49,7 @@ class Waymo2KITTI(object):
         if int(tf.__version__.split(".")[0]) < 2:
             tf.enable_eager_execution()
 
-        # keep the order defined by the official protocol
-        self.cam_list = [
-            "_FRONT",
-            "_FRONT_LEFT",
-            "_FRONT_RIGHT",
-            "_SIDE_LEFT",
-            "_SIDE_RIGHT",
-        ]
-        self.lidar_list = ["TOP", "FRONT", "SIDE_LEFT", "SIDE_RIGHT", "REAR"]
+        self.lidar_list = ["_FRONT", "_FRONT_RIGHT", "_FRONT_LEFT", "_SIDE_RIGHT", "_SIDE_LEFT"]
         self.type_list = ["UNKNOWN", "VEHICLE", "PEDESTRIAN", "SIGN", "CYCLIST"]
         self.waymo_to_kitti_class_map = {"UNKNOWN": "DontCare", "PEDESTRIAN": "Pedestrian", "VEHICLE": "Car", "CYCLIST": "Cyclist", "SIGN": "Sign"}  # not in kitti
 
@@ -67,7 +58,6 @@ class Waymo2KITTI(object):
         self.prefix = prefix
         self.workers = int(workers)
         self.test_mode = test_mode
-        self.save_cam_sync_labels = save_cam_sync_labels
 
         self.tfrecord_pathnames = sorted(glob(join(self.load_dir, "*.tfrecord")))
 
@@ -77,17 +67,13 @@ class Waymo2KITTI(object):
         self.calib_save_dir = f"{self.save_dir}/calib"
         self.point_cloud_save_dir = f"{self.save_dir}/velodyne"
         self.pose_save_dir = f"{self.save_dir}/pose"
-        self.timestamp_save_dir = f"{self.save_dir}/timestamp"
-        if self.save_cam_sync_labels:
-            self.cam_sync_label_save_dir = f"{self.save_dir}/cam_sync_label_"
-            self.cam_sync_label_all_save_dir = f"{self.save_dir}/cam_sync_label_all"
 
         self.create_folder()
 
     def convert(self):
         """Convert action."""
         print("Start converting ...")
-        mmengine.track_parallel_progress(self.convert_one, range(len(self)), self.workers)
+        mmcv.track_parallel_progress(self.convert_one, range(len(self)), self.workers)
         print("\nFinished ...")
 
     def convert_one(self, file_idx):
@@ -109,20 +95,16 @@ class Waymo2KITTI(object):
             self.save_calib(frame, file_idx, frame_idx)
             self.save_lidar(frame, file_idx, frame_idx)
             self.save_pose(frame, file_idx, frame_idx)
-            self.save_timestamp(frame, file_idx, frame_idx)
 
             if not self.test_mode:
-                # TODO save the depth image for waymo challenge solution.
                 self.save_label(frame, file_idx, frame_idx)
-                if self.save_cam_sync_labels:
-                    self.save_label(frame, file_idx, frame_idx, cam_sync=True)
 
     def __len__(self):
         """Length of the filename list."""
         return len(self.tfrecord_pathnames)
 
     def save_image(self, frame, file_idx, frame_idx):
-        """Parse and save the images in jpg format.
+        """Parse and save the images in png format.
 
         Args:
             frame (:obj:`Frame`): Open dataset frame proto.
@@ -130,9 +112,9 @@ class Waymo2KITTI(object):
             frame_idx (int): Current frame index.
         """
         for img in frame.images:
-            img_path = f"{self.image_save_dir}{str(img.name - 1)}/" + f"{self.prefix}{str(file_idx).zfill(3)}" + f"{str(frame_idx).zfill(3)}.jpg"
-            with open(img_path, "wb") as fp:
-                fp.write(img.image)
+            img_path = f"{self.image_save_dir}{str(img.name - 1)}/" + f"{self.prefix}{str(file_idx).zfill(3)}" + f"{str(frame_idx).zfill(3)}.png"
+            img = mmcv.imfrombytes(img.image)
+            mmcv.imwrite(img, img_path)
 
     def save_calib(self, frame, file_idx, frame_idx):
         """Parse and save the calibration data.
@@ -190,43 +172,32 @@ class Waymo2KITTI(object):
             file_idx (int): Current file index.
             frame_idx (int): Current frame index.
         """
-        range_images, camera_projections, seg_labels, range_image_top_pose = parse_range_image_and_camera_projection(frame)
+        range_images, camera_projections, range_image_top_pose = parse_range_image_and_camera_projection(frame)
 
-        if range_image_top_pose is None:
-            # the camera only split doesn't contain lidar points.
-            return
         # First return
-        points_0, cp_points_0, intensity_0, elongation_0, mask_indices_0 = self.convert_range_image_to_point_cloud(
-            frame, range_images, camera_projections, range_image_top_pose, ri_index=0
-        )
+        points_0, cp_points_0, intensity_0, elongation_0 = self.convert_range_image_to_point_cloud(frame, range_images, camera_projections, range_image_top_pose, ri_index=0)
         points_0 = np.concatenate(points_0, axis=0)
         intensity_0 = np.concatenate(intensity_0, axis=0)
         elongation_0 = np.concatenate(elongation_0, axis=0)
-        mask_indices_0 = np.concatenate(mask_indices_0, axis=0)
 
         # Second return
-        points_1, cp_points_1, intensity_1, elongation_1, mask_indices_1 = self.convert_range_image_to_point_cloud(
-            frame, range_images, camera_projections, range_image_top_pose, ri_index=1
-        )
+        points_1, cp_points_1, intensity_1, elongation_1 = self.convert_range_image_to_point_cloud(frame, range_images, camera_projections, range_image_top_pose, ri_index=1)
         points_1 = np.concatenate(points_1, axis=0)
         intensity_1 = np.concatenate(intensity_1, axis=0)
         elongation_1 = np.concatenate(elongation_1, axis=0)
-        mask_indices_1 = np.concatenate(mask_indices_1, axis=0)
 
         points = np.concatenate([points_0, points_1], axis=0)
         intensity = np.concatenate([intensity_0, intensity_1], axis=0)
         elongation = np.concatenate([elongation_0, elongation_1], axis=0)
-        mask_indices = np.concatenate([mask_indices_0, mask_indices_1], axis=0)
-
-        # timestamp = frame.timestamp_micros * np.ones_like(intensity)
+        timestamp = frame.timestamp_micros * np.ones_like(intensity)
 
         # concatenate x,y,z, intensity, elongation, timestamp (6-dim)
-        point_cloud = np.column_stack((points, intensity, elongation, mask_indices))
+        point_cloud = np.column_stack((points, intensity, elongation, timestamp))
 
         pc_path = f"{self.point_cloud_save_dir}/{self.prefix}" + f"{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.bin"
         point_cloud.astype(np.float32).tofile(pc_path)
 
-    def save_label(self, frame, file_idx, frame_idx, cam_sync=False):
+    def save_label(self, frame, file_idx, frame_idx):
         """Parse and save the label data in txt format.
         The relation between waymo and kitti coordinates is noteworthy:
         1. x, y, z correspond to l, w, h (waymo) -> l, h, w (kitti)
@@ -238,13 +209,8 @@ class Waymo2KITTI(object):
             frame (:obj:`Frame`): Open dataset frame proto.
             file_idx (int): Current file index.
             frame_idx (int): Current frame index.
-            cam_sync (bool, optional): Whether to save the cam sync labels.
-                Defaults to False.
         """
-        label_all_path = f"{self.label_all_save_dir}/{self.prefix}" + f"{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt"
-        if cam_sync:
-            label_all_path = label_all_path.replace("label_", "cam_sync_label_")
-        fp_label_all = open(label_all_path, "w+")
+        fp_label_all = open(f"{self.label_all_save_dir}/{self.prefix}" + f"{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt", "w+")
         id_to_bbox = dict()
         id_to_name = dict()
         for labels in frame.projected_lidar_labels:
@@ -264,24 +230,11 @@ class Waymo2KITTI(object):
             bounding_box = None
             name = None
             id = obj.id
-            for proj_cam in self.cam_list:
-                if id + proj_cam in id_to_bbox:
-                    bounding_box = id_to_bbox.get(id + proj_cam)
-                    name = str(id_to_name.get(id + proj_cam))
+            for lidar in self.lidar_list:
+                if id + lidar in id_to_bbox:
+                    bounding_box = id_to_bbox.get(id + lidar)
+                    name = str(id_to_name.get(id + lidar))
                     break
-
-            # NOTE: the 2D labels do not have strict correspondence with
-            # the projected 2D lidar labels
-            # e.g.: the projected 2D labels can be in camera 2
-            # while the most_visible_camera can have id 4
-            if cam_sync:
-                if obj.most_visible_camera_name:
-                    name = str(self.cam_list.index(f"_{obj.most_visible_camera_name}"))
-                    box3d = obj.camera_synced_box
-                else:
-                    continue
-            else:
-                box3d = obj.box
 
             if bounding_box is None or name is None:
                 name = "0"
@@ -297,19 +250,19 @@ class Waymo2KITTI(object):
 
             my_type = self.waymo_to_kitti_class_map[my_type]
 
-            height = box3d.height
-            width = box3d.width
-            length = box3d.length
+            height = obj.box.height
+            width = obj.box.width
+            length = obj.box.length
 
-            x = box3d.center_x
-            y = box3d.center_y
-            z = box3d.center_z - height / 2
+            x = obj.box.center_x
+            y = obj.box.center_y
+            z = obj.box.center_z - height / 2
 
             # project bounding box to the virtual reference frame
             pt_ref = self.T_velo_to_front_cam @ np.array([x, y, z, 1]).reshape((4, 1))
             x, y, z, _ = pt_ref.flatten().tolist()
 
-            rotation_y = -box3d.heading - np.pi / 2
+            rotation_y = -obj.box.heading - np.pi / 2
             track_id = obj.id
 
             # not available
@@ -339,10 +292,7 @@ class Waymo2KITTI(object):
             else:
                 line_all = line[:-1] + " " + name + "\n"
 
-            label_path = f"{self.label_save_dir}{name}/{self.prefix}" + f"{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt"
-            if cam_sync:
-                label_path = label_path.replace("label_", "cam_sync_label_")
-            fp_label = open(label_path, "a")
+            fp_label = open(f"{self.label_save_dir}{name}/{self.prefix}" + f"{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt", "a")
             fp_label.write(line)
             fp_label.close()
 
@@ -366,46 +316,19 @@ class Waymo2KITTI(object):
         pose = np.array(frame.pose.transform).reshape(4, 4)
         np.savetxt(join(f"{self.pose_save_dir}/{self.prefix}" + f"{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt"), pose)
 
-    def save_timestamp(self, frame, file_idx, frame_idx):
-        """Save the timestamp data in a separate file instead of the
-        pointcloud.
-
-        Note that SDC's own pose is not included in the regular training
-        of KITTI dataset. KITTI raw dataset contains ego motion files
-        but are not often used. Pose is important for algorithms that
-        take advantage of the temporal information.
-
-        Args:
-            frame (:obj:`Frame`): Open dataset frame proto.
-            file_idx (int): Current file index.
-            frame_idx (int): Current frame index.
-        """
-        with open(join(f"{self.timestamp_save_dir}/{self.prefix}" + f"{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt"), "w") as f:
-            f.write(str(frame.timestamp_micros))
-
     def create_folder(self):
         """Create folder for data preprocessing."""
         if not self.test_mode:
-            dir_list1 = [
-                self.label_all_save_dir,
-                self.calib_save_dir,
-                self.pose_save_dir,
-                self.timestamp_save_dir,
-            ]
+            dir_list1 = [self.label_all_save_dir, self.calib_save_dir, self.point_cloud_save_dir, self.pose_save_dir]
             dir_list2 = [self.label_save_dir, self.image_save_dir]
-            if self.save_cam_sync_labels:
-                dir_list1.append(self.cam_sync_label_all_save_dir)
-                dir_list2.append(self.cam_sync_label_save_dir)
         else:
-            dir_list1 = [self.calib_save_dir, self.pose_save_dir, self.timestamp_save_dir]
+            dir_list1 = [self.calib_save_dir, self.point_cloud_save_dir, self.pose_save_dir]
             dir_list2 = [self.image_save_dir]
-        if "testing_3d_camera_only_detection" not in self.load_dir:
-            dir_list1.append(self.point_cloud_save_dir)
         for d in dir_list1:
-            mmengine.mkdir_or_exist(d)
+            mmcv.mkdir_or_exist(d)
         for d in dir_list2:
             for i in range(5):
-                mmengine.mkdir_or_exist(f"{d}{str(i)}")
+                mmcv.mkdir_or_exist(f"{d}{str(i)}")
 
     def convert_range_image_to_point_cloud(self, frame, range_images, camera_projections, range_image_top_pose, ri_index=0):
         """Convert range images to point cloud.
@@ -418,15 +341,13 @@ class Waymo2KITTI(object):
                 camera projections corresponding with two returns.
             range_image_top_pose (:obj:`Transform`): Range image pixel pose for
                 top lidar.
-            ri_index (int, optional): 0 for the first return,
-                1 for the second return. Default: 0.
+            ri_index (int): 0 for the first return, 1 for the second return.
+                Default: 0.
 
         Returns:
             tuple[list[np.ndarray]]: (List of points with shape [N, 3],
                 camera projections of points with shape [N, 6], intensity
-                with shape [N, 1], elongation with shape [N, 1], points'
-                position in the depth map (element offset if points come from
-                the main lidar otherwise -1) with shape[N, 1]). All the
+                with shape [N, 1], elongation with shape [N, 1]). All the
                 lists have the length of lidar numbers (5).
         """
         calibrations = sorted(frame.context.laser_calibrations, key=lambda c: c.name)
@@ -434,7 +355,6 @@ class Waymo2KITTI(object):
         cp_points = []
         intensity = []
         elongation = []
-        mask_indices = []
 
         frame_pose = tf.convert_to_tensor(value=np.reshape(np.array(frame.pose.transform), [4, 4]))
         # [H, W, 6]
@@ -476,31 +396,22 @@ class Waymo2KITTI(object):
                 frame_pose=frame_pose_local,
             )
 
-            mask_index = tf.where(range_image_mask)
-
             range_image_cartesian = tf.squeeze(range_image_cartesian, axis=0)
-            points_tensor = tf.gather_nd(range_image_cartesian, mask_index)
+            points_tensor = tf.gather_nd(range_image_cartesian, tf.compat.v1.where(range_image_mask))
 
             cp = camera_projections[c.name][ri_index]
             cp_tensor = tf.reshape(tf.convert_to_tensor(value=cp.data), cp.shape.dims)
-            cp_points_tensor = tf.gather_nd(cp_tensor, mask_index)
+            cp_points_tensor = tf.gather_nd(cp_tensor, tf.compat.v1.where(range_image_mask))
             points.append(points_tensor.numpy())
             cp_points.append(cp_points_tensor.numpy())
 
-            intensity_tensor = tf.gather_nd(range_image_tensor[..., 1], mask_index)
+            intensity_tensor = tf.gather_nd(range_image_tensor[..., 1], tf.where(range_image_mask))
             intensity.append(intensity_tensor.numpy())
 
-            elongation_tensor = tf.gather_nd(range_image_tensor[..., 2], mask_index)
+            elongation_tensor = tf.gather_nd(range_image_tensor[..., 2], tf.where(range_image_mask))
             elongation.append(elongation_tensor.numpy())
-            if c.name == 1:
-                mask_index = (ri_index * range_image_mask.shape[0] + mask_index[:, 0]) * range_image_mask.shape[1] + mask_index[:, 1]
-                mask_index = mask_index.numpy().astype(elongation[-1].dtype)
-            else:
-                mask_index = np.full_like(elongation[-1], -1)
 
-            mask_indices.append(mask_index)
-
-        return points, cp_points, intensity, elongation, mask_indices
+        return points, cp_points, intensity, elongation
 
     def cart_to_homo(self, mat):
         """Convert transformation matrix in Cartesian coordinates to
@@ -522,30 +433,3 @@ class Waymo2KITTI(object):
         else:
             raise ValueError(mat.shape)
         return ret
-
-
-def create_ImageSets_img_ids(root_dir, splits):
-    save_dir = join(root_dir, "ImageSets/")
-    if not exists(save_dir):
-        os.mkdir(save_dir)
-
-    idx_all = [[] for i in splits]
-    for i, _ in enumerate(splits):
-        path = join(root_dir, splits[i], "calib")
-        if not exists(path):
-            RawNames = []
-        else:
-            RawNames = os.listdir(path)
-
-        for name in RawNames:
-            if name.endswith(".txt"):
-                idx = name.replace(".txt", "\n")
-                idx_all[int(idx[0])].append(idx)
-        idx_all[i].sort()
-
-    open(save_dir + "train.txt", "w").writelines(idx_all[0])
-    open(save_dir + "val.txt", "w").writelines(idx_all[1])
-    open(save_dir + "trainval.txt", "w").writelines(idx_all[0] + idx_all[1])
-    open(save_dir + "test.txt", "w").writelines(idx_all[2])
-    # open(save_dir+'test_cam_only.txt','w').writelines(idx_all[3])
-    print("created txt files indicating what to collect in ", splits)

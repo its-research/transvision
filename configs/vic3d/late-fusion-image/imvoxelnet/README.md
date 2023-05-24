@@ -50,7 +50,15 @@ Data creation should be under the gpu environment.
 ```commandline
 # Kitti Format
 cd ${dair-v2x_root}/dair-v2x
-
+python tools/dataset_converter/dair2kitti.py --source-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side \
+    --target-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side \
+    --split-path ./data/split_datas/cooperative-split-data.json \
+    --label-type lidar --sensor-view infrastructure --no-classmerge
+python tools/dataset_converter/dair2kitti.py --source-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side \
+    --target-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side \
+    --split-path ./data/split_datas/cooperative-split-data.json \
+    --label-type lidar --sensor-view vehicle --no-classmerge
+```
 In the end, the data and info files should be organized as follows
 ```
 └── cooperative-vehicle-infrastructure   <-- DAIR-V2X-C

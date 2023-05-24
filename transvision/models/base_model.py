@@ -9,5 +9,5 @@ class BaseModel(nn.Module):
         raise NotImplementedError
 
     @staticmethod
-    def add_arguments(parser):
+    def add_arguments(self, parser):
         pass

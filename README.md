@@ -2,16 +2,21 @@
 
 ## Dependencies
 
-+ torch==2.0.1
-+ mmengine
-+ mmdet3d==1.1.0
-+ mmcv-lite==2.0.0
-+ mmdet==3.0.0
++ python < 3.9
++ torch==1.8.2
++ mmdet3d==0.17.1
++ mmcv-full
++ mmdet==2.14.0
++ mmsegmentation==0.14.1
 
 ```shell
-conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
-pip install -U openmim
-mim install mmengine mmcv-lite 'mmdet>=3.0.0' "mmdet3d>=1.1.0"
+conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch-lts -c nvidia
+pip install mmcv-full mmdet==2.14.0 mmsegmentation==0.14.1
+git clone https://github.com/open-mmlab/mmdetection3d.git
+cd mmdetection3d
+git checkout v0.17.1
+pip install -v -e .
+```
 
 ```shell
 git clone https://github.com/klintan/pypcd.git
@@ -74,19 +79,17 @@ There is no '006315.pcd' file in cooperative-vehicle-infrastructure/infrastructu
 ```python
 from shapely.geometry.polygon import Polygon
 if polygon_from_2d_box.intersects(img_canvas):
-        img_intersection = polygon_from_2d_box.intersection(img_canvas)
-        if isinstance(img_intersection, Polygon):
-            intersection_coords = np.array(
-                [coord for coord in img_intersection.exterior.coords])
-
-            min_x = min(intersection_coords[:, 0])
-            min_y = min(intersection_coords[:, 1])
-            max_x = max(intersection_coords[:, 0])
-            max_y = max(intersection_coords[:, 1])
-
-            return min_x, min_y, max_x, max_y
-        else:
-            return None
+    img_intersection = polygon_from_2d_box.intersection(img_canvas)
+    if isinstance(img_intersection, Polygon):
+        intersection_coords = np.array(
+            [coord for coord in img_intersection.exterior.coords])
+        min_x = min(intersection_coords[:, 0])
+        min_y = min(intersection_coords[:, 1])
+        max_x = max(intersection_coords[:, 0])
+        max_y = max(intersection_coords[:, 1])
+        return min_x, min_y, max_x, max_y
+    else:
+        return None
 else:
 	return None
 ```
