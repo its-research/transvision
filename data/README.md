@@ -254,7 +254,7 @@ We split 50%, 20% and 30% of the dataset into a training set, validation set, an
 - Beijing High-level Autonomous Driving Demonstration Area
 - Beijing Connected and Autonomous Vehicles Technology Co., Ltd
 - Baidu Apollo
-- Beijing Academy of Artificial Intelligence，BAAI
+- Beijing Academy of Artificial Intelligence, BAAI
 
 ---
 

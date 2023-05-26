@@ -120,7 +120,7 @@ def create_groundtruth_database(
     """Given the raw data, generate the ground truth database.
 
     Args:
-        dataset_class_name （str): Name of the input dataset.
+        dataset_class_name (str): Name of the input dataset.
         data_path (str): Path of the data.
         info_prefix (str): Prefix of the info file.
         info_path (str): Path of the info file.

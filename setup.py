@@ -4,7 +4,7 @@ import subprocess
 import torch
 from setuptools import find_packages, setup
 
-# aifwvision version info
+# transvision version info
 version = "0.1.0"
 package_name = "transvision"
 cwd = os.path.dirname(os.path.abspath(__file__))

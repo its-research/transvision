@@ -487,8 +487,7 @@ def post_process_coords(corner_coords: List, imsize: Tuple[int, int] = (1600, 90
     if polygon_from_2d_box.intersects(img_canvas):
         img_intersection = polygon_from_2d_box.intersection(img_canvas)
         if isinstance(img_intersection, Polygon):
-            intersection_coords = np.array(
-                [coord for coord in img_intersection.exterior.coords])
+            intersection_coords = np.array([coord for coord in img_intersection.exterior.coords])
             min_x = min(intersection_coords[:, 0])
             min_y = min(intersection_coords[:, 1])
             max_x = max(intersection_coords[:, 0])
@@ -497,7 +496,7 @@ def post_process_coords(corner_coords: List, imsize: Tuple[int, int] = (1600, 90
         else:
             return None
     else:
-    	return None
+        return None
 
 
 def generate_record(ann_rec: dict, x1: float, y1: float, x2: float, y2: float, sample_data_token: str, filename: str) -> OrderedDict:

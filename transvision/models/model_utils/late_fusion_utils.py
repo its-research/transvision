@@ -67,10 +67,10 @@ class StaticBBoxList(BBoxList):
                 'info': id,
                 'timestamp': 时间戳
                 'boxes_3d': 预测的3D box的八个顶点, [N, 8, 3]
-                'arrows': box朝向，每个box两个点(起始点和结束点)，[N, 2, 3]
+                'arrows': box朝向, 每个box两个点(起始点和结束点), [N, 2, 3]
                 'scores_3d': 各个box置信度, [N,]
                 'labels_3d': 各个box的标签种类, [N,]
-                'points': 全范围点云（输入模型的点云范围较小，所以只预测了一部分范围的box）
+                'points': 全范围点云(输入模型的点云范围较小, 所以只预测了一部分范围的box)
             }
             """
 
