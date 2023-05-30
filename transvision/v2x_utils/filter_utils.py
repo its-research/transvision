@@ -7,8 +7,7 @@ from .geometry_utils import point_in_box
 def diff_label_filt(frame1, frame2, i, j):
     size = frame1.size[i]
     diff = np.abs(frame1.center[i] - frame2.center[j]) / size
-    return diff[0] <= 1 and diff[1] <= 1 and diff[2] <= 1 and frame1.label[
-        i] == frame2.label[j]
+    return diff[0] <= 1 and diff[1] <= 1 and diff[2] <= 1 and frame1.label[i] == frame2.label[j]
 
 
 class Filter(object):

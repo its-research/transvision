@@ -72,10 +72,8 @@ class LateFusionInf(nn.Module):
             tmp = frame.point_cloud(data_format='file')
             result, _ = inference_detector(self.model, tmp)
         elif self.args.sensortype == 'camera':
-            tmp = osp.join(self.args.input, 'infrastructure-side',
-                           frame['image_path'])
-            annos = osp.join(self.args.input, 'infrastructure-side', 'annos',
-                             id + '.json')
+            tmp = osp.join(self.args.input, 'infrastructure-side', frame['image_path'])
+            annos = osp.join(self.args.input, 'infrastructure-side', 'annos', id + '.json')
             result, _ = inference_mono_3d_detector(self.model, tmp, annos)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
@@ -147,12 +145,9 @@ class LateFusionInf(nn.Module):
         self.pipe.send('label', pred_dict['labels_3d'])
 
         if prev_inf_frame_func is not None:
-            prev_frame, delta_t = prev_inf_frame_func(
-                id, sensortype=self.args.sensortype)
+            prev_frame, delta_t = prev_inf_frame_func(id, sensortype=self.args.sensortype)
             if prev_frame is not None:
-                prev_frame_trans = prev_frame.transform(
-                    from_coord='Infrastructure_lidar',
-                    to_coord='Vehicle_lidar')
+                prev_frame_trans = prev_frame.transform(from_coord='Infrastructure_lidar', to_coord='Vehicle_lidar')
                 prev_frame_trans.veh_name = trans.veh_name
                 prev_frame_trans.delta_x = trans.delta_x
                 prev_frame_trans.delta_y = trans.delta_y
@@ -212,10 +207,8 @@ class LateFusionVeh(nn.Module):
             tmp = frame.point_cloud(data_format='file')
             result, _ = inference_detector(self.model, tmp)
         elif self.args.sensortype == 'camera':
-            tmp = osp.join(self.args.input, 'vehicle-side',
-                           frame['image_path'])
-            annos = osp.join(self.args.input, 'vehicle-side', 'annos',
-                             id + '.json')
+            tmp = osp.join(self.args.input, 'vehicle-side', frame['image_path'])
+            annos = osp.join(self.args.input, 'vehicle-side', 'annos', id + '.json')
             result, _ = inference_mono_3d_detector(self.model, tmp, annos)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
@@ -302,8 +295,7 @@ class LateFusion(BaseModel):
         self.veh_model = LateFusionVeh(args)
         self.args = args
         self.space_compensator = SpaceCompensator()
-        self.time_compensator = TimeCompensator(
-            EuclidianMatcher(diff_label_filt))
+        self.time_compensator = TimeCompensator(EuclidianMatcher(diff_label_filt))
         mkdir(args.output)
         mkdir(osp.join(args.output, 'inf'))
         mkdir(osp.join(args.output, 'veh'))
@@ -316,13 +308,11 @@ class LateFusion(BaseModel):
     def forward(self, vic_frame, filt, prev_inf_frame_func=None, *args):
         id_inf = self.inf_model(
             vic_frame.infrastructure_frame(),
-            vic_frame.transform(
-                from_coord='Infrastructure_lidar', to_coord='Vehicle_lidar'),
+            vic_frame.transform(from_coord='Infrastructure_lidar', to_coord='Vehicle_lidar'),
             filt,
             prev_inf_frame_func if not self.args.no_comp else None,
         )
-        pred_dict, id_veh = self.veh_model(vic_frame.vehicle_frame(), None,
-                                           filt)
+        pred_dict, id_veh = self.veh_model(vic_frame.vehicle_frame(), None, filt)
 
         # logger.info("running late fusion...")
         pred_inf = BBoxList(
@@ -360,8 +350,7 @@ class LateFusion(BaseModel):
         ind_inf, ind_veh, cost = matcher.match(pred_inf, pred_veh)
         logger.debug('matched boxes: {}, {}'.format(ind_inf, ind_veh))
 
-        fuser = BasicFuser(
-            perspective='vehicle', trust_type='main', retain_type='all')
+        fuser = BasicFuser(perspective='vehicle', trust_type='main', retain_type='all')
         result = fuser.fuse(pred_inf, pred_veh, ind_inf, ind_veh)
         result['inf_id'] = id_inf
         result['veh_id'] = id_veh

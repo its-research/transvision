@@ -40,8 +40,7 @@ class SingleSide(BaseModel):
                 raise Exception
 
             if self.args.sensortype == 'lidar':
-                result, _ = inference_detector(
-                    self.model, frame.point_cloud(data_format='file'))
+                result, _ = inference_detector(self.model, frame.point_cloud(data_format='file'))
 
             elif self.args.sensortype == 'camera':
                 image = osp.join(input_path, frame['image_path'])
@@ -52,8 +51,7 @@ class SingleSide(BaseModel):
                 # mmcv.tmp = mmcv.imwrite(image, tmp)
                 annos = osp.join(input_path, 'annos', id + '.json')
 
-                result, _ = inference_mono_3d_detector(self.model, image,
-                                                       annos)
+                result, _ = inference_mono_3d_detector(self.model, image, annos)
 
                 # hard code by yuhb
                 for ii in range(len(result[0]['labels_3d'])):
@@ -123,8 +121,7 @@ class InfOnly(BaseModel):
     def forward(self, vic_frame, filt, offset, *args):
         self.model(
             vic_frame.infrastructure_frame(),
-            vic_frame.transform(
-                from_coord='Infrastructure_lidar', to_coord='Vehicle_lidar'),
+            vic_frame.transform(from_coord='Infrastructure_lidar', to_coord='Vehicle_lidar'),
             filt,
         )
         pred = np.array(self.pipe.receive('boxes'))

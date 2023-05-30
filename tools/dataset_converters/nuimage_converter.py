@@ -8,9 +8,7 @@ import numpy as np
 from nuimages import NuImages
 from nuimages.utils.utils import mask_decode, name_to_index_mapping
 
-nus_categories = ('car', 'truck', 'trailer', 'bus', 'construction_vehicle',
-                  'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone',
-                  'barrier')
+nus_categories = ('car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone', 'barrier')
 
 NAME_MAPPING = {
     'movable_object.barrier': 'barrier',
@@ -32,30 +30,10 @@ NAME_MAPPING = {
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Data converter arg parser')
-    parser.add_argument(
-        '--data-root',
-        type=str,
-        default='./data/nuimages',
-        help='specify the root path of dataset')
-    parser.add_argument(
-        '--version',
-        type=str,
-        nargs='+',
-        default=['v1.0-mini'],
-        required=False,
-        help='specify the dataset version')
-    parser.add_argument(
-        '--out-dir',
-        type=str,
-        default='./data/nuimages/annotations/',
-        required=False,
-        help='path to save the exported json')
-    parser.add_argument(
-        '--nproc',
-        type=int,
-        default=4,
-        required=False,
-        help='workers to process semantic masks')
+    parser.add_argument('--data-root', type=str, default='./data/nuimages', help='specify the root path of dataset')
+    parser.add_argument('--version', type=str, nargs='+', default=['v1.0-mini'], required=False, help='specify the dataset version')
+    parser.add_argument('--out-dir', type=str, default='./data/nuimages/annotations/', required=False, help='path to save the exported json')
+    parser.add_argument('--nproc', type=int, default=4, required=False, help='workers to process semantic masks')
     parser.add_argument('--extra-tag', type=str, default='nuimages')
     args = parser.parse_args()
     return args
@@ -80,9 +58,7 @@ def get_img_annos(nuim, img_info, cat2id, out_dir, data_root, seg_root):
     semseg_mask = np.zeros((height, width)).astype('uint8')
 
     # Load stuff / surface regions.
-    surface_anns = [
-        o for o in nuim.surface_ann if o['sample_data_token'] == sd_token
-    ]
+    surface_anns = [o for o in nuim.surface_ann if o['sample_data_token'] == sd_token]
 
     # Draw stuff / surface regions.
     for ann in surface_anns:
@@ -97,9 +73,7 @@ def get_img_annos(nuim, img_info, cat2id, out_dir, data_root, seg_root):
         semseg_mask[mask == 1] = name_to_index[category_name]
 
     # Load object instances.
-    object_anns = [
-        o for o in nuim.object_ann if o['sample_data_token'] == sd_token
-    ]
+    object_anns = [o for o in nuim.object_ann if o['sample_data_token'] == sd_token]
 
     # Sort by token to ensure that objects always appear in the
     # instance mask in the same order.
@@ -127,17 +101,11 @@ def get_img_annos(nuim, img_info, cat2id, out_dir, data_root, seg_root):
             x_min, y_min, x_max, y_max = ann['bbox']
             # encode calibrated instance mask
             mask_anno = dict()
-            mask_anno['counts'] = base64.b64decode(
-                ann['mask']['counts']).decode()
+            mask_anno['counts'] = base64.b64decode(ann['mask']['counts']).decode()
             mask_anno['size'] = ann['mask']['size']
 
             data_anno = dict(
-                image_id=image_id,
-                category_id=cat_id,
-                bbox=[x_min, y_min, x_max - x_min, y_max - y_min],
-                area=(x_max - x_min) * (y_max - y_min),
-                segmentation=mask_anno,
-                iscrowd=0)
+                image_id=image_id, category_id=cat_id, bbox=[x_min, y_min, x_max - x_min, y_max - y_min], area=(x_max - x_min) * (y_max - y_min), segmentation=mask_anno, iscrowd=0)
             annotations.append(data_anno)
 
     # after process, save semantic masks
@@ -151,10 +119,7 @@ def get_img_annos(nuim, img_info, cat2id, out_dir, data_root, seg_root):
 def export_nuim_to_coco(nuim, data_root, out_dir, extra_tag, version, nproc):
     print('Process category information')
     categories = []
-    categories = [
-        dict(id=nus_categories.index(cat_name), name=cat_name)
-        for cat_name in nus_categories
-    ]
+    categories = [dict(id=nus_categories.index(cat_name), name=cat_name) for cat_name in nus_categories]
     cat2id = {k_v['name']: k_v['id'] for k_v in categories}
 
     images = []
@@ -162,13 +127,7 @@ def export_nuim_to_coco(nuim, data_root, out_dir, extra_tag, version, nproc):
     for sample_info in mmcv.track_iter_progress(nuim.sample_data):
         if sample_info['is_key_frame']:
             img_idx = len(images)
-            images.append(
-                dict(
-                    id=img_idx,
-                    token=sample_info['token'],
-                    file_name=sample_info['filename'],
-                    width=sample_info['width'],
-                    height=sample_info['height']))
+            images.append(dict(id=img_idx, token=sample_info['token'], file_name=sample_info['filename'], width=sample_info['width'], height=sample_info['height']))
 
     seg_root = f'{out_dir}semantic_masks'
     mmcv.mkdir_or_exist(seg_root)
@@ -177,15 +136,12 @@ def export_nuim_to_coco(nuim, data_root, out_dir, extra_tag, version, nproc):
     global process_img_anno
 
     def process_img_anno(img_info):
-        single_img_annos, max_cls_id = get_img_annos(nuim, img_info, cat2id,
-                                                     out_dir, data_root,
-                                                     seg_root)
+        single_img_annos, max_cls_id = get_img_annos(nuim, img_info, cat2id, out_dir, data_root, seg_root)
         return single_img_annos, max_cls_id
 
     print('Process img annotations...')
     if nproc > 1:
-        outputs = mmcv.track_parallel_progress(
-            process_img_anno, images, nproc=nproc)
+        outputs = mmcv.track_parallel_progress(process_img_anno, images, nproc=nproc)
     else:
         outputs = []
         for img_info in mmcv.track_iter_progress(images):
@@ -204,8 +160,7 @@ def export_nuim_to_coco(nuim, data_root, out_dir, extra_tag, version, nproc):
     max_cls_id = max(max_cls_ids)
     print(f'Max ID of class in the semantic map: {max_cls_id}')
 
-    coco_format_json = dict(
-        images=images, annotations=annotations, categories=categories)
+    coco_format_json = dict(images=images, annotations=annotations, categories=categories)
 
     mmcv.mkdir_or_exist(out_dir)
     out_file = osp.join(out_dir, f'{extra_tag}_{version}.json')
@@ -216,10 +171,8 @@ def export_nuim_to_coco(nuim, data_root, out_dir, extra_tag, version, nproc):
 def main():
     args = parse_args()
     for version in args.version:
-        nuim = NuImages(
-            dataroot=args.data_root, version=version, verbose=True, lazy=True)
-        export_nuim_to_coco(nuim, args.data_root, args.out_dir, args.extra_tag,
-                            version, args.nproc)
+        nuim = NuImages(dataroot=args.data_root, version=version, verbose=True, lazy=True)
+        export_nuim_to_coco(nuim, args.data_root, args.out_dir, args.extra_tag, version, args.nproc)
 
 
 if __name__ == '__main__':

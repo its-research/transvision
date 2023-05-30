@@ -6,9 +6,8 @@ r"""Adapted from `Waymo to KITTI converter
 try:
     from waymo_open_dataset import dataset_pb2
 except ImportError:
-    raise ImportError(
-        'Please run "pip install waymo-open-dataset-tf-2-1-0==1.2.0" '
-        'to install the official devkit first.')
+    raise ImportError('Please run "pip install waymo-open-dataset-tf-2-1-0==1.2.0" '
+                      'to install the official devkit first.')
 
 from glob import glob
 from os.path import join
@@ -35,12 +34,7 @@ class Waymo2KITTI(object):
         test_mode (bool): Whether in the test_mode. Default: False.
     """
 
-    def __init__(self,
-                 load_dir,
-                 save_dir,
-                 prefix,
-                 workers=64,
-                 test_mode=False):
+    def __init__(self, load_dir, save_dir, prefix, workers=64, test_mode=False):
         self.filter_empty_3dboxes = True
         self.filter_no_label_zone_points = True
 
@@ -56,20 +50,9 @@ class Waymo2KITTI(object):
         if int(tf.__version__.split('.')[0]) < 2:
             tf.enable_eager_execution()
 
-        self.lidar_list = [
-            '_FRONT', '_FRONT_RIGHT', '_FRONT_LEFT', '_SIDE_RIGHT',
-            '_SIDE_LEFT'
-        ]
-        self.type_list = [
-            'UNKNOWN', 'VEHICLE', 'PEDESTRIAN', 'SIGN', 'CYCLIST'
-        ]
-        self.waymo_to_kitti_class_map = {
-            'UNKNOWN': 'DontCare',
-            'PEDESTRIAN': 'Pedestrian',
-            'VEHICLE': 'Car',
-            'CYCLIST': 'Cyclist',
-            'SIGN': 'Sign'
-        }  # not in kitti
+        self.lidar_list = ['_FRONT', '_FRONT_RIGHT', '_FRONT_LEFT', '_SIDE_RIGHT', '_SIDE_LEFT']
+        self.type_list = ['UNKNOWN', 'VEHICLE', 'PEDESTRIAN', 'SIGN', 'CYCLIST']
+        self.waymo_to_kitti_class_map = {'UNKNOWN': 'DontCare', 'PEDESTRIAN': 'Pedestrian', 'VEHICLE': 'Car', 'CYCLIST': 'Cyclist', 'SIGN': 'Sign'}  # not in kitti
 
         self.load_dir = load_dir
         self.save_dir = save_dir
@@ -77,8 +60,7 @@ class Waymo2KITTI(object):
         self.workers = int(workers)
         self.test_mode = test_mode
 
-        self.tfrecord_pathnames = sorted(
-            glob(join(self.load_dir, '*.tfrecord')))
+        self.tfrecord_pathnames = sorted(glob(join(self.load_dir, '*.tfrecord')))
 
         self.label_save_dir = f'{self.save_dir}/label_'
         self.label_all_save_dir = f'{self.save_dir}/label_all'
@@ -92,8 +74,7 @@ class Waymo2KITTI(object):
     def convert(self):
         """Convert action."""
         print('Start converting ...')
-        mmcv.track_parallel_progress(self.convert_one, range(len(self)),
-                                     self.workers)
+        mmcv.track_parallel_progress(self.convert_one, range(len(self)), self.workers)
         print('\nFinished ...')
 
     def convert_one(self, file_idx):
@@ -145,8 +126,7 @@ class Waymo2KITTI(object):
             frame_idx (int): Current frame index.
         """
         # waymo front camera to kitti reference camera
-        T_front_cam_to_ref = np.array([[0.0, -1.0, 0.0], [0.0, 0.0, -1.0],
-                                       [1.0, 0.0, 0.0]])
+        T_front_cam_to_ref = np.array([[0.0, -1.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]])
         camera_calibs = []
         R0_rect = [f'{i:e}' for i in np.eye(3).flatten()]
         Tr_velo_to_cams = []
@@ -154,11 +134,9 @@ class Waymo2KITTI(object):
 
         for camera in frame.context.camera_calibrations:
             # extrinsic parameters
-            T_cam_to_vehicle = np.array(camera.extrinsic.transform).reshape(
-                4, 4)
+            T_cam_to_vehicle = np.array(camera.extrinsic.transform).reshape(4, 4)
             T_vehicle_to_cam = np.linalg.inv(T_cam_to_vehicle)
-            Tr_velo_to_cam = self.cart_to_homo(
-                T_front_cam_to_ref) @ T_vehicle_to_cam
+            Tr_velo_to_cam = self.cart_to_homo(T_front_cam_to_ref) @ T_vehicle_to_cam
             if camera.name == 1:  # FRONT = 1, see dataset.proto for details
                 self.T_velo_to_front_cam = Tr_velo_to_cam.copy()
             Tr_velo_to_cam = Tr_velo_to_cam[:3, :].reshape((12, ))
@@ -178,17 +156,12 @@ class Waymo2KITTI(object):
         # all camera ids are saved as id-1 in the result because
         # camera 0 is unknown in the proto
         for i in range(5):
-            calib_context += 'P' + str(i) + ': ' + ' '.join(
-                camera_calibs[i]) + '\n'
+            calib_context += 'P' + str(i) + ': ' + ' '.join(camera_calibs[i]) + '\n'
         calib_context += 'R0_rect' + ': ' + ' '.join(R0_rect) + '\n'
         for i in range(5):
-            calib_context += 'Tr_velo_to_cam_' + str(i) + ': ' + ' '.join(
-                Tr_velo_to_cams[i]) + '\n'
+            calib_context += 'Tr_velo_to_cam_' + str(i) + ': ' + ' '.join(Tr_velo_to_cams[i]) + '\n'
 
-        with open(
-                f'{self.calib_save_dir}/{self.prefix}' +
-                f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt',
-                'w+') as fp_calib:
+        with open(f'{self.calib_save_dir}/{self.prefix}' + f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt', 'w+') as fp_calib:
             fp_calib.write(calib_context)
             fp_calib.close()
 
@@ -200,27 +173,16 @@ class Waymo2KITTI(object):
             file_idx (int): Current file index.
             frame_idx (int): Current frame index.
         """
-        range_images, camera_projections, range_image_top_pose = parse_range_image_and_camera_projection(
-            frame)
+        range_images, camera_projections, range_image_top_pose = parse_range_image_and_camera_projection(frame)
 
         # First return
-        points_0, cp_points_0, intensity_0, elongation_0 = self.convert_range_image_to_point_cloud(
-            frame,
-            range_images,
-            camera_projections,
-            range_image_top_pose,
-            ri_index=0)
+        points_0, cp_points_0, intensity_0, elongation_0 = self.convert_range_image_to_point_cloud(frame, range_images, camera_projections, range_image_top_pose, ri_index=0)
         points_0 = np.concatenate(points_0, axis=0)
         intensity_0 = np.concatenate(intensity_0, axis=0)
         elongation_0 = np.concatenate(elongation_0, axis=0)
 
         # Second return
-        points_1, cp_points_1, intensity_1, elongation_1 = self.convert_range_image_to_point_cloud(
-            frame,
-            range_images,
-            camera_projections,
-            range_image_top_pose,
-            ri_index=1)
+        points_1, cp_points_1, intensity_1, elongation_1 = self.convert_range_image_to_point_cloud(frame, range_images, camera_projections, range_image_top_pose, ri_index=1)
         points_1 = np.concatenate(points_1, axis=0)
         intensity_1 = np.concatenate(intensity_1, axis=0)
         elongation_1 = np.concatenate(elongation_1, axis=0)
@@ -231,8 +193,7 @@ class Waymo2KITTI(object):
         timestamp = frame.timestamp_micros * np.ones_like(intensity)
 
         # concatenate x,y,z, intensity, elongation, timestamp (6-dim)
-        point_cloud = np.column_stack(
-            (points, intensity, elongation, timestamp))
+        point_cloud = np.column_stack((points, intensity, elongation, timestamp))
 
         pc_path = f'{self.point_cloud_save_dir}/{self.prefix}' + f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.bin'
         point_cloud.astype(np.float32).tofile(pc_path)
@@ -250,9 +211,7 @@ class Waymo2KITTI(object):
             file_idx (int): Current file index.
             frame_idx (int): Current frame index.
         """
-        fp_label_all = open(
-            f'{self.label_all_save_dir}/{self.prefix}' +
-            f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt', 'w+')
+        fp_label_all = open(f'{self.label_all_save_dir}/{self.prefix}' + f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt', 'w+')
         id_to_bbox = dict()
         id_to_name = dict()
         for labels in frame.projected_lidar_labels:
@@ -301,8 +260,7 @@ class Waymo2KITTI(object):
             z = obj.box.center_z - height / 2
 
             # project bounding box to the virtual reference frame
-            pt_ref = self.T_velo_to_front_cam @ np.array([x, y, z, 1]).reshape(
-                (4, 1))
+            pt_ref = self.T_velo_to_front_cam @ np.array([x, y, z, 1]).reshape((4, 1))
             x, y, z, _ = pt_ref.flatten().tolist()
 
             rotation_y = -obj.box.heading - np.pi / 2
@@ -335,9 +293,7 @@ class Waymo2KITTI(object):
             else:
                 line_all = line[:-1] + ' ' + name + '\n'
 
-            fp_label = open(
-                f'{self.label_save_dir}{name}/{self.prefix}' +
-                f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt', 'a')
+            fp_label = open(f'{self.label_save_dir}{name}/{self.prefix}' + f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt', 'a')
             fp_label.write(line)
             fp_label.close()
 
@@ -359,24 +315,15 @@ class Waymo2KITTI(object):
             frame_idx (int): Current frame index.
         """
         pose = np.array(frame.pose.transform).reshape(4, 4)
-        np.savetxt(
-            join(f'{self.pose_save_dir}/{self.prefix}' +
-                 f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt'),
-            pose)
+        np.savetxt(join(f'{self.pose_save_dir}/{self.prefix}' + f'{str(file_idx).zfill(3)}{str(frame_idx).zfill(3)}.txt'), pose)
 
     def create_folder(self):
         """Create folder for data preprocessing."""
         if not self.test_mode:
-            dir_list1 = [
-                self.label_all_save_dir, self.calib_save_dir,
-                self.point_cloud_save_dir, self.pose_save_dir
-            ]
+            dir_list1 = [self.label_all_save_dir, self.calib_save_dir, self.point_cloud_save_dir, self.pose_save_dir]
             dir_list2 = [self.label_save_dir, self.image_save_dir]
         else:
-            dir_list1 = [
-                self.calib_save_dir, self.point_cloud_save_dir,
-                self.pose_save_dir
-            ]
+            dir_list1 = [self.calib_save_dir, self.point_cloud_save_dir, self.pose_save_dir]
             dir_list2 = [self.image_save_dir]
         for d in dir_list1:
             mmcv.mkdir_or_exist(d)
@@ -384,12 +331,7 @@ class Waymo2KITTI(object):
             for i in range(5):
                 mmcv.mkdir_or_exist(f'{d}{str(i)}')
 
-    def convert_range_image_to_point_cloud(self,
-                                           frame,
-                                           range_images,
-                                           camera_projections,
-                                           range_image_top_pose,
-                                           ri_index=0):
+    def convert_range_image_to_point_cloud(self, frame, range_images, camera_projections, range_image_top_pose, ri_index=0):
         """Convert range images to point cloud.
 
         Args:
@@ -409,45 +351,31 @@ class Waymo2KITTI(object):
                 with shape [N, 1], elongation with shape [N, 1]). All the
                 lists have the length of lidar numbers (5).
         """
-        calibrations = sorted(
-            frame.context.laser_calibrations, key=lambda c: c.name)
+        calibrations = sorted(frame.context.laser_calibrations, key=lambda c: c.name)
         points = []
         cp_points = []
         intensity = []
         elongation = []
 
-        frame_pose = tf.convert_to_tensor(
-            value=np.reshape(np.array(frame.pose.transform), [4, 4]))
+        frame_pose = tf.convert_to_tensor(value=np.reshape(np.array(frame.pose.transform), [4, 4]))
         # [H, W, 6]
-        range_image_top_pose_tensor = tf.reshape(
-            tf.convert_to_tensor(value=range_image_top_pose.data),
-            range_image_top_pose.shape.dims)
+        range_image_top_pose_tensor = tf.reshape(tf.convert_to_tensor(value=range_image_top_pose.data), range_image_top_pose.shape.dims)
         # [H, W, 3, 3]
-        range_image_top_pose_tensor_rotation = transform_utils.get_rotation_matrix(
-            range_image_top_pose_tensor[..., 0],
-            range_image_top_pose_tensor[..., 1],
-            range_image_top_pose_tensor[..., 2])
-        range_image_top_pose_tensor_translation = range_image_top_pose_tensor[
-            ..., 3:]
-        range_image_top_pose_tensor = transform_utils.get_transform(
-            range_image_top_pose_tensor_rotation,
-            range_image_top_pose_tensor_translation)
+        range_image_top_pose_tensor_rotation = transform_utils.get_rotation_matrix(range_image_top_pose_tensor[..., 0], range_image_top_pose_tensor[..., 1],
+                                                                                   range_image_top_pose_tensor[..., 2])
+        range_image_top_pose_tensor_translation = range_image_top_pose_tensor[..., 3:]
+        range_image_top_pose_tensor = transform_utils.get_transform(range_image_top_pose_tensor_rotation, range_image_top_pose_tensor_translation)
         for c in calibrations:
             range_image = range_images[c.name][ri_index]
             if len(c.beam_inclinations) == 0:
-                beam_inclinations = range_image_utils.compute_inclination(
-                    tf.constant(
-                        [c.beam_inclination_min, c.beam_inclination_max]),
-                    height=range_image.shape.dims[0])
+                beam_inclinations = range_image_utils.compute_inclination(tf.constant([c.beam_inclination_min, c.beam_inclination_max]), height=range_image.shape.dims[0])
             else:
                 beam_inclinations = tf.constant(c.beam_inclinations)
 
             beam_inclinations = tf.reverse(beam_inclinations, axis=[-1])
             extrinsic = np.reshape(np.array(c.extrinsic.transform), [4, 4])
 
-            range_image_tensor = tf.reshape(
-                tf.convert_to_tensor(value=range_image.data),
-                range_image.shape.dims)
+            range_image_tensor = tf.reshape(tf.convert_to_tensor(value=range_image.data), range_image.shape.dims)
             pixel_pose_local = None
             frame_pose_local = None
             if c.name == dataset_pb2.LaserName.TOP:
@@ -463,30 +391,24 @@ class Waymo2KITTI(object):
             range_image_cartesian = range_image_utils.extract_point_cloud_from_range_image(
                 tf.expand_dims(range_image_tensor[..., 0], axis=0),
                 tf.expand_dims(extrinsic, axis=0),
-                tf.expand_dims(
-                    tf.convert_to_tensor(value=beam_inclinations), axis=0),
+                tf.expand_dims(tf.convert_to_tensor(value=beam_inclinations), axis=0),
                 pixel_pose=pixel_pose_local,
                 frame_pose=frame_pose_local,
             )
 
             range_image_cartesian = tf.squeeze(range_image_cartesian, axis=0)
-            points_tensor = tf.gather_nd(range_image_cartesian,
-                                         tf.compat.v1.where(range_image_mask))
+            points_tensor = tf.gather_nd(range_image_cartesian, tf.compat.v1.where(range_image_mask))
 
             cp = camera_projections[c.name][ri_index]
-            cp_tensor = tf.reshape(
-                tf.convert_to_tensor(value=cp.data), cp.shape.dims)
-            cp_points_tensor = tf.gather_nd(
-                cp_tensor, tf.compat.v1.where(range_image_mask))
+            cp_tensor = tf.reshape(tf.convert_to_tensor(value=cp.data), cp.shape.dims)
+            cp_points_tensor = tf.gather_nd(cp_tensor, tf.compat.v1.where(range_image_mask))
             points.append(points_tensor.numpy())
             cp_points.append(cp_points_tensor.numpy())
 
-            intensity_tensor = tf.gather_nd(range_image_tensor[..., 1],
-                                            tf.where(range_image_mask))
+            intensity_tensor = tf.gather_nd(range_image_tensor[..., 1], tf.where(range_image_mask))
             intensity.append(intensity_tensor.numpy())
 
-            elongation_tensor = tf.gather_nd(range_image_tensor[..., 2],
-                                             tf.where(range_image_mask))
+            elongation_tensor = tf.gather_nd(range_image_tensor[..., 2], tf.where(range_image_mask))
             elongation.append(elongation_tensor.numpy())
 
         return points, cp_points, intensity, elongation

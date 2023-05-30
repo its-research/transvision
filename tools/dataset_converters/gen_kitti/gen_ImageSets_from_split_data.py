@@ -3,9 +3,7 @@ import os
 from .utils import mkdir_p, read_json, write_txt
 
 
-def gen_ImageSet_from_split_data(ImageSets_path,
-                                 split_data_path,
-                                 sensor_view='vehicle'):
+def gen_ImageSet_from_split_data(ImageSets_path, split_data_path, sensor_view='vehicle'):
     split_data = read_json(split_data_path)
     test_file = ''
     train_file = ''

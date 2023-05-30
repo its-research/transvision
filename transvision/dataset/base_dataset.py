@@ -39,9 +39,7 @@ def get_annos(path, prefix, single_frame, sensortype='camera'):
     annFile.update({'images': imglist})
     if not osp.exists(osp.join(path, prefix, 'annos')):
         os.mkdir(osp.join(path, prefix, 'annos'))
-    ann_path_o = osp.join(
-        path, prefix, 'annos',
-        single_frame['image_path'].split('/')[-1].split('.')[0] + '.json')
+    ann_path_o = osp.join(path, prefix, 'annos', single_frame['image_path'].split('/')[-1].split('.')[0] + '.json')
     with open(ann_path_o, 'w') as f:
         json.dump(annFile, f)
 

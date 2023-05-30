@@ -41,21 +41,18 @@ def gen_calib2kitti(path_camera_intrisinc, path_lidar_to_camera, path_calib):
     for i in range(len(path_list_camera_intrisinc)):
         cam_D, cam_K = get_cam_D_and_cam_K(path_list_camera_intrisinc[i])
         t_velo2cam, r_velo2cam = get_velo2cam(path_list_lidar_to_camera[i])
-        json_name = os.path.split(
-            path_list_camera_intrisinc[i])[-1][:-5] + '.txt'
+        json_name = os.path.split(path_list_camera_intrisinc[i])[-1][:-5] + '.txt'
         json_path = os.path.join(path_calib, json_name)
 
         t_velo2cam = np.array(t_velo2cam).reshape(3, 1)
         r_velo2cam = np.array(r_velo2cam).reshape(3, 3)
-        P2, Tr_velo_to_cam = convert_calib_v2x_to_kitti(
-            cam_D, cam_K, t_velo2cam, r_velo2cam)
+        P2, Tr_velo_to_cam = convert_calib_v2x_to_kitti(cam_D, cam_K, t_velo2cam, r_velo2cam)
 
         str_P2 = 'P2: '
         str_Tr_velo_to_cam = 'Tr_velo_to_cam: '
         for ii in range(11):
             str_P2 = str_P2 + str(P2[ii]) + ' '
-            str_Tr_velo_to_cam = str_Tr_velo_to_cam + str(
-                Tr_velo_to_cam[ii]) + ' '
+            str_Tr_velo_to_cam = str_Tr_velo_to_cam + str(Tr_velo_to_cam[ii]) + ' '
         str_P2 = str_P2 + str(P2[11])
         str_Tr_velo_to_cam = str_Tr_velo_to_cam + str(Tr_velo_to_cam[11])
 

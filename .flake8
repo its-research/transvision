@@ -9,6 +9,6 @@ ignore = W503, W504, E203, E126, E129, E221, E225, E251, C403, C416, C901, B006,
 max-line-length = 180
 max-complexity = 18
 select = B,C,E,F,W,T4,B9
-exclude = dair_v2x_i_dataset_vis-master
+exclude = data
 per-file-ignores =
   **/__init__.py:F401,F403,F405, E402

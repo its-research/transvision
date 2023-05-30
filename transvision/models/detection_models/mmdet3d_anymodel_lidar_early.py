@@ -71,26 +71,16 @@ class EarlyFusion(BaseModel):
         if not osp.exists(save_path):
             mkdir(save_path)
         name = vic_frame.veh_frame['image_path'][-10:-4]
-        Inf_points = read_pcd(
-            osp.join(vic_frame.path, 'infrastructure-side',
-                     vic_frame.inf_frame['pointcloud_path']))
-        Veh_points = read_pcd(
-            osp.join(vic_frame.path, 'vehicle-side',
-                     vic_frame.veh_frame['pointcloud_path']))
-        vic_frame_trans = vic_frame.transform(
-            from_coord='Infrastructure_lidar', to_coord='Vehicle_lidar')
+        Inf_points = read_pcd(osp.join(vic_frame.path, 'infrastructure-side', vic_frame.inf_frame['pointcloud_path']))
+        Veh_points = read_pcd(osp.join(vic_frame.path, 'vehicle-side', vic_frame.veh_frame['pointcloud_path']))
+        vic_frame_trans = vic_frame.transform(from_coord='Infrastructure_lidar', to_coord='Vehicle_lidar')
         for i in range(len(Inf_points.pc_data)):
-            temp = vic_frame_trans.single_point_transformation([
-                Inf_points.pc_data[i][0], Inf_points.pc_data[i][1],
-                Inf_points.pc_data[i][2]
-            ])
+            temp = vic_frame_trans.single_point_transformation([Inf_points.pc_data[i][0], Inf_points.pc_data[i][1], Inf_points.pc_data[i][2]])
             for j in range(3):
                 Inf_points.pc_data[i][j] = temp[j]
             Inf_points.pc_data[i][3] = Inf_points.pc_data[i][3] * 255
-        concatenate_pcd2bin(Inf_points, Veh_points,
-                            osp.join(save_path, name + '.pcd'))
-        vic_frame.veh_frame['pointcloud_path'] = osp.join(
-            'cache', name + '.pcd')
+        concatenate_pcd2bin(Inf_points, Veh_points, osp.join(save_path, name + '.pcd'))
+        vic_frame.veh_frame['pointcloud_path'] = osp.join('cache', name + '.pcd')
         pred, id_veh = self.model(vic_frame.vehicle_frame(), None, filt)
 
         # Hard Code to change the prediction label
@@ -196,7 +186,4 @@ class LateFusionVeh(nn.Module):
 
 if __name__ == '__main__':
     sys.path.append('..')
-    sys.path.extend([
-        os.path.join(root, name) for root, dirs, _ in os.walk('../')
-        for name in dirs
-    ])
+    sys.path.extend([os.path.join(root, name) for root, dirs, _ in os.walk('../') for name in dirs])

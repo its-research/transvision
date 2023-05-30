@@ -11,14 +11,10 @@ from pyquaternion import Quaternion
 
 from .nuscenes_converter import get_2d_boxes, get_available_scenes, obtain_sensor2top
 
-lyft_categories = ('car', 'truck', 'bus', 'emergency_vehicle', 'other_vehicle',
-                   'motorcycle', 'bicycle', 'pedestrian', 'animal')
+lyft_categories = ('car', 'truck', 'bus', 'emergency_vehicle', 'other_vehicle', 'motorcycle', 'bicycle', 'pedestrian', 'animal')
 
 
-def create_lyft_infos(root_path,
-                      info_prefix,
-                      version='v1.01-train',
-                      max_sweeps=10):
+def create_lyft_infos(root_path, info_prefix, version='v1.01-train', max_sweeps=10):
     """Create info file of lyft dataset.
 
     Given the raw data, generate its related info file in pkl format.
@@ -31,10 +27,7 @@ def create_lyft_infos(root_path,
         max_sweeps (int): Max number of sweeps.
             Default: 10
     """
-    lyft = Lyft(
-        data_path=osp.join(root_path, version),
-        json_path=osp.join(root_path, version, version),
-        verbose=True)
+    lyft = Lyft(data_path=osp.join(root_path, version), json_path=osp.join(root_path, version, version), verbose=True)
     available_vers = ['v1.01-train', 'v1.01-test']
     assert version in available_vers
     if version == 'v1.01-train':
@@ -49,17 +42,10 @@ def create_lyft_infos(root_path,
     # filter existing scenes.
     available_scenes = get_available_scenes(lyft)
     available_scene_names = [s['name'] for s in available_scenes]
-    train_scenes = list(
-        filter(lambda x: x in available_scene_names, train_scenes))
+    train_scenes = list(filter(lambda x: x in available_scene_names, train_scenes))
     val_scenes = list(filter(lambda x: x in available_scene_names, val_scenes))
-    train_scenes = set([
-        available_scenes[available_scene_names.index(s)]['token']
-        for s in train_scenes
-    ])
-    val_scenes = set([
-        available_scenes[available_scene_names.index(s)]['token']
-        for s in val_scenes
-    ])
+    train_scenes = set([available_scenes[available_scene_names.index(s)]['token'] for s in train_scenes])
+    val_scenes = set([available_scenes[available_scene_names.index(s)]['token'] for s in val_scenes])
 
     test = 'test' in version
     if test:
@@ -67,8 +53,7 @@ def create_lyft_infos(root_path,
     else:
         print(f'train scene: {len(train_scenes)}, \
                 val scene: {len(val_scenes)}')
-    train_lyft_infos, val_lyft_infos = _fill_trainval_infos(
-        lyft, train_scenes, val_scenes, test, max_sweeps=max_sweeps)
+    train_lyft_infos, val_lyft_infos = _fill_trainval_infos(lyft, train_scenes, val_scenes, test, max_sweeps=max_sweeps)
 
     metadata = dict(version=version)
     if test:
@@ -90,11 +75,7 @@ def create_lyft_infos(root_path,
         mmcv.dump(data, info_val_path)
 
 
-def _fill_trainval_infos(lyft,
-                         train_scenes,
-                         val_scenes,
-                         test=False,
-                         max_sweeps=10):
+def _fill_trainval_infos(lyft, train_scenes, val_scenes, test=False, max_sweeps=10):
     """Generate the train/val infos from the raw data.
 
     Args:
@@ -115,8 +96,7 @@ def _fill_trainval_infos(lyft,
     for sample in mmcv.track_iter_progress(lyft.sample):
         lidar_token = sample['data']['LIDAR_TOP']
         sd_rec = lyft.get('sample_data', sample['data']['LIDAR_TOP'])
-        cs_record = lyft.get('calibrated_sensor',
-                             sd_rec['calibrated_sensor_token'])
+        cs_record = lyft.get('calibrated_sensor', sd_rec['calibrated_sensor_token'])
         pose_record = lyft.get('ego_pose', sd_rec['ego_pose_token'])
         abs_lidar_path, boxes, _ = lyft.get_sample_data(lidar_token)
         # nuScenes devkit returns more convenient relative paths while
@@ -158,8 +138,7 @@ def _fill_trainval_infos(lyft,
         for cam in camera_types:
             cam_token = sample['data'][cam]
             cam_path, _, cam_intrinsic = lyft.get_sample_data(cam_token)
-            cam_info = obtain_sensor2top(lyft, cam_token, l2e_t, l2e_r_mat,
-                                         e2g_t, e2g_r_mat, cam)
+            cam_info = obtain_sensor2top(lyft, cam_token, l2e_t, l2e_r_mat, e2g_t, e2g_r_mat, cam)
             cam_info.update(cam_intrinsic=cam_intrinsic)
             info['cams'].update({cam: cam_info})
 
@@ -168,8 +147,7 @@ def _fill_trainval_infos(lyft,
         sweeps = []
         while len(sweeps) < max_sweeps:
             if not sd_rec['prev'] == '':
-                sweep = obtain_sensor2top(lyft, sd_rec['prev'], l2e_t,
-                                          l2e_r_mat, e2g_t, e2g_r_mat, 'lidar')
+                sweep = obtain_sensor2top(lyft, sd_rec['prev'], l2e_t, l2e_r_mat, e2g_t, e2g_r_mat, 'lidar')
                 sweeps.append(sweep)
                 sd_rec = lyft.get('sample_data', sd_rec['prev'])
             else:
@@ -177,14 +155,10 @@ def _fill_trainval_infos(lyft,
         info['sweeps'] = sweeps
         # obtain annotation
         if not test:
-            annotations = [
-                lyft.get('sample_annotation', token)
-                for token in sample['anns']
-            ]
+            annotations = [lyft.get('sample_annotation', token) for token in sample['anns']]
             locs = np.array([b.center for b in boxes]).reshape(-1, 3)
             dims = np.array([b.wlh for b in boxes]).reshape(-1, 3)
-            rots = np.array([b.orientation.yaw_pitch_roll[0]
-                             for b in boxes]).reshape(-1, 1)
+            rots = np.array([b.orientation.yaw_pitch_roll[0] for b in boxes]).reshape(-1, 1)
 
             names = [b.name for b in boxes]
             for i in range(len(names)):
@@ -194,14 +168,11 @@ def _fill_trainval_infos(lyft,
 
             # we need to convert rot to SECOND format.
             gt_boxes = np.concatenate([locs, dims, -rots - np.pi / 2], axis=1)
-            assert len(gt_boxes) == len(
-                annotations), f'{len(gt_boxes)}, {len(annotations)}'
+            assert len(gt_boxes) == len(annotations), f'{len(gt_boxes)}, {len(annotations)}'
             info['gt_boxes'] = gt_boxes
             info['gt_names'] = names
-            info['num_lidar_pts'] = np.array(
-                [a['num_lidar_pts'] for a in annotations])
-            info['num_radar_pts'] = np.array(
-                [a['num_radar_pts'] for a in annotations])
+            info['num_lidar_pts'] = np.array([a['num_lidar_pts'] for a in annotations])
+            info['num_radar_pts'] = np.array([a['num_radar_pts'] for a in annotations])
 
         if sample['scene_token'] in train_scenes:
             train_lyft_infos.append(info)
@@ -232,31 +203,17 @@ def export_2d_annotation(root_path, info_path, version):
         'CAM_BACK_RIGHT',
     ]
     lyft_infos = mmcv.load(info_path)['infos']
-    lyft = Lyft(
-        data_path=osp.join(root_path, version),
-        json_path=osp.join(root_path, version, version),
-        verbose=True)
+    lyft = Lyft(data_path=osp.join(root_path, version), json_path=osp.join(root_path, version, version), verbose=True)
     # info_2d_list = []
-    cat2Ids = [
-        dict(id=lyft_categories.index(cat_name), name=cat_name)
-        for cat_name in lyft_categories
-    ]
+    cat2Ids = [dict(id=lyft_categories.index(cat_name), name=cat_name) for cat_name in lyft_categories]
     coco_ann_id = 0
     coco_2d_dict = dict(annotations=[], images=[], categories=cat2Ids)
     for info in mmcv.track_iter_progress(lyft_infos):
         for cam in camera_types:
             cam_info = info['cams'][cam]
-            coco_infos = get_2d_boxes(
-                lyft,
-                cam_info['sample_data_token'],
-                visibilities=['', '1', '2', '3', '4'])
+            coco_infos = get_2d_boxes(lyft, cam_info['sample_data_token'], visibilities=['', '1', '2', '3', '4'])
             (height, width, _) = mmcv.imread(cam_info['data_path']).shape
-            coco_2d_dict['images'].append(
-                dict(
-                    file_name=cam_info['data_path'],
-                    id=cam_info['sample_data_token'],
-                    width=width,
-                    height=height))
+            coco_2d_dict['images'].append(dict(file_name=cam_info['data_path'], id=cam_info['sample_data_token'], width=width, height=height))
             for coco_info in coco_infos:
                 if coco_info is None:
                     continue

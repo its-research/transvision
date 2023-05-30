@@ -22,25 +22,17 @@ def eval_vic(args, dataset, model, evaluator):
         # if idx % 10 != 0:
         #     continue
         try:
-            veh_id = dataset.data[idx][0]['vehicle_pointcloud_path'].split(
-                '/')[-1].replace('.pcd', '')
+            veh_id = dataset.data[idx][0]['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', '')
         except Exception:
-            veh_id = VICFrame['vehicle_pointcloud_path'].split(
-                '/')[-1].replace('.pcd', '')
+            veh_id = VICFrame['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', '')
 
-        pred = model(
-            VICFrame,
-            filt,
-            None if not hasattr(dataset, 'prev_inf_frame') else
-            dataset.prev_inf_frame,
-        )
+        pred = model(VICFrame, filt, None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame)
 
         evaluator.add_frame(pred, label)
         pipe.flush()
         pred['label'] = label['boxes_3d']
         pred['veh_id'] = veh_id
-        save_pkl(pred, osp.join(args.output, 'result',
-                                pred['veh_id'] + '.pkl'))
+        save_pkl(pred, osp.join(args.output, 'result', pred['veh_id'] + '.pkl'))
 
     evaluator.print_ap('3d')
     evaluator.print_ap('bev')
@@ -54,8 +46,7 @@ def eval_single(args, dataset, model, evaluator):
             evaluator.add_frame(pred, label['camera'])
         elif args.sensortype == 'lidar':
             evaluator.add_frame(pred, label['lidar'])
-        save_pkl({'boxes_3d': label['lidar']['boxes_3d']},
-                 osp.join(args.output, 'result', frame.id['camera'] + '.pkl'))
+        save_pkl({'boxes_3d': label['lidar']['boxes_3d']}, osp.join(args.output, 'result', frame.id['camera'] + '.pkl'))
 
     evaluator.print_ap('3d')
     evaluator.print_ap('bev')
@@ -84,13 +75,7 @@ if __name__ == '__main__':
     extended_range = range2box(np.array(args.extended_range))
     logger.info('loading dataset')
 
-    dataset = SUPPROTED_DATASETS[args.dataset](
-        args.input,
-        args,
-        split=args.split,
-        sensortype=args.sensortype,
-        extended_range=extended_range,
-        val_data_path=args.val_data_path)
+    dataset = SUPPROTED_DATASETS[args.dataset](args.input, args, split=args.split, sensortype=args.sensortype, extended_range=extended_range, val_data_path=args.val_data_path)
 
     logger.info('loading evaluator')
     evaluator = Evaluator(args.pred_classes)

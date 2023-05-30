@@ -53,11 +53,8 @@ def normalize_angle(angle):
     return alpha_arctan
 
 
-def get_camera_3d_8points(obj_size, yaw_lidar, center_lidar, center_in_cam,
-                          r_velo2cam, t_velo2cam):
-    liadr_r = np.matrix([[math.cos(yaw_lidar), -math.sin(yaw_lidar), 0],
-                         [math.sin(yaw_lidar),
-                          math.cos(yaw_lidar), 0], [0, 0, 1]])
+def get_camera_3d_8points(obj_size, yaw_lidar, center_lidar, center_in_cam, r_velo2cam, t_velo2cam):
+    liadr_r = np.matrix([[math.cos(yaw_lidar), -math.sin(yaw_lidar), 0], [math.sin(yaw_lidar), math.cos(yaw_lidar), 0], [0, 0, 1]])
     l, w, h = obj_size
     corners_3d_lidar = np.matrix([
         [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2],
@@ -108,8 +105,7 @@ def gen_lidar2cam(source_root, target_root, label_type='lidar'):
             calib_lidar2cam_path = data['calib_virtuallidar_to_camera_path']
         else:
             calib_lidar2cam_path = data['calib_lidar_to_camera_path']
-        calib_lidar2cam = read_json(
-            os.path.join(source_root, calib_lidar2cam_path))
+        calib_lidar2cam = read_json(os.path.join(source_root, calib_lidar2cam_path))
         r_velo2cam, t_velo2cam = get_lidar2cam(calib_lidar2cam)
         Tr_velo_to_cam = np.hstack((r_velo2cam, t_velo2cam))
 
@@ -121,14 +117,9 @@ def gen_lidar2cam(source_root, target_root, label_type='lidar'):
             bottom_center = [x, y, z]
             obj_size = [l, w, h]
 
-            bottom_center_in_cam = r_velo2cam * np.matrix(
-                bottom_center).T + t_velo2cam
-            alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar,
-                                               bottom_center,
-                                               bottom_center_in_cam,
-                                               r_velo2cam, t_velo2cam)
-            cam_x, cam_y, cam_z = convert_point(
-                np.array([x, y, z, 1]).T, Tr_velo_to_cam)
+            bottom_center_in_cam = r_velo2cam * np.matrix(bottom_center).T + t_velo2cam
+            alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, r_velo2cam, t_velo2cam)
+            cam_x, cam_y, cam_z = convert_point(np.array([x, y, z, 1]).T, Tr_velo_to_cam)
 
             set_label(label, h, w, l, cam_x, cam_y, cam_z, alpha, yaw)
 

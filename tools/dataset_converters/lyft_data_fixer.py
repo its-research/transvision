@@ -10,9 +10,7 @@ def fix_lyft(root_folder='./data/lyft', version='v1.01'):
     lidar_path = 'lidar/host-a011_lidar1_1233090652702363606.bin'
     root_folder = os.path.join(root_folder, f'{version}-train')
     lidar_path = os.path.join(root_folder, lidar_path)
-    assert os.path.isfile(
-        lidar_path
-    ), f'Please download the complete Lyft ' f'dataset and make sure {lidar_path} is present.'
+    assert os.path.isfile(lidar_path), f'Please download the complete Lyft ' f'dataset and make sure {lidar_path} is present.'
     points = np.fromfile(lidar_path, dtype=np.float32, count=-1)
     try:
         points.reshape([-1, 5])
@@ -24,16 +22,8 @@ def fix_lyft(root_folder='./data/lyft', version='v1.01'):
 
 
 parser = argparse.ArgumentParser(description='Lyft dataset fixer arg parser')
-parser.add_argument(
-    '--root-folder',
-    type=str,
-    default='./data/lyft',
-    help='specify the root path of Lyft dataset')
-parser.add_argument(
-    '--version',
-    type=str,
-    default='v1.01',
-    help='specify Lyft dataset version')
+parser.add_argument('--root-folder', type=str, default='./data/lyft', help='specify the root path of Lyft dataset')
+parser.add_argument('--version', type=str, default='v1.01', help='specify Lyft dataset version')
 args = parser.parse_args()
 
 if __name__ == '__main__':

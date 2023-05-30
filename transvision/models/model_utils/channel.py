@@ -33,18 +33,13 @@ class Channel(object):
         return self.data[key] if key in self.data else None
 
     def average_bytes(self):
-        num_frames = self.num_frames if len(
-            self.data) == 0 else self.num_frames + 1
+        num_frames = self.num_frames if len(self.data) == 0 else self.num_frames + 1
         return self.all_bytes / num_frames
 
     def __str__(self):
         return str({
-            'data':
-            self.data,
-            'cur_bytes':
-            self.cur_bytes,
-            'all_bytes':
-            self.all_bytes,
-            'num_frames':
-            self.num_frames if len(self.data) == 0 else self.num_frames + 1,
+            'data': self.data,
+            'cur_bytes': self.cur_bytes,
+            'all_bytes': self.all_bytes,
+            'num_frames': self.num_frames if len(self.data) == 0 else self.num_frames + 1,
         })

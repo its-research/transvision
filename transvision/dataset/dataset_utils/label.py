@@ -19,15 +19,9 @@ class Label(dict):
             else:
                 pos = label['3d_location']
                 box = get_3d_8points(
-                    [float(size['l']),
-                     float(size['w']),
-                     float(size['h'])],
+                    [float(size['l']), float(size['w']), float(size['h'])],
                     float(label['rotation']),
-                    [
-                        float(pos['x']),
-                        float(pos['y']),
-                        float(pos['z']) - float(size['h']) / 2
-                    ],
+                    [float(pos['x']), float(pos['y']), float(pos['z']) - float(size['h']) / 2],
                 ).tolist()
             # determine if box is in extended range
             if filt is None or filt(box):

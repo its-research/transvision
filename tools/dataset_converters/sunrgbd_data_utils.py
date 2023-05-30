@@ -49,12 +49,8 @@ class SUNRGBDInstance(object):
         self.orientation = np.zeros((3, ))
         self.orientation[0] = data[11]
         self.orientation[1] = data[12]
-        self.heading_angle = -1 * np.arctan2(self.orientation[1],
-                                             self.orientation[0])
-        self.box3d = np.concatenate([
-            self.centroid,
-            np.array([self.l * 2, self.w * 2, self.h * 2, self.heading_angle])
-        ])
+        self.heading_angle = -1 * np.arctan2(self.orientation[1], self.orientation[0])
+        self.box3d = np.concatenate([self.centroid, np.array([self.l * 2, self.w * 2, self.h * 2, self.heading_angle])])
 
 
 class SUNRGBDData(object):
@@ -72,15 +68,9 @@ class SUNRGBDData(object):
         self.root_dir = root_path
         self.split = split
         self.split_dir = osp.join(root_path, 'sunrgbd_trainval')
-        self.classes = [
-            'bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser',
-            'night_stand', 'bookshelf', 'bathtub'
-        ]
+        self.classes = ['bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser', 'night_stand', 'bookshelf', 'bathtub']
         self.cat2label = {cat: self.classes.index(cat) for cat in self.classes}
-        self.label2cat = {
-            label: self.classes[label]
-            for label in range(len(self.classes))
-        }
+        self.label2cat = {label: self.classes[label] for label in range(len(self.classes))}
         assert split in ['train', 'val', 'test']
         split_file = osp.join(self.split_dir, f'{split}_data_idx.txt')
         mmcv.check_file_exist(split_file)
@@ -146,24 +136,18 @@ class SUNRGBDData(object):
             # TODO: Check whether can move the point
             #  sampling process during training.
             pc_upright_depth = self.get_depth(sample_idx)
-            pc_upright_depth_subsampled = random_sampling(
-                pc_upright_depth, SAMPLE_NUM)
+            pc_upright_depth_subsampled = random_sampling(pc_upright_depth, SAMPLE_NUM)
 
             info = dict()
             pc_info = {'num_features': 6, 'lidar_idx': sample_idx}
             info['point_cloud'] = pc_info
 
             mmcv.mkdir_or_exist(osp.join(self.root_dir, 'points'))
-            pc_upright_depth_subsampled.tofile(
-                osp.join(self.root_dir, 'points', f'{sample_idx:06d}.bin'))
+            pc_upright_depth_subsampled.tofile(osp.join(self.root_dir, 'points', f'{sample_idx:06d}.bin'))
 
             info['pts_path'] = osp.join('points', f'{sample_idx:06d}.bin')
             img_path = osp.join('image', f'{sample_idx:06d}.jpg')
-            image_info = {
-                'image_idx': sample_idx,
-                'image_shape': self.get_image_shape(sample_idx),
-                'image_path': img_path
-            }
+            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx), 'image_path': img_path}
             info['image'] = image_info
 
             K, Rt = self.get_calibration(sample_idx)
@@ -173,45 +157,16 @@ class SUNRGBDData(object):
             if has_label:
                 obj_list = self.get_label_objects(sample_idx)
                 annotations = {}
-                annotations['gt_num'] = len([
-                    obj.classname for obj in obj_list
-                    if obj.classname in self.cat2label.keys()
-                ])
+                annotations['gt_num'] = len([obj.classname for obj in obj_list if obj.classname in self.cat2label.keys()])
                 if annotations['gt_num'] != 0:
-                    annotations['name'] = np.array([
-                        obj.classname for obj in obj_list
-                        if obj.classname in self.cat2label.keys()
-                    ])
-                    annotations['bbox'] = np.concatenate([
-                        obj.box2d.reshape(1, 4) for obj in obj_list
-                        if obj.classname in self.cat2label.keys()
-                    ],
-                                                         axis=0)
-                    annotations['location'] = np.concatenate([
-                        obj.centroid.reshape(1, 3) for obj in obj_list
-                        if obj.classname in self.cat2label.keys()
-                    ],
-                                                             axis=0)
-                    annotations['dimensions'] = 2 * np.array([
-                        [obj.l, obj.w, obj.h] for obj in obj_list
-                        if obj.classname in self.cat2label.keys()
-                    ])  # lwh (depth) format
-                    annotations['rotation_y'] = np.array([
-                        obj.heading_angle for obj in obj_list
-                        if obj.classname in self.cat2label.keys()
-                    ])
-                    annotations['index'] = np.arange(
-                        len(obj_list), dtype=np.int32)
-                    annotations['class'] = np.array([
-                        self.cat2label[obj.classname] for obj in obj_list
-                        if obj.classname in self.cat2label.keys()
-                    ])
-                    annotations['gt_boxes_upright_depth'] = np.stack(
-                        [
-                            obj.box3d for obj in obj_list
-                            if obj.classname in self.cat2label.keys()
-                        ],
-                        axis=0)  # (K,8)
+                    annotations['name'] = np.array([obj.classname for obj in obj_list if obj.classname in self.cat2label.keys()])
+                    annotations['bbox'] = np.concatenate([obj.box2d.reshape(1, 4) for obj in obj_list if obj.classname in self.cat2label.keys()], axis=0)
+                    annotations['location'] = np.concatenate([obj.centroid.reshape(1, 3) for obj in obj_list if obj.classname in self.cat2label.keys()], axis=0)
+                    annotations['dimensions'] = 2 * np.array([[obj.l, obj.w, obj.h] for obj in obj_list if obj.classname in self.cat2label.keys()])  # lwh (depth) format
+                    annotations['rotation_y'] = np.array([obj.heading_angle for obj in obj_list if obj.classname in self.cat2label.keys()])
+                    annotations['index'] = np.arange(len(obj_list), dtype=np.int32)
+                    annotations['class'] = np.array([self.cat2label[obj.classname] for obj in obj_list if obj.classname in self.cat2label.keys()])
+                    annotations['gt_boxes_upright_depth'] = np.stack([obj.box3d for obj in obj_list if obj.classname in self.cat2label.keys()], axis=0)  # (K,8)
                 info['annos'] = annotations
             return info
 

@@ -25,8 +25,7 @@ def convert_SyncBN(config):
     if isinstance(config, dict):
         for item in config:
             if item == 'norm_cfg':
-                config[item]['type'] = config[item]['type'].replace(
-                    'naiveSyncBN', 'BN')
+                config[item]['type'] = config[item]['type'].replace('naiveSyncBN', 'BN')
             else:
                 convert_SyncBN(config[item])
 
@@ -171,8 +170,7 @@ def inference_multi_modality_detector(model, pcd, image, ann_file):
     elif box_mode_3d == Box3DMode.DEPTH:
         rt_mat = info['calib']['Rt']
         # follow Coord3DMode.convert_point
-        rt_mat = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]
-                           ]) @ rt_mat.transpose(1, 0)
+        rt_mat = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]]) @ rt_mat.transpose(1, 0)
         depth2img = info['calib']['K'] @ rt_mat
         data['img_metas'][0].data['depth2img'] = depth2img
 
@@ -249,15 +247,11 @@ def inference_mono_3d_detector(model, image, ann_file):
     # lidar points to image conversion
     if box_mode_3d == Box3DMode.LIDAR:
         cam_intrinsic = np.eye(4, 4)
-        cam_intrinsic[:3, :3] = np.array(
-            img_info['calib']['cam_intrinsic']).reshape(3, 3)
-        T_matrix = np.array(
-            img_info['calib']['Tr_velo_to_cam']['translation']).reshape(3, 1)
-        R_matrix = np.array(
-            img_info['calib']['Tr_velo_to_cam']['rotation']).reshape(3, 3)
+        cam_intrinsic[:3, :3] = np.array(img_info['calib']['cam_intrinsic']).reshape(3, 3)
+        T_matrix = np.array(img_info['calib']['Tr_velo_to_cam']['translation']).reshape(3, 1)
+        R_matrix = np.array(img_info['calib']['Tr_velo_to_cam']['rotation']).reshape(3, 3)
         Trv2c = np.concatenate((R_matrix, T_matrix), axis=1)
-        Trv2c = np.concatenate((Trv2c, np.array([0, 0, 0, 1])[np.newaxis, :]),
-                               axis=0)
+        Trv2c = np.concatenate((Trv2c, np.array([0, 0, 0, 1])[np.newaxis, :]), axis=0)
         lidar2img = cam_intrinsic @ Trv2c
         # rect = np.array(img_info['calib']['cam_intrinsic']).astype(np.float32)
         # Trv2c = np.array(img_info['calib']['Tr_velo_to_cam']).astype(np.float32)
@@ -311,12 +305,7 @@ def inference_segmentor(model, pcd):
     return result, data
 
 
-def show_det_result_meshlab(data,
-                            result,
-                            out_dir,
-                            score_thr=0.0,
-                            show=False,
-                            snapshot=False):
+def show_det_result_meshlab(data, result, out_dir, score_thr=0.0, show=False, snapshot=False):
     """Show 3D detection result by meshlab."""
     points = data['points'][0][0].cpu().numpy()
     pts_filename = data['img_metas'][0][0]['pts_filename']
@@ -343,24 +332,12 @@ def show_det_result_meshlab(data,
     else:
         show_bboxes = deepcopy(pred_bboxes)
 
-    show_result(
-        points,
-        None,
-        show_bboxes,
-        out_dir,
-        file_name,
-        show=show,
-        snapshot=snapshot)
+    show_result(points, None, show_bboxes, out_dir, file_name, show=show, snapshot=snapshot)
 
     return file_name
 
 
-def show_seg_result_meshlab(data,
-                            result,
-                            out_dir,
-                            palette,
-                            show=False,
-                            snapshot=False):
+def show_seg_result_meshlab(data, result, out_dir, palette, show=False, snapshot=False):
     """Show 3D segmentation result by meshlab."""
     points = data['points'][0][0].cpu().numpy()
     pts_filename = data['img_metas'][0][0]['pts_filename']
@@ -374,25 +351,12 @@ def show_seg_result_meshlab(data,
         palette = np.random.randint(0, 256, size=(max_idx + 1, 3))
     palette = np.array(palette).astype(np.int)
 
-    show_seg_result(
-        points,
-        None,
-        pred_seg,
-        out_dir,
-        file_name,
-        palette=palette,
-        show=show,
-        snapshot=snapshot)
+    show_seg_result(points, None, pred_seg, out_dir, file_name, palette=palette, show=show, snapshot=snapshot)
 
     return file_name
 
 
-def show_proj_det_result_meshlab(data,
-                                 result,
-                                 out_dir,
-                                 score_thr=0.0,
-                                 show=False,
-                                 snapshot=False):
+def show_proj_det_result_meshlab(data, result, out_dir, score_thr=0.0, show=False, snapshot=False):
     """Show result of projecting 3D bbox to 2D image by meshlab."""
     assert 'img' in data.keys(), 'image data is not provided for visualization'
 
@@ -417,8 +381,7 @@ def show_proj_det_result_meshlab(data,
     box_mode = data['img_metas'][0][0]['box_mode_3d']
     if box_mode == Box3DMode.LIDAR:
         if 'lidar2img' not in data['img_metas'][0][0]:
-            raise NotImplementedError(
-                'LiDAR to image transformation matrix is not provided')
+            raise NotImplementedError('LiDAR to image transformation matrix is not provided')
 
         show_bboxes = LiDARInstance3DBoxes(pred_bboxes, origin=(0.5, 0.5, 0))
 
@@ -448,36 +411,18 @@ def show_proj_det_result_meshlab(data,
         )
     elif box_mode == Box3DMode.CAM:
         if 'cam2img' not in data['img_metas'][0][0]:
-            raise NotImplementedError(
-                'camera intrinsic matrix is not provided')
+            raise NotImplementedError('camera intrinsic matrix is not provided')
 
-        show_bboxes = CameraInstance3DBoxes(
-            pred_bboxes, box_dim=pred_bboxes.shape[-1], origin=(0.5, 1.0, 0.5))
+        show_bboxes = CameraInstance3DBoxes(pred_bboxes, box_dim=pred_bboxes.shape[-1], origin=(0.5, 1.0, 0.5))
 
-        show_multi_modality_result(
-            img,
-            None,
-            show_bboxes,
-            data['img_metas'][0][0]['cam2img'],
-            out_dir,
-            file_name,
-            box_mode='camera',
-            show=show)
+        show_multi_modality_result(img, None, show_bboxes, data['img_metas'][0][0]['cam2img'], out_dir, file_name, box_mode='camera', show=show)
     else:
-        raise NotImplementedError(
-            f'visualization of {box_mode} bbox is not supported')
+        raise NotImplementedError(f'visualization of {box_mode} bbox is not supported')
 
     return file_name
 
 
-def show_result_meshlab(data,
-                        result,
-                        out_dir,
-                        score_thr=0.0,
-                        show=False,
-                        snapshot=False,
-                        task='det',
-                        palette=None):
+def show_result_meshlab(data, result, out_dir, score_thr=0.0, show=False, snapshot=False, task='det', palette=None):
     """Show result by meshlab.
 
     Args:
@@ -494,20 +439,16 @@ def show_result_meshlab(data,
                 segmentation map. If None is given, random palette will be
                 generated. Defaults to None.
     """
-    assert task in ['det', 'multi_modality-det', 'seg',
-                    'mono-det'], f'unsupported visualization task {task}'
+    assert task in ['det', 'multi_modality-det', 'seg', 'mono-det'], f'unsupported visualization task {task}'
     assert out_dir is not None, 'Expect out_dir, got none.'
 
     if task in ['det', 'multi_modality-det']:
-        file_name = show_det_result_meshlab(data, result, out_dir, score_thr,
-                                            show, snapshot)
+        file_name = show_det_result_meshlab(data, result, out_dir, score_thr, show, snapshot)
 
     if task in ['seg']:
-        file_name = show_seg_result_meshlab(data, result, out_dir, palette,
-                                            show, snapshot)
+        file_name = show_seg_result_meshlab(data, result, out_dir, palette, show, snapshot)
 
     if task in ['multi_modality-det', 'mono-det']:
-        file_name = show_proj_det_result_meshlab(data, result, out_dir,
-                                                 score_thr, show, snapshot)
+        file_name = show_proj_det_result_meshlab(data, result, out_dir, score_thr, show, snapshot)
 
     return out_dir, file_name

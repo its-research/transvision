@@ -103,21 +103,13 @@ class InfFrame(Frame):
             Transformation_Matrix: Transformation Matrix from 'from_coord' to 'to_coord'
         """
         infra_name = self.id['camera']
-        trans = Coord_transformation(from_coord, to_coord,
-                                     '/'.join(self.path.split('/')[:-2]),
-                                     infra_name, '')
+        trans = Coord_transformation(from_coord, to_coord, '/'.join(self.path.split('/')[:-2]), infra_name, '')
         return trans
 
 
 class VICFrame(Frame):
 
-    def __init__(self,
-                 path,
-                 info_dict,
-                 veh_frame,
-                 inf_frame,
-                 time_diff,
-                 offset=None):
+    def __init__(self, path, info_dict, veh_frame, inf_frame, time_diff, offset=None):
         # TODO: build vehicle frame and infrastructure frame
         super().__init__(path, info_dict)
         self.veh_frame = veh_frame
@@ -125,10 +117,7 @@ class VICFrame(Frame):
         self.time_diff = time_diff
         self.transformation = None
         if offset is None:
-            offset = load_json(
-                osp.join(self.inf_frame.path,
-                         self.inf_frame['calib_virtuallidar_to_world_path'])
-            )['relative_error']
+            offset = load_json(osp.join(self.inf_frame.path, self.inf_frame['calib_virtuallidar_to_world_path']))['relative_error']
         self.offset = offset
 
     def vehicle_frame(self):
@@ -160,6 +149,5 @@ class VICFrame(Frame):
         """
         veh_name = self.veh_frame['image_path'][-10:-4]
         infra_name = self.inf_frame['image_path'][-10:-4]
-        trans = Coord_transformation(from_coord, to_coord, self.path,
-                                     infra_name, veh_name)
+        trans = Coord_transformation(from_coord, to_coord, self.path, infra_name, veh_name)
         return trans

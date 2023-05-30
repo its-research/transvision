@@ -42,8 +42,7 @@ class LoadMultiViewImageFromFiles(object):
         """
         filename = results['img_filename']
         # img is of shape (h, w, c, num_views)
-        img = np.stack(
-            [mmcv.imread(name, self.color_type) for name in filename], axis=-1)
+        img = np.stack([mmcv.imread(name, self.color_type) for name in filename], axis=-1)
         if self.to_float32:
             img = img.astype(np.float32)
         results['filename'] = filename
@@ -56,10 +55,7 @@ class LoadMultiViewImageFromFiles(object):
         results['pad_shape'] = img.shape
         results['scale_factor'] = 1.0
         num_channels = 1 if len(img.shape) < 3 else img.shape[2]
-        results['img_norm_cfg'] = dict(
-            mean=np.zeros(num_channels, dtype=np.float32),
-            std=np.ones(num_channels, dtype=np.float32),
-            to_rgb=False)
+        results['img_norm_cfg'] = dict(mean=np.zeros(num_channels, dtype=np.float32), std=np.ones(num_channels, dtype=np.float32), to_rgb=False)
         return results
 
     def __repr__(self):
@@ -116,14 +112,7 @@ class LoadPointsFromMultiSweeps(object):
             Defaults to False.
     """
 
-    def __init__(self,
-                 sweeps_num=10,
-                 load_dim=5,
-                 use_dim=[0, 1, 2, 4],
-                 file_client_args=dict(backend='disk'),
-                 pad_empty_sweeps=False,
-                 remove_close=False,
-                 test_mode=False):
+    def __init__(self, sweeps_num=10, load_dim=5, use_dim=[0, 1, 2, 4], file_client_args=dict(backend='disk'), pad_empty_sweeps=False, remove_close=False, test_mode=False):
         self.load_dim = load_dim
         self.sweeps_num = sweeps_num
         self.use_dim = use_dim
@@ -207,8 +196,7 @@ class LoadPointsFromMultiSweeps(object):
             elif self.test_mode:
                 choices = np.arange(self.sweeps_num)
             else:
-                choices = np.random.choice(
-                    len(results['sweeps']), self.sweeps_num, replace=False)
+                choices = np.random.choice(len(results['sweeps']), self.sweeps_num, replace=False)
             for idx in choices:
                 sweep = results['sweeps'][idx]
                 points_sweep = self._load_points(sweep['data_path'])
@@ -216,8 +204,7 @@ class LoadPointsFromMultiSweeps(object):
                 if self.remove_close:
                     points_sweep = self._remove_close(points_sweep)
                 sweep_ts = sweep['timestamp'] / 1e6
-                points_sweep[:, :3] = points_sweep[:, :3] @ sweep[
-                    'sensor2lidar_rotation'].T
+                points_sweep[:, :3] = points_sweep[:, :3] @ sweep['sensor2lidar_rotation'].T
                 points_sweep[:, :3] += sweep['sensor2lidar_translation']
                 points_sweep[:, 4] = ts - sweep_ts
                 points_sweep = points.new_point(points_sweep)
@@ -255,8 +242,7 @@ class PointSegClassMapping(object):
 
         # build cat_id to class index mapping
         neg_cls = len(valid_cat_ids)
-        self.cat_id2class = np.ones(
-            self.max_cat_id + 1, dtype=np.int) * neg_cls
+        self.cat_id2class = np.ones(self.max_cat_id + 1, dtype=np.int) * neg_cls
         for cls_idx, cat_id in enumerate(valid_cat_ids):
             self.cat_id2class[cat_id] = cls_idx
 
@@ -353,14 +339,7 @@ class LoadPointsFromFile(object):
             for more details. Defaults to dict(backend='disk').
     """
 
-    def __init__(self,
-                 coord_type,
-                 load_dim=6,
-                 use_dim=[0, 1, 2],
-                 shift_height=False,
-                 use_color=False,
-                 file_client_args=dict(backend='disk'),
-                 sensor_view=None):
+    def __init__(self, coord_type, load_dim=6, use_dim=[0, 1, 2], shift_height=False, use_color=False, file_client_args=dict(backend='disk'), sensor_view=None):
         self.shift_height = shift_height
         self.use_color = use_color
         if isinstance(use_dim, int):
@@ -424,25 +403,21 @@ class LoadPointsFromFile(object):
         if self.shift_height:
             floor_height = np.percentile(points[:, 2], 0.99)
             height = points[:, 2] - floor_height
-            points = np.concatenate(
-                [points[:, :3],
-                 np.expand_dims(height, 1), points[:, 3:]], 1)
+            points = np.concatenate([points[:, :3], np.expand_dims(height, 1), points[:, 3:]], 1)
             attribute_dims = dict(height=3)
 
         if self.use_color:
             assert len(self.use_dim) >= 6
             if attribute_dims is None:
                 attribute_dims = dict()
-            attribute_dims.update(
-                dict(color=[
-                    points.shape[1] - 3,
-                    points.shape[1] - 2,
-                    points.shape[1] - 1,
-                ]))
+            attribute_dims.update(dict(color=[
+                points.shape[1] - 3,
+                points.shape[1] - 2,
+                points.shape[1] - 1,
+            ]))
 
         points_class = get_points_type(self.coord_type)
-        points = points_class(
-            points, points_dim=points.shape[-1], attribute_dims=attribute_dims)
+        points = points_class(points, points_dim=points.shape[-1], attribute_dims=attribute_dims)
         if self.sensor_view == 'infrastructure':
             results[self.sensor_view + '_points'] = points
         else:
@@ -512,13 +487,7 @@ class LoadAnnotations3D(LoadAnnotations):
                  poly2mask=True,
                  seg_3d_dtype='int',
                  file_client_args=dict(backend='disk')):
-        super().__init__(
-            with_bbox,
-            with_label,
-            with_mask,
-            with_seg,
-            poly2mask,
-            file_client_args=file_client_args)
+        super().__init__(with_bbox, with_label, with_mask, with_seg, poly2mask, file_client_args=file_client_args)
         self.with_bbox_3d = with_bbox_3d
         self.with_bbox_depth = with_bbox_depth
         self.with_label_3d = with_label_3d
@@ -595,8 +564,7 @@ class LoadAnnotations3D(LoadAnnotations):
             pts_instance_mask = np.frombuffer(mask_bytes, dtype=np.int)
         except ConnectionError:
             mmcv.check_file_exist(pts_instance_mask_path)
-            pts_instance_mask = np.fromfile(
-                pts_instance_mask_path, dtype=np.long)
+            pts_instance_mask = np.fromfile(pts_instance_mask_path, dtype=np.long)
 
         results['pts_instance_mask'] = pts_instance_mask
         results['pts_mask_fields'].append('pts_instance_mask')
@@ -618,12 +586,10 @@ class LoadAnnotations3D(LoadAnnotations):
         try:
             mask_bytes = self.file_client.get(pts_semantic_mask_path)
             # add .copy() to fix read-only bug
-            pts_semantic_mask = np.frombuffer(
-                mask_bytes, dtype=self.seg_3d_dtype).copy()
+            pts_semantic_mask = np.frombuffer(mask_bytes, dtype=self.seg_3d_dtype).copy()
         except ConnectionError:
             mmcv.check_file_exist(pts_semantic_mask_path)
-            pts_semantic_mask = np.fromfile(
-                pts_semantic_mask_path, dtype=np.long)
+            pts_semantic_mask = np.fromfile(pts_semantic_mask_path, dtype=np.long)
 
         results['pts_semantic_mask'] = pts_semantic_mask
         results['pts_seg_fields'].append('pts_semantic_mask')

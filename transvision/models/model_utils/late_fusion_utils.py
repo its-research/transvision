@@ -11,15 +11,9 @@ def box2info(boxes):
     num_boxes = boxes.shape[0]
     center = np.mean(boxes, axis=1)
     size = np.zeros((num_boxes, 3))
-    size[:, 0] = (np.sum(
-        (boxes[:, 2, :] - boxes[:, 1, :])**2, axis=1)**0.5 + np.sum(
-            (boxes[:, 6, :] - boxes[:, 5, :])**2, axis=1)**0.5) / 2
-    size[:, 1] = (np.sum(
-        (boxes[:, 4, :] - boxes[:, 0, :])**2, axis=1)**0.5 + np.sum(
-            (boxes[:, 6, :] - boxes[:, 2, :])**2, axis=1)**0.5) / 2
-    size[:, 2] = (boxes[:, 1, :] + boxes[:, 2, :] + boxes[:, 5, :] +
-                  boxes[:, 6, :] - boxes[:, 0, :] - boxes[:, 3, :] -
-                  boxes[:, 4, :] - boxes[:, 7, :])[:, 2] / 4
+    size[:, 0] = (np.sum((boxes[:, 2, :] - boxes[:, 1, :])**2, axis=1)**0.5 + np.sum((boxes[:, 6, :] - boxes[:, 5, :])**2, axis=1)**0.5) / 2
+    size[:, 1] = (np.sum((boxes[:, 4, :] - boxes[:, 0, :])**2, axis=1)**0.5 + np.sum((boxes[:, 6, :] - boxes[:, 2, :])**2, axis=1)**0.5) / 2
+    size[:, 2] = (boxes[:, 1, :] + boxes[:, 2, :] + boxes[:, 5, :] + boxes[:, 6, :] - boxes[:, 0, :] - boxes[:, 3, :] - boxes[:, 4, :] - boxes[:, 7, :])[:, 2] / 4
     return center, size
 
 
@@ -35,8 +29,7 @@ class BBoxList(object):
         """
         self.num_boxes = boxes.shape[0]
         self.num_dims = boxes.shape[2]
-        self.num_classes = class_score.shape[
-            1] if class_score is not None else None
+        self.num_classes = class_score.shape[1] if class_score is not None else None
         self.boxes = boxes
         self.dir = dir
         self.label = label
@@ -51,8 +44,7 @@ class BBoxList(object):
     def move_center(self, offset):
         delta = np.array(offset)  # N * 2
         if self.num_dims == 3:
-            delta = np.insert(
-                delta, 2, values=np.zeros(self.num_boxes), axis=1)  # N * 3
+            delta = np.insert(delta, 2, values=np.zeros(self.num_boxes), axis=1)  # N * 3
         delta = delta[:, np.newaxis, :]  # N * 1 * 3
         delta = np.repeat(delta, 8, axis=1)  # N * 8 * 3
         self.boxes += delta
@@ -95,16 +87,9 @@ class StaticBBoxList(BBoxList):
             self.num_dims = 3
             self.center = np.sum(boxes, axis=1) / 8
             self.size = np.zeros((self.num_boxes, 3))
-            self.size[:, 0] = (np.sum(
-                (boxes[:, 2, :] - boxes[:, 1, :])**2, axis=1)**0.5 + np.sum(
-                    (boxes[:, 6, :] - boxes[:, 5, :])**2, axis=1)**0.5) / 2
-            self.size[:, 1] = (np.sum(
-                (boxes[:, 4, :] - boxes[:, 0, :])**2, axis=1)**0.5 + np.sum(
-                    (boxes[:, 6, :] - boxes[:, 2, :])**2, axis=1)**0.5) / 2
-            self.size[:,
-                      2] = (boxes[:, 1, :] + boxes[:, 2, :] + boxes[:, 5, :] +
-                            boxes[:, 6, :] - boxes[:, 0, :] - boxes[:, 3, :] -
-                            boxes[:, 4, :] - boxes[:, 7, :])[:, 2] / 4
+            self.size[:, 0] = (np.sum((boxes[:, 2, :] - boxes[:, 1, :])**2, axis=1)**0.5 + np.sum((boxes[:, 6, :] - boxes[:, 5, :])**2, axis=1)**0.5) / 2
+            self.size[:, 1] = (np.sum((boxes[:, 4, :] - boxes[:, 0, :])**2, axis=1)**0.5 + np.sum((boxes[:, 6, :] - boxes[:, 2, :])**2, axis=1)**0.5) / 2
+            self.size[:, 2] = (boxes[:, 1, :] + boxes[:, 2, :] + boxes[:, 5, :] + boxes[:, 6, :] - boxes[:, 0, :] - boxes[:, 3, :] - boxes[:, 4, :] - boxes[:, 7, :])[:, 2] / 4
             """
             arrows = np.array(data['arrows'])
             self.arrows = arrows
@@ -129,11 +114,7 @@ class Matcher(object):
 
 class EuclidianMatcher(Matcher):
 
-    def __init__(self,
-                 filter_func=None,
-                 delta_x=0.0,
-                 delta_y=0.0,
-                 delta_z=0.0):
+    def __init__(self, filter_func=None, delta_x=0.0, delta_y=0.0, delta_z=0.0):
         super(EuclidianMatcher, self).__init__()
         self.filter_func = filter_func
         self.delta = [delta_x, delta_y, delta_z]
@@ -142,10 +123,8 @@ class EuclidianMatcher(Matcher):
         cost_matrix = np.zeros((frame1.num_boxes, frame2.num_boxes))
         for i in range(frame1.num_boxes):
             for j in range(frame2.num_boxes):
-                cost_matrix[i][j] = np.sum(
-                    (frame1.center[i] + self.delta - frame2.center[j])**2)**0.5
-                if self.filter_func is not None and not self.filter_func(
-                        frame1, frame2, i, j):
+                cost_matrix[i][j] = np.sum((frame1.center[i] + self.delta - frame2.center[j])**2)**0.5
+                if self.filter_func is not None and not self.filter_func(frame1, frame2, i, j):
                     cost_matrix[i][j] = 1e6
         # print(cost_matrix, linear_sum_assignment(cost_matrix))
         index1, index2 = linear_sum_assignment(cost_matrix)
@@ -173,13 +152,7 @@ class Compensator(object):
 
 class SpaceCompensator(Compensator):
 
-    def __init__(self,
-                 minx=-1.0,
-                 maxx=1.0,
-                 miny=-1.0,
-                 maxy=1.0,
-                 iters=2,
-                 steps=5):
+    def __init__(self, minx=-1.0, maxx=1.0, miny=-1.0, maxy=1.0, iters=2, steps=5):
         self.minx = minx
         self.maxx = maxx
         self.miny = miny
@@ -205,9 +178,7 @@ class SpaceCompensator(Compensator):
                     for i in range(frame1.num_boxes):
                         for j in range(frame2.num_boxes):
                             size = frame1.size[i]
-                            diff = np.abs(frame1.center[i] +
-                                          np.array([delta_x, delta_y, 0]) -
-                                          frame2.center[j]) / size
+                            diff = np.abs(frame1.center[i] + np.array([delta_x, delta_y, 0]) - frame2.center[j]) / size
                             cost[i][j] = np.sum(diff**2)**0.5
                             if diff[0] > 2 or diff[1] > 2 or diff[2] > 2:
                                 cost[i][j] = 1e6
@@ -252,9 +223,7 @@ class TimeCompensator(Compensator):
     def compensate(self, frame1, frame2, delta1, delta2):
         ind_prev, ind_cur, _ = self.matcher.match(frame1, frame2)
         if len(ind_prev) < 1:
-            avg_offset = np.mean(
-                frame2.center, axis=0) - np.mean(
-                    frame1.center, axis=0)
+            avg_offset = np.mean(frame2.center, axis=0) - np.mean(frame1.center, axis=0)
             avg_offset *= delta2 / delta1
             offset = np.ones((frame2.num_boxes, 2))
             offset[:, 0] *= avg_offset[0]
@@ -303,16 +272,10 @@ class BasicFuser(object):
             confidence1 = np.ones_like(confidence1)
             confidence2 = 1 - confidence1
 
-        center = frame1.center[ind1] * np.repeat(
-            confidence1[:, np.newaxis], 3,
-            axis=1) + frame2.center[ind2] * np.repeat(
-                confidence2[:, np.newaxis], 3, axis=1)
-        boxes = frame1.boxes[ind1] + np.repeat(
-            center[:, np.newaxis, :], 8, axis=1) - np.repeat(
-                frame1.center[ind1][:, np.newaxis, :], 8, axis=1)
+        center = frame1.center[ind1] * np.repeat(confidence1[:, np.newaxis], 3, axis=1) + frame2.center[ind2] * np.repeat(confidence2[:, np.newaxis], 3, axis=1)
+        boxes = frame1.boxes[ind1] + np.repeat(center[:, np.newaxis, :], 8, axis=1) - np.repeat(frame1.center[ind1][:, np.newaxis, :], 8, axis=1)
         label = frame1.label[ind1]
-        confidence = frame1.confidence[ind1] * confidence1 + frame2.confidence[
-            ind2] * confidence2
+        confidence = frame1.confidence[ind1] * confidence1 + frame2.confidence[ind2] * confidence2
         # arrows = frame1.arrows[ind1]
 
         boxes_u = []
@@ -343,12 +306,9 @@ class BasicFuser(object):
             }
         else:
             result_dict = {
-                'boxes_3d':
-                np.concatenate((boxes, np.array(boxes_u)), axis=0),
+                'boxes_3d': np.concatenate((boxes, np.array(boxes_u)), axis=0),
                 # "arrows": np.concatenate((arrows, np.array(arrows_u)), axis=0),
-                'labels_3d':
-                np.concatenate((label, np.array(label_u)), axis=0),
-                'scores_3d':
-                np.concatenate((confidence, np.array(confidence_u)), axis=0),
+                'labels_3d': np.concatenate((label, np.array(label_u)), axis=0),
+                'scores_3d': np.concatenate((confidence, np.array(confidence_u)), axis=0),
             }
         return result_dict

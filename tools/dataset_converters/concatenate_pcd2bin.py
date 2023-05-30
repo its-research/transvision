@@ -31,14 +31,12 @@ def concatenate_pcd2bin(path1, path2, path_save):
     np_x1 = (np.array(pc1.pc_data['x'], dtype=np.float32)).astype(np.float32)
     np_y1 = (np.array(pc1.pc_data['y'], dtype=np.float32)).astype(np.float32)
     np_z1 = (np.array(pc1.pc_data['z'], dtype=np.float32)).astype(np.float32)
-    np_i1 = (np.array(pc1.pc_data['intensity'], dtype=np.float32)).astype(
-        np.float32) / 255
+    np_i1 = (np.array(pc1.pc_data['intensity'], dtype=np.float32)).astype(np.float32) / 255
 
     np_x2 = (np.array(pc2.pc_data['x'], dtype=np.float32)).astype(np.float32)
     np_y2 = (np.array(pc2.pc_data['y'], dtype=np.float32)).astype(np.float32)
     np_z2 = (np.array(pc2.pc_data['z'], dtype=np.float32)).astype(np.float32)
-    np_i2 = (np.array(pc2.pc_data['intensity'], dtype=np.float32)).astype(
-        np.float32) / 255
+    np_i2 = (np.array(pc2.pc_data['intensity'], dtype=np.float32)).astype(np.float32) / 255
 
     np_x = np.append(np_x1, np_x2)
     np_y = np.append(np_y1, np_y2)
@@ -67,9 +65,7 @@ def concatenate_pcd_i_and_v(path_c, path_i2v, path_dest):
         concatenate_pcd2bin(path_pcd_i, path_pcd_v, path_save)
 
 
-parser = argparse.ArgumentParser(
-    'Concat the Converted Infrastructure Point Cloud with Vehicle Point Cloud.'
-)
+parser = argparse.ArgumentParser('Concat the Converted Infrastructure Point Cloud with Vehicle Point Cloud.')
 parser.add_argument(
     '--source-root',
     type=str,
@@ -79,16 +75,13 @@ parser.add_argument(
 parser.add_argument(
     '--i2v-root',
     type=str,
-    default=
-    './data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion/velodyne/lidar_i2v',
-    help=
-    'The data root where the data with ego-vehicle coordinate is generated.',
+    default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion/velodyne/lidar_i2v',
+    help='The data root where the data with ego-vehicle coordinate is generated.',
 )
 parser.add_argument(
     '--target-root',
     type=str,
-    default=
-    './data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion/velodyne-concated',
+    default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion/velodyne-concated',
     help='The concated point cloud.',
 )
 

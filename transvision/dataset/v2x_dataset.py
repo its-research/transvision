@@ -86,11 +86,9 @@ class V2XDataset(Custom3DDataset):
             my_json = json.load(load_f)
         return my_json
 
-    def __box_convert_lidar2cam(self, location, dimension, rotation,
-                                calib_lidar2cam):
+    def __box_convert_lidar2cam(self, location, dimension, rotation, calib_lidar2cam):
         location['z'] = location['z'] - dimension['h'] / 2
-        extended_xyz = np.array(
-            [location['x'], location['y'], location['z'], 1])
+        extended_xyz = np.array([location['x'], location['y'], location['z'], 1])
         location_cam = extended_xyz @ calib_lidar2cam.T
         location_cam = location_cam[:3]
         dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
@@ -113,8 +111,7 @@ class V2XDataset(Custom3DDataset):
             Dict
         """
         for info in self.data_infos:
-            anno_path = os.path.join(self.data_root,
-                                     info['cooperative_label_w2v_path'])
+            anno_path = os.path.join(self.data_root, info['cooperative_label_w2v_path'])
             annos = self.__my_read_json(anno_path)
             kitti_annos = {}
             kitti_annos['name'] = []
@@ -127,33 +124,23 @@ class V2XDataset(Custom3DDataset):
             kitti_annos['alpha'] = []
             kitti_annos['bbox'] = []
 
-            calib_v_lidar2cam_filename = os.path.join(
-                self.data_root, info['calib_v_lidar2cam_path'])
+            calib_v_lidar2cam_filename = os.path.join(self.data_root, info['calib_v_lidar2cam_path'])
             calib_v_lidar2cam = self.__my_read_json(calib_v_lidar2cam_filename)
-            calib_v_cam_intrinsic_filename = os.path.join(
-                self.data_root, info['calib_v_cam_intrinsic_path'])
-            calib_v_cam_intrinsic = self.__my_read_json(
-                calib_v_cam_intrinsic_filename)
+            calib_v_cam_intrinsic_filename = os.path.join(self.data_root, info['calib_v_cam_intrinsic_path'])
+            calib_v_cam_intrinsic = self.__my_read_json(calib_v_cam_intrinsic_filename)
             rect = np.identity(4)
             Trv2c = np.identity(4)
             Trv2c[0:3, 0:3] = calib_v_lidar2cam['rotation']
-            Trv2c[0:3, 3] = [
-                calib_v_lidar2cam['translation'][0][0],
-                calib_v_lidar2cam['translation'][1][0],
-                calib_v_lidar2cam['translation'][2][0]
-            ]
+            Trv2c[0:3, 3] = [calib_v_lidar2cam['translation'][0][0], calib_v_lidar2cam['translation'][1][0], calib_v_lidar2cam['translation'][2][0]]
             P2 = np.identity(4)
-            P2[0:3,
-               0:3] = np.array(calib_v_cam_intrinsic['cam_K']).reshape(3, 3)
+            P2[0:3, 0:3] = np.array(calib_v_cam_intrinsic['cam_K']).reshape(3, 3)
             info['calib'] = {}
             info['calib']['R0_rect'] = rect
             info['calib']['Tr_velo_to_cam'] = Trv2c
             info['calib']['P2'] = P2
 
             for idx, anno in enumerate(annos):
-                location, dimensions, rotation_y, alpha = self.__box_convert_lidar2cam(
-                    anno['3d_location'], anno['3d_dimensions'],
-                    anno['rotation'], Trv2c)
+                location, dimensions, rotation_y, alpha = self.__box_convert_lidar2cam(anno['3d_location'], anno['3d_dimensions'], anno['rotation'], Trv2c)
                 if dimensions[0] == 0.0:
                     continue
 
@@ -190,8 +177,7 @@ class V2XDataset(Custom3DDataset):
         Returns:
             str: Name of the point cloud file.
         """
-        pts_filename = osp.join(self.root_split, self.pts_prefix,
-                                f'{idx:06d}.bin')
+        pts_filename = osp.join(self.root_split, self.pts_prefix, f'{idx:06d}.bin')
         return pts_filename
 
     def get_data_info(self, index):
@@ -216,11 +202,9 @@ class V2XDataset(Custom3DDataset):
         sample_veh_idx = info['vehicle_idx']
         sample_inf_idx = info['infrastructure_idx']
         # inf_img_filename = os.path.join(self.data_root,info['infrastructure_image_path'])
-        veh_img_filename = os.path.join(self.data_root,
-                                        info['vehicle_image_path'])
+        veh_img_filename = os.path.join(self.data_root, info['vehicle_image_path'])
 
-        calib_inf2veh_filename = os.path.join(self.data_root,
-                                              info['calib_lidar_i2v_path'])
+        calib_inf2veh_filename = os.path.join(self.data_root, info['calib_lidar_i2v_path'])
         calib_inf2veh = self.__my_read_json(calib_inf2veh_filename)
 
         # TODO: consider use torch.Tensor only
@@ -229,19 +213,14 @@ class V2XDataset(Custom3DDataset):
         P2 = info['calib']['P2'].astype(np.float32)
         lidar2img = P2 @ rect @ Trv2c
 
-        inf_pts_filename = os.path.join(
-            self.data_root, info['infrastructure_pointcloud_bin_path'])
-        veh_pts_filename = os.path.join(self.data_root,
-                                        info['vehicle_pointcloud_bin_path'])
+        inf_pts_filename = os.path.join(self.data_root, info['infrastructure_pointcloud_bin_path'])
+        veh_pts_filename = os.path.join(self.data_root, info['vehicle_pointcloud_bin_path'])
 
         # For FlowNet
         if 'infrastructure_idx_t_0' in info.keys():
-            infrastructure_pointcloud_bin_path_t_0 = info[
-                'infrastructure_pointcloud_bin_path_t_0']
-            infrastructure_pointcloud_bin_path_t_1 = info[
-                'infrastructure_pointcloud_bin_path_t_1']
-            infrastructure_pointcloud_bin_path_t_2 = info[
-                'infrastructure_pointcloud_bin_path_t_2']
+            infrastructure_pointcloud_bin_path_t_0 = info['infrastructure_pointcloud_bin_path_t_0']
+            infrastructure_pointcloud_bin_path_t_1 = info['infrastructure_pointcloud_bin_path_t_1']
+            infrastructure_pointcloud_bin_path_t_2 = info['infrastructure_pointcloud_bin_path_t_2']
             infrastructure_t_0_1 = info['infrastructure_t_0_1']
             infrastructure_t_1_2 = info['infrastructure_t_1_2']
         else:
@@ -260,12 +239,9 @@ class V2XDataset(Custom3DDataset):
             img_info=dict(filename=veh_img_filename),
             lidar2img=lidar2img,
             inf2veh=calib_inf2veh,
-            infrastructure_pointcloud_bin_path_t_0=
-            infrastructure_pointcloud_bin_path_t_0,
-            infrastructure_pointcloud_bin_path_t_1=
-            infrastructure_pointcloud_bin_path_t_1,
-            infrastructure_pointcloud_bin_path_t_2=
-            infrastructure_pointcloud_bin_path_t_2,
+            infrastructure_pointcloud_bin_path_t_0=infrastructure_pointcloud_bin_path_t_0,
+            infrastructure_pointcloud_bin_path_t_1=infrastructure_pointcloud_bin_path_t_1,
+            infrastructure_pointcloud_bin_path_t_2=infrastructure_pointcloud_bin_path_t_2,
             infrastructure_t_0_1=infrastructure_t_0_1,
             infrastructure_t_1_2=infrastructure_t_1_2)
 
@@ -303,12 +279,10 @@ class V2XDataset(Custom3DDataset):
         dims = annos['dimensions']
         rots = annos['rotation_y']
         gt_names = annos['name']
-        gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]],
-                                      axis=1).astype(np.float32)
+        gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
 
         # convert gt_bboxes_3d to velodyne coordinates
-        gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(
-            self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
+        gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
         gt_bboxes = annos['bbox']
 
         selected = self.drop_arrays_by_name(gt_names, ['DontCare'])
@@ -324,12 +298,7 @@ class V2XDataset(Custom3DDataset):
         gt_labels = np.array(gt_labels).astype(np.int64)
         gt_labels_3d = copy.deepcopy(gt_labels)
 
-        anns_results = dict(
-            gt_bboxes_3d=gt_bboxes_3d,
-            gt_labels_3d=gt_labels_3d,
-            bboxes=gt_bboxes,
-            labels=gt_labels,
-            gt_names=gt_names)
+        anns_results = dict(gt_bboxes_3d=gt_bboxes_3d, gt_labels_3d=gt_labels_3d, bboxes=gt_bboxes, labels=gt_labels, gt_names=gt_names)
         return anns_results
 
     def drop_arrays_by_name(self, gt_names, used_classes):
@@ -371,18 +340,12 @@ class V2XDataset(Custom3DDataset):
             dict: Annotations after filtering.
         """
         img_filtered_annotations = {}
-        relevant_annotation_indices = [
-            i for i, x in enumerate(ann_info['name']) if x != 'DontCare'
-        ]
+        relevant_annotation_indices = [i for i, x in enumerate(ann_info['name']) if x != 'DontCare']
         for key in ann_info.keys():
-            img_filtered_annotations[key] = (
-                ann_info[key][relevant_annotation_indices])
+            img_filtered_annotations[key] = (ann_info[key][relevant_annotation_indices])
         return img_filtered_annotations
 
-    def format_results(self,
-                       outputs,
-                       pklfile_prefix=None,
-                       submission_prefix=None):
+    def format_results(self, outputs, pklfile_prefix=None, submission_prefix=None):
         """Format the results to pkl file.
 
         Args:
@@ -420,26 +383,14 @@ class V2XDataset(Custom3DDataset):
                 if 'img' in name:
                     result_files[name] = None
                 else:
-                    result_files_ = self.bbox2result_kitti(
-                        results_, self.CLASSES, pklfile_prefix_,
-                        submission_prefix_)
+                    result_files_ = self.bbox2result_kitti(results_, self.CLASSES, pklfile_prefix_, submission_prefix_)
                 result_files[name] = result_files_
         else:
             print('format_results bbox2result_kitti: ', )
-            result_files = self.bbox2result_kitti(outputs, self.CLASSES,
-                                                  pklfile_prefix,
-                                                  submission_prefix)
+            result_files = self.bbox2result_kitti(outputs, self.CLASSES, pklfile_prefix, submission_prefix)
         return result_files, tmp_dir
 
-    def evaluate(self,
-                 results,
-                 metric=None,
-                 logger=None,
-                 pklfile_prefix=None,
-                 submission_prefix=None,
-                 show=False,
-                 out_dir=None,
-                 pipeline=None):
+    def evaluate(self, results, metric=None, logger=None, pklfile_prefix=None, submission_prefix=None, show=False, out_dir=None, pipeline=None):
         """Evaluation in KITTI protocol.
 
         Args:
@@ -476,19 +427,13 @@ class V2XDataset(Custom3DDataset):
         if isinstance(result_files, dict):
             ap_dict = dict()
             for name, result_files_ in result_files.items():
-                ap_result_str, ap_dict_ = kitti_eval(
-                    gt_annos,
-                    result_files_,
-                    self.CLASSES,
-                    eval_types=eval_types)
+                ap_result_str, ap_dict_ = kitti_eval(gt_annos, result_files_, self.CLASSES, eval_types=eval_types)
                 for ap_type, ap in ap_dict_.items():
                     ap_dict[f'{name}/{ap_type}'] = float('{:.4f}'.format(ap))
 
-                print_log(
-                    f'Results of {name}:\n' + ap_result_str, logger=logger)
+                print_log(f'Results of {name}:\n' + ap_result_str, logger=logger)
         else:
-            ap_result_str, ap_dict = kitti_eval(
-                gt_annos, result_files, self.CLASSES, eval_types=eval_types)
+            ap_result_str, ap_dict = kitti_eval(gt_annos, result_files, self.CLASSES, eval_types=eval_types)
             print_log('\n' + ap_result_str, logger=logger)
 
         if tmp_dir is not None:
@@ -497,11 +442,7 @@ class V2XDataset(Custom3DDataset):
             self.show(results, out_dir, pipeline=pipeline)
         return ap_dict
 
-    def bbox2result_kitti(self,
-                          net_outputs,
-                          class_names,
-                          pklfile_prefix=None,
-                          submission_prefix=None):
+    def bbox2result_kitti(self, net_outputs, class_names, pklfile_prefix=None, submission_prefix=None):
         """Convert 3D detection results to kitti format for evaluation and test
         submission.
 
@@ -522,24 +463,13 @@ class V2XDataset(Custom3DDataset):
 
         det_annos = []
         print('\nConverting prediction to KITTI format')
-        for idx, pred_dicts in enumerate(
-                mmcv.track_iter_progress(net_outputs)):
+        for idx, pred_dicts in enumerate(mmcv.track_iter_progress(net_outputs)):
             annos = []
             info = self.data_infos[idx]
             sample_idx = info['vehicle_idx']
             image_shape = info['image']['image_shape'][:2]
             box_dict = self.convert_valid_bboxes(pred_dicts, info)
-            anno = {
-                'name': [],
-                'truncated': [],
-                'occluded': [],
-                'alpha': [],
-                'bbox': [],
-                'dimensions': [],
-                'location': [],
-                'rotation_y': [],
-                'score': []
-            }
+            anno = {'name': [], 'truncated': [], 'occluded': [], 'alpha': [], 'bbox': [], 'dimensions': [], 'location': [], 'rotation_y': [], 'score': []}
             if len(box_dict['bbox']) > 0:
                 box_2d_preds = box_dict['bbox']
                 box_preds = box_dict['box3d_camera']
@@ -547,16 +477,13 @@ class V2XDataset(Custom3DDataset):
                 box_preds_lidar = box_dict['box3d_lidar']
                 label_preds = box_dict['label_preds']
 
-                for box, box_lidar, bbox, score, label in zip(
-                        box_preds, box_preds_lidar, box_2d_preds, scores,
-                        label_preds):
+                for box, box_lidar, bbox, score, label in zip(box_preds, box_preds_lidar, box_2d_preds, scores, label_preds):
                     bbox[2:] = np.minimum(bbox[2:], image_shape[::-1])
                     bbox[:2] = np.maximum(bbox[:2], [0, 0])
                     anno['name'].append(class_names[int(label)])
                     anno['truncated'].append(0.0)
                     anno['occluded'].append(0)
-                    anno['alpha'].append(
-                        -np.arctan2(-box_lidar[1], box_lidar[0]) + box[6])
+                    anno['alpha'].append(-np.arctan2(-box_lidar[1], box_lidar[0]) + box[6])
                     anno['bbox'].append(bbox)
                     anno['dimensions'].append(box[3:6])
                     anno['location'].append(box[:3])
@@ -590,17 +517,12 @@ class V2XDataset(Custom3DDataset):
                         print(
                             '{} -1 -1 {:.4f} {:.4f} {:.4f} {:.4f} '
                             '{:.4f} {:.4f} {:.4f} '
-                            '{:.4f} {:.4f} {:.4f} {:.4f} {:.4f} {:.4f}'.format(
-                                anno['name'][idx], anno['alpha'][idx],
-                                bbox[idx][0], bbox[idx][1], bbox[idx][2],
-                                bbox[idx][3], dims[idx][1], dims[idx][2],
-                                dims[idx][0], loc[idx][0], loc[idx][1],
-                                loc[idx][2], anno['rotation_y'][idx],
-                                anno['score'][idx]),
+                            '{:.4f} {:.4f} {:.4f} {:.4f} {:.4f} {:.4f}'.format(anno['name'][idx], anno['alpha'][idx], bbox[idx][0], bbox[idx][1], bbox[idx][2], bbox[idx][3],
+                                                                               dims[idx][1], dims[idx][2], dims[idx][0], loc[idx][0], loc[idx][1], loc[idx][2],
+                                                                               anno['rotation_y'][idx], anno['score'][idx]),
                             file=f)
 
-            annos[-1]['sample_idx'] = np.array(
-                [sample_idx] * len(annos[-1]['score']), dtype=np.int64)
+            annos[-1]['sample_idx'] = np.array([sample_idx] * len(annos[-1]['score']), dtype=np.int64)
 
             det_annos += annos
 
@@ -758,12 +680,7 @@ class V2XDataset(Custom3DDataset):
 
         if len(box_preds) == 0:
             return dict(
-                bbox=np.zeros([0, 4]),
-                box3d_camera=np.zeros([0, 7]),
-                box3d_lidar=np.zeros([0, 7]),
-                scores=np.zeros([0]),
-                label_preds=np.zeros([0, 4]),
-                sample_idx=sample_idx)
+                bbox=np.zeros([0, 4]), box3d_camera=np.zeros([0, 7]), box3d_lidar=np.zeros([0, 7]), scores=np.zeros([0]), label_preds=np.zeros([0, 4]), sample_idx=sample_idx)
 
         rect = info['calib']['R0_rect'].astype(np.float32)
         Trv2c = info['calib']['Tr_velo_to_cam'].astype(np.float32)
@@ -787,8 +704,7 @@ class V2XDataset(Custom3DDataset):
         #                   (box_2d_preds[:, 2] > 0) & (box_2d_preds[:, 3] > 0))
         # check box_preds
         limit_range = box_preds.tensor.new_tensor(self.pcd_limit_range)
-        valid_pcd_inds = ((box_preds.center > limit_range[:3]) &
-                          (box_preds.center < limit_range[3:]))
+        valid_pcd_inds = ((box_preds.center > limit_range[:3]) & (box_preds.center < limit_range[3:]))
         valid_inds = valid_pcd_inds.all(-1)
 
         if valid_inds.sum() > 0:
@@ -801,26 +717,13 @@ class V2XDataset(Custom3DDataset):
                 sample_idx=sample_idx)
         else:
             return dict(
-                bbox=np.zeros([0, 4]),
-                box3d_camera=np.zeros([0, 7]),
-                box3d_lidar=np.zeros([0, 7]),
-                scores=np.zeros([0]),
-                label_preds=np.zeros([0, 4]),
-                sample_idx=sample_idx)
+                bbox=np.zeros([0, 4]), box3d_camera=np.zeros([0, 7]), box3d_lidar=np.zeros([0, 7]), scores=np.zeros([0]), label_preds=np.zeros([0, 4]), sample_idx=sample_idx)
 
     def _build_default_pipeline(self):
         """Build the default pipeline for this dataset."""
         pipeline = [
-            dict(
-                type='LoadPointsFromFile',
-                coord_type='LIDAR',
-                load_dim=4,
-                use_dim=4,
-                file_client_args=dict(backend='disk')),
-            dict(
-                type='DefaultFormatBundle3D',
-                class_names=self.CLASSES,
-                with_label=False),
+            dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, file_client_args=dict(backend='disk')),
+            dict(type='DefaultFormatBundle3D', class_names=self.CLASSES, with_label=False),
             dict(type='Collect3D', keys=['points'])
         ]
         if self.modality['use_camera']:

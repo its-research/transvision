@@ -8,11 +8,7 @@ from gen_kitti.label_lidarcoord_to_cameracoord import gen_lidar2cam
 from gen_kitti.utils import pcd2bin
 
 parser = argparse.ArgumentParser('Generate the Kitti Format Data')
-parser.add_argument(
-    '--source-root',
-    type=str,
-    default='data/single-vehicle-side',
-    help='Raw data root about DAIR-V2X.')
+parser.add_argument('--source-root', type=str, default='data/single-vehicle-side', help='Raw data root about DAIR-V2X.')
 parser.add_argument(
     '--target-root',
     type=str,
@@ -25,27 +21,14 @@ parser.add_argument(
     default='data/split_datas/single-vehicle-split-data.json',
     help='Json file to split the data into training/validation/testing.',
 )
-parser.add_argument(
-    '--label-type',
-    type=str,
-    default='lidar',
-    help="label type from ['lidar', 'camera']")
-parser.add_argument(
-    '--sensor-view',
-    type=str,
-    default='vehicle',
-    help="Sensor view from ['infrastructure', 'vehicle']")
+parser.add_argument('--label-type', type=str, default='lidar', help="label type from ['lidar', 'camera']")
+parser.add_argument('--sensor-view', type=str, default='vehicle', help="Sensor view from ['infrastructure', 'vehicle']")
 parser.add_argument(
     '--no-classmerge',
     action='store_true',
-    help=
-    'Not to merge the four classes [Car, Truck, Van, Bus] into one class [Car]',
+    help='Not to merge the four classes [Car, Truck, Van, Bus] into one class [Car]',
 )
-parser.add_argument(
-    '--temp-root',
-    type=str,
-    default='./tmp_file',
-    help='Temporary intermediate file root.')
+parser.add_argument('--temp-root', type=str, default='./tmp_file', help='Temporary intermediate file root.')
 
 
 def mdkir_kitti(target_root):
@@ -60,8 +43,7 @@ def mdkir_kitti(target_root):
 
 
 def rawdata_copy(source_root, target_root):
-    os.system('cp -r %s/image %s/training/image_2' %
-              (source_root, target_root))
+    os.system('cp -r %s/image %s/training/image_2' % (source_root, target_root))
     os.system('cp -r %s/velodyne %s/training' % (source_root, target_root))
 
 
@@ -103,17 +85,13 @@ if __name__ == '__main__':
 
     os.system('rm -rf %s' % temp_root)
 
-    print(
-        '================ Start to Generate Calibration Files ================'
-    )
+    print('================ Start to Generate Calibration Files ================')
     sensor_view = args.sensor_view
     path_camera_intrinsic = os.path.join(source_root, 'calib/camera_intrinsic')
     if sensor_view == 'vehicle' or sensor_view == 'cooperative':
-        path_lidar_to_camera = os.path.join(source_root,
-                                            'calib/lidar_to_camera')
+        path_lidar_to_camera = os.path.join(source_root, 'calib/lidar_to_camera')
     else:
-        path_lidar_to_camera = os.path.join(source_root,
-                                            'calib/virtuallidar_to_camera')
+        path_lidar_to_camera = os.path.join(source_root, 'calib/virtuallidar_to_camera')
     path_calib = os.path.join(target_root, 'training/calib')
     gen_calib2kitti(path_camera_intrinsic, path_lidar_to_camera, path_calib)
 

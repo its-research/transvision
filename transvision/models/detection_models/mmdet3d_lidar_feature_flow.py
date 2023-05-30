@@ -50,8 +50,7 @@ def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
     return save_dict
 
 
-def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation,
-                                      translation, vic_frame):
+def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, translation, vic_frame):
     """Inference point cloud with the detector.
 
     Args:
@@ -92,25 +91,14 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation,
         # scatter to specified GPU
         data = scatter(data, [device.index])[0]
         data['img_metas'][0][0]['inf2veh'] = a
-        data['img_metas'][0][0]['infrastructure_idx_t_1'] = vic_frame[
-            'infrastructure_idx_t_1']
-        data['img_metas'][0][0][
-            'infrastructure_pointcloud_bin_path_t_1'] = vic_frame[
-                'infrastructure_pointcloud_bin_path_t_1']
-        data['img_metas'][0][0]['infrastructure_idx_t_0'] = vic_frame[
-            'infrastructure_idx_t_0']
-        data['img_metas'][0][0][
-            'infrastructure_pointcloud_bin_path_t_0'] = vic_frame[
-                'infrastructure_pointcloud_bin_path_t_0']
-        data['img_metas'][0][0]['infrastructure_t_0_1'] = vic_frame[
-            'infrastructure_t_0_1']
-        data['img_metas'][0][0]['infrastructure_idx_t_2'] = vic_frame[
-            'infrastructure_idx_t_2']
-        data['img_metas'][0][0][
-            'infrastructure_pointcloud_bin_path_t_2'] = vic_frame[
-                'infrastructure_pointcloud_bin_path_t_2']
-        data['img_metas'][0][0]['infrastructure_t_1_2'] = vic_frame[
-            'infrastructure_t_1_2']
+        data['img_metas'][0][0]['infrastructure_idx_t_1'] = vic_frame['infrastructure_idx_t_1']
+        data['img_metas'][0][0]['infrastructure_pointcloud_bin_path_t_1'] = vic_frame['infrastructure_pointcloud_bin_path_t_1']
+        data['img_metas'][0][0]['infrastructure_idx_t_0'] = vic_frame['infrastructure_idx_t_0']
+        data['img_metas'][0][0]['infrastructure_pointcloud_bin_path_t_0'] = vic_frame['infrastructure_pointcloud_bin_path_t_0']
+        data['img_metas'][0][0]['infrastructure_t_0_1'] = vic_frame['infrastructure_t_0_1']
+        data['img_metas'][0][0]['infrastructure_idx_t_2'] = vic_frame['infrastructure_idx_t_2']
+        data['img_metas'][0][0]['infrastructure_pointcloud_bin_path_t_2'] = vic_frame['infrastructure_pointcloud_bin_path_t_2']
+        data['img_metas'][0][0]['infrastructure_t_1_2'] = vic_frame['infrastructure_t_1_2']
     else:
         # this is a workaround to avoid the bug of MMDataParallel
         data['img_metas'] = data['img_metas'][0].data
@@ -162,9 +150,7 @@ class FeatureFlow(BaseModel):
 
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
-        result, _ = inference_detector_feature_fusion(self.model, tmp_veh,
-                                                      tmp_inf, rotation,
-                                                      translation, vic_frame)
+        result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation, vic_frame)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
         remain = []
@@ -214,7 +200,4 @@ class FeatureFlow(BaseModel):
 
 if __name__ == '__main__':
     sys.path.append('..')
-    sys.path.extend([
-        os.path.join(root, name) for root, dirs, _ in os.walk('../')
-        for name in dirs
-    ])
+    sys.path.extend([os.path.join(root, name) for root, dirs, _ in os.walk('../') for name in dirs])

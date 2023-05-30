@@ -58,8 +58,7 @@ def get_fusion_label(path_c, path_dest):
     path_v_data_info = os.path.join(path_c, 'vehicle-side/data_info.json')
     name_list = get_name(path_c_data_info)
     fusion_data_info = choose_name(name_list, path_v_data_info)
-    write_json(
-        os.path.join(path_dest, 'fusion_data_info.json'), fusion_data_info)
+    write_json(os.path.join(path_dest, 'fusion_data_info.json'), fusion_data_info)
 
 
 parser = argparse.ArgumentParser('Generate cooperative-vehicle data info.')
