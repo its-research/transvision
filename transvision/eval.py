@@ -26,7 +26,11 @@ def eval_vic(args, dataset, model, evaluator):
         except Exception:
             veh_id = VICFrame['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', '')
 
-        pred = model(VICFrame, filt, None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame)
+        pred = model(
+            VICFrame,
+            filt,
+            None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
+        )
 
         evaluator.add_frame(pred, label)
         pipe.flush()
