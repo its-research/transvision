@@ -1,18 +1,20 @@
 ## [English](./README.md) | 简体中文
 
 ## DAIR-V2X车路协同数据集
+
 ### 目录结构
+
 ```
 single-infrastructure-side              # 路端数据集(DAIR-V2X-I)
     ├── image			        # 图像
-        ├── {id}.jpg                    
+        ├── {id}.jpg
     ├── velodyne                        # 点云(为方便研究, 已转到虚拟LiDAR坐标系下)
-        ├── {id}.pcd                 
+        ├── {id}.pcd
     ├── calib                           # 标定参数
         ├── camera_intrinsic            # 相机参数
-            ├── {id}.json              
+            ├── {id}.json
         ├── virtuallidar_to_camera      # 虚拟LiDAR坐标系到相机坐标系变换参数
-            ├── {id}.json              
+            ├── {id}.json
     ├── label                           # 标注文件
         ├── camera                      # 标注文件(以图像时间戳为基准, 3D标注贴合图像中的障碍物)
             ├── {id}.json
@@ -23,7 +25,7 @@ single-vehicle-side                     # 车端数据集(DAIR-V2X-V)
     ├── image		                # 图像
         ├── {id}.jpg
     ├── velodyne                        # 点云
-        ├── {id}.pcd                    
+        ├── {id}.pcd
     ├── calib                           # 标定参数
         ├── camera_intrinsic            # 相机参数
             ├── {id}.json
@@ -40,14 +42,14 @@ cooperative-vehicle-infrastructure      # 车路协同数据集(DAIR-V2X-C)
         ├── image		        # 图像
             ├── {id}.jpg
         ├── velodyne                    # 点云(为方便研究, 已转到虚拟LiDAR坐标系下)
-            ├── {id}.pcd               
+            ├── {id}.pcd
         ├── calib                       # 标定参数
             ├── camera                  # 相机参数
-                ├── {id}.json         
+                ├── {id}.json
             ├── virtuallidar_to_world   # 虚拟LiDAR坐标系到世界坐标系变换参数(世界坐标系经过简单位置处理)
-                ├── {id}.json          
+                ├── {id}.json
             ├── virtuallidar_to_camera  # 虚拟LiDAR坐标系到相机坐标系变换参数
-                ├── {id}.json          
+                ├── {id}.json
         ├── label			# 标注文件：路端数据标注
             ├── camera                  # 标注文件(以图像时间戳为基准, 3D标注贴合图像中的障碍物)
                 ├── {id}.json
@@ -58,7 +60,7 @@ cooperative-vehicle-infrastructure      # 车路协同数据集(DAIR-V2X-C)
         ├── image		        # 图像
             ├── {id}.jpg
         ├── velodyne                    # 点云(LiDAR坐标系下)
-            ├── {id}.pcd               
+            ├── {id}.pcd
         ├── calib                       # 标定参数和定位
             ├── camera_intrinsic        # 相机参数
                 ├── {id}.json
@@ -76,12 +78,16 @@ cooperative-vehicle-infrastructure      # 车路协同数据集(DAIR-V2X-C)
         ├── data_info.json              # 数据索引
     ├── cooperative                     # 融合标注
         ├── label_world                 # 融合标注：利用半自动方式生成车端与路端联合视角下的标注, 位于世界坐标系, 可利用开源代码转换到车端LiDAR坐标系
-            ├── {id}.json               
+            ├── {id}.json
         ├── data_info.json              # 数据索引
 ```
----
+
+______________________________________________________________________
+
 ### 索引文件格式
+
 #### DAIR-V2X-I路端data_info.json组织结构
+
 json文件由一个列表组织而成, 列表项的字段和含义如下表所示：
 
 | 字段                                | 含义                                |
@@ -94,6 +100,7 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 | `calib_camera_intrinsic_path`       | 相机参数路径                        |
 
 #### DAIR-V2X-V车端data_info.json组织结构
+
 json文件由一个列表组织而成, 列表项的字段和含义如下表所示：
 
 | 字段                          | 含义                            |
@@ -129,7 +136,7 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 
 **备注**：
 
-- 路端图像、点云编号从[ `batch_start_id`, `batch_end_id` ]为一段, 表示同一个路口下采集得到的数据帧, 按时间顺序排列
+- 路端图像、点云编号从\[ `batch_start_id`, `batch_end_id` \]为一段, 表示同一个路口下采集得到的数据帧, 按时间顺序排列
 
 #### DAIR-V2X-C车端data_info.json组织结构
 
@@ -152,7 +159,6 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 | `batch_start_id`              | 数据片段起始编号                           |
 | `batch_end_id`                | 数据片段结束编号                           |
 
-
 ##### 车路协同融合标注data_info.json
 
 json文件由一个列表组织而成, 列表项的字段和含义如下表所示：
@@ -165,7 +171,8 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 | `vehicle_pointcloud_path`        | 车端点云路径                                       |
 | `cooperative_label_path`         | 融合标注路径：利用路端和车端对应帧label+半自动生成 |
 
----
+______________________________________________________________________
+
 ### 单侧标注格式
 
 标注文件由一个列表组织而成, 一个列表项对应一个目标的标签, 列表项的格式如下所示：
@@ -173,25 +180,25 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 ```json
 {
   "type": type,                         // 障碍物类型
-  "truncated_state": truncated_state,   // 障碍物截断情况：从[0, 1, 2]中取值, 分别表示不截断、横向截断、纵向截断 
+  "truncated_state": truncated_state,   // 障碍物截断情况：从[0, 1, 2]中取值, 分别表示不截断、横向截断、纵向截断
   "occluded_state": occluded_state,     // 障碍物遮挡情况：从[0, 1, 2]中取值, 分别表示不遮挡、0%～50%遮挡, 50%～100%遮挡
   "alpha": alpha,                       // 观察者视角, 从[-pi, pi]中取值
   "2d_box": {                           // 图像中2D bounding box框
-    "xmin": xmin, 
-    "ymin": ymin, 
-    "xmax": xmax, 
+    "xmin": xmin,
+    "ymin": ymin,
+    "xmax": xmax,
     "ymax": ymax
-  }, 
+  },
   "3d_dimensions": {                    // 3D bounding box长宽高
-    "h": height, 
-    "w": width, 
+    "h": height,
+    "w": width,
     "l": length
-  }, 
+  },
   "3d_location": {                      // 3D bounding box中心点坐标
-    "x": x, 
-    "y": y, 
+    "x": x,
+    "y": y,
     "z": z
-  }, 
+  },
   "rotation": rotation              // 3D bounding box绕中心点z轴正方向为旋转轴, 从y轴正方向开始旋转的角度
 }
 ```
@@ -213,7 +220,8 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 | 手推车            | Barrowlist   |
 | 交通锥筒          | TrafficCone  |
 
----
+______________________________________________________________________
+
 ### 融合标注格式
 
 标注文件由一个列表组织而成, 一个列表项对应一个目标的标签, 列表项的格式如下所示：
@@ -240,7 +248,7 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 | 面包车/厢式货车   | Van      |
 | 公交车/大型旅客车 | Bus      |
 
----
+______________________________________________________________________
 
 ### 统计信息
 
@@ -251,7 +259,7 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
   - DAIR-V2X路端数据集(DAIR-V2X-I), 包含10084帧图像数据和10084帧点云数据
   - DAIR-V2X车端数据集(DAIR-V2X-V), 包含22325帧图像数据和22325帧点云数据
 
----
+______________________________________________________________________
 
 ### Citation
 
@@ -265,7 +273,7 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 }
 ```
 
----
+______________________________________________________________________
 
 ### Organizations
 
@@ -279,7 +287,7 @@ json文件由一个列表组织而成, 列表项的字段和含义如下表所�
 
 北京智源人工智能研究院
 
----
+______________________________________________________________________
 
 ### Contaction
 

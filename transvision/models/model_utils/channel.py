@@ -2,6 +2,7 @@ import numpy as np
 
 
 class Channel(object):
+
     def __init__(self):
         self.data = {}
         self.cur_bytes = 0
@@ -18,7 +19,7 @@ class Channel(object):
             cur_bytes = np.array(val).size * 8
         elif type(val) is str:
             cur_bytes = len(val)
-        if key.endswith("boxes"):
+        if key.endswith('boxes'):
             cur_bytes = cur_bytes * 7 / 24
         self.cur_bytes += cur_bytes
 
@@ -32,15 +33,18 @@ class Channel(object):
         return self.data[key] if key in self.data else None
 
     def average_bytes(self):
-        num_frames = self.num_frames if len(self.data) == 0 else self.num_frames + 1
+        num_frames = self.num_frames if len(
+            self.data) == 0 else self.num_frames + 1
         return self.all_bytes / num_frames
 
     def __str__(self):
-        return str(
-            {
-                "data": self.data,
-                "cur_bytes": self.cur_bytes,
-                "all_bytes": self.all_bytes,
-                "num_frames": self.num_frames if len(self.data) == 0 else self.num_frames + 1,
-            }
-        )
+        return str({
+            'data':
+            self.data,
+            'cur_bytes':
+            self.cur_bytes,
+            'all_bytes':
+            self.all_bytes,
+            'num_frames':
+            self.num_frames if len(self.data) == 0 else self.num_frames + 1,
+        })

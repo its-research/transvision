@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import mmcv
 import numpy as np
-
 from mmdet3d.core.points import BasePoints, get_points_type
 from mmdet.datasets.builder import PIPELINES
 from mmdet.datasets.pipelines import LoadAnnotations, LoadImageFromFile
@@ -444,7 +443,7 @@ class LoadPointsFromFile(object):
         points_class = get_points_type(self.coord_type)
         points = points_class(
             points, points_dim=points.shape[-1], attribute_dims=attribute_dims)
-        if self.sensor_view is 'infrastructure':
+        if self.sensor_view == 'infrastructure':
             results[self.sensor_view + '_points'] = points
         else:
             results['points'] = points

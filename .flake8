@@ -1,15 +1,14 @@
+# This is an example .flake8 config, used when developing *Black* itself.
+# Keep in sync with setup.cfg which is used for source packages.
 # B905: zip() without an explicit strict= parameter set.
 #       strict=True causes the resulting iterator to raise a ValueError if the arguments are exhausted at differing lengths.
-#       The strict= argument was added in Python 3.10, so don't enable this flag for code that should work on <3.10.
+#       The strict= argument was added in Python 3.10, so don’t enable this flag for code that should work on <3.10.
 
 [flake8]
-ignore = W503, E203, E221, C403, C416, C901, C408, E741, C407, B006, B017, B028, B902, B904, B905, F811, C101, EXE001, EXE002, E722
+ignore = W503, W504, E203, E126, E129, E221, E225, E251, C403, C416, C901, B006, B907, C408, E741, C407, B017, B905, BLK100
 max-line-length = 180
 max-complexity = 18
 select = B,C,E,F,W,T4,B9
-exclude = build, 3rdparty
+exclude = dair_v2x_i_dataset_vis-master
 per-file-ignores =
-  **/__init__.py:F401,F403,F405,E402
-  **/configs/**.py:F401,E402
-  configs/**.py:F401,E402
-  
+  **/__init__.py:F401,F403,F405, E402

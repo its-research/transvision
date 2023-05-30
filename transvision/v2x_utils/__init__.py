@@ -9,7 +9,7 @@ from .transformation_utils import *
 
 
 def id_to_str(id, digits=6):
-    result = ""
+    result = ''
     for _i in range(digits):
         result = str(id % 10) + result
         id //= 10
@@ -18,12 +18,12 @@ def id_to_str(id, digits=6):
 
 def mkdir(path):
     if not osp.exists(path):
-        os.system("mkdir " + path)
+        os.system('mkdir ' + path)
 
 
 def id_cmp(x, y):
-    id_x = int(x["pointcloud_path"][-10:-4])
-    id_y = int(y["pointcloud_path"][-10:-4])
+    id_x = int(x['pointcloud_path'][-10:-4])
+    id_y = int(y['pointcloud_path'][-10:-4])
     if id_x < id_y:
         return -1
     elif id_x == id_y:

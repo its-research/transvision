@@ -2,12 +2,12 @@
 
 ## Dependencies
 
-+ python < 3.9
-+ torch==1.8.2
-+ mmdet3d==0.17.1
-+ mmcv-full
-+ mmdet==2.14.0
-+ mmsegmentation==0.14.1
+- python \< 3.9
+- torch==1.8.2
+- mmdet3d==0.17.1
+- mmcv-full
+- mmdet==2.14.0
+- mmsegmentation==0.14.1
 
 ```shell
 conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch-lts -c nvidia
@@ -69,10 +69,9 @@ bash ./scripts/convert_dair_v2x_c.sh
 +----------------+--------+
 ```
 
-
 ## Issues
 
-1. FileNotFoundError: [Errno 2] No such file or directory: './data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/velodyne/lidar_i2v/006315.pcd'
+1. FileNotFoundError: \[Errno 2\] No such file or directory: './data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/velodyne/lidar_i2v/006315.pcd'
 
 There is no '006315.pcd' file in cooperative-vehicle-infrastructure/infrastructure-side folders, we can just delete '006315.pcd''s imformation from cooperative-vehicle-infrastructure/cooperative/data_info.json
 
@@ -96,16 +95,17 @@ else:
 	return None
 ```
 
-3. kitti_annos['name'].append(label2cat[label]) KeyError: -1
+3. kitti_annos\['name'\].append(label2cat\[label\]) KeyError: -1
 
 mmdet3d/evaluation/metrics/kitti_metric.py
+
 ```python
 label = instance['bbox_label']
 if label == -1:
     continue
 ```
 
-4. i15 = str(-eval(item["rotation"])) TypeError: eval() arg 1 must be a string, bytes or code object
+4. i15 = str(-eval(item\["rotation"\])) TypeError: eval() arg 1 must be a string, bytes or code object
 
 ```python
 i15 = str(-eval(str(item["rotation"])))
@@ -113,6 +113,6 @@ i15 = str(-eval(str(item["rotation"])))
 
 ## Reference
 
-+ [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)
-+ [DAIR-V2X](https://github.com/AIR-THU/DAIR-V2X) commit: cf92b8d9d91bd54bbdecc254550fcbc7c65b5dc7
-+ [Where2comm](https://github.com/MediaBrain-SJTU/Where2comm)
+- [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)
+- [DAIR-V2X](https://github.com/AIR-THU/DAIR-V2X) commit: cf92b8d9d91bd54bbdecc254550fcbc7c65b5dc7
+- [Where2comm](https://github.com/MediaBrain-SJTU/Where2comm)

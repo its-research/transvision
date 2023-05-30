@@ -1,21 +1,20 @@
 dataset_type = 'V2XDataset'
 data_root = './data/dair-v2x/DAIR-V2X/cooperative-vehicle-infrastructure/'
-############## flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'} ##############
-# FlowPred: Use feature flow to compensate for the temporay asynchrony 
+# flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'}
+# FlowPred: Use feature flow to compensate for the temporary asynchrony
 # OriginFeat: Do not introduce the simulated temporal asychrony
-# Async: Introduce the temporal asynchrony and do not use feature flow to compensate for the temporay asynchrony
-data_info_train_path='./data/dair-v2x/flow_data_jsons/flow_data_info_train_2.json'
-data_info_val_path='./data/dair-v2x/flow_data_jsons/flow_data_info_val_2.json'
-flownet_test_mode='FlowPred' # {'FlowPred', 'OriginFeat', 'Async'}
-#################################################################################### 
-pretrained_basemodel='./ffnet_work_dir/pretrained-checkpoints/epoch_40.pth'
+# Async: Introduce the temporal asynchrony and do not use feature flow to compensate for the temporary asynchrony
+data_info_train_path = './data/dair-v2x/flow_data_jsons/flow_data_info_train_2.json'
+data_info_val_path = './data/dair-v2x/flow_data_jsons/flow_data_info_val_2.json'
+flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
+pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40.pth'
 work_dir = './ffnet_work_dir/work_dir_ffnet'
 
 class_names = ['Pedestrian', 'Cyclist', 'Car']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 voxel_size = [0.16, 0.16, 4]
-l = int((point_cloud_range[3]-point_cloud_range[0])/voxel_size[0])
-h = int((point_cloud_range[4]-point_cloud_range[1])/voxel_size[1])
+l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
+h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 output_shape = [h, l]
 z_center_pedestrian = -0.6
 z_center_cyclist = -0.6
@@ -56,12 +55,21 @@ model = dict(
         use_direction_classifier=True,
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
-            ranges=[[point_cloud_range[0], point_cloud_range[1], z_center_pedestrian, point_cloud_range[3], point_cloud_range[4],
-                     z_center_pedestrian],
-                    [point_cloud_range[0], point_cloud_range[1], z_center_cyclist, point_cloud_range[3], point_cloud_range[4],
-                    z_center_cyclist],
-                    [point_cloud_range[0], point_cloud_range[1], z_center_car, point_cloud_range[3], point_cloud_range[4],
-                    z_center_car]],
+            ranges=[[
+                point_cloud_range[0], point_cloud_range[1],
+                z_center_pedestrian, point_cloud_range[3],
+                point_cloud_range[4], z_center_pedestrian
+            ],
+                    [
+                        point_cloud_range[0], point_cloud_range[1],
+                        z_center_cyclist, point_cloud_range[3],
+                        point_cloud_range[4], z_center_cyclist
+                    ],
+                    [
+                        point_cloud_range[0], point_cloud_range[1],
+                        z_center_car, point_cloud_range[3],
+                        point_cloud_range[4], z_center_car
+                    ]],
             sizes=[[0.6, 0.8, 1.73], [0.6, 1.76, 1.73], [1.6, 3.9, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),
@@ -105,8 +113,7 @@ model = dict(
         pos_weight=-1,
         debug=False,
         pretrained_model=pretrained_basemodel,
-        data_root=data_root
-    ),
+        data_root=data_root),
     test_cfg=dict(
         use_rotate_nms=False,
         nms_across_levels=False,
@@ -117,9 +124,7 @@ model = dict(
         max_num=300,
         test_mode=flownet_test_mode,
         pretrained_model='',
-        data_root=data_root
-    )
-)
+        data_root=data_root))
 
 file_client_args = dict(backend='disk')
 
@@ -164,22 +169,25 @@ data = dict(
                     type='ObjectRangeFilter',
                     point_cloud_range=point_cloud_range),
                 # dict(type='PointShuffle'),
-                dict(
-                    type='DefaultFormatBundle3D',
-                    class_names=class_names),
+                dict(type='DefaultFormatBundle3D', class_names=class_names),
                 dict(
                     type='Collect3D',
-                    keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
-                    meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img',
-                               'depth2img', 'cam2img', 'pad_shape',
-                               'scale_factor', 'flip', 'pcd_horizontal_flip',
-                               'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d',
-                               'img_norm_cfg', 'pcd_trans', 'sample_idx',
-                               'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
-                               'transformation_3d_flow', 'inf2veh', 
-                               'infrastructure_pointcloud_bin_path_t_0', 'infrastructure_pointcloud_bin_path_t_1', 'infrastructure_pointcloud_bin_path_t_2',
-                               'infrastructure_t_0_1', 'infrastructure_t_1_2')
-                )
+                    keys=[
+                        'points', 'infrastructure_points', 'gt_bboxes_3d',
+                        'gt_labels_3d'
+                    ],
+                    meta_keys=('filename', 'ori_shape', 'img_shape',
+                               'lidar2img', 'depth2img', 'cam2img',
+                               'pad_shape', 'scale_factor', 'flip',
+                               'pcd_horizontal_flip', 'pcd_vertical_flip',
+                               'box_mode_3d', 'box_type_3d', 'img_norm_cfg',
+                               'pcd_trans', 'sample_idx', 'pcd_scale_factor',
+                               'pcd_rotation', 'pts_filename',
+                               'transformation_3d_flow', 'inf2veh',
+                               'infrastructure_pointcloud_bin_path_t_0',
+                               'infrastructure_pointcloud_bin_path_t_1',
+                               'infrastructure_pointcloud_bin_path_t_2',
+                               'infrastructure_t_0_1', 'infrastructure_t_1_2'))
             ],
             modality=dict(use_lidar=True, use_camera=False),
             classes=class_names,
@@ -215,17 +223,23 @@ data = dict(
                         type='DefaultFormatBundle3D',
                         class_names=class_names,
                         with_label=False),
-                    dict(type='Collect3D', keys=['points', 'infrastructure_points'],
-                    meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img',
-                               'depth2img', 'cam2img', 'pad_shape',
-                               'scale_factor', 'flip', 'pcd_horizontal_flip',
-                               'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d',
-                               'img_norm_cfg', 'pcd_trans', 'sample_idx',
-                               'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
-                               'transformation_3d_flow', 'inf2veh', 
-                               'infrastructure_pointcloud_bin_path_t_0', 'infrastructure_pointcloud_bin_path_t_1', 'infrastructure_pointcloud_bin_path_t_2',
-                               'infrastructure_t_0_1', 'infrastructure_t_1_2')
-                        )
+                    dict(
+                        type='Collect3D',
+                        keys=['points', 'infrastructure_points'],
+                        meta_keys=('filename', 'ori_shape', 'img_shape',
+                                   'lidar2img', 'depth2img', 'cam2img',
+                                   'pad_shape', 'scale_factor', 'flip',
+                                   'pcd_horizontal_flip', 'pcd_vertical_flip',
+                                   'box_mode_3d', 'box_type_3d',
+                                   'img_norm_cfg', 'pcd_trans', 'sample_idx',
+                                   'pcd_scale_factor', 'pcd_rotation',
+                                   'pts_filename', 'transformation_3d_flow',
+                                   'inf2veh',
+                                   'infrastructure_pointcloud_bin_path_t_0',
+                                   'infrastructure_pointcloud_bin_path_t_1',
+                                   'infrastructure_pointcloud_bin_path_t_2',
+                                   'infrastructure_t_0_1',
+                                   'infrastructure_t_1_2'))
                 ])
         ],
         modality=dict(use_lidar=True, use_camera=False),
@@ -262,17 +276,23 @@ data = dict(
                         type='DefaultFormatBundle3D',
                         class_names=class_names,
                         with_label=False),
-                    dict(type='Collect3D', keys=['points', 'infrastructure_points'],
-                    meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img',
-                               'depth2img', 'cam2img', 'pad_shape',
-                               'scale_factor', 'flip', 'pcd_horizontal_flip',
-                               'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d',
-                               'img_norm_cfg', 'pcd_trans', 'sample_idx',
-                               'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
-                               'transformation_3d_flow', 'inf2veh', 
-                               'infrastructure_pointcloud_bin_path_t_0', 'infrastructure_pointcloud_bin_path_t_1', 'infrastructure_pointcloud_bin_path_t_2',
-                               'infrastructure_t_0_1', 'infrastructure_t_1_2')
-                        )
+                    dict(
+                        type='Collect3D',
+                        keys=['points', 'infrastructure_points'],
+                        meta_keys=('filename', 'ori_shape', 'img_shape',
+                                   'lidar2img', 'depth2img', 'cam2img',
+                                   'pad_shape', 'scale_factor', 'flip',
+                                   'pcd_horizontal_flip', 'pcd_vertical_flip',
+                                   'box_mode_3d', 'box_type_3d',
+                                   'img_norm_cfg', 'pcd_trans', 'sample_idx',
+                                   'pcd_scale_factor', 'pcd_rotation',
+                                   'pts_filename', 'transformation_3d_flow',
+                                   'inf2veh',
+                                   'infrastructure_pointcloud_bin_path_t_0',
+                                   'infrastructure_pointcloud_bin_path_t_1',
+                                   'infrastructure_pointcloud_bin_path_t_2',
+                                   'infrastructure_t_0_1',
+                                   'infrastructure_t_1_2'))
                 ])
         ],
         modality=dict(use_lidar=True, use_camera=False),

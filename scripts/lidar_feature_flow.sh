@@ -8,7 +8,7 @@ OUTPUT="../cache/vic-feature-flow"
 VEHICLE_MODEL_PATH=${FFNet_workdir}'/ffnet_work_dir/work_dir_ffnet/ffnet.pth'
 VEHICLE_CONFIG_NAME=${FFNet_workdir}'/ffnet_work_dir/config_ffnet.py'
 
-CUDA_VISIBLE_DEVICES=$1 
+CUDA_VISIBLE_DEVICES=$1
 
 python eval.py \
   --input $DATA \

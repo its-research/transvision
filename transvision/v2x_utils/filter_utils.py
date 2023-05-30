@@ -7,10 +7,12 @@ from .geometry_utils import point_in_box
 def diff_label_filt(frame1, frame2, i, j):
     size = frame1.size[i]
     diff = np.abs(frame1.center[i] - frame2.center[j]) / size
-    return diff[0] <= 1 and diff[1] <= 1 and diff[2] <= 1 and frame1.label[i] == frame2.label[j]
+    return diff[0] <= 1 and diff[1] <= 1 and diff[2] <= 1 and frame1.label[
+        i] == frame2.label[j]
 
 
 class Filter(object):
+
     def __init__(self):
         pass
 
@@ -19,6 +21,7 @@ class Filter(object):
 
 
 class RectFilter(Filter):
+
     def __init__(self, bbox):
         super().__init__()
         self.bbox = bbox
@@ -31,6 +34,7 @@ class RectFilter(Filter):
 
 
 class SuperClassFilter(Filter):
+
     def __init__(self, superclass):
         super().__init__()
         self.superclass = superclass
@@ -40,6 +44,7 @@ class SuperClassFilter(Filter):
 
 
 class AndFilter(Filter):
+
     def __init__(self, filt1, filt2):
         super().__init__()
         self.filt1 = filt1

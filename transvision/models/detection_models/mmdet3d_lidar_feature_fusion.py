@@ -18,18 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 def get_box_info(result):
-    for i in range(len(result[0]["boxes_3d"])):
-        temp = result[0]["boxes_3d"].tensor[i][4].clone()
-        result[0]["boxes_3d"].tensor[i][4] = result[0]["boxes_3d"].tensor[i][3]
-        result[0]["boxes_3d"].tensor[i][3] = temp
-        result[0]["boxes_3d"].tensor[i][6] = result[0]["boxes_3d"].tensor[i][6]
+    for i in range(len(result[0]['boxes_3d'])):
+        temp = result[0]['boxes_3d'].tensor[i][4].clone()
+        result[0]['boxes_3d'].tensor[i][4] = result[0]['boxes_3d'].tensor[i][3]
+        result[0]['boxes_3d'].tensor[i][3] = temp
+        result[0]['boxes_3d'].tensor[i][6] = result[0]['boxes_3d'].tensor[i][6]
 
-    if len(result[0]["boxes_3d"].tensor) == 0:
+    if len(result[0]['boxes_3d'].tensor) == 0:
         box_lidar = np.zeros((1, 8, 3))
         box_ry = np.zeros(1)
     else:
-        box_lidar = result[0]["boxes_3d"].corners.numpy()
-        box_ry = result[0]["boxes_3d"].tensor[:, -1].numpy()
+        box_lidar = result[0]['boxes_3d'].corners.numpy()
+        box_ry = result[0]['boxes_3d'].tensor[:, -1].numpy()
 
     box_centers_lidar = box_lidar.mean(axis=1)
     arrow_ends_lidar = get_arrow_end(box_centers_lidar, box_ry)
@@ -43,20 +43,22 @@ def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
         label = [-1]
 
     save_dict = {
-        "info": id,
-        "timestamp": timestamp,
-        "boxes_3d": box.tolist(),
-        "arrows": arrow.tolist(),
-        "scores_3d": score,
-        "labels_3d": label,
-        "points": points.tolist(),
+        'info': id,
+        'timestamp': timestamp,
+        'boxes_3d': box.tolist(),
+        'arrows': arrow.tolist(),
+        'scores_3d': score,
+        'labels_3d': label,
+        'points': points.tolist(),
     }
 
     return save_dict
 
 
-def inference_detector_fature_fusion(model, veh_bin, inf_bin, rotation, translation):
+def inference_detector_fature_fusion(model, veh_bin, inf_bin, rotation,
+                                     translation):
     """Inference point cloud with the detector.
+
     Args:
         model (nn.Module): The loaded detector.
         pcd (str): Point cloud files.
@@ -93,11 +95,11 @@ def inference_detector_fature_fusion(model, veh_bin, inf_bin, rotation, translat
     if next(model.parameters()).is_cuda:
         # scatter to specified GPU
         data = scatter(data, [device.index])[0]
-        data["img_metas"][0][0]["inf2veh"] = a
+        data['img_metas'][0][0]['inf2veh'] = a
     else:
         # this is a workaround to avoid the bug of MMDataParallel
-        data["img_metas"] = data["img_metas"][0].data
-        data["points"] = data["points"][0].data
+        data['img_metas'] = data['img_metas'][0].data
+        data['points'] = data['points'][0].data
 
     # forward the model
     with torch.no_grad():
@@ -107,13 +109,14 @@ def inference_detector_fature_fusion(model, veh_bin, inf_bin, rotation, translat
 
 
 class FeatureFusion(BaseModel):
+
     def add_arguments(parser):
-        parser.add_argument("--inf-config-path", type=str, default="")
-        parser.add_argument("--inf-model-path", type=str, default="")
-        parser.add_argument("--veh-config-path", type=str, default="")
-        parser.add_argument("--veh-model-path", type=str, default="")
-        parser.add_argument("--no-comp", action="store_true")
-        parser.add_argument("--overwrite-cache", action="store_true")
+        parser.add_argument('--inf-config-path', type=str, default='')
+        parser.add_argument('--inf-model-path', type=str, default='')
+        parser.add_argument('--veh-config-path', type=str, default='')
+        parser.add_argument('--veh-model-path', type=str, default='')
+        parser.add_argument('--no-comp', action='store_true')
+        parser.add_argument('--overwrite-cache', action='store_true')
 
     def __init__(self, args, pipe):
         super().__init__()
@@ -125,24 +128,26 @@ class FeatureFusion(BaseModel):
             device=self.args.device,
         )
         mkdir(args.output)
-        mkdir(osp.join(args.output, "inf"))
-        mkdir(osp.join(args.output, "veh"))
-        mkdir(osp.join(args.output, "inf", "lidar"))
-        mkdir(osp.join(args.output, "veh", "lidar"))
-        mkdir(osp.join(args.output, "inf", "camera"))
-        mkdir(osp.join(args.output, "veh", "camera"))
-        mkdir(osp.join(args.output, "result"))
+        mkdir(osp.join(args.output, 'inf'))
+        mkdir(osp.join(args.output, 'veh'))
+        mkdir(osp.join(args.output, 'inf', 'lidar'))
+        mkdir(osp.join(args.output, 'veh', 'lidar'))
+        mkdir(osp.join(args.output, 'inf', 'camera'))
+        mkdir(osp.join(args.output, 'veh', 'camera'))
+        mkdir(osp.join(args.output, 'result'))
 
     def forward(self, vic_frame, filt, prev_inf_frame_func=None, *args):
-        tmp_veh = vic_frame.veh_frame.point_cloud(data_format="file")
-        tmp_inf = vic_frame.inf_frame.point_cloud(data_format="file")
-        trans = vic_frame.transform("Infrastructure_lidar", "Vehicle_lidar")
+        tmp_veh = vic_frame.veh_frame.point_cloud(data_format='file')
+        tmp_inf = vic_frame.inf_frame.point_cloud(data_format='file')
+        trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
-        result, _ = inference_detector_fature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
+        result, _ = inference_detector_fature_fusion(self.model, tmp_veh,
+                                                     tmp_inf, rotation,
+                                                     translation)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
         remain = []
-        if len(result[0]["boxes_3d"].tensor) != 0:
+        if len(result[0]['boxes_3d'].tensor) != 0:
             for i in range(box.shape[0]):
                 if filt(box[i]):
                     remain.append(i)
@@ -150,14 +155,14 @@ class FeatureFusion(BaseModel):
             box = box[remain]
             box_center = box_center[remain]
             arrow_ends = arrow_ends[remain]
-            result[0]["scores_3d"] = result[0]["scores_3d"].numpy()[remain]
-            result[0]["labels_3d"] = result[0]["labels_3d"].numpy()[remain]
+            result[0]['scores_3d'] = result[0]['scores_3d'].numpy()[remain]
+            result[0]['labels_3d'] = result[0]['labels_3d'].numpy()[remain]
         else:
             box = np.zeros((1, 8, 3))
             box_center = np.zeros((1, 1, 3))
             arrow_ends = np.zeros((1, 1, 3))
-            result[0]["labels_3d"] = np.zeros((1))
-            result[0]["scores_3d"] = np.zeros((1))
+            result[0]['labels_3d'] = np.zeros((1))
+            result[0]['scores_3d'] = np.zeros((1))
         # Save results
         pred = gen_pred_dict(
             id,
@@ -165,27 +170,30 @@ class FeatureFusion(BaseModel):
             box,
             np.concatenate([box_center, arrow_ends], axis=1),
             np.array(1),
-            result[0]["scores_3d"].tolist(),
-            result[0]["labels_3d"].tolist(),
+            result[0]['scores_3d'].tolist(),
+            result[0]['labels_3d'].tolist(),
         )
         # if self.args.save_point_cloud:
         #     # points = trans(frame.point_cloud(format="array"))
         #     points = vic_frame.point_cloud(format="array")
         # else:
         #     points = np.array([])
-        for ii in range(len(pred["labels_3d"])):
-            pred["labels_3d"][ii] = 2
-        self.pipe.send("boxes_3d", pred["boxes_3d"])
-        self.pipe.send("labels_3d", pred["labels_3d"])
-        self.pipe.send("scores_3d", pred["scores_3d"])
+        for ii in range(len(pred['labels_3d'])):
+            pred['labels_3d'][ii] = 2
+        self.pipe.send('boxes_3d', pred['boxes_3d'])
+        self.pipe.send('labels_3d', pred['labels_3d'])
+        self.pipe.send('scores_3d', pred['scores_3d'])
 
         return {
-            "boxes_3d": np.array(pred["boxes_3d"]),
-            "labels_3d": np.array(pred["labels_3d"]),
-            "scores_3d": np.array(pred["scores_3d"]),
+            'boxes_3d': np.array(pred['boxes_3d']),
+            'labels_3d': np.array(pred['labels_3d']),
+            'scores_3d': np.array(pred['scores_3d']),
         }
 
 
-if __name__ == "__main__":
-    sys.path.append("..")
-    sys.path.extend([os.path.join(root, name) for root, dirs, _ in os.walk("../") for name in dirs])
+if __name__ == '__main__':
+    sys.path.append('..')
+    sys.path.extend([
+        os.path.join(root, name) for root, dirs, _ in os.walk('../')
+        for name in dirs
+    ])

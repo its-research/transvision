@@ -19,4 +19,4 @@ python eval.py \
   --device $CUDA_VISIBLE_DEVICES \
   --pred-class car \
   --sensortype lidar \
-  --extended-range 0 -39.68 -3 100 39.68 1 
+  --extended-range 0 -39.68 -3 100 39.68 1

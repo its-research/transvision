@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import numpy as np
 from mmcv.parallel import DataContainer as DC
-
 from mmdet3d.core.bbox import BaseInstance3DBoxes
 from mmdet3d.core.points import BasePoints
 from mmdet.datasets.builder import PIPELINES
@@ -210,7 +209,8 @@ class DefaultFormatBundle3D(DefaultFormatBundle):
 
         if 'infrastructure_points' in results:
             assert isinstance(results['infrastructure_points'], BasePoints)
-            results['infrastructure_points'] = DC(results['infrastructure_points'].tensor)
+            results['infrastructure_points'] = DC(
+                results['infrastructure_points'].tensor)
 
         for key in ['voxels', 'coors', 'voxel_centers', 'num_points']:
             if key not in results:
