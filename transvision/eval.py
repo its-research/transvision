@@ -4,12 +4,13 @@ import os.path as osp
 
 import numpy as np
 from config import add_arguments
-from dataset import SUPPROTED_DATASETS
-from dataset.dataset_utils import save_pkl
-from models import SUPPROTED_MODELS
-from models.model_utils import Channel
 from tqdm import tqdm
-from v2x_utils import Evaluator, range2box
+
+from transvision.dataset import SUPPROTED_DATASETS
+from transvision.dataset.dataset_utils import save_pkl
+from transvision.models import SUPPROTED_MODELS
+from transvision.models.model_utils import Channel
+from transvision.v2x_utils import Evaluator, range2box
 
 logger = logging.getLogger(__name__)
 
