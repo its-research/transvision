@@ -71,7 +71,7 @@ if __name__ == '__main__':
     else:
         level = logging.INFO
     logging.basicConfig(
-        format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+        format='%(asctime)s-%(levelname)s-%(name)s-%(message)s',
         datefmt='%m/%d/%Y %H:%M:%S',
         level=level,
     )

@@ -4,13 +4,12 @@ import pypcd
 import torch
 from mmcv.runner import force_fp32
 from mmdet3d.core import bbox3d2result
+from mmdet3d.models import builder
+from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.ops import Voxelization
 from mmdet.models import DETECTORS
 from torch import nn as nn
 from torch.nn import functional as F
-
-from .. import builder
-from .single_stage import SingleStage3DDetector
 
 
 class ReduceInfTC(nn.Module):

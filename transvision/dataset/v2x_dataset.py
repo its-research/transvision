@@ -9,11 +9,10 @@ import mmcv
 import numpy as np
 import torch
 from mmcv.utils import print_log
+from mmdet3d.core.bbox import Box3DMode, CameraInstance3DBoxes, points_cam2img
+from mmdet3d.datasets import Custom3DDataset
+from mmdet3d.datasets.pipelines import Compose
 from mmdet.datasets import DATASETS
-
-from ..core.bbox import Box3DMode, CameraInstance3DBoxes, points_cam2img
-from .custom_3d import Custom3DDataset
-from .pipelines import Compose
 
 
 @DATASETS.register_module()
