@@ -6,11 +6,10 @@ import numpy as np
 from config import add_arguments
 from dataset import SUPPROTED_DATASETS
 from dataset.dataset_utils import save_pkl
+from models import SUPPROTED_MODELS
 from models.model_utils import Channel
 from tqdm import tqdm
 from v2x_utils import Evaluator, range2box
-
-from models import SUPPROTED_MODELS
 
 logger = logging.getLogger(__name__)
 
