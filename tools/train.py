@@ -151,6 +151,8 @@ def main():
 
     model = build_model(cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get("test_cfg"))
     model.init_weights()
+    if cfg.model['type'] in ['FeatureFlowNet', 'FeatureFlowNet_V', 'V2VNET']:
+        model.flownet_init()
 
     logger.info(f"Model:\n{model}")
     datasets = [build_dataset(cfg.data.train)]

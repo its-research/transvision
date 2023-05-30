@@ -53,6 +53,8 @@ bash ./scripts/convert_dair_v2x_c.sh
 ```
 
 05/22 18:27:38 - mmengine - INFO - The number of instances per category in the dataset:
+
+```
 +----------------+--------+
 | category       | number |
 +----------------+--------+
@@ -65,7 +67,7 @@ bash ./scripts/convert_dair_v2x_c.sh
 | Tram           | 0      |
 | Misc           | 0      |
 +----------------+--------+
-Car            | 81393
+```
 
 
 ## Issues
