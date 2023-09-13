@@ -5,7 +5,7 @@
 #       The strict= argument was added in Python 3.10, so don’t enable this flag for code that should work on <3.10.
 
 [flake8]
-ignore = W503, W504, E203, E126, E129, E221, E225, E251, C403, C416, C901, B006, B907, C408, E741, C407, B017, B905, BLK100
+ignore = W503, W504, E203, E126, E129, E221, E225, E251, C403, C416, C901, B006, B907, C408, E741, C407, B017, B905, BLK100,E722
 max-line-length = 180
 max-complexity = 18
 select = B,C,E,F,W,T4,B9

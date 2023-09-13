@@ -2,7 +2,6 @@
 import copy
 import json
 import os
-import random
 
 import numpy as np
 import torch
@@ -66,6 +65,7 @@ class ReduceInfTC(nn.Module):
         self.with_quant = False
 
     def forward(self, x, attention_mask=None):
+        # outputsize = x.shape
         # out = F.relu(self.bn1_1(self.conv1_1(x)))
         out = F.relu(self.bn1_2(self.conv1_2(x)))
         out = F.relu(self.bn1_3(self.conv1_3(out)))
@@ -191,7 +191,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         try:
             self.data_root = train_cfg['data_root']
             self.pretraind_checkpoint_path = train_cfg['pretrained_model']
-        except KeyError:
+        except:
             pass
             self.data_root = test_cfg['data_root']
             self.pretraind_checkpoint_path = test_cfg['pretrained_model']
@@ -242,6 +242,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         return matrix
 
     def points_shuffle(self, points, max_points_num=20000):
+        import random
 
         for ii in range(len(points)):
             if len(points[ii]) > max_points_num:
@@ -251,7 +252,6 @@ class FeatureFlowNet(SingleStage3DDetector):
         return points
 
     def feature_fusion(self, veh_x, inf_x, img_metas, mode='fusion'):
-
         wrap_feats_ii = []
         for ii in range(len(veh_x[0])):
             inf_feature = inf_x[0][ii:ii + 1]
@@ -261,8 +261,9 @@ class FeatureFlowNet(SingleStage3DDetector):
             calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
             inf_pointcloud_range = self.inf_voxel_layer.point_cloud_range
 
-            theta_rot = torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
-                                      [0, 0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device)
+            theta_rot = (
+                torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
+                              [0, 0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device))
             theta_rot = torch.FloatTensor(self.generate_matrix(theta_rot, -1, 0)).type(dtype=torch.float).cuda(next(self.parameters()).device)
 
             x_trans = -2 * calib_inf2veh_translation[0][0] / (inf_pointcloud_range[3] - inf_pointcloud_range[0])
@@ -356,7 +357,6 @@ class FeatureFlowNet(SingleStage3DDetector):
         for ii in range(len(infrastructure_points)):
             infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
         if self.fusion_training:
-
             feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
             feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
             feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
@@ -438,7 +438,7 @@ class FeatureFlowNet(SingleStage3DDetector):
                 if not self.fusion_training:
                     losses = {}
                 losses['similarity_loss'] = self.mse_loss(similarity, label)
-            '''visualize the features
+            """visualize the features
             import cv2 as cv
             for bs, data_info_idx in enumerate(data_info_idxs):
                 inf_points_t_2_idx = self.flow_data_infos[data_info_idx]['infrastructure_idx_t_2']
@@ -450,7 +450,7 @@ class FeatureFlowNet(SingleStage3DDetector):
                 tensor_save = torch.sigmoid(feat_inf_apprs[0][bs, channel_idx]) * 255
                 img_save_path = os.path.join('vis_feature', 'feat_t_2_' + inf_points_t_2_idx + '_appr_' + str(channel_idx) + '.png')
                 cv.imwrite(img_save_path, tensor_save.detach().cpu().numpy())
-            '''
+            """
 
         return losses
 
@@ -478,10 +478,7 @@ class FeatureFlowNet(SingleStage3DDetector):
             for ii in range(len(inf_points_t_1)):
                 inf_points_t_1[ii][:, 3] = 255 * inf_points_t_1[ii][:, 3]
             feat_inf_t_1 = self.extract_feat(inf_points_t_1, img_metas, points_view='infrastructure')
-            # similarity = torch.cosine_similarity(
-            #     torch.flatten(feat_inf_t_1[0], start_dim=1, end_dim=3),
-            #     torch.flatten(feat_inf[0], start_dim=1, end_dim=3),
-            #     dim=1)
+            # similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_1[0], start_dim=1, end_dim=3), torch.flatten(feat_inf[0], start_dim=1, end_dim=3), dim=1)
             # print("The similarity is: ", similarity)
 
             feat_inf = feat_inf_t_1
@@ -519,8 +516,7 @@ class FeatureFlowNet(SingleStage3DDetector):
                 inf_points_t_2[ii][:, 3] = 255 * inf_points_t_2[ii][:, 3]
 
             feat_inf_t_1 = self.extract_feat(inf_points_t_1, img_metas, points_view='infrastructure')
-            # feat_inf_t_2 = self.extract_feat(
-            #     inf_points_t_2, img_metas, points_view='infrastructure')
+            # feat_inf_t_2 = self.extract_feat(inf_points_t_2, img_metas, points_view='infrastructure')
             feat_inf_temp = self.extract_feat(inf_points_t_2, img_metas, points_view='infrastructure')
             flow_pred = self.flownet(inf_points_t_0, inf_points_t_1)
             feat_inf_apprs = []
@@ -532,15 +528,12 @@ class FeatureFlowNet(SingleStage3DDetector):
                     feat_inf_temp[ii][bs] = feat_inf_temp[ii][bs] / tem_feat_inf_t_1_after_max * tem_feat_inf_t_1_before_max
                 feat_inf_apprs.append(feat_inf_temp[ii])
 
-            # similarity = torch.cosine_similarity(
-            #     torch.flatten(feat_inf_t_2[0], start_dim=1, end_dim=3),
-            #     torch.flatten(feat_inf_apprs[0], start_dim=1, end_dim=3),
-            #     dim=1)
+            # similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_2[0], start_dim=1, end_dim=3), torch.flatten(feat_inf_apprs[0], start_dim=1, end_dim=3), dim=1)
             # print("The similarity is: ", similarity, points_t_1_2)
 
             feat_inf = feat_inf_apprs
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
-        '''
+        """
         import cv2
         hot_map_feat_cat = np.zeros((288, 288))+255
         #flow_pred feat_inf_t_1  feat_inf_t_2
@@ -565,8 +558,8 @@ class FeatureFlowNet(SingleStage3DDetector):
         cv2.imwrite('./result/pred_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_pred*10)
         cv2.imwrite('./result/t2_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_t2*10)
         cv2.imwrite('./result/t1_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_t1*10)
-        '''
-        '''
+        """
+        """
         hot_map_feat_fused=np.zeros((288,288))
         for ii in range(feat_fused[0].shape[1]):
                 hot_map_feat_fused = hot_map_feat_fused + torch.abs(feat_fused[0][0, ii]).cpu().detach().numpy()
@@ -583,7 +576,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         # feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
         # cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-feat_veh[0][0,79].cpu().detach().numpy()*7000)
         # cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-feat_fused[0][0,79].cpu().detach().numpy()*7000)
-        '''
+        """
 
         outs = self.bbox_head(feat_fused)
         bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
@@ -595,6 +588,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         return None
 
     def tensor_to_pcd(self, tensor_points):
+        # size_float = 4
         list_pcd = []
         for ii in range(tensor_points.shape[0]):
             if tensor_points.shape[1] == 4:

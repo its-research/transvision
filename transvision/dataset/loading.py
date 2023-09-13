@@ -234,8 +234,7 @@ class PointSegClassMapping(object):
     """
 
     def __init__(self, valid_cat_ids, max_cat_id=40):
-        assert max_cat_id >= np.max(valid_cat_ids), \
-            'max_cat_id should be greater than maximum id in valid_cat_ids'
+        assert max_cat_id >= np.max(valid_cat_ids), 'max_cat_id should be greater than maximum id in valid_cat_ids'
 
         self.valid_cat_ids = valid_cat_ids
         self.max_cat_id = int(max_cat_id)
@@ -298,12 +297,9 @@ class NormalizePointsColor(object):
                 - points (:obj:`BasePoints`): Points after color normalization.
         """
         points = results['points']
-        assert points.attribute_dims is not None and \
-            'color' in points.attribute_dims.keys(), \
-            'Expect points have color attribute'
+        assert points.attribute_dims is not None and 'color' in points.attribute_dims.keys(), 'Expect points have color attribute'
         if self.color_mean is not None:
-            points.color = points.color - \
-                points.color.new_tensor(self.color_mean)
+            points.color = points.color - points.color.new_tensor(self.color_mean)
         points.color = points.color / 255.0
         results['points'] = points
         return results
@@ -344,8 +340,7 @@ class LoadPointsFromFile(object):
         self.use_color = use_color
         if isinstance(use_dim, int):
             use_dim = list(range(use_dim))
-        assert max(use_dim) < load_dim, \
-            f'Expect all used dimensions < {load_dim}, got {use_dim}'
+        assert max(use_dim) < load_dim, f'Expect all used dimensions < {load_dim}, got {use_dim}'
         assert coord_type in ['CAMERA', 'LIDAR', 'DEPTH']
 
         self.coord_type = coord_type
@@ -473,20 +468,22 @@ class LoadAnnotations3D(LoadAnnotations):
             for more details.
     """
 
-    def __init__(self,
-                 with_bbox_3d=True,
-                 with_label_3d=True,
-                 with_attr_label=False,
-                 with_mask_3d=False,
-                 with_seg_3d=False,
-                 with_bbox=False,
-                 with_label=False,
-                 with_mask=False,
-                 with_seg=False,
-                 with_bbox_depth=False,
-                 poly2mask=True,
-                 seg_3d_dtype='int',
-                 file_client_args=dict(backend='disk')):
+    def __init__(
+            self,
+            with_bbox_3d=True,
+            with_label_3d=True,
+            with_attr_label=False,
+            with_mask_3d=False,
+            with_seg_3d=False,
+            with_bbox=False,
+            with_label=False,
+            with_mask=False,
+            with_seg=False,
+            with_bbox_depth=False,
+            poly2mask=True,
+            seg_3d_dtype='int',
+            file_client_args=dict(backend='disk'),
+    ):
         super().__init__(with_bbox, with_label, with_mask, with_seg, poly2mask, file_client_args=file_client_args)
         self.with_bbox_3d = with_bbox_3d
         self.with_bbox_depth = with_bbox_depth

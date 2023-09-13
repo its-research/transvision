@@ -111,6 +111,12 @@ if label == -1:
 i15 = str(-eval(str(item["rotation"])))
 ```
 
+5. commit
+
+```bash
+   pre-commit run --all-files
+```
+
 ## Reference
 
 - [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)
