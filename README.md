@@ -2,26 +2,21 @@
 
 ## Dependencies
 
-- python \< 3.9
-- torch==1.8.2
-- mmdet3d==0.17.1
-- mmcv-full
-- mmdet==2.14.0
-- mmsegmentation==0.14.1
+- gcc==10
+- CUDA==11.1
+- python==3.8
+- torch==1.9.1
 
 ```shell
-conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch-lts -c nvidia
-pip install mmcv-full mmdet==2.14.0 mmsegmentation==0.14.1
+pip install --upgrade git+https://github.com/klintan/pypcd.git
+pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
+pip install mmcv-full==1.3.14 mmdet==2.14.0 mmsegmentation==0.14.1
 git clone https://github.com/open-mmlab/mmdetection3d.git
 cd mmdetection3d
 git checkout v0.17.1
 pip install -v -e .
-```
 
-```shell
-git clone https://github.com/klintan/pypcd.git
-cd pypcd
-python setup.py install
+cd FFNET-VIC3D && pip install -v -e .
 ```
 
 ```shell
@@ -54,7 +49,7 @@ bash ./scripts/convert_dair_v2x_c.sh
 
 05/22 18:27:38 - mmengine - INFO - The number of instances per category in the dataset:
 
-```
+```shell
 +----------------+--------+
 | category       | number |
 +----------------+--------+
@@ -71,11 +66,11 @@ bash ./scripts/convert_dair_v2x_c.sh
 
 ## Issues
 
-1. FileNotFoundError: \[Errno 2\] No such file or directory: './data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/velodyne/lidar_i2v/006315.pcd'
+### 1. FileNotFoundError: \[Errno 2\] No such file or directory: './data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/velodyne/lidar_i2v/006315.pcd'
 
 There is no '006315.pcd' file in cooperative-vehicle-infrastructure/infrastructure-side folders, we can just delete '006315.pcd''s imformation from cooperative-vehicle-infrastructure/cooperative/data_info.json
 
-2. AttributeError: 'LineString' object has no attribute 'exterior'
+### 2. AttributeError: 'LineString' object has no attribute 'exterior'
 
 ```python
 from shapely.geometry.polygon import Polygon
@@ -92,10 +87,10 @@ if polygon_from_2d_box.intersects(img_canvas):
     else:
         return None
 else:
-	return None
+    return None
 ```
 
-3. kitti_annos\['name'\].append(label2cat\[label\]) KeyError: -1
+### 3. kitti_annos\['name'\].append(label2cat\[label\]) KeyError: -1
 
 mmdet3d/evaluation/metrics/kitti_metric.py
 
@@ -105,13 +100,13 @@ if label == -1:
     continue
 ```
 
-4. i15 = str(-eval(item\["rotation"\])) TypeError: eval() arg 1 must be a string, bytes or code object
+### 4. i15 = str(-eval(item\["rotation"\])) TypeError: eval() arg 1 must be a string, bytes or code object
 
 ```python
 i15 = str(-eval(str(item["rotation"])))
 ```
 
-5. commit
+### 5. commit
 
 ```bash
    pre-commit run --all-files
