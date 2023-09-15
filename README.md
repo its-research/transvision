@@ -64,6 +64,28 @@ bash ./scripts/convert_dair_v2x_c.sh
 +----------------+--------+
 ```
 
+## FFNet Training
+
+Firstly, train the basemodel on `DAIR-V2X` without latency
+
+```shell
+# Single-gpu training
+cd ${FFNET-VIC_repo}
+export PYTHONPATH=$PYTHONPATH:./
+CUDA_VISIBLE_DEVICES=$1 python tools/train.py ffnet_work_dir/config_basemodel.py
+```
+
+Secondly, put the trained basemodel in a folder `ffnet_work_dir/pretrained-checkpoints`.
+
+Thirdly, train `FFNET` on `DAIR-V2X` with latency
+
+```shell
+# Single-gpu training
+cd ${FFNET-VIC_repo}
+export PYTHONPATH=$PYTHONPATH:./
+CUDA_VISIBLE_DEVICES=$1 python tools/train.py ffnet_work_dir/config_ffnet.py
+```
+
 ## Issues
 
 ### 1. FileNotFoundError: \[Errno 2\] No such file or directory: './data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/velodyne/lidar_i2v/006315.pcd'

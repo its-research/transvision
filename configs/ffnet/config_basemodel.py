@@ -4,14 +4,12 @@ data_info_train_path = './data/flow_data_jsons/flow_data_info_train.json'
 data_info_val_path = './data/flow_data_jsons/flow_data_info_val_0.json'
 work_dir = './ffnet_work_dir/work_dir_baseline-V1'
 
-class_names = ['Pedestrian', 'Cyclist', 'Car']
+class_names = ['Car']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 voxel_size = [0.16, 0.16, 4]
 l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 output_shape = [h, l]
-z_center_pedestrian = -0.6
-z_center_cyclist = -0.6
 z_center_car = -2.66
 
 model = dict(
@@ -30,11 +28,9 @@ model = dict(
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
             ranges=[
-                [point_cloud_range[0], point_cloud_range[1], z_center_pedestrian, point_cloud_range[3], point_cloud_range[4], z_center_pedestrian],
-                [point_cloud_range[0], point_cloud_range[1], z_center_cyclist, point_cloud_range[3], point_cloud_range[4], z_center_cyclist],
                 [point_cloud_range[0], point_cloud_range[1], z_center_car, point_cloud_range[3], point_cloud_range[4], z_center_car],
             ],
-            sizes=[[0.6, 0.8, 1.73], [0.6, 1.76, 1.73], [1.6, 3.9, 1.56]],
+            sizes=[[1.6, 3.9, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False,
         ),
@@ -46,8 +42,6 @@ model = dict(
     ),
     train_cfg=dict(
         assigner=[
-            dict(type='MaxIoUAssigner', iou_calculator=dict(type='BboxOverlapsNearest3D'), pos_iou_thr=0.5, neg_iou_thr=0.35, min_pos_iou=0.35, ignore_iof_thr=-1),
-            dict(type='MaxIoUAssigner', iou_calculator=dict(type='BboxOverlapsNearest3D'), pos_iou_thr=0.5, neg_iou_thr=0.35, min_pos_iou=0.35, ignore_iof_thr=-1),
             dict(type='MaxIoUAssigner', iou_calculator=dict(type='BboxOverlapsNearest3D'), pos_iou_thr=0.6, neg_iou_thr=0.45, min_pos_iou=0.45, ignore_iof_thr=-1),
         ],
         allowed_border=0,
