@@ -117,3 +117,4 @@ i15 = str(-eval(str(item["rotation"])))
 - [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)
 - [DAIR-V2X](https://github.com/AIR-THU/DAIR-V2X) commit: cf92b8d9d91bd54bbdecc254550fcbc7c65b5dc7
 - [Where2comm](https://github.com/MediaBrain-SJTU/Where2comm)
+- [FFNet-VIC3D](https://github.com/haibao-yu/FFNet-VIC3D) commit:e2b7b7421efceb59d51f65b43c0f05bf031c3d0a
