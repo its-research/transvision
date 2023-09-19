@@ -1,6 +1,6 @@
 import numpy as np
-from config import superclass
 
+from transvision.config import superclass
 from .geometry_utils import point_in_box
 
 

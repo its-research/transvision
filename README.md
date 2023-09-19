@@ -73,6 +73,7 @@ Firstly, train the basemodel on `DAIR-V2X` without latency
 cd ${FFNET-VIC_repo}
 export PYTHONPATH=$PYTHONPATH:./
 CUDA_VISIBLE_DEVICES=$1 python tools/train.py ffnet_work_dir/config_basemodel.py
+# bash ./tools/dist_train.sh configs/ffnet/config_basemodel_car.py 8
 ```
 
 Secondly, put the trained basemodel in a folder `ffnet_work_dir/pretrained-checkpoints`.

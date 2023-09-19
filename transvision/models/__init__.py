@@ -4,6 +4,8 @@ import sys
 
 from transvision.models.detection_models import *
 
+# from transvision.dataset.loading import LoadPointsFromFile
+
 SUPPROTED_MODELS = {
     'single_side': SingleSide,
     'late_fusion': LateFusion,

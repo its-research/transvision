@@ -80,7 +80,6 @@ class V2XVoxelNet(SingleStage3DDetector):
 
     def generate_matrix(self, theta, x0, y0):
         import numpy as np
-
         c = theta[0][0]
         s = theta[1][0]
         matrix = np.zeros((3, 3))
@@ -122,7 +121,7 @@ class V2XVoxelNet(SingleStage3DDetector):
     def feature_fusion(self, veh_x, inf_x, img_metas, mode='fusion'):
         """Method II: Based on affine transformation."""
         wrap_feats_ii = []
-        """
+        '''
         for ii in range(len(veh_x[0])):
             inf_feature = inf_x[0][ii:ii+1]
             veh_feature = veh_x[0][ii:ii+1]
@@ -148,7 +147,7 @@ class V2XVoxelNet(SingleStage3DDetector):
             warp_feat_trans = F.grid_sample(warp_feat_rot, grid_trans, mode='bilinear', align_corners=False)
 
             wrap_feats_ii.append(warp_feat_trans)
-        """
+        '''
         for ii in range(len(veh_x[0])):
             inf_feature = inf_x[0][ii:ii + 1]
             veh_feature = veh_x[0][ii:ii + 1]
@@ -157,9 +156,8 @@ class V2XVoxelNet(SingleStage3DDetector):
             calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
             inf_pointcloud_range = self.inf_voxel_layer.point_cloud_range
 
-            theta_rot = (
-                torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
-                              [0, 0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device))
+            theta_rot = torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
+                                      [0, 0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device)
             theta_rot = torch.FloatTensor(self.generate_matrix(theta_rot, -1, 0)).type(dtype=torch.float).cuda(next(self.parameters()).device)
             # Moving right and down is negative.
             x_trans = -2 * calib_inf2veh_translation[0][0] / (inf_pointcloud_range[3] - inf_pointcloud_range[0])

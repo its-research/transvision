@@ -10,12 +10,13 @@ flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
 pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40.pth'
 work_dir = './ffnet_work_dir/work_dir_ffnet'
 
-class_names = ['Car']
+class_names = ['Pedestrian']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 voxel_size = [0.16, 0.16, 4]
 l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 output_shape = [h, l]
+
 z_center_car = -2.66
 
 model = dict(
@@ -85,8 +86,8 @@ data = dict(
             split='training',
             pts_prefix='velodyne_reduced',
             pipeline=[
-                dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
-                dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+                dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
+                dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
                 dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
                 # dict(type='RandomFlip3D', flip_ratio_bev_horizontal=0.5),
                 # dict(
@@ -96,7 +97,7 @@ data = dict(
                 dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
                 dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
                 # dict(type='PointShuffle'),
-                dict(type='DefaultFormatBundle3D', class_names=class_names),
+                dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names),
                 dict(
                     type='Collect3D',
                     keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
@@ -144,15 +145,15 @@ data = dict(
         split='training',
         pts_prefix='velodyne_reduced',
         pipeline=[
-            dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
-            dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+            dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
+            dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
             dict(
                 type='MultiScaleFlipAug3D',
                 img_scale=(h, l),
                 pts_scale_ratio=1,
                 flip=False,
                 transforms=[
-                    dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
+                    dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
                     dict(
                         type='Collect3D',
                         keys=['points', 'infrastructure_points'],
@@ -201,15 +202,15 @@ data = dict(
         split='training',
         pts_prefix='velodyne_reduced',
         pipeline=[
-            dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
-            dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+            dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
+            dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
             dict(
                 type='MultiScaleFlipAug3D',
                 img_scale=(h, l),
                 pts_scale_ratio=1,
                 flip=False,
                 transforms=[
-                    dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
+                    dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
                     dict(
                         type='Collect3D',
                         keys=['points', 'infrastructure_points'],
@@ -253,10 +254,10 @@ data = dict(
     ),
 )
 evaluation = dict(
-    interval=2,
+    interval=10,
     pipeline=[
-        dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, file_client_args=dict(backend='disk')),
-        dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
+        dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, file_client_args=dict(backend='disk')),
+        dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
         dict(type='Collect3D', keys=['points']),
     ],
 )
@@ -273,4 +274,4 @@ log_level = 'INFO'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
-gpu_ids = range(0, 1)
+gpu_ids = range(0, 7)

@@ -2,7 +2,7 @@
 
 ## FFNET-VIC3D
 
-### Paper Claim
+### PaperWithCodes
 
 | Model              | Latency (ms) | 3D IoU=0.5 | 3D Iou=0.7 | bev IoU=0.5 | bev Iou=0.7 | AB (Byte) |
 | :----------------- | :----------: | :--------: | :--------: | :---------: | :---------: | :-------: |
@@ -35,6 +35,13 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 (work with mmdet3d==0.17.1)
 
 ### config_ffnet
+
+bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
+
+| Car | AP@0.30 | 0.50  | 0.70  |   AB(Byte)    |
+| :-: | :-----: | :---: | :---: | :-----------: |
+| bev |  66.09  | 63.84 | 54.41 | 1672.45 Bytes |
+| 3d  |  64.39  | 56.23 | 32.02 |               |
 
 ### Downloaded Model
 

@@ -20,6 +20,8 @@ from mmdet3d.utils import collect_env, get_root_logger
 from mmdet.apis import set_random_seed
 from mmseg import __version__ as mmseg_version
 
+import transvision  # noqa: F401
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -42,8 +44,7 @@ def parse_args():
         action=DictAction,
         help='override some settings in the used config, the key-value pair '
         'in xxx=yyy format will be merged into config file (deprecate), '
-        'change to --cfg-options instead.',
-    )
+        'change to --cfg-options instead.')
     parser.add_argument(
         '--cfg-options',
         nargs='+',
@@ -53,8 +54,7 @@ def parse_args():
         'be overwritten is a list, it should be like key="[a,b]" or key=a,b '
         'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
         'Note that the quotation marks are necessary and that no white space '
-        'is allowed.',
-    )
+        'is allowed.')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='none', help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--autoscale-lr', action='store_true', help='automatically scale lr with the number of gpus')
@@ -81,7 +81,6 @@ def main():
     # import modules from string list.
     if cfg.get('custom_imports', None):
         from mmcv.utils import import_modules_from_strings
-
         import_modules_from_strings(**cfg['custom_imports'])
 
     # set cudnn_benchmark
@@ -184,8 +183,8 @@ def main():
             mmdet3d_version=mmdet3d_version,
             config=cfg.pretty_text,
             CLASSES=datasets[0].CLASSES,
-            PALETTE=datasets[0].PALETTE if hasattr(datasets[0], 'PALETTE') else None,  # for segmentors
-        )
+            PALETTE=datasets[0].PALETTE  # for segmentors
+            if hasattr(datasets[0], 'PALETTE') else None)
     # add an attribute for visualization convenience
     model.CLASSES = datasets[0].CLASSES
     train_model(model, datasets, cfg, distributed=distributed, validate=(not args.no_validate), timestamp=timestamp, meta=meta)

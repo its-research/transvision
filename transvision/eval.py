@@ -3,9 +3,9 @@ import logging
 import os.path as osp
 
 import numpy as np
-from config import add_arguments
 from tqdm import tqdm
 
+from transvision.config import add_arguments
 from transvision.dataset import SUPPROTED_DATASETS
 from transvision.dataset.dataset_utils import save_pkl
 from transvision.models import SUPPROTED_MODELS

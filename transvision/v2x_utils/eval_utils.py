@@ -2,8 +2,9 @@ import logging
 from functools import cmp_to_key
 
 import numpy as np
-from config import superclass
 from scipy.spatial import ConvexHull
+
+from transvision.config import superclass
 
 logger = logging.getLogger(__name__)
 
