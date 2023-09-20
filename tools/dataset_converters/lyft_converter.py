@@ -4,9 +4,10 @@ from logging import warning
 from os import path as osp
 
 import mmcv
+import mmengine
 import numpy as np
 from lyft_dataset_sdk.lyftdataset import LyftDataset as Lyft
-from mmdet3d.datasets import LyftDataset
+from mmdet3d.datasets.convert_utils import LyftNameMapping
 from pyquaternion import Quaternion
 
 from .nuscenes_converter import get_2d_boxes, get_available_scenes, obtain_sensor2top
@@ -22,19 +23,19 @@ def create_lyft_infos(root_path, info_prefix, version='v1.01-train', max_sweeps=
     Args:
         root_path (str): Path of the data root.
         info_prefix (str): Prefix of the info file to be generated.
-        version (str): Version of the data.
-            Default: 'v1.01-train'
-        max_sweeps (int): Max number of sweeps.
-            Default: 10
+        version (str, optional): Version of the data.
+            Default: 'v1.01-train'.
+        max_sweeps (int, optional): Max number of sweeps.
+            Default: 10.
     """
     lyft = Lyft(data_path=osp.join(root_path, version), json_path=osp.join(root_path, version, version), verbose=True)
     available_vers = ['v1.01-train', 'v1.01-test']
     assert version in available_vers
     if version == 'v1.01-train':
-        train_scenes = mmcv.list_from_file('data/lyft/train.txt')
-        val_scenes = mmcv.list_from_file('data/lyft/val.txt')
+        train_scenes = mmengine.list_from_file('data/lyft/train.txt')
+        val_scenes = mmengine.list_from_file('data/lyft/val.txt')
     elif version == 'v1.01-test':
-        train_scenes = mmcv.list_from_file('data/lyft/test.txt')
+        train_scenes = mmengine.list_from_file('data/lyft/test.txt')
         val_scenes = []
     else:
         raise ValueError('unknown')
@@ -61,18 +62,18 @@ def create_lyft_infos(root_path, info_prefix, version='v1.01-train', max_sweeps=
         data = dict(infos=train_lyft_infos, metadata=metadata)
         info_name = f'{info_prefix}_infos_test'
         info_path = osp.join(root_path, f'{info_name}.pkl')
-        mmcv.dump(data, info_path)
+        mmengine.dump(data, info_path)
     else:
         print(f'train sample: {len(train_lyft_infos)}, \
                 val sample: {len(val_lyft_infos)}')
         data = dict(infos=train_lyft_infos, metadata=metadata)
         train_info_name = f'{info_prefix}_infos_train'
         info_path = osp.join(root_path, f'{train_info_name}.pkl')
-        mmcv.dump(data, info_path)
+        mmengine.dump(data, info_path)
         data['infos'] = val_lyft_infos
         val_info_name = f'{info_prefix}_infos_val'
         info_val_path = osp.join(root_path, f'{val_info_name}.pkl')
-        mmcv.dump(data, info_val_path)
+        mmengine.dump(data, info_val_path)
 
 
 def _fill_trainval_infos(lyft, train_scenes, val_scenes, test=False, max_sweeps=10):
@@ -82,9 +83,9 @@ def _fill_trainval_infos(lyft, train_scenes, val_scenes, test=False, max_sweeps=
         lyft (:obj:`LyftDataset`): Dataset class in the Lyft dataset.
         train_scenes (list[str]): Basic information of training scenes.
         val_scenes (list[str]): Basic information of validation scenes.
-        test (bool): Whether use the test mode. In the test mode, no
+        test (bool, optional): Whether use the test mode. In the test mode, no
             annotations can be accessed. Default: False.
-        max_sweeps (int): Max number of sweeps. Default: 10.
+        max_sweeps (int, optional): Max number of sweeps. Default: 10.
 
     Returns:
         tuple[list[dict]]: Information of training set and
@@ -93,7 +94,7 @@ def _fill_trainval_infos(lyft, train_scenes, val_scenes, test=False, max_sweeps=
     train_lyft_infos = []
     val_lyft_infos = []
 
-    for sample in mmcv.track_iter_progress(lyft.sample):
+    for sample in mmengine.track_iter_progress(lyft.sample):
         lidar_token = sample['data']['LIDAR_TOP']
         sd_rec = lyft.get('sample_data', sample['data']['LIDAR_TOP'])
         cs_record = lyft.get('calibrated_sensor', sd_rec['calibrated_sensor_token'])
@@ -105,10 +106,11 @@ def _fill_trainval_infos(lyft, train_scenes, val_scenes, test=False, max_sweeps=
         lidar_path = abs_lidar_path.split(f'{os.getcwd()}/')[-1]
         # relative path
 
-        mmcv.check_file_exist(lidar_path)
+        mmengine.check_file_exist(lidar_path)
 
         info = {
             'lidar_path': lidar_path,
+            'num_features': 5,
             'token': sample['token'],
             'sweeps': [],
             'cams': dict(),
@@ -162,12 +164,14 @@ def _fill_trainval_infos(lyft, train_scenes, val_scenes, test=False, max_sweeps=
 
             names = [b.name for b in boxes]
             for i in range(len(names)):
-                if names[i] in LyftDataset.NameMapping:
-                    names[i] = LyftDataset.NameMapping[names[i]]
+                if names[i] in LyftNameMapping:
+                    names[i] = LyftNameMapping[names[i]]
             names = np.array(names)
 
-            # we need to convert rot to SECOND format.
-            gt_boxes = np.concatenate([locs, dims, -rots - np.pi / 2], axis=1)
+            # we need to convert box size to
+            # the format of our lidar coordinate system
+            # which is x_size, y_size, z_size (corresponding to l, w, h)
+            gt_boxes = np.concatenate([locs, dims[:, [1, 0, 2]], rots], axis=1)
             assert len(gt_boxes) == len(annotations), f'{len(gt_boxes)}, {len(annotations)}'
             info['gt_boxes'] = gt_boxes
             info['gt_names'] = names
@@ -202,13 +206,13 @@ def export_2d_annotation(root_path, info_path, version):
         'CAM_BACK_LEFT',
         'CAM_BACK_RIGHT',
     ]
-    lyft_infos = mmcv.load(info_path)['infos']
+    lyft_infos = mmengine.load(info_path)['infos']
     lyft = Lyft(data_path=osp.join(root_path, version), json_path=osp.join(root_path, version, version), verbose=True)
     # info_2d_list = []
     cat2Ids = [dict(id=lyft_categories.index(cat_name), name=cat_name) for cat_name in lyft_categories]
     coco_ann_id = 0
     coco_2d_dict = dict(annotations=[], images=[], categories=cat2Ids)
-    for info in mmcv.track_iter_progress(lyft_infos):
+    for info in mmengine.track_iter_progress(lyft_infos):
         for cam in camera_types:
             cam_info = info['cams'][cam]
             coco_infos = get_2d_boxes(lyft, cam_info['sample_data_token'], visibilities=['', '1', '2', '3', '4'])
@@ -222,4 +226,4 @@ def export_2d_annotation(root_path, info_path, version):
                 coco_info['id'] = coco_ann_id
                 coco_2d_dict['annotations'].append(coco_info)
                 coco_ann_id += 1
-    mmcv.dump(coco_2d_dict, f'{info_path[:-4]}.coco.json')
+    mmengine.dump(coco_2d_dict, f'{info_path[:-4]}.coco.json')

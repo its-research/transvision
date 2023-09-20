@@ -1,47 +1,33 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import os
-import warnings
+import os.path as osp
 
-import mmcv
-import torch
-from mmcv import Config, DictAction
-from mmcv.cnn import fuse_conv_bn
-from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
-from mmcv.runner import get_dist_info, init_dist, load_checkpoint, wrap_fp16_model
-from mmdet3d.apis import single_gpu_test
-from mmdet3d.datasets import build_dataloader, build_dataset
-from mmdet3d.models import build_model
-from mmdet.apis import multi_gpu_test, set_random_seed
-from mmdet.datasets import replace_ImageToTensor
+from mmdet3d.utils import replace_ceph_backend
+from mmengine.config import Config, ConfigDict, DictAction
+from mmengine.registry import RUNNERS
+from mmengine.runner import Runner
 
 
+# TODO: support fuse_conv_bn and format_only
 def parse_args():
-    parser = argparse.ArgumentParser(description='MMDet test (and eval) a model')
+    parser = argparse.ArgumentParser(description='MMDet3D test (and eval) a model')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
-    parser.add_argument('--out', help='output result file in pickle format')
+    parser.add_argument('--work-dir', help='the directory to save the file containing evaluation metrics')
+    parser.add_argument('--ceph', action='store_true', help='Use ceph as data storage backend')
+    parser.add_argument('--show', action='store_true', help='show prediction results')
     parser.add_argument(
-        '--fuse-conv-bn', action='store_true', help='Whether to fuse conv and bn, this will slightly increase'
-        'the inference speed')
+        '--show-dir', help='directory where painted images will be saved. '
+        'If specified, it will be automatically saved '
+        'to the work_dir/timestamp/show_dir')
+    parser.add_argument('--score-thr', type=float, default=0.1, help='bbox score threshold')
     parser.add_argument(
-        '--format-only',
-        action='store_true',
-        help='Format the output results without perform evaluation. It is'
-        'useful when you want to format the result to a specific format and '
-        'submit it to the test server',
-    )
-    parser.add_argument(
-        '--eval', type=str, nargs='+', help='evaluation metrics, which depends on the dataset, e.g., "bbox",'
-        ' "segm", "proposal" for COCO, and "mAP", "recall" for PASCAL VOC')
-    parser.add_argument('--show', action='store_true', help='show results')
-    parser.add_argument('--show-dir', help='directory where results will be saved')
-    parser.add_argument('--gpu-collect', action='store_true', help='whether to use gpu to collect results.')
-    parser.add_argument(
-        '--tmpdir', help='tmp directory used for collecting results from multiple '
-        'workers, available when gpu-collect is not specified')
-    parser.add_argument('--seed', type=int, default=0, help='random seed')
-    parser.add_argument('--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
+        '--task',
+        type=str,
+        choices=['mono_det', 'multi-view_det', 'lidar_det', 'lidar_seg', 'multi-modality_det'],
+        help='Determine the visualization method depending on the task.')
+    parser.add_argument('--wait-time', type=float, default=2, help='the interval of show (s)')
     parser.add_argument(
         '--cfg-options',
         nargs='+',
@@ -51,138 +37,90 @@ def parse_args():
         'be overwritten is a list, it should be like key="[a,b]" or key=a,b '
         'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
         'Note that the quotation marks are necessary and that no white space '
-        'is allowed.',
-    )
-    parser.add_argument(
-        '--options',
-        nargs='+',
-        action=DictAction,
-        help='custom options for evaluation, the key-value pair in xxx=yyy '
-        'format will be kwargs for dataset.evaluate() function (deprecate), '
-        'change to --eval-options instead.',
-    )
-    parser.add_argument(
-        '--eval-options',
-        nargs='+',
-        action=DictAction,
-        help='custom options for evaluation, the key-value pair in xxx=yyy '
-        'format will be kwargs for dataset.evaluate() function')
+        'is allowed.')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='none', help='job launcher')
-    parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument('--tta', action='store_true', help='Test time augmentation')
+    # When using PyTorch version >= 2.0.0, the `torch.distributed.launch`
+    # will pass the `--local-rank` parameter to `tools/test.py` instead
+    # of `--local_rank`.
+    parser.add_argument('--local_rank', '--local-rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
-
-    if args.options and args.eval_options:
-        raise ValueError('--options and --eval-options cannot be both specified, '
-                         '--options is deprecated in favor of --eval-options')
-    if args.options:
-        warnings.warn('--options is deprecated in favor of --eval-options')
-        args.eval_options = args.options
     return args
+
+
+def trigger_visualization_hook(cfg, args):
+    default_hooks = cfg.default_hooks
+    if 'visualization' in default_hooks:
+        visualization_hook = default_hooks['visualization']
+        # Turn on visualization
+        visualization_hook['draw'] = True
+        if args.show:
+            visualization_hook['show'] = True
+            visualization_hook['wait_time'] = args.wait_time
+        if args.show_dir:
+            visualization_hook['test_out_dir'] = args.show_dir
+        all_task_choices = ['mono_det', 'multi-view_det', 'lidar_det', 'lidar_seg', 'multi-modality_det']
+        assert args.task in all_task_choices, 'You must set '\
+            f"'--task' in {all_task_choices} in the command " \
+            'if you want to use visualization hook'
+        visualization_hook['vis_task'] = args.task
+        visualization_hook['score_thr'] = args.score_thr
+    else:
+        raise RuntimeError('VisualizationHook must be included in default_hooks.'
+                           'refer to usage '
+                           '"visualization=dict(type=\'VisualizationHook\')"')
+
+    return cfg
 
 
 def main():
     args = parse_args()
 
-    assert args.out or args.eval or args.format_only or args.show or args.show_dir, ('Please specify at least one operation (save/eval/format/show the '
-                                                                                     'results / save the results) with the argument "--out", "--eval"'
-                                                                                     ', "--format-only", "--show" or "--show-dir"')
-
-    if args.eval and args.format_only:
-        raise ValueError('--eval and --format_only cannot be both specified')
-
-    if args.out is not None and not args.out.endswith(('.pkl', '.pickle')):
-        raise ValueError('The output file must be a pkl file.')
-
+    # load config
     cfg = Config.fromfile(args.config)
+
+    # TODO: We will unify the ceph support approach with other OpenMMLab repos
+    if args.ceph:
+        cfg = replace_ceph_backend(cfg)
+
+    cfg.launcher = args.launcher
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
-    # import modules from string list.
-    if cfg.get('custom_imports', None):
-        from mmcv.utils import import_modules_from_strings
 
-        import_modules_from_strings(**cfg['custom_imports'])
-    # set cudnn_benchmark
-    if cfg.get('cudnn_benchmark', False):
-        torch.backends.cudnn.benchmark = True
+    # work_dir is determined in this priority: CLI > segment in file > filename
+    if args.work_dir is not None:
+        # update configs according to CLI args if args.work_dir is not None
+        cfg.work_dir = args.work_dir
+    elif cfg.get('work_dir', None) is None:
+        # use config filename as default work_dir if cfg.work_dir is None
+        cfg.work_dir = osp.join('./work_dirs', osp.splitext(osp.basename(args.config))[0])
 
-    cfg.model.pretrained = None
-    # in case the test dataset is concatenated
-    samples_per_gpu = 1
-    if isinstance(cfg.data.test, dict):
-        cfg.data.test.test_mode = True
-        samples_per_gpu = cfg.data.test.pop('samples_per_gpu', 1)
-        if samples_per_gpu > 1:
-            # Replace 'ImageToTensor' to 'DefaultFormatBundle'
-            cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
-    elif isinstance(cfg.data.test, list):
-        for ds_cfg in cfg.data.test:
-            ds_cfg.test_mode = True
-        samples_per_gpu = max([ds_cfg.pop('samples_per_gpu', 1) for ds_cfg in cfg.data.test])
-        if samples_per_gpu > 1:
-            for ds_cfg in cfg.data.test:
-                ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
+    cfg.load_from = args.checkpoint
 
-    # init distributed env first, since logger depends on the dist info.
-    if args.launcher == 'none':
-        distributed = False
+    if args.show or args.show_dir:
+        cfg = trigger_visualization_hook(cfg, args)
+
+    if args.tta:
+        # Currently, we only support tta for 3D segmentation
+        # TODO: Support tta for 3D detection
+        assert 'tta_model' in cfg, 'Cannot find ``tta_model`` in config.'
+        assert 'tta_pipeline' in cfg, 'Cannot find ``tta_pipeline`` in config.'
+        cfg.test_dataloader.dataset.pipeline = cfg.tta_pipeline
+        cfg.model = ConfigDict(**cfg.tta_model, module=cfg.model)
+
+    # build the runner from config
+    if 'runner_type' not in cfg:
+        # build the default runner
+        runner = Runner.from_cfg(cfg)
     else:
-        distributed = True
-        init_dist(args.launcher, **cfg.dist_params)
+        # build customized runner from the registry
+        # if 'runner_type' is set in the cfg
+        runner = RUNNERS.build(cfg)
 
-    # set random seeds
-    if args.seed is not None:
-        set_random_seed(args.seed, deterministic=args.deterministic)
-
-    # build the dataloader
-    dataset = build_dataset(cfg.data.test)
-    data_loader = build_dataloader(dataset, samples_per_gpu=samples_per_gpu, workers_per_gpu=cfg.data.workers_per_gpu, dist=distributed, shuffle=False)
-
-    # build the model and load checkpoint
-    cfg.model.train_cfg = None
-    model = build_model(cfg.model, test_cfg=cfg.get('test_cfg'))
-    fp16_cfg = cfg.get('fp16', None)
-    if fp16_cfg is not None:
-        wrap_fp16_model(model)
-    checkpoint = load_checkpoint(model, args.checkpoint, map_location='cpu')
-    if args.fuse_conv_bn:
-        model = fuse_conv_bn(model)
-    # old versions did not save class info in checkpoints, this walkaround is
-    # for backward compatibility
-    if 'CLASSES' in checkpoint.get('meta', {}):
-        model.CLASSES = checkpoint['meta']['CLASSES']
-    else:
-        model.CLASSES = dataset.CLASSES
-    # palette for visualization in segmentation tasks
-    if 'PALETTE' in checkpoint.get('meta', {}):
-        model.PALETTE = checkpoint['meta']['PALETTE']
-    elif hasattr(dataset, 'PALETTE'):
-        # segmentation dataset has `PALETTE` attribute
-        model.PALETTE = dataset.PALETTE
-
-    if not distributed:
-        model = MMDataParallel(model, device_ids=[0])
-        outputs = single_gpu_test(model, data_loader, args.show, args.show_dir)
-    else:
-        model = MMDistributedDataParallel(model.cuda(), device_ids=[torch.cuda.current_device()], broadcast_buffers=False)
-        outputs = multi_gpu_test(model, data_loader, args.tmpdir, args.gpu_collect)
-
-    rank, _ = get_dist_info()
-    if rank == 0:
-        if args.out:
-            print(f'\nwriting results to {args.out}')
-            mmcv.dump(outputs, args.out)
-        kwargs = {} if args.eval_options is None else args.eval_options
-        if args.format_only:
-            dataset.format_results(outputs, **kwargs)
-        if args.eval:
-            eval_kwargs = cfg.get('evaluation', {}).copy()
-            # hard-code way to remove EvalHook args
-            for key in ['interval', 'tmpdir', 'start', 'gpu_collect', 'save_best', 'rule']:
-                eval_kwargs.pop(key, None)
-            eval_kwargs.update(dict(metric=args.eval, **kwargs))
-            print(dataset.evaluate(outputs, **eval_kwargs))
+    # start testing
+    runner.test()
 
 
 if __name__ == '__main__':

@@ -4,7 +4,9 @@ from concurrent import futures as futures
 from os import path as osp
 from pathlib import Path
 
+import mmengine
 import numpy as np
+from PIL import Image
 from skimage import io
 
 
@@ -15,7 +17,7 @@ def get_image_index_str(img_idx, use_prefix_id=False):
         return '{:06d}'.format(img_idx)
 
 
-def get_kitti_info_path(idx, prefix, info_type='image_2', file_tail='.jpg', training=True, relative_path=True, exist_check=True, use_prefix_id=False):
+def get_kitti_info_path(idx, prefix, info_type='image_2', file_tail='.png', training=True, relative_path=True, exist_check=True, use_prefix_id=False):
     img_idx_str = get_image_index_str(idx, use_prefix_id)
     img_idx_str += file_tail
     prefix = Path(prefix)
@@ -31,11 +33,15 @@ def get_kitti_info_path(idx, prefix, info_type='image_2', file_tail='.jpg', trai
         return str(prefix / file_path)
 
 
-def get_image_path(idx, prefix, training=True, relative_path=True, exist_check=True, info_type='image_2', use_prefix_id=False):
-    return get_kitti_info_path(idx, prefix, info_type, '.jpg', training, relative_path, exist_check, use_prefix_id)
+def get_image_path(idx, prefix, training=True, relative_path=True, exist_check=True, info_type='image_2', file_tail='.png', use_prefix_id=False):
+    return get_kitti_info_path(idx, prefix, info_type, file_tail, training, relative_path, exist_check, use_prefix_id)
 
 
 def get_label_path(idx, prefix, training=True, relative_path=True, exist_check=True, info_type='label_2', use_prefix_id=False):
+    return get_kitti_info_path(idx, prefix, info_type, '.txt', training, relative_path, exist_check, use_prefix_id)
+
+
+def get_plane_path(idx, prefix, training=True, relative_path=True, exist_check=True, info_type='planes', use_prefix_id=False):
     return get_kitti_info_path(idx, prefix, info_type, '.txt', training, relative_path, exist_check, use_prefix_id)
 
 
@@ -49,6 +55,10 @@ def get_calib_path(idx, prefix, training=True, relative_path=True, exist_check=T
 
 def get_pose_path(idx, prefix, training=True, relative_path=True, exist_check=True, use_prefix_id=False):
     return get_kitti_info_path(idx, prefix, 'pose', '.txt', training, relative_path, exist_check, use_prefix_id)
+
+
+def get_timestamp_path(idx, prefix, training=True, relative_path=True, exist_check=True, use_prefix_id=False):
+    return get_kitti_info_path(idx, prefix, 'timestamp', '.txt', training, relative_path, exist_check, use_prefix_id)
 
 
 def get_label_anno(label_path):
@@ -82,7 +92,7 @@ def get_label_anno(label_path):
 
 
 def _extend_matrix(mat):
-    mat = np.concatenate([mat, np.array([[0.0, 0.0, 0.0, 1.0]])], axis=0)
+    mat = np.concatenate([mat, np.array([[0., 0., 0., 1.]])], axis=0)
     return mat
 
 
@@ -91,6 +101,7 @@ def get_kitti_image_info(path,
                          label_info=True,
                          velodyne=False,
                          calib=False,
+                         with_plane=False,
                          image_ids=7481,
                          extend_matrix=True,
                          num_worker=8,
@@ -166,7 +177,7 @@ def get_kitti_image_info(path,
             R0_rect = np.array([float(info) for info in lines[4].split(' ')[1:10]]).reshape([3, 3])
             if extend_matrix:
                 rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
-                rect_4x4[3, 3] = 1.0
+                rect_4x4[3, 3] = 1.
                 rect_4x4[:3, :3] = R0_rect
             else:
                 rect_4x4 = R0_rect
@@ -185,6 +196,13 @@ def get_kitti_image_info(path,
             calib_info['Tr_imu_to_velo'] = Tr_imu_to_velo
             info['calib'] = calib_info
 
+        if with_plane:
+            plane_path = get_plane_path(idx, path, training, relative_path)
+            if relative_path:
+                plane_path = str(root_path / plane_path)
+            lines = mmengine.list_from_file(plane_path)
+            info['plane'] = np.array([float(i) for i in lines[3].split()])
+
         if annotations is not None:
             info['annos'] = annotations
             add_difficulty_to_annos(info)
@@ -196,21 +214,9 @@ def get_kitti_image_info(path,
     return list(image_infos)
 
 
-def get_waymo_image_info(
-    path,
-    training=True,
-    label_info=True,
-    velodyne=False,
-    calib=False,
-    pose=False,
-    image_ids=7481,
-    extend_matrix=True,
-    num_worker=8,
-    relative_path=True,
-    with_imageshape=True,
-    max_sweeps=5,
-):
+class WaymoInfoGatherer:
     """
+    Parallel version of waymo dataset information gathering.
     Waymo annotation format version like KITTI:
     {
         [optional]points: [N, 3+] point cloud
@@ -238,38 +244,63 @@ def get_waymo_image_info(
         }
     }
     """
-    root_path = Path(path)
-    if not isinstance(image_ids, list):
-        image_ids = list(range(image_ids))
 
-    def map_func(idx):
+    def __init__(self,
+                 path,
+                 training=True,
+                 label_info=True,
+                 velodyne=False,
+                 calib=False,
+                 pose=False,
+                 extend_matrix=True,
+                 num_worker=8,
+                 relative_path=True,
+                 with_imageshape=True,
+                 max_sweeps=5) -> None:
+        self.path = path
+        self.training = training
+        self.label_info = label_info
+        self.velodyne = velodyne
+        self.calib = calib
+        self.pose = pose
+        self.extend_matrix = extend_matrix
+        self.num_worker = num_worker
+        self.relative_path = relative_path
+        self.with_imageshape = with_imageshape
+        self.max_sweeps = max_sweeps
+
+    def gather_single(self, idx):
+        root_path = Path(self.path)
         info = {}
         pc_info = {'num_features': 6}
         calib_info = {}
 
         image_info = {'image_idx': idx}
         annotations = None
-        if velodyne:
-            pc_info['velodyne_path'] = get_velodyne_path(idx, path, training, relative_path, use_prefix_id=True)
-            points = np.fromfile(Path(path) / pc_info['velodyne_path'], dtype=np.float32)
-            points = np.copy(points).reshape(-1, pc_info['num_features'])
-            info['timestamp'] = np.int64(points[0, -1])
-            # values of the last dim are all the timestamp
-        image_info['image_path'] = get_image_path(idx, path, training, relative_path, info_type='image_0', use_prefix_id=True)
-        if with_imageshape:
+        if self.velodyne:
+            pc_info['velodyne_path'] = get_velodyne_path(idx, self.path, self.training, self.relative_path, use_prefix_id=True)
+        with open(get_timestamp_path(idx, self.path, self.training, relative_path=False, use_prefix_id=True)) as f:
+            info['timestamp'] = np.int64(f.read())
+        image_info['image_path'] = get_image_path(idx, self.path, self.training, self.relative_path, info_type='image_0', file_tail='.jpg', use_prefix_id=True)
+        if self.with_imageshape:
             img_path = image_info['image_path']
-            if relative_path:
+            if self.relative_path:
                 img_path = str(root_path / img_path)
-            image_info['image_shape'] = np.array(io.imread(img_path).shape[:2], dtype=np.int32)
-        if label_info:
-            label_path = get_label_path(idx, path, training, relative_path, info_type='label_all', use_prefix_id=True)
-            if relative_path:
+            # io using PIL is significantly faster than skimage
+            w, h = Image.open(img_path).size
+            image_info['image_shape'] = np.array((h, w), dtype=np.int32)
+        if self.label_info:
+            label_path = get_label_path(idx, self.path, self.training, self.relative_path, info_type='label_all', use_prefix_id=True)
+            cam_sync_label_path = get_label_path(idx, self.path, self.training, self.relative_path, info_type='cam_sync_label_all', use_prefix_id=True)
+            if self.relative_path:
                 label_path = str(root_path / label_path)
+                cam_sync_label_path = str(root_path / cam_sync_label_path)
             annotations = get_label_anno(label_path)
+            cam_sync_annotations = get_label_anno(cam_sync_label_path)
         info['image'] = image_info
         info['point_cloud'] = pc_info
-        if calib:
-            calib_path = get_calib_path(idx, path, training, relative_path=False, use_prefix_id=True)
+        if self.calib:
+            calib_path = get_calib_path(idx, self.path, self.training, relative_path=False, use_prefix_id=True)
             with open(calib_path, 'r') as f:
                 lines = f.readlines()
             P0 = np.array([float(info) for info in lines[0].split(' ')[1:13]]).reshape([3, 4])
@@ -277,23 +308,32 @@ def get_waymo_image_info(
             P2 = np.array([float(info) for info in lines[2].split(' ')[1:13]]).reshape([3, 4])
             P3 = np.array([float(info) for info in lines[3].split(' ')[1:13]]).reshape([3, 4])
             P4 = np.array([float(info) for info in lines[4].split(' ')[1:13]]).reshape([3, 4])
-            if extend_matrix:
+            if self.extend_matrix:
                 P0 = _extend_matrix(P0)
                 P1 = _extend_matrix(P1)
                 P2 = _extend_matrix(P2)
                 P3 = _extend_matrix(P3)
                 P4 = _extend_matrix(P4)
             R0_rect = np.array([float(info) for info in lines[5].split(' ')[1:10]]).reshape([3, 3])
-            if extend_matrix:
+            if self.extend_matrix:
                 rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
-                rect_4x4[3, 3] = 1.0
+                rect_4x4[3, 3] = 1.
                 rect_4x4[:3, :3] = R0_rect
             else:
                 rect_4x4 = R0_rect
 
+            # TODO: naming Tr_velo_to_cam or Tr_velo_to_cam0
             Tr_velo_to_cam = np.array([float(info) for info in lines[6].split(' ')[1:13]]).reshape([3, 4])
-            if extend_matrix:
+            Tr_velo_to_cam1 = np.array([float(info) for info in lines[7].split(' ')[1:13]]).reshape([3, 4])
+            Tr_velo_to_cam2 = np.array([float(info) for info in lines[8].split(' ')[1:13]]).reshape([3, 4])
+            Tr_velo_to_cam3 = np.array([float(info) for info in lines[9].split(' ')[1:13]]).reshape([3, 4])
+            Tr_velo_to_cam4 = np.array([float(info) for info in lines[10].split(' ')[1:13]]).reshape([3, 4])
+            if self.extend_matrix:
                 Tr_velo_to_cam = _extend_matrix(Tr_velo_to_cam)
+                Tr_velo_to_cam1 = _extend_matrix(Tr_velo_to_cam1)
+                Tr_velo_to_cam2 = _extend_matrix(Tr_velo_to_cam2)
+                Tr_velo_to_cam3 = _extend_matrix(Tr_velo_to_cam3)
+                Tr_velo_to_cam4 = _extend_matrix(Tr_velo_to_cam4)
             calib_info['P0'] = P0
             calib_info['P1'] = P1
             calib_info['P2'] = P2
@@ -301,28 +341,39 @@ def get_waymo_image_info(
             calib_info['P4'] = P4
             calib_info['R0_rect'] = rect_4x4
             calib_info['Tr_velo_to_cam'] = Tr_velo_to_cam
+            calib_info['Tr_velo_to_cam1'] = Tr_velo_to_cam1
+            calib_info['Tr_velo_to_cam2'] = Tr_velo_to_cam2
+            calib_info['Tr_velo_to_cam3'] = Tr_velo_to_cam3
+            calib_info['Tr_velo_to_cam4'] = Tr_velo_to_cam4
             info['calib'] = calib_info
-        if pose:
-            pose_path = get_pose_path(idx, path, training, relative_path=False, use_prefix_id=True)
+
+        if self.pose:
+            pose_path = get_pose_path(idx, self.path, self.training, relative_path=False, use_prefix_id=True)
             info['pose'] = np.loadtxt(pose_path)
 
         if annotations is not None:
             info['annos'] = annotations
             info['annos']['camera_id'] = info['annos'].pop('score')
             add_difficulty_to_annos(info)
+            info['cam_sync_annos'] = cam_sync_annotations
+            # NOTE: the 2D labels do not have strict correspondence with
+            # the projected 2D lidar labels
+            # e.g.: the projected 2D labels can be in camera 2
+            # while the most_visible_camera can have id 4
+            info['cam_sync_annos']['camera_id'] = info['cam_sync_annos'].pop('score')
 
         sweeps = []
         prev_idx = idx
-        while len(sweeps) < max_sweeps:
+        while len(sweeps) < self.max_sweeps:
             prev_info = {}
             prev_idx -= 1
-            prev_info['velodyne_path'] = get_velodyne_path(prev_idx, path, training, relative_path, exist_check=False, use_prefix_id=True)
-            if_prev_exists = osp.exists(Path(path) / prev_info['velodyne_path'])
+            prev_info['velodyne_path'] = get_velodyne_path(prev_idx, self.path, self.training, self.relative_path, exist_check=False, use_prefix_id=True)
+            if_prev_exists = osp.exists(Path(self.path) / prev_info['velodyne_path'])
             if if_prev_exists:
-                prev_points = np.fromfile(Path(path) / prev_info['velodyne_path'], dtype=np.float32)
-                prev_points = np.copy(prev_points).reshape(-1, pc_info['num_features'])
-                prev_info['timestamp'] = np.int64(prev_points[0, -1])
-                prev_pose_path = get_pose_path(prev_idx, path, training, relative_path=False, use_prefix_id=True)
+                with open(get_timestamp_path(prev_idx, self.path, self.training, relative_path=False, use_prefix_id=True)) as f:
+                    prev_info['timestamp'] = np.int64(f.read())
+                prev_info['image_path'] = get_image_path(prev_idx, self.path, self.training, self.relative_path, info_type='image_0', file_tail='.jpg', use_prefix_id=True)
+                prev_pose_path = get_pose_path(prev_idx, self.path, self.training, relative_path=False, use_prefix_id=True)
                 prev_info['pose'] = np.loadtxt(prev_pose_path)
                 sweeps.append(prev_info)
             else:
@@ -331,10 +382,11 @@ def get_waymo_image_info(
 
         return info
 
-    with futures.ThreadPoolExecutor(num_worker) as executor:
-        image_infos = executor.map(map_func, image_ids)
-
-    return list(image_infos)
+    def gather(self, image_ids):
+        if not isinstance(image_ids, list):
+            image_ids = list(range(image_ids))
+        image_infos = mmengine.track_parallel_progress(self.gather_single, image_ids, self.num_worker)
+        return list(image_infos)
 
 
 def kitti_anno_to_label_file(annos, folder):
@@ -371,9 +423,9 @@ def add_difficulty_to_annos(info):
     occlusion = annos['occluded']
     truncation = annos['truncated']
     diff = []
-    easy_mask = np.ones((len(dims), ), dtype=np.bool)
-    moderate_mask = np.ones((len(dims), ), dtype=np.bool)
-    hard_mask = np.ones((len(dims), ), dtype=np.bool)
+    easy_mask = np.ones((len(dims), ), dtype=bool)
+    moderate_mask = np.ones((len(dims), ), dtype=bool)
+    hard_mask = np.ones((len(dims), ), dtype=bool)
     i = 0
     for h, o, t in zip(height, occlusion, truncation):
         if o > max_occlusion[0] or h <= min_height[0] or t > max_trunc[0]:

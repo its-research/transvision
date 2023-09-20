@@ -3,6 +3,7 @@ from concurrent import futures as futures
 from os import path as osp
 
 import mmcv
+import mmengine
 import numpy as np
 from scipy import io as sio
 
@@ -23,7 +24,7 @@ def random_sampling(points, num_points, replace=None, return_choices=False):
     """
 
     if replace is None:
-        replace = points.shape[0] < num_points
+        replace = (points.shape[0] < num_points)
     choices = np.random.choice(points.shape[0], num_points, replace=replace)
     if return_choices:
         return points[choices], choices
@@ -43,14 +44,18 @@ class SUNRGBDInstance(object):
         self.ymax = data[2] + data[4]
         self.box2d = np.array([self.xmin, self.ymin, self.xmax, self.ymax])
         self.centroid = np.array([data[5], data[6], data[7]])
-        self.w = data[8]
-        self.l = data[9]  # noqa: E741
-        self.h = data[10]
+        self.width = data[8]
+        self.length = data[9]
+        self.height = data[10]
+        # data[9] is x_size (length), data[8] is y_size (width), data[10] is
+        # z_size (height) in our depth coordinate system,
+        # l corresponds to the size along the x axis
+        self.size = np.array([data[9], data[8], data[10]]) * 2
         self.orientation = np.zeros((3, ))
         self.orientation[0] = data[11]
         self.orientation[1] = data[12]
-        self.heading_angle = -1 * np.arctan2(self.orientation[1], self.orientation[0])
-        self.box3d = np.concatenate([self.centroid, np.array([self.l * 2, self.w * 2, self.h * 2, self.heading_angle])])
+        self.heading_angle = np.arctan2(self.orientation[1], self.orientation[0])
+        self.box3d = np.concatenate([self.centroid, self.size, self.heading_angle[None]])
 
 
 class SUNRGBDData(object):
@@ -60,8 +65,8 @@ class SUNRGBDData(object):
 
     Args:
         root_path (str): Root path of the raw data.
-        split (str): Set split type of the data. Default: 'train'.
-        use_v1 (bool): Whether to use v1. Default: False.
+        split (str, optional): Set split type of the data. Default: 'train'.
+        use_v1 (bool, optional): Whether to use v1. Default: False.
     """
 
     def __init__(self, root_path, split='train', use_v1=False):
@@ -73,8 +78,8 @@ class SUNRGBDData(object):
         self.label2cat = {label: self.classes[label] for label in range(len(self.classes))}
         assert split in ['train', 'val', 'test']
         split_file = osp.join(self.split_dir, f'{split}_data_idx.txt')
-        mmcv.check_file_exist(split_file)
-        self.sample_id_list = map(int, mmcv.list_from_file(split_file))
+        mmengine.check_file_exist(split_file)
+        self.sample_id_list = map(int, mmengine.list_from_file(split_file))
         self.image_dir = osp.join(self.split_dir, 'image')
         self.calib_dir = osp.join(self.split_dir, 'calib')
         self.depth_dir = osp.join(self.split_dir, 'depth')
@@ -120,9 +125,11 @@ class SUNRGBDData(object):
         This method gets information from the raw data.
 
         Args:
-            num_workers (int): Number of threads to be used. Default: 4.
-            has_label (bool): Whether the data has label. Default: True.
-            sample_id_list (list[int]): Index list of the sample.
+            num_workers (int, optional): Number of threads to be used.
+                Default: 4.
+            has_label (bool, optional): Whether the data has label.
+                Default: True.
+            sample_id_list (list[int], optional): Index list of the sample.
                 Default: None.
 
         Returns:
@@ -142,7 +149,7 @@ class SUNRGBDData(object):
             pc_info = {'num_features': 6, 'lidar_idx': sample_idx}
             info['point_cloud'] = pc_info
 
-            mmcv.mkdir_or_exist(osp.join(self.root_dir, 'points'))
+            mmengine.mkdir_or_exist(osp.join(self.root_dir, 'points'))
             pc_upright_depth_subsampled.tofile(osp.join(self.root_dir, 'points', f'{sample_idx:06d}.bin'))
 
             info['pts_path'] = osp.join('points', f'{sample_idx:06d}.bin')
@@ -162,7 +169,8 @@ class SUNRGBDData(object):
                     annotations['name'] = np.array([obj.classname for obj in obj_list if obj.classname in self.cat2label.keys()])
                     annotations['bbox'] = np.concatenate([obj.box2d.reshape(1, 4) for obj in obj_list if obj.classname in self.cat2label.keys()], axis=0)
                     annotations['location'] = np.concatenate([obj.centroid.reshape(1, 3) for obj in obj_list if obj.classname in self.cat2label.keys()], axis=0)
-                    annotations['dimensions'] = 2 * np.array([[obj.l, obj.w, obj.h] for obj in obj_list if obj.classname in self.cat2label.keys()])  # lwh (depth) format
+                    annotations['dimensions'] = 2 * np.array([[obj.length, obj.width, obj.height]
+                                                              for obj in obj_list if obj.classname in self.cat2label.keys()])  # lwh (depth) format
                     annotations['rotation_y'] = np.array([obj.heading_angle for obj in obj_list if obj.classname in self.cat2label.keys()])
                     annotations['index'] = np.arange(len(obj_list), dtype=np.int32)
                     annotations['class'] = np.array([self.cat2label[obj.classname] for obj in obj_list if obj.classname in self.cat2label.keys()])
@@ -170,7 +178,8 @@ class SUNRGBDData(object):
                 info['annos'] = annotations
             return info
 
-        sample_id_list = sample_id_list if sample_id_list is not None else self.sample_id_list
+        sample_id_list = sample_id_list if \
+            sample_id_list is not None else self.sample_id_list
         with futures.ThreadPoolExecutor(num_workers) as executor:
             infos = executor.map(process_single_scene, sample_id_list)
         return list(infos)

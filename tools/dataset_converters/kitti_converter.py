@@ -3,11 +3,13 @@ from collections import OrderedDict
 from pathlib import Path
 
 import mmcv
+import mmengine
 import numpy as np
-from mmdet3d.core.bbox import box_np_ops
+from mmdet3d.structures import points_cam2img
+from mmdet3d.structures.ops import box_np_ops
 from nuscenes.utils.geometry_utils import view_points
 
-from .kitti_data_utils import get_kitti_image_info, get_waymo_image_info
+from .kitti_data_utils import WaymoInfoGatherer, get_kitti_image_info
 from .nuscenes_converter import post_process_coords
 
 kitti_categories = ('Pedestrian', 'Cyclist', 'Car')
@@ -44,8 +46,65 @@ def _read_imageset_file(path):
     return [int(line) for line in lines]
 
 
+class _NumPointsInGTCalculater:
+    """Calculate the number of points inside the ground truth box. This is the
+    parallel version. For the serialized version, please refer to
+    `_calculate_num_points_in_gt`.
+
+    Args:
+        data_path (str): Path of the data.
+        relative_path (bool): Whether to use relative path.
+        remove_outside (bool, optional): Whether to remove points which are
+            outside of image. Default: True.
+        num_features (int, optional): Number of features per point.
+            Default: False.
+        num_worker (int, optional): the number of parallel workers to use.
+            Default: 8.
+    """
+
+    def __init__(self, data_path, relative_path, remove_outside=True, num_features=4, num_worker=8) -> None:
+        self.data_path = data_path
+        self.relative_path = relative_path
+        self.remove_outside = remove_outside
+        self.num_features = num_features
+        self.num_worker = num_worker
+
+    def calculate_single(self, info):
+        pc_info = info['point_cloud']
+        image_info = info['image']
+        calib = info['calib']
+        if self.relative_path:
+            v_path = str(Path(self.data_path) / pc_info['velodyne_path'])
+        else:
+            v_path = pc_info['velodyne_path']
+        points_v = np.fromfile(v_path, dtype=np.float32, count=-1).reshape([-1, self.num_features])
+        rect = calib['R0_rect']
+        Trv2c = calib['Tr_velo_to_cam']
+        P2 = calib['P2']
+        if self.remove_outside:
+            points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2, image_info['image_shape'])
+        annos = info['annos']
+        num_obj = len([n for n in annos['name'] if n != 'DontCare'])
+        dims = annos['dimensions'][:num_obj]
+        loc = annos['location'][:num_obj]
+        rots = annos['rotation_y'][:num_obj]
+        gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1)
+        gt_boxes_lidar = box_np_ops.box_camera_to_lidar(gt_boxes_camera, rect, Trv2c)
+        indices = box_np_ops.points_in_rbbox(points_v[:, :3], gt_boxes_lidar)
+        num_points_in_gt = indices.sum(0)
+        num_ignored = len(annos['dimensions']) - num_obj
+        num_points_in_gt = np.concatenate([num_points_in_gt, -np.ones([num_ignored])])
+        annos['num_points_in_gt'] = num_points_in_gt.astype(np.int32)
+        return info
+
+    def calculate(self, infos):
+        ret_infos = mmengine.track_parallel_progress(self.calculate_single, infos, self.num_worker)
+        for i, ret_info in enumerate(ret_infos):
+            infos[i] = ret_info
+
+
 def _calculate_num_points_in_gt(data_path, infos, relative_path, remove_outside=True, num_features=4):
-    for info in mmcv.track_iter_progress(infos):
+    for info in mmengine.track_iter_progress(infos):
         pc_info = info['point_cloud']
         image_info = info['image']
         calib = info['calib']
@@ -76,16 +135,21 @@ def _calculate_num_points_in_gt(data_path, infos, relative_path, remove_outside=
         annos['num_points_in_gt'] = num_points_in_gt.astype(np.int32)
 
 
-def create_kitti_info_file(data_path, pkl_prefix='kitti', save_path=None, relative_path=True):
+def create_kitti_info_file(data_path, pkl_prefix='kitti', with_plane=False, save_path=None, relative_path=True):
     """Create info file of KITTI dataset.
 
     Given the raw data, generate its related info file in pkl format.
 
     Args:
         data_path (str): Path of the data root.
-        pkl_prefix (str): Prefix of the info file to be generated.
-        save_path (str): Path to save the info file.
-        relative_path (bool): Whether to use relative path.
+        pkl_prefix (str, optional): Prefix of the info file to be generated.
+            Default: 'kitti'.
+        with_plane (bool, optional): Whether to use plane information.
+            Default: False.
+        save_path (str, optional): Path to save the info file.
+            Default: None.
+        relative_path (bool, optional): Whether to use relative path.
+            Default: True.
     """
     imageset_folder = Path(data_path) / 'ImageSets'
     train_img_ids = _read_imageset_file(str(imageset_folder / 'train.txt'))
@@ -97,37 +161,42 @@ def create_kitti_info_file(data_path, pkl_prefix='kitti', save_path=None, relati
         save_path = Path(data_path)
     else:
         save_path = Path(save_path)
-    kitti_infos_train = get_kitti_image_info(data_path, training=True, velodyne=True, calib=True, image_ids=train_img_ids, relative_path=relative_path)
+    kitti_infos_train = get_kitti_image_info(data_path, training=True, velodyne=True, calib=True, with_plane=with_plane, image_ids=train_img_ids, relative_path=relative_path)
     _calculate_num_points_in_gt(data_path, kitti_infos_train, relative_path)
     filename = save_path / f'{pkl_prefix}_infos_train.pkl'
     print(f'Kitti info train file is saved to {filename}')
-    mmcv.dump(kitti_infos_train, filename)
-    kitti_infos_val = get_kitti_image_info(data_path, training=True, velodyne=True, calib=True, image_ids=val_img_ids, relative_path=relative_path)
+    mmengine.dump(kitti_infos_train, filename)
+    kitti_infos_val = get_kitti_image_info(data_path, training=True, velodyne=True, calib=True, with_plane=with_plane, image_ids=val_img_ids, relative_path=relative_path)
     _calculate_num_points_in_gt(data_path, kitti_infos_val, relative_path)
     filename = save_path / f'{pkl_prefix}_infos_val.pkl'
     print(f'Kitti info val file is saved to {filename}')
-    mmcv.dump(kitti_infos_val, filename)
+    mmengine.dump(kitti_infos_val, filename)
     filename = save_path / f'{pkl_prefix}_infos_trainval.pkl'
     print(f'Kitti info trainval file is saved to {filename}')
-    mmcv.dump(kitti_infos_train + kitti_infos_val, filename)
+    mmengine.dump(kitti_infos_train + kitti_infos_val, filename)
 
-    kitti_infos_test = get_kitti_image_info(data_path, training=False, label_info=False, velodyne=True, calib=True, image_ids=test_img_ids, relative_path=relative_path)
+    kitti_infos_test = get_kitti_image_info(
+        data_path, training=False, label_info=False, velodyne=True, calib=True, with_plane=False, image_ids=test_img_ids, relative_path=relative_path)
     filename = save_path / f'{pkl_prefix}_infos_test.pkl'
     print(f'Kitti info test file is saved to {filename}')
-    mmcv.dump(kitti_infos_test, filename)
+    mmengine.dump(kitti_infos_test, filename)
 
 
-def create_waymo_info_file(data_path, pkl_prefix='waymo', save_path=None, relative_path=True, max_sweeps=5):
+def create_waymo_info_file(data_path, pkl_prefix='waymo', save_path=None, relative_path=True, max_sweeps=5, workers=8):
     """Create info file of waymo dataset.
 
     Given the raw data, generate its related info file in pkl format.
 
     Args:
         data_path (str): Path of the data root.
-        pkl_prefix (str): Prefix of the info file to be generated.
-        save_path (str | None): Path to save the info file.
-        relative_path (bool): Whether to use relative path.
-        max_sweeps (int): Max sweeps before the detection frame to be used.
+        pkl_prefix (str, optional): Prefix of the info file to be generated.
+            Default: 'waymo'.
+        save_path (str, optional): Path to save the info file.
+            Default: None.
+        relative_path (bool, optional): Whether to use relative path.
+            Default: True.
+        max_sweeps (int, optional): Max sweeps before the detection frame
+            to be used. Default: 5.
     """
     imageset_folder = Path(data_path) / 'ImageSets'
     train_img_ids = _read_imageset_file(str(imageset_folder / 'train.txt'))
@@ -139,26 +208,29 @@ def create_waymo_info_file(data_path, pkl_prefix='waymo', save_path=None, relati
         save_path = Path(data_path)
     else:
         save_path = Path(save_path)
-    waymo_infos_train = get_waymo_image_info(
-        data_path, training=True, velodyne=True, calib=True, pose=True, image_ids=train_img_ids, relative_path=relative_path, max_sweeps=max_sweeps)
-    _calculate_num_points_in_gt(data_path, waymo_infos_train, relative_path, num_features=6, remove_outside=False)
+    waymo_infos_gatherer_trainval = WaymoInfoGatherer(
+        data_path, training=True, velodyne=True, calib=True, pose=True, relative_path=relative_path, max_sweeps=max_sweeps, num_worker=workers)
+    waymo_infos_gatherer_test = WaymoInfoGatherer(
+        data_path, training=False, label_info=False, velodyne=True, calib=True, pose=True, relative_path=relative_path, max_sweeps=max_sweeps, num_worker=workers)
+    num_points_in_gt_calculater = _NumPointsInGTCalculater(data_path, relative_path, num_features=6, remove_outside=False, num_worker=workers)
+
+    waymo_infos_train = waymo_infos_gatherer_trainval.gather(train_img_ids)
+    num_points_in_gt_calculater.calculate(waymo_infos_train)
     filename = save_path / f'{pkl_prefix}_infos_train.pkl'
     print(f'Waymo info train file is saved to {filename}')
-    mmcv.dump(waymo_infos_train, filename)
-    waymo_infos_val = get_waymo_image_info(
-        data_path, training=True, velodyne=True, calib=True, pose=True, image_ids=val_img_ids, relative_path=relative_path, max_sweeps=max_sweeps)
-    _calculate_num_points_in_gt(data_path, waymo_infos_val, relative_path, num_features=6, remove_outside=False)
+    mmengine.dump(waymo_infos_train, filename)
+    waymo_infos_val = waymo_infos_gatherer_trainval.gather(val_img_ids)
+    num_points_in_gt_calculater.calculate(waymo_infos_val)
     filename = save_path / f'{pkl_prefix}_infos_val.pkl'
     print(f'Waymo info val file is saved to {filename}')
-    mmcv.dump(waymo_infos_val, filename)
+    mmengine.dump(waymo_infos_val, filename)
     filename = save_path / f'{pkl_prefix}_infos_trainval.pkl'
     print(f'Waymo info trainval file is saved to {filename}')
-    mmcv.dump(waymo_infos_train + waymo_infos_val, filename)
-    waymo_infos_test = get_waymo_image_info(
-        data_path, training=False, label_info=False, velodyne=True, calib=True, pose=True, image_ids=test_img_ids, relative_path=relative_path, max_sweeps=max_sweeps)
+    mmengine.dump(waymo_infos_train + waymo_infos_val, filename)
+    waymo_infos_test = waymo_infos_gatherer_test.gather(test_img_ids)
     filename = save_path / f'{pkl_prefix}_infos_test.pkl'
     print(f'Waymo info test file is saved to {filename}')
-    mmcv.dump(waymo_infos_test, filename)
+    mmengine.dump(waymo_infos_test, filename)
 
 
 def _create_reduced_point_cloud(data_path, info_path, save_path=None, back=False, num_features=4, front_camera_id=2):
@@ -167,15 +239,17 @@ def _create_reduced_point_cloud(data_path, info_path, save_path=None, back=False
     Args:
         data_path (str): Path of original data.
         info_path (str): Path of data info.
-        save_path (str | None): Path to save reduced point cloud data.
-            Default: None.
-        back (bool): Whether to flip the points to back.
-        num_features (int): Number of point features. Default: 4.
-        front_camera_id (int): The referenced/front camera ID. Default: 2.
+        save_path (str, optional): Path to save reduced point cloud
+            data. Default: None.
+        back (bool, optional): Whether to flip the points to back.
+            Default: False.
+        num_features (int, optional): Number of point features. Default: 4.
+        front_camera_id (int, optional): The referenced/front camera ID.
+            Default: 2.
     """
-    kitti_infos = mmcv.load(info_path)
+    kitti_infos = mmengine.load(info_path)
 
-    for info in mmcv.track_iter_progress(kitti_infos):
+    for info in mmengine.track_iter_progress(kitti_infos):
         pc_info = info['point_cloud']
         image_info = info['image']
         calib = info['calib']
@@ -218,14 +292,16 @@ def create_reduced_point_cloud(data_path, pkl_prefix, train_info_path=None, val_
     Args:
         data_path (str): Path of original data.
         pkl_prefix (str): Prefix of info files.
-        train_info_path (str | None): Path of training set info.
+        train_info_path (str, optional): Path of training set info.
             Default: None.
-        val_info_path (str | None): Path of validation set info.
+        val_info_path (str, optional): Path of validation set info.
             Default: None.
-        test_info_path (str | None): Path of test set info.
+        test_info_path (str, optional): Path of test set info.
             Default: None.
-        save_path (str | None): Path to save reduced point cloud data.
-        with_back (bool): Whether to flip the points to back.
+        save_path (str, optional): Path to save reduced point cloud data.
+            Default: None.
+        with_back (bool, optional): Whether to flip the points to back.
+            Default: False.
     """
     if train_info_path is None:
         train_info_path = Path(data_path) / f'{pkl_prefix}_infos_train.pkl'
@@ -252,16 +328,16 @@ def export_2d_annotation(root_path, info_path, mono3d=True):
     Args:
         root_path (str): Root path of the raw data.
         info_path (str): Path of the info file.
-        mono3d (bool): Whether to export mono3d annotation. Default: True.
+        mono3d (bool, optional): Whether to export mono3d annotation.
+            Default: True.
     """
     # get bbox annotations for camera
-    kitti_infos = mmcv.load(info_path)
+    kitti_infos = mmengine.load(info_path)
     cat2Ids = [dict(id=kitti_categories.index(cat_name), name=cat_name) for cat_name in kitti_categories]
     coco_ann_id = 0
     coco_2d_dict = dict(annotations=[], images=[], categories=cat2Ids)
     from os import path as osp
-
-    for info in mmcv.track_iter_progress(kitti_infos):
+    for info in mmengine.track_iter_progress(kitti_infos):
         coco_infos = get_2d_boxes(info, occluded=[0, 1, 2, 3], mono3d=mono3d)
         (height, width, _) = mmcv.imread(osp.join(root_path, info['image']['image_path'])).shape
         coco_2d_dict['images'].append(
@@ -273,8 +349,7 @@ def export_2d_annotation(root_path, info_path, mono3d=True):
                 rect=info['calib']['R0_rect'],
                 cam_intrinsic=info['calib']['P2'],
                 width=width,
-                height=height,
-            ))
+                height=height))
         for coco_info in coco_infos:
             if coco_info is None:
                 continue
@@ -287,7 +362,7 @@ def export_2d_annotation(root_path, info_path, mono3d=True):
         json_prefix = f'{info_path[:-4]}_mono3d'
     else:
         json_prefix = f'{info_path[:-4]}'
-    mmcv.dump(coco_2d_dict, f'{json_prefix}.coco.json')
+    mmengine.dump(coco_2d_dict, f'{json_prefix}.coco.json')
 
 
 def get_2d_boxes(info, occluded, mono3d=True):
@@ -295,8 +370,8 @@ def get_2d_boxes(info, occluded, mono3d=True):
 
     Args:
         info: Information of the given sample data.
-        occluded: Integer (0, 1, 2, 3) indicating occlusion state: \
-            0 = fully visible, 1 = partly occluded, 2 = largely occluded, \
+        occluded: Integer (0, 1, 2, 3) indicating occlusion state:
+            0 = fully visible, 1 = partly occluded, 2 = largely occluded,
             3 = unknown, -1 = DontCare
         mono3d (bool): Whether to get boxes with mono3d annotation.
 
@@ -328,7 +403,8 @@ def get_2d_boxes(info, occluded, mono3d=True):
 
     for ann_idx, ann_rec in enumerate(ann_recs):
         # Augment sample_annotation with token information.
-        ann_rec['sample_annotation_token'] = f"{info['image']['image_idx']}.{ann_idx}"
+        ann_rec['sample_annotation_token'] = \
+            f"{info['image']['image_idx']}.{ann_idx}"
         ann_rec['sample_data_token'] = info['image']['image_idx']
         sample_data_token = info['image']['image_idx']
 
@@ -339,7 +415,8 @@ def get_2d_boxes(info, occluded, mono3d=True):
         dst = np.array([0.5, 0.5, 0.5])
         src = np.array([0.5, 1.0, 0.5])
         loc = loc + dim * (dst - src)
-        offset = (info['calib']['P2'][0, 3] - info['calib']['P0'][0, 3]) / info['calib']['P2'][0, 0]
+        offset = (info['calib']['P2'][0, 3] - info['calib']['P0'][0, 3]) \
+            / info['calib']['P2'][0, 0]
         loc_3d = np.copy(loc)
         loc_3d[0, 0] += offset
         gt_bbox_3d = np.concatenate([loc, dim, rot], axis=1).astype(np.float32)
@@ -374,7 +451,7 @@ def get_2d_boxes(info, occluded, mono3d=True):
             repro_rec['velo_cam3d'] = -1  # no velocity in KITTI
 
             center3d = np.array(loc).reshape([1, 3])
-            center2d = box_np_ops.points_cam2img(center3d, camera_intrinsic, with_depth=True)
+            center2d = points_cam2img(center3d, camera_intrinsic, with_depth=True)
             repro_rec['center2d'] = center2d.squeeze().tolist()
             # normalized center2D + depth
             # samples with depth < 0 will be removed
@@ -410,7 +487,7 @@ def generate_record(ann_rec, x1, y1, x2, y2, sample_data_token, filename):
             - area (float): 2d box area
             - category_name (str): category name
             - category_id (int): category id
-            - bbox (list[float]): left x, top y, dx, dy of 2d box
+            - bbox (list[float]): left x, top y, x_size, y_size of 2d box
             - iscrowd (int): whether the area is crowd
     """
     repro_rec = OrderedDict()

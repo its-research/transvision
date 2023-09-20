@@ -201,6 +201,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         else:
             self.test_mode = 'FlowPred'
         self.count = 0
+        self.init_weights()
 
     def extract_feat(self, points, img_metas=None, points_view='vehicle'):
         """Extract features from points."""

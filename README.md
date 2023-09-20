@@ -3,18 +3,20 @@
 ## Dependencies
 
 - gcc==10
-- CUDA==11.1
+- CUDA==11.7
 - python==3.8
-- torch==1.9.1
+- torch==2.0.1
 
 ```shell
 pip install --upgrade git+https://github.com/klintan/pypcd.git
-pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
-pip install mmcv-full==1.3.14 mmdet==2.14.0 mmsegmentation==0.14.1
-git clone https://github.com/open-mmlab/mmdetection3d.git
-cd mmdetection3d
-git checkout v0.17.1
-pip install -v -e .
+pip install torch torchvision torchaudio
+pip install -U openmim
+mim install mmengine 'mmcv>=2.0.0rc4' 'mmdet>=3.0.0'
+# git clone https://github.com/open-mmlab/mmdetection3d.git
+# cd mmdetection3d
+# git checkout v1.2.0
+# pip install -v -e .
+mim install 'mmdet3d==1.2.0'
 
 cd FFNET-VIC3D && pip install -v -e .
 ```

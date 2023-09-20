@@ -1,12 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os
 
-import mmcv
+import mmengine
 import numpy as np
 
-from tools.data_converter.s3dis_data_utils import S3DISData, S3DISSegData
-from tools.data_converter.scannet_data_utils import ScanNetData, ScanNetSegData
-from tools.data_converter.sunrgbd_data_utils import SUNRGBDData
+from tools.dataset_converters.s3dis_data_utils import S3DISData, S3DISSegData
+from tools.dataset_converters.scannet_data_utils import ScanNetData, ScanNetSegData
+from tools.dataset_converters.sunrgbd_data_utils import SUNRGBDData
 
 
 def create_indoor_info_file(data_path, pkl_prefix='sunrgbd', save_path=None, use_v1=False, workers=4):
@@ -16,13 +16,15 @@ def create_indoor_info_file(data_path, pkl_prefix='sunrgbd', save_path=None, use
 
     Args:
         data_path (str): Path of the data.
-        pkl_prefix (str): Prefix of the pkl to be saved. Default: 'sunrgbd'.
-        save_path (str): Path of the pkl to be saved. Default: None.
-        use_v1 (bool): Whether to use v1. Default: False.
-        workers (int): Number of threads to be used. Default: 4.
+        pkl_prefix (str, optional): Prefix of the pkl to be saved.
+            Default: 'sunrgbd'.
+        save_path (str, optional): Path of the pkl to be saved. Default: None.
+        use_v1 (bool, optional): Whether to use v1. Default: False.
+        workers (int, optional): Number of threads to be used. Default: 4.
     """
     assert os.path.exists(data_path)
-    assert pkl_prefix in ['sunrgbd', 'scannet', 's3dis'], f'unsupported indoor dataset {pkl_prefix}'
+    assert pkl_prefix in ['sunrgbd', 'scannet', 's3dis'], \
+        f'unsupported indoor dataset {pkl_prefix}'
     save_path = data_path if save_path is None else save_path
     assert os.path.exists(save_path)
 
@@ -42,16 +44,16 @@ def create_indoor_info_file(data_path, pkl_prefix='sunrgbd', save_path=None, use
             test_filename = os.path.join(save_path, f'{pkl_prefix}_infos_test.pkl')
 
         infos_train = train_dataset.get_infos(num_workers=workers, has_label=True)
-        mmcv.dump(infos_train, train_filename, 'pkl')
+        mmengine.dump(infos_train, train_filename, 'pkl')
         print(f'{pkl_prefix} info train file is saved to {train_filename}')
 
         infos_val = val_dataset.get_infos(num_workers=workers, has_label=True)
-        mmcv.dump(infos_val, val_filename, 'pkl')
+        mmengine.dump(infos_val, val_filename, 'pkl')
         print(f'{pkl_prefix} info val file is saved to {val_filename}')
 
     if pkl_prefix == 'scannet':
         infos_test = test_dataset.get_infos(num_workers=workers, has_label=False)
-        mmcv.dump(infos_test, test_filename, 'pkl')
+        mmengine.dump(infos_test, test_filename, 'pkl')
         print(f'{pkl_prefix} info test file is saved to {test_filename}')
 
     # generate infos for the semantic segmentation task
@@ -76,7 +78,7 @@ def create_indoor_info_file(data_path, pkl_prefix='sunrgbd', save_path=None, use
             dataset = S3DISData(root_path=data_path, split=split)
             info = dataset.get_infos(num_workers=workers, has_label=True)
             filename = os.path.join(save_path, f'{pkl_prefix}_infos_{split}.pkl')
-            mmcv.dump(info, filename, 'pkl')
+            mmengine.dump(info, filename, 'pkl')
             print(f'{pkl_prefix} info {split} file is saved to {filename}')
             seg_dataset = S3DISSegData(data_root=data_path, ann_file=filename, split=split, num_points=4096, label_weight_func=lambda x: 1.0 / np.log(1.2 + x))
             seg_dataset.get_seg_infos()

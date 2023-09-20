@@ -5,28 +5,19 @@ from os import path as osp
 from typing import List, Tuple, Union
 
 import mmcv
+import mmengine
 import numpy as np
-from mmdet3d.core.bbox import points_cam2img
-from mmdet3d.datasets import NuScenesDataset
+from mmdet3d.datasets.convert_utils import NuScenesNameMapping
+from mmdet3d.structures import points_cam2img
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.geometry_utils import view_points
 from pyquaternion import Quaternion
 from shapely.geometry import MultiPoint, box
-from shapely.geometry.polygon import Polygon
 
 nus_categories = ('car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone', 'barrier')
 
-nus_attributes = (
-    'cycle.with_rider',
-    'cycle.without_rider',
-    'pedestrian.moving',
-    'pedestrian.standing',
-    'pedestrian.sitting_lying_down',
-    'vehicle.moving',
-    'vehicle.parked',
-    'vehicle.stopped',
-    'None',
-)
+nus_attributes = ('cycle.with_rider', 'cycle.without_rider', 'pedestrian.moving', 'pedestrian.standing', 'pedestrian.sitting_lying_down', 'vehicle.moving', 'vehicle.parked',
+                  'vehicle.stopped', 'None')
 
 
 def create_nuscenes_infos(root_path, info_prefix, version='v1.0-trainval', max_sweeps=10):
@@ -37,16 +28,14 @@ def create_nuscenes_infos(root_path, info_prefix, version='v1.0-trainval', max_s
     Args:
         root_path (str): Path of the data root.
         info_prefix (str): Prefix of the info file to be generated.
-        version (str): Version of the data.
-            Default: 'v1.0-trainval'
-        max_sweeps (int): Max number of sweeps.
-            Default: 10
+        version (str, optional): Version of the data.
+            Default: 'v1.0-trainval'.
+        max_sweeps (int, optional): Max number of sweeps.
+            Default: 10.
     """
     from nuscenes.nuscenes import NuScenes
-
     nusc = NuScenes(version=version, dataroot=root_path, verbose=True)
     from nuscenes.utils import splits
-
     available_vers = ['v1.0-trainval', 'v1.0-test', 'v1.0-mini']
     assert version in available_vers
     if version == 'v1.0-trainval':
@@ -81,15 +70,15 @@ def create_nuscenes_infos(root_path, info_prefix, version='v1.0-trainval', max_s
         print('test sample: {}'.format(len(train_nusc_infos)))
         data = dict(infos=train_nusc_infos, metadata=metadata)
         info_path = osp.join(root_path, '{}_infos_test.pkl'.format(info_prefix))
-        mmcv.dump(data, info_path)
+        mmengine.dump(data, info_path)
     else:
         print('train sample: {}, val sample: {}'.format(len(train_nusc_infos), len(val_nusc_infos)))
         data = dict(infos=train_nusc_infos, metadata=metadata)
         info_path = osp.join(root_path, '{}_infos_train.pkl'.format(info_prefix))
-        mmcv.dump(data, info_path)
+        mmengine.dump(data, info_path)
         data['infos'] = val_nusc_infos
         info_val_path = osp.join(root_path, '{}_infos_val.pkl'.format(info_prefix))
-        mmcv.dump(data, info_val_path)
+        mmengine.dump(data, info_val_path)
 
 
 def get_available_scenes(nusc):
@@ -121,7 +110,7 @@ def get_available_scenes(nusc):
                 # path from lyftdataset is absolute path
                 lidar_path = lidar_path.split(f'{os.getcwd()}/')[-1]
                 # relative path
-            if not mmcv.is_filepath(lidar_path):
+            if not mmengine.is_filepath(lidar_path):
                 scene_not_exist = True
                 break
             else:
@@ -140,9 +129,9 @@ def _fill_trainval_infos(nusc, train_scenes, val_scenes, test=False, max_sweeps=
         nusc (:obj:`NuScenes`): Dataset class in the nuScenes dataset.
         train_scenes (list[str]): Basic information of training scenes.
         val_scenes (list[str]): Basic information of validation scenes.
-        test (bool): Whether use the test mode. In the test mode, no
+        test (bool, optional): Whether use the test mode. In test mode, no
             annotations can be accessed. Default: False.
-        max_sweeps (int): Max number of sweeps. Default: 10.
+        max_sweeps (int, optional): Max number of sweeps. Default: 10.
 
     Returns:
         tuple[list[dict]]: Information of training set and validation set
@@ -151,17 +140,18 @@ def _fill_trainval_infos(nusc, train_scenes, val_scenes, test=False, max_sweeps=
     train_nusc_infos = []
     val_nusc_infos = []
 
-    for sample in mmcv.track_iter_progress(nusc.sample):
+    for sample in mmengine.track_iter_progress(nusc.sample):
         lidar_token = sample['data']['LIDAR_TOP']
         sd_rec = nusc.get('sample_data', sample['data']['LIDAR_TOP'])
         cs_record = nusc.get('calibrated_sensor', sd_rec['calibrated_sensor_token'])
         pose_record = nusc.get('ego_pose', sd_rec['ego_pose_token'])
         lidar_path, boxes, _ = nusc.get_sample_data(lidar_token)
 
-        mmcv.check_file_exist(lidar_path)
+        mmengine.check_file_exist(lidar_path)
 
         info = {
             'lidar_path': lidar_path,
+            'num_features': 5,
             'token': sample['token'],
             'sweeps': [],
             'cams': dict(),
@@ -222,11 +212,13 @@ def _fill_trainval_infos(nusc, train_scenes, val_scenes, test=False, max_sweeps=
 
             names = [b.name for b in boxes]
             for i in range(len(names)):
-                if names[i] in NuScenesDataset.NameMapping:
-                    names[i] = NuScenesDataset.NameMapping[names[i]]
+                if names[i] in NuScenesNameMapping:
+                    names[i] = NuScenesNameMapping[names[i]]
             names = np.array(names)
-            # we need to convert rot to SECOND format.
-            gt_boxes = np.concatenate([locs, dims, -rots - np.pi / 2], axis=1)
+            # we need to convert box size to
+            # the format of our lidar coordinate system
+            # which is x_size, y_size, z_size (corresponding to l, w, h)
+            gt_boxes = np.concatenate([locs, dims[:, [1, 0, 2]], rots], axis=1)
             assert len(gt_boxes) == len(annotations), f'{len(gt_boxes)}, {len(annotations)}'
             info['gt_boxes'] = gt_boxes
             info['gt_names'] = names
@@ -234,6 +226,9 @@ def _fill_trainval_infos(nusc, train_scenes, val_scenes, test=False, max_sweeps=
             info['num_lidar_pts'] = np.array([a['num_lidar_pts'] for a in annotations])
             info['num_radar_pts'] = np.array([a['num_radar_pts'] for a in annotations])
             info['valid_flag'] = valid_flag
+
+            if 'lidarseg' in nusc.table_names:
+                info['pts_semantic_mask_path'] = osp.join(nusc.dataroot, nusc.get('lidarseg', lidar_token)['filename'])
 
         if sample['scene_token'] in train_scenes:
             train_nusc_infos.append(info)
@@ -256,7 +251,7 @@ def obtain_sensor2top(nusc, sensor_token, l2e_t, l2e_r_mat, e2g_t, e2g_r_mat, se
         e2g_t (np.ndarray): Translation from ego to global in shape (1, 3).
         e2g_r_mat (np.ndarray): Rotation matrix from ego to global
             in shape (3, 3).
-        sensor_type (str): Sensor to calibrate. Default: 'lidar'.
+        sensor_type (str, optional): Sensor to calibrate. Default: 'lidar'.
 
     Returns:
         sweep (dict): Sweep information after transformation.
@@ -275,7 +270,7 @@ def obtain_sensor2top(nusc, sensor_token, l2e_t, l2e_r_mat, e2g_t, e2g_r_mat, se
         'sensor2ego_rotation': cs_record['rotation'],
         'ego2global_translation': pose_record['translation'],
         'ego2global_rotation': pose_record['rotation'],
-        'timestamp': sd_rec['timestamp'],
+        'timestamp': sd_rec['timestamp']
     }
     l2e_r_s = sweep['sensor2ego_rotation']
     l2e_t_s = sweep['sensor2ego_translation']
@@ -301,7 +296,8 @@ def export_2d_annotation(root_path, info_path, version, mono3d=True):
         root_path (str): Root path of the raw data.
         info_path (str): Path of the info file.
         version (str): Dataset version.
-        mono3d (bool): Whether to export mono3d annotation. Default: True.
+        mono3d (bool, optional): Whether to export mono3d annotation.
+            Default: True.
     """
     # get bbox annotations for camera
     camera_types = [
@@ -312,13 +308,13 @@ def export_2d_annotation(root_path, info_path, version, mono3d=True):
         'CAM_BACK_LEFT',
         'CAM_BACK_RIGHT',
     ]
-    nusc_infos = mmcv.load(info_path)['infos']
+    nusc_infos = mmengine.load(info_path)['infos']
     nusc = NuScenes(version=version, dataroot=root_path, verbose=True)
     # info_2d_list = []
     cat2Ids = [dict(id=nus_categories.index(cat_name), name=cat_name) for cat_name in nus_categories]
     coco_ann_id = 0
     coco_2d_dict = dict(annotations=[], images=[], categories=cat2Ids)
-    for info in mmcv.track_iter_progress(nusc_infos):
+    for info in mmengine.track_iter_progress(nusc_infos):
         for cam in camera_types:
             cam_info = info['cams'][cam]
             coco_infos = get_2d_boxes(nusc, cam_info['sample_data_token'], visibilities=['', '1', '2', '3', '4'], mono3d=mono3d)
@@ -334,8 +330,7 @@ def export_2d_annotation(root_path, info_path, version, mono3d=True):
                     ego2global_translation=info['ego2global_translation'],
                     cam_intrinsic=cam_info['cam_intrinsic'],
                     width=width,
-                    height=height,
-                ))
+                    height=height))
             for coco_info in coco_infos:
                 if coco_info is None:
                     continue
@@ -348,14 +343,14 @@ def export_2d_annotation(root_path, info_path, version, mono3d=True):
         json_prefix = f'{info_path[:-4]}_mono3d'
     else:
         json_prefix = f'{info_path[:-4]}'
-    mmcv.dump(coco_2d_dict, f'{json_prefix}.coco.json')
+    mmengine.dump(coco_2d_dict, f'{json_prefix}.coco.json')
 
 
 def get_2d_boxes(nusc, sample_data_token: str, visibilities: List[str], mono3d=True):
     """Get the 2D annotation records for a given `sample_data_token`.
 
     Args:
-        sample_data_token (str): Sample data token belonging to a camera \
+        sample_data_token (str): Sample data token belonging to a camera
             keyframe.
         visibilities (list[str]): Visibility filter.
         mono3d (bool): Whether to get boxes with mono3d annotation.
@@ -368,7 +363,9 @@ def get_2d_boxes(nusc, sample_data_token: str, visibilities: List[str], mono3d=T
     # Get the sample data and the sample corresponding to that sample data.
     sd_rec = nusc.get('sample_data', sample_data_token)
 
-    assert sd_rec['sensor_modality'] == 'camera', 'Error: get_2d_boxes only works' ' for camera sample_data!'
+    assert sd_rec[
+        'sensor_modality'] == 'camera', 'Error: get_2d_boxes only works' \
+        ' for camera sample_data!'
     if not sd_rec['is_key_frame']:
         raise ValueError('The 2D re-projections are available only for keyframes.')
 
@@ -485,15 +482,14 @@ def post_process_coords(corner_coords: List, imsize: Tuple[int, int] = (1600, 90
 
     if polygon_from_2d_box.intersects(img_canvas):
         img_intersection = polygon_from_2d_box.intersection(img_canvas)
-        if isinstance(img_intersection, Polygon):
-            intersection_coords = np.array([coord for coord in img_intersection.exterior.coords])
-            min_x = min(intersection_coords[:, 0])
-            min_y = min(intersection_coords[:, 1])
-            max_x = max(intersection_coords[:, 0])
-            max_y = max(intersection_coords[:, 1])
-            return min_x, min_y, max_x, max_y
-        else:
-            return None
+        intersection_coords = np.array([coord for coord in img_intersection.exterior.coords])
+
+        min_x = min(intersection_coords[:, 0])
+        min_y = min(intersection_coords[:, 1])
+        max_x = max(intersection_coords[:, 0])
+        max_y = max(intersection_coords[:, 1])
+
+        return min_x, min_y, max_x, max_y
     else:
         return None
 
@@ -550,9 +546,9 @@ def generate_record(ann_rec: dict, x1: float, y1: float, x2: float, y2: float, s
     coco_rec['image_id'] = sample_data_token
     coco_rec['area'] = (y2 - y1) * (x2 - x1)
 
-    if repro_rec['category_name'] not in NuScenesDataset.NameMapping:
+    if repro_rec['category_name'] not in NuScenesNameMapping:
         return None
-    cat_name = NuScenesDataset.NameMapping[repro_rec['category_name']]
+    cat_name = NuScenesNameMapping[repro_rec['category_name']]
     coco_rec['category_name'] = cat_name
     coco_rec['category_id'] = nus_categories.index(cat_name)
     coco_rec['bbox'] = [x1, y1, x2 - x1, y2 - y1]
