@@ -357,6 +357,7 @@ def update_kitti_infos(pkl_path, out_dir):
     data_list = mmengine.load(pkl_path)
     print('Start updating:')
     converted_list = []
+    ignore_class_name = set()
     for ori_info_dict in mmengine.track_iter_progress(data_list):
         temp_data_info = get_empty_standard_data_info()
 

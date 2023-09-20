@@ -2,13 +2,13 @@
 import argparse
 from os import path as osp
 
-from tools.dataset_converters import indoor_converter as indoor
-from tools.dataset_converters import kitti_converter as kitti
-from tools.dataset_converters import lyft_converter as lyft_converter
-from tools.dataset_converters import nuscenes_converter as nuscenes_converter
-from tools.dataset_converters import semantickitti_converter
-from tools.dataset_converters.create_gt_database import GTDatabaseCreater, create_groundtruth_database
-from tools.dataset_converters.update_infos_to_v2 import update_pkl_infos
+from dataset_converters import indoor_converter as indoor
+from dataset_converters import kitti_converter as kitti
+from dataset_converters import lyft_converter as lyft_converter
+from dataset_converters import nuscenes_converter as nuscenes_converter
+from dataset_converters import semantickitti_converter
+from dataset_converters.create_gt_database import GTDatabaseCreater, create_groundtruth_database
+from dataset_converters.update_infos_to_v2 import update_pkl_infos
 
 
 def kitti_data_prep(root_path, info_prefix, version, out_dir, with_plane=False):

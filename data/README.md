@@ -4,7 +4,7 @@
 
 ### Data Structure
 
-```
+```markdown
 single-infrastructure-side              # DAIR-V2X-I Dataset
     ├── image
         ├── {id}.jpg

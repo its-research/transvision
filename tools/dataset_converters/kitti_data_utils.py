@@ -17,7 +17,7 @@ def get_image_index_str(img_idx, use_prefix_id=False):
         return '{:06d}'.format(img_idx)
 
 
-def get_kitti_info_path(idx, prefix, info_type='image_2', file_tail='.png', training=True, relative_path=True, exist_check=True, use_prefix_id=False):
+def get_kitti_info_path(idx, prefix, info_type='image_2', file_tail='.jpg', training=True, relative_path=True, exist_check=True, use_prefix_id=False):
     img_idx_str = get_image_index_str(idx, use_prefix_id)
     img_idx_str += file_tail
     prefix = Path(prefix)
@@ -33,7 +33,7 @@ def get_kitti_info_path(idx, prefix, info_type='image_2', file_tail='.png', trai
         return str(prefix / file_path)
 
 
-def get_image_path(idx, prefix, training=True, relative_path=True, exist_check=True, info_type='image_2', file_tail='.png', use_prefix_id=False):
+def get_image_path(idx, prefix, training=True, relative_path=True, exist_check=True, info_type='image_2', file_tail='.jpg', use_prefix_id=False):
     return get_kitti_info_path(idx, prefix, info_type, file_tail, training, relative_path, exist_check, use_prefix_id)
 
 
