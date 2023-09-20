@@ -10,7 +10,7 @@ flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
 pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40.pth'
 work_dir = './ffnet_work_dir/work_dir_ffnet'
 
-class_names = ['Pedestrian']
+class_names = ['Car']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 voxel_size = [0.16, 0.16, 4]
 l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
@@ -28,7 +28,7 @@ model = dict(
     neck=dict(type='SECONDFPN', in_channels=[64, 128, 256], upsample_strides=[1, 2, 4], out_channels=[128, 128, 128]),
     bbox_head=dict(
         type='Anchor3DHead',
-        num_classes=3,
+        num_classes=1,
         in_channels=384,
         feat_channels=384,
         use_direction_classifier=True,
@@ -261,8 +261,8 @@ evaluation = dict(
         dict(type='Collect3D', keys=['points']),
     ],
 )
-lr = 0.001
-optimizer = dict(type='AdamW', lr=0.001, betas=(0.95, 0.99), weight_decay=0.01)
+lr = 0.008
+optimizer = dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(policy='cyclic', target_ratio=(10, 0.0001), cyclic_times=1, step_ratio_up=0.4)
 momentum_config = dict(policy='cyclic', target_ratio=(0.8947368421052632, 1), cyclic_times=1, step_ratio_up=0.4)
@@ -270,8 +270,9 @@ runner = dict(type='EpochBasedRunner', max_epochs=10)
 checkpoint_config = dict(interval=10)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook'), dict(type='TensorboardLoggerHook')])
 dist_params = dict(backend='nccl')
+find_unused_parameters = True
 log_level = 'INFO'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
-gpu_ids = range(0, 7)
+gpu_ids = range(0, 1)

@@ -330,7 +330,7 @@ class FeatureFlowNet(SingleStage3DDetector):
     def flownet_init(self):
         pretraind_checkpoint_path = self.pretraind_checkpoint_path
         flownet_pretrained = self.flownet_pretrained
-        pretraind_checkpoint = torch.load(pretraind_checkpoint_path)['state_dict']
+        pretraind_checkpoint = torch.load(pretraind_checkpoint_path, map_location='cpu')['state_dict']
         pretraind_checkpoint_modify = {}
 
         checkpoint_source = 'single_infrastructure_side'

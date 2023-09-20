@@ -263,7 +263,7 @@ evaluation = dict(
     ],
 )
 lr = 0.008
-optimizer = dict(type='AdamW', lr=0.001, betas=(0.95, 0.99), weight_decay=0.01)
+optimizer = dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(policy='cyclic', target_ratio=(10, 0.0001), cyclic_times=1, step_ratio_up=0.4)
 momentum_config = dict(policy='cyclic', target_ratio=(0.8947368421052632, 1), cyclic_times=1, step_ratio_up=0.4)
@@ -271,6 +271,7 @@ runner = dict(type='EpochBasedRunner', max_epochs=40)
 checkpoint_config = dict(interval=10)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook'), dict(type='TensorboardLoggerHook')])
 dist_params = dict(backend='nccl')
+find_unused_parameters = True
 log_level = 'INFO'
 load_from = None
 resume_from = None
