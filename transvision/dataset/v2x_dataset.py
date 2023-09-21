@@ -4,19 +4,20 @@ import json
 import os
 import tempfile
 from os import path as osp
+from typing import Optional
 
 import mmcv
 import numpy as np
 import torch
-from mmcv.utils import print_log
-from mmdet3d.core.bbox import Box3DMode, CameraInstance3DBoxes, points_cam2img
-from mmdet3d.datasets import Custom3DDataset
-from mmdet3d.datasets.pipelines import Compose
-from mmdet.datasets import DATASETS
+from mmdet3d.datasets import Det3DDataset
+from mmdet3d.registry import DATASETS
+from mmdet3d.structures import Box3DMode, CameraInstance3DBoxes, points_cam2img
+from mmengine.dataset import Compose
+from mmengine.logging import print_log
 
 
 @DATASETS.register_module()
-class V2XDataset(Custom3DDataset):
+class V2XDataset(Det3DDataset):
     r"""DAIR-V2X Dataset.
 
     This class serves as the API for experiments on the `KITTI Dataset
@@ -26,7 +27,7 @@ class V2XDataset(Custom3DDataset):
         data_root (str): Path of dataset root.
         ann_file (str): Path of annotation file.
         split (str): Split of input data.
-        pts_prefix (str, optional): Prefix of points files.
+        data_prefix (str, optional): Prefix of points files.
             Defaults to 'velodyne'.
         pipeline (list[dict], optional): Pipeline used for data processing.
             Defaults to None.
@@ -49,34 +50,40 @@ class V2XDataset(Custom3DDataset):
         pcd_limit_range (list): The range of point cloud used to filter
             invalid predicted boxes. Default: [0, -40, -3, 70.4, 40, 0.0].
     """
-    CLASSES = ('car', 'pedestrian', 'cyclist')
+    METAINFO = {
+        'classes': ('Pedestrian', 'Cyclist', 'Car', 'Van', 'Truck', 'Person_sitting', 'Tram', 'Misc'),
+        'palette': [(106, 0, 228), (119, 11, 32), (165, 42, 42), (0, 0, 192), (197, 226, 255), (0, 60, 100), (0, 0, 142), (255, 77, 255)]
+    }
 
     def __init__(self,
                  data_root,
                  ann_file,
                  split,
-                 pts_prefix='velodyne',
+                 data_prefix='velodyne',
                  pipeline=None,
                  classes=None,
                  modality=None,
                  box_type_3d='LiDAR',
                  filter_empty_gt=True,
                  test_mode=False,
+                 metainfo: Optional[dict] = None,
+                 backend_args: Optional[dict] = None,
                  pcd_limit_range=[0, -40, -3, 70.4, 40, 0.0]):
         super().__init__(
             data_root=data_root,
             ann_file=ann_file,
             pipeline=pipeline,
-            classes=classes,
             modality=modality,
             box_type_3d=box_type_3d,
             filter_empty_gt=filter_empty_gt,
-            test_mode=test_mode)
+            test_mode=test_mode,
+            metainfo=metainfo)
+        self.backend_args = backend_args
         self.split = split
         self.root_split = os.path.join(self.data_root, split)
         assert self.modality is not None
         self.pcd_limit_range = pcd_limit_range
-        self.pts_prefix = pts_prefix
+        self.data_prefix = data_prefix
 
         self.__load_v2x_annotations()
 
@@ -176,7 +183,7 @@ class V2XDataset(Custom3DDataset):
         Returns:
             str: Name of the point cloud file.
         """
-        pts_filename = osp.join(self.root_split, self.pts_prefix, f'{idx:06d}.bin')
+        pts_filename = osp.join(self.root_split, self.data_prefix, f'{idx:06d}.bin')
         return pts_filename
 
     def get_data_info(self, index):

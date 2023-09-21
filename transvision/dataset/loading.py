@@ -1,35 +1,59 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import mmcv
+from typing import List, Optional, Union
+
+import mmengine
 import numpy as np
-from mmdet3d.core.points import get_points_type
-from mmdet.datasets.builder import PIPELINES
+from mmcv.transforms.base import BaseTransform
+from mmdet3d.registry import TRANSFORMS
+from mmdet3d.structures.points import get_points_type
+from mmengine.fileio import get
 
 
-@PIPELINES.register_module()
-class LoadPointsFromFile_w_sensor_view(object):
+@TRANSFORMS.register_module()
+class LoadPointsFromFile_w_sensor_view(BaseTransform):
     """Load Points From File.
 
-    Load sunrgbd and scannet points from file.
+    Required Keys:
+
+    - lidar_points (dict)
+
+        - lidar_path (str)
+
+    Added Keys:
+
+    - points (np.float32)
 
     Args:
         coord_type (str): The type of coordinates of points cloud.
             Available options includes:
+
             - 'LIDAR': Points in LiDAR coordinates.
             - 'DEPTH': Points in depth coordinates, usually for indoor dataset.
             - 'CAMERA': Points in camera coordinates.
-        load_dim (int): The dimension of the loaded points.
-            Defaults to 6.
-        use_dim (list[int]): Which dimensions of the points to be used.
+        load_dim (int): The dimension of the loaded points. Defaults to 6.
+        use_dim (list[int] | int): Which dimensions of the points to use.
             Defaults to [0, 1, 2]. For KITTI dataset, set use_dim=4
             or use_dim=[0, 1, 2, 3] to use the intensity dimension.
         shift_height (bool): Whether to use shifted height. Defaults to False.
         use_color (bool): Whether to use color features. Defaults to False.
-        file_client_args (dict): Config dict of file clients, refer to
-            https://github.com/open-mmlab/mmcv/blob/master/mmcv/fileio/file_client.py
-            for more details. Defaults to dict(backend='disk').
+        norm_intensity (bool): Whether to normlize the intensity. Defaults to
+            False.
+        norm_elongation (bool): Whether to normlize the elongation. This is
+            usually used in Waymo dataset.Defaults to False.
+        backend_args (dict, optional): Arguments to instantiate the
+            corresponding backend. Defaults to None.
     """
 
-    def __init__(self, coord_type, load_dim=6, use_dim=[0, 1, 2], shift_height=False, use_color=False, file_client_args=dict(backend='disk'), sensor_view=None):
+    def __init__(self,
+                 coord_type: str,
+                 load_dim: int = 6,
+                 use_dim: Union[int, List[int]] = [0, 1, 2],
+                 shift_height: bool = False,
+                 use_color: bool = False,
+                 norm_intensity: bool = False,
+                 norm_elongation: bool = False,
+                 backend_args: Optional[dict] = None,
+                 sensor_view=None) -> None:
         self.shift_height = shift_height
         self.use_color = use_color
         if isinstance(use_dim, int):
@@ -41,12 +65,13 @@ class LoadPointsFromFile_w_sensor_view(object):
         self.coord_type = coord_type
         self.load_dim = load_dim
         self.use_dim = use_dim
-        self.file_client_args = file_client_args.copy()
-        self.file_client = None
+        self.norm_intensity = norm_intensity
+        self.norm_elongation = norm_elongation
+        self.backend_args = backend_args
 
         self.sensor_view = sensor_view
 
-    def _load_points(self, pts_filename):
+    def _load_points(self, pts_filename: str) -> np.ndarray:
         """Private function to load point clouds data.
 
         Args:
@@ -55,13 +80,11 @@ class LoadPointsFromFile_w_sensor_view(object):
         Returns:
             np.ndarray: An array containing point clouds data.
         """
-        if self.file_client is None:
-            self.file_client = mmcv.FileClient(**self.file_client_args)
         try:
-            pts_bytes = self.file_client.get(pts_filename)
+            pts_bytes = get(pts_filename, backend_args=self.backend_args)
             points = np.frombuffer(pts_bytes, dtype=np.float32)
         except ConnectionError:
-            mmcv.check_file_exist(pts_filename)
+            mmengine.check_file_exist(pts_filename)
             if pts_filename.endswith('.npy'):
                 points = np.load(pts_filename)
             else:
@@ -69,25 +92,33 @@ class LoadPointsFromFile_w_sensor_view(object):
 
         return points
 
-    def __call__(self, results):
-        """Call function to load points data from file.
+    def transform(self, results: dict) -> dict:
+        """Method to load points data from file.
 
         Args:
             results (dict): Result dict containing point clouds data.
 
         Returns:
-            dict: The result dict containing the point clouds data. \
-                Added key and value are described below.
+            dict: The result dict containing the point clouds data.
+            Added key and value are described below.
 
                 - points (:obj:`BasePoints`): Point clouds data.
         """
         if self.sensor_view is not None:
-            pts_filename = results[self.sensor_view + '_pts_filename']
+            pts_file_path = results[self.sensor_view + '_pts_filename']
         else:
-            pts_filename = results['pts_filename']
-        points = self._load_points(pts_filename)
+            pts_file_path = results['lidar_points']['lidar_path']
+        points = self._load_points(pts_file_path)
         points = points.reshape(-1, self.load_dim)
         points = points[:, self.use_dim]
+        if self.norm_intensity:
+            assert len(self.use_dim) >= 4, \
+                f'When using intensity norm, expect used dimensions >= 4, got {len(self.use_dim)}'  # noqa: E501
+            points[:, 3] = np.tanh(points[:, 3])
+        if self.norm_elongation:
+            assert len(self.use_dim) >= 5, \
+                f'When using elongation norm, expect used dimensions >= 5, got {len(self.use_dim)}'  # noqa: E501
+            points[:, 4] = np.tanh(points[:, 4])
         attribute_dims = None
 
         if self.shift_height:
@@ -115,12 +146,14 @@ class LoadPointsFromFile_w_sensor_view(object):
 
         return results
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """str: Return a string that describes the module."""
         repr_str = self.__class__.__name__ + '('
         repr_str += f'shift_height={self.shift_height}, '
         repr_str += f'use_color={self.use_color}, '
-        repr_str += f'file_client_args={self.file_client_args}, '
+        repr_str += f'backend_args={self.backend_args}, '
         repr_str += f'load_dim={self.load_dim}, '
         repr_str += f'use_dim={self.use_dim})'
+        repr_str += f'norm_intensity={self.norm_intensity})'
+        repr_str += f'norm_elongation={self.norm_elongation})'
         return repr_str

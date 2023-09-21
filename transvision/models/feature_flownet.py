@@ -5,12 +5,11 @@ import os
 
 import numpy as np
 import torch
-from mmcv.runner import force_fp32
-from mmdet3d.core import bbox3d2result
-from mmdet3d.models import builder
+from mmdet3d.models.data_preprocessors.voxelize import VoxelizationByGridShape
 from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
-from mmdet3d.ops import Voxelization
-from mmdet.models import DETECTORS, build_backbone, build_neck
+from mmdet3d.registry import MODELS
+# from mmcv.runner import force_fp32
+from mmdet3d.structures.ops import bbox3d2result
 from pypcd import pypcd
 from torch import nn as nn
 from torch.nn import functional as F
@@ -110,13 +109,13 @@ class FlowGenerator(nn.Module):
         super(FlowGenerator, self).__init__()
         backbone_flow = copy.deepcopy(backbone)
         backbone_flow['in_channels'] = backbone['in_channels'] * 2
-        self.inf_backbone = build_backbone(backbone_flow)
+        self.inf_backbone = MODELS.build(backbone_flow)
         self.inf_with_neck = with_neck
         if neck is not None:
-            self.inf_neck = build_neck(neck)
-        self.inf_voxel_layer = Voxelization(**voxel_layer)
-        self.inf_voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
-        self.inf_middle_encoder = builder.build_middle_encoder(middle_encoder)
+            self.inf_neck = MODELS.build(neck)
+        self.inf_voxel_layer = VoxelizationByGridShape(**voxel_layer)
+        self.inf_voxel_encoder = MODELS.build(voxel_encoder)
+        self.inf_middle_encoder = MODELS.build(middle_encoder)
         self.pre_encoder = ReduceInfTC(768)
         self.with_attention_mask = False
 
@@ -144,7 +143,6 @@ class FlowGenerator(nn.Module):
         return flow_pred
 
     @torch.no_grad()
-    @force_fp32()
     def inf_voxelize(self, points):
         """Apply hard voxelization to points."""
         voxels, coors, num_points = [], [], []
@@ -163,22 +161,22 @@ class FlowGenerator(nn.Module):
         return voxels, num_points, coors_batch
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class FeatureFlowNet(SingleStage3DDetector):
     r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
     def __init__(self, voxel_layer, voxel_encoder, middle_encoder, backbone, neck=None, bbox_head=None, train_cfg=None, test_cfg=None, init_cfg=None, pretrained=None):
         super(FeatureFlowNet, self).__init__(backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, init_cfg=init_cfg, pretrained=pretrained)
-        self.voxel_layer = Voxelization(**voxel_layer)
-        self.voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
-        self.middle_encoder = builder.build_middle_encoder(middle_encoder)
+        self.voxel_layer = VoxelizationByGridShape(**voxel_layer)
+        self.voxel_encoder = MODELS.build(voxel_encoder)
+        self.middle_encoder = MODELS.build(middle_encoder)
 
-        self.inf_voxel_layer = Voxelization(**voxel_layer)
-        self.inf_voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
-        self.inf_middle_encoder = builder.build_middle_encoder(middle_encoder)
-        self.inf_backbone = builder.build_backbone(backbone)
+        self.inf_voxel_layer = VoxelizationByGridShape(**voxel_layer)
+        self.inf_voxel_encoder = MODELS.build(voxel_encoder)
+        self.inf_middle_encoder = MODELS.build(middle_encoder)
+        self.inf_backbone = MODELS.build(backbone)
         if neck is not None:
-            self.inf_neck = builder.build_neck(neck)
+            self.inf_neck = MODELS.build(neck)
 
         # TODO: channel configuration
         self.fusion_weighted = PixelWeightedFusion(384)
@@ -291,7 +289,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         return veh_cat_feats
 
     @torch.no_grad()
-    @force_fp32()
+    # @force_fp32()
     def voxelize(self, points):
         """Apply hard voxelization to points."""
         voxels, coors, num_points = [], [], []
@@ -310,7 +308,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         return voxels, num_points, coors_batch
 
     @torch.no_grad()
-    @force_fp32()
+    # @force_fp32()
     def inf_voxelize(self, points):
         """Apply hard voxelization to points."""
         voxels, coors, num_points = [], [], []

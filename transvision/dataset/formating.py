@@ -1,162 +1,241 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+from typing import List, Union
+
 import numpy as np
-from mmcv.parallel import DataContainer as DC
-from mmdet3d.core.bbox import BaseInstance3DBoxes
-from mmdet3d.core.points import BasePoints
-from mmdet.datasets.builder import PIPELINES
-from mmdet.datasets.pipelines import to_tensor
-
-# from mmdet.datasets.pipelines.formating import DefaultFormatBundle
-
-PIPELINES._module_dict.pop('DefaultFormatBundle')
+from mmcv import BaseTransform
+from mmdet3d.datasets.transforms.formating import to_tensor
+from mmdet3d.registry import TRANSFORMS
+from mmdet3d.structures import BaseInstance3DBoxes, Det3DDataSample, PointData
+from mmdet3d.structures.points import BasePoints
+from mmengine.structures import InstanceData
 
 
-@PIPELINES.register_module()
-class DefaultFormatBundle(object):
-    """Default formatting bundle.
+@TRANSFORMS.register_module()
+class Pack3DDetDAIRInputs(BaseTransform):
+    INPUTS_KEYS = ['points', 'img']
+    INSTANCEDATA_3D_KEYS = ['gt_bboxes_3d', 'gt_labels_3d', 'attr_labels', 'depths', 'centers_2d']
+    INSTANCEDATA_2D_KEYS = [
+        'gt_bboxes',
+        'gt_bboxes_labels',
+    ]
 
-    It simplifies the pipeline of formatting common fields, including "img",
-    "proposals", "gt_bboxes", "gt_labels", "gt_masks" and "gt_semantic_seg".
-    These fields are formatted as follows.
+    SEG_KEYS = ['gt_seg_map', 'pts_instance_mask', 'pts_semantic_mask', 'gt_semantic_seg']
 
-    - img: (1)transpose, (2)to tensor, (3)to DataContainer (stack=True)
-    - proposals: (1)to tensor, (2)to DataContainer
-    - gt_bboxes: (1)to tensor, (2)to DataContainer
-    - gt_bboxes_ignore: (1)to tensor, (2)to DataContainer
-    - gt_labels: (1)to tensor, (2)to DataContainer
-    - gt_masks: (1)to tensor, (2)to DataContainer (cpu_only=True)
-    - gt_semantic_seg: (1)unsqueeze dim-0 (2)to tensor, \
-                       (3)to DataContainer (stack=True)
-    """
+    def __init__(
+        self,
+        keys: tuple,
+        meta_keys: tuple = ('img_path', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip',
+                            'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'num_pts_feats', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation',
+                            'pcd_rotation_angle', 'lidar_path', 'transformation_3d_flow', 'trans_mat', 'affine_aug', 'sweep_img_metas', 'ori_cam2img', 'cam2global', 'crop_offset',
+                            'img_crop_offset', 'resize_img_shape', 'lidar2cam', 'ori_lidar2img', 'num_ref_frames', 'num_views', 'ego2global', 'axis_align_matrix')
+    ) -> None:
+        self.keys = keys
+        self.meta_keys = meta_keys
 
-    def __init__(self, ):
-        return
+    def _remove_prefix(self, key: str) -> str:
+        if key.startswith('gt_'):
+            key = key[3:]
+        return key
 
-    def __call__(self, results):
-        """Call function to transform and format common fields in results.
+    def transform(self, results: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
+        """Method to pack the input data. when the value in this dict is a
+        list, it usually is in Augmentations Testing.
 
         Args:
-            results (dict): Result dict contains the data to convert.
+            results (dict | list[dict]): Result dict from the data pipeline.
 
         Returns:
-            dict: The result dict contains the data that is formatted with
-                default bundle.
+            dict | List[dict]:
+
+            - 'inputs' (dict): The forward data of models. It usually contains
+              following keys:
+
+                - points
+                - img
+
+            - 'data_samples' (:obj:`Det3DDataSample`): The annotation info of
+              the sample.
         """
-        if 'img' in results:
-            if isinstance(results['img'], list):
-                # process multiple imgs in single frame
-                imgs = [img.transpose(2, 0, 1) for img in results['img']]
-                imgs = np.ascontiguousarray(np.stack(imgs, axis=0))
-                results['img'] = DC(to_tensor(imgs), stack=True)
-            else:
-                img = np.ascontiguousarray(results['img'].transpose(2, 0, 1))
-                results['img'] = DC(to_tensor(img), stack=True)
-        for key in ['proposals', 'gt_bboxes', 'gt_bboxes_ignore', 'gt_labels', 'gt_labels_3d', 'attr_labels', 'pts_instance_mask', 'pts_semantic_mask', 'centers2d', 'depths']:
-            if key not in results:
-                continue
-            if isinstance(results[key], list):
-                results[key] = DC([to_tensor(res) for res in results[key]])
-            else:
-                results[key] = DC(to_tensor(results[key]))
-        if 'gt_bboxes_3d' in results:
-            if isinstance(results['gt_bboxes_3d'], BaseInstance3DBoxes):
-                results['gt_bboxes_3d'] = DC(results['gt_bboxes_3d'], cpu_only=True)
-            else:
-                results['gt_bboxes_3d'] = DC(to_tensor(results['gt_bboxes_3d']))
+        # augtest
+        if isinstance(results, list):
+            if len(results) == 1:
+                # simple test
+                return self.pack_single_results(results[0])
+            pack_results = []
+            for single_result in results:
+                pack_results.append(self.pack_single_results(single_result))
+            return pack_results
+        # norm training and simple testing
+        elif isinstance(results, dict):
+            return self.pack_single_results(results)
+        else:
+            raise NotImplementedError
 
-        if 'gt_masks' in results:
-            results['gt_masks'] = DC(results['gt_masks'], cpu_only=True)
-        if 'gt_semantic_seg' in results:
-            results['gt_semantic_seg'] = DC(to_tensor(results['gt_semantic_seg'][None, ...]), stack=True)
-
-        return results
-
-    def __repr__(self):
-        return self.__class__.__name__
-
-
-@PIPELINES.register_module()
-class DefaultFormatBundle3D_FFNet(DefaultFormatBundle):
-    """Default formatting bundle.
-
-    It simplifies the pipeline of formatting common fields for voxels,
-    including "proposals", "gt_bboxes", "gt_labels", "gt_masks" and
-    "gt_semantic_seg".
-    These fields are formatted as follows.
-
-    - img: (1)transpose, (2)to tensor, (3)to DataContainer (stack=True)
-    - proposals: (1)to tensor, (2)to DataContainer
-    - gt_bboxes: (1)to tensor, (2)to DataContainer
-    - gt_bboxes_ignore: (1)to tensor, (2)to DataContainer
-    - gt_labels: (1)to tensor, (2)to DataContainer
-    """
-
-    def __init__(self, class_names, with_gt=True, with_label=True):
-        super(DefaultFormatBundle3D_FFNet, self).__init__()
-        self.class_names = class_names
-        self.with_gt = with_gt
-        self.with_label = with_label
-
-    def __call__(self, results):
-        """Call function to transform and format common fields in results.
+    def pack_single_results(self, results: dict) -> dict:
+        """Method to pack the single input data. when the value in this dict is
+        a list, it usually is in Augmentations Testing.
 
         Args:
-            results (dict): Result dict contains the data to convert.
+            results (dict): Result dict from the data pipeline.
 
         Returns:
-            dict: The result dict contains the data that is formatted with
-                default bundle.
+            dict: A dict contains
+
+            - 'inputs' (dict): The forward data of models. It usually contains
+              following keys:
+
+                - points
+                - img
+
+            - 'data_samples' (:obj:`Det3DDataSample`): The annotation info
+              of the sample.
         """
         # Format 3D data
         if 'points' in results:
-            assert isinstance(results['points'], BasePoints)
-            results['points'] = DC(results['points'].tensor)
+            if isinstance(results['points'], BasePoints):
+                results['points'] = results['points'].tensor
 
         if 'infrastructure_points' in results:
-            assert isinstance(results['infrastructure_points'], BasePoints)
-            results['infrastructure_points'] = DC(results['infrastructure_points'].tensor)
+            if isinstance(results['infrastructure_points'], BasePoints):
+                results['infrastructure_points'] = results['infrastructure_points'].tensor
 
-        for key in ['voxels', 'coors', 'voxel_centers', 'num_points']:
+        if 'img' in results:
+            if isinstance(results['img'], list):
+                # process multiple imgs in single frame
+                imgs = np.stack(results['img'], axis=0)
+                if imgs.flags.c_contiguous:
+                    imgs = to_tensor(imgs).permute(0, 3, 1, 2).contiguous()
+                else:
+                    imgs = to_tensor(np.ascontiguousarray(imgs.transpose(0, 3, 1, 2)))
+                results['img'] = imgs
+            else:
+                img = results['img']
+                if len(img.shape) < 3:
+                    img = np.expand_dims(img, -1)
+                # To improve the computational speed by by 3-5 times, apply:
+                # `torch.permute()` rather than `np.transpose()`.
+                # Refer to https://github.com/open-mmlab/mmdetection/pull/9533
+                # for more details
+                if img.flags.c_contiguous:
+                    img = to_tensor(img).permute(2, 0, 1).contiguous()
+                else:
+                    img = to_tensor(np.ascontiguousarray(img.transpose(2, 0, 1)))
+                results['img'] = img
+
+        for key in [
+                'proposals', 'gt_bboxes', 'gt_bboxes_ignore', 'gt_labels', 'gt_bboxes_labels', 'attr_labels', 'pts_instance_mask', 'pts_semantic_mask', 'centers_2d', 'depths',
+                'gt_labels_3d', 'voxels', 'coors', 'voxel_centers', 'num_points'
+        ]:
             if key not in results:
                 continue
-            results[key] = DC(to_tensor(results[key]), stack=False)
+            if isinstance(results[key], list):
+                results[key] = [to_tensor(res) for res in results[key]]
+            else:
+                results[key] = to_tensor(results[key])
 
-        if self.with_gt:
-            # Clean GT bboxes in the final
-            if 'gt_bboxes_3d_mask' in results:
-                gt_bboxes_3d_mask = results['gt_bboxes_3d_mask']
-                results['gt_bboxes_3d'] = results['gt_bboxes_3d'][gt_bboxes_3d_mask]
-                if 'gt_names_3d' in results:
-                    results['gt_names_3d'] = results['gt_names_3d'][gt_bboxes_3d_mask]
-                if 'centers2d' in results:
-                    results['centers2d'] = results['centers2d'][gt_bboxes_3d_mask]
-                if 'depths' in results:
-                    results['depths'] = results['depths'][gt_bboxes_3d_mask]
-            if 'gt_bboxes_mask' in results:
-                gt_bboxes_mask = results['gt_bboxes_mask']
-                if 'gt_bboxes' in results:
-                    results['gt_bboxes'] = results['gt_bboxes'][gt_bboxes_mask]
-                results['gt_names'] = results['gt_names'][gt_bboxes_mask]
-            if self.with_label:
-                if 'gt_names' in results and len(results['gt_names']) == 0:
-                    results['gt_labels'] = np.array([], dtype=np.int64)
-                    results['attr_labels'] = np.array([], dtype=np.int64)
-                elif 'gt_names' in results and isinstance(results['gt_names'][0], list):
-                    # gt_labels might be a list of list in multi-view setting
-                    results['gt_labels'] = [np.array([self.class_names.index(n) for n in res], dtype=np.int64) for res in results['gt_names']]
-                elif 'gt_names' in results:
-                    results['gt_labels'] = np.array([self.class_names.index(n) for n in results['gt_names']], dtype=np.int64)
-                # we still assume one pipeline for one frame LiDAR
-                # thus, the 3D name is list[string]
-                if 'gt_names_3d' in results:
-                    results['gt_labels_3d'] = np.array([self.class_names.index(n) for n in results['gt_names_3d']], dtype=np.int64)
-        results = super(DefaultFormatBundle3D_FFNet, self).__call__(results)
+        if 'gt_bboxes_3d' in results:
+            if not isinstance(results['gt_bboxes_3d'], BaseInstance3DBoxes):
+                results['gt_bboxes_3d'] = to_tensor(results['gt_bboxes_3d'])
 
-        return results
+        if 'gt_semantic_seg' in results:
+            results['gt_semantic_seg'] = to_tensor(results['gt_semantic_seg'][None])
 
-    def __repr__(self):
+        if 'gt_seg_map' in results:
+            results['gt_seg_map'] = results['gt_seg_map'][None, ...]
+
+        if 'gt_bboxes_3d_mask' in results:
+            gt_bboxes_3d_mask = results['gt_bboxes_3d_mask']
+            results['gt_bboxes_3d'] = results['gt_bboxes_3d'][gt_bboxes_3d_mask]
+            if 'gt_names_3d' in results:
+                results['gt_names_3d'] = results['gt_names_3d'][gt_bboxes_3d_mask]
+            if 'centers2d' in results:
+                results['centers2d'] = results['centers2d'][gt_bboxes_3d_mask]
+            if 'depths' in results:
+                results['depths'] = results['depths'][gt_bboxes_3d_mask]
+        if 'gt_bboxes_mask' in results:
+            gt_bboxes_mask = results['gt_bboxes_mask']
+            if 'gt_bboxes' in results:
+                results['gt_bboxes'] = results['gt_bboxes'][gt_bboxes_mask]
+
+        if 'gt_names' in results and len(results['gt_names']) == 0:
+            results['gt_labels'] = np.array([], dtype=np.int64)
+            results['attr_labels'] = np.array([], dtype=np.int64)
+        elif 'gt_names' in results and isinstance(results['gt_names'][0], list):
+            # gt_labels might be a list of list in multi-view setting
+            results['gt_labels'] = [np.array([self.class_names.index(n) for n in res], dtype=np.int64) for res in results['gt_names']]
+        elif 'gt_names' in results:
+            results['gt_labels'] = np.array([self.class_names.index(n) for n in results['gt_names']], dtype=np.int64)
+        # we still assume one pipeline for one frame LiDAR
+        # thus, the 3D name is list[string]
+        if 'gt_names_3d' in results:
+            results['gt_labels_3d'] = np.array([self.class_names.index(n) for n in results['gt_names_3d']], dtype=np.int64)
+
+        data_sample = Det3DDataSample()
+        gt_instances_3d = InstanceData()
+        gt_instances = InstanceData()
+        gt_pts_seg = PointData()
+
+        data_metas = {}
+        for key in self.meta_keys:
+            if key in results:
+                data_metas[key] = results[key]
+            elif 'images' in results:
+                if len(results['images'].keys()) == 1:
+                    cam_type = list(results['images'].keys())[0]
+                    # single-view image
+                    if key in results['images'][cam_type]:
+                        data_metas[key] = results['images'][cam_type][key]
+                else:
+                    # multi-view image
+                    img_metas = []
+                    cam_types = list(results['images'].keys())
+                    for cam_type in cam_types:
+                        if key in results['images'][cam_type]:
+                            img_metas.append(results['images'][cam_type][key])
+                    if len(img_metas) > 0:
+                        data_metas[key] = img_metas
+            elif 'lidar_points' in results:
+                if key in results['lidar_points']:
+                    data_metas[key] = results['lidar_points'][key]
+        data_sample.set_metainfo(data_metas)
+
+        inputs = {}
+        for key in self.keys:
+            if key in results:
+                if key in self.INPUTS_KEYS:
+                    inputs[key] = results[key]
+                elif key in self.INSTANCEDATA_3D_KEYS:
+                    gt_instances_3d[self._remove_prefix(key)] = results[key]
+                elif key in self.INSTANCEDATA_2D_KEYS:
+                    if key == 'gt_bboxes_labels':
+                        gt_instances['labels'] = results[key]
+                    else:
+                        gt_instances[self._remove_prefix(key)] = results[key]
+                elif key in self.SEG_KEYS:
+                    gt_pts_seg[self._remove_prefix(key)] = results[key]
+                else:
+                    raise NotImplementedError(f'Please modified '
+                                              f'`Pack3DDetInputs` '
+                                              f'to put {key} to '
+                                              f'corresponding field')
+
+        data_sample.gt_instances_3d = gt_instances_3d
+        data_sample.gt_instances = gt_instances
+        data_sample.gt_pts_seg = gt_pts_seg
+        if 'eval_ann_info' in results:
+            data_sample.eval_ann_info = results['eval_ann_info']
+        else:
+            data_sample.eval_ann_info = None
+
+        packed_results = dict()
+        packed_results['data_samples'] = data_sample
+        packed_results['inputs'] = inputs
+
+        return packed_results
+
+    def __repr__(self) -> str:
         """str: Return a string that describes the module."""
         repr_str = self.__class__.__name__
-        repr_str += f'(class_names={self.class_names}, '
-        repr_str += f'with_gt={self.with_gt}, with_label={self.with_label})'
+        repr_str += f'(keys={self.keys})'
+        repr_str += f'(meta_keys={self.meta_keys})'
         return repr_str

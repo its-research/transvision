@@ -10,6 +10,8 @@ from mmengine.logging import print_log
 from mmengine.registry import RUNNERS
 from mmengine.runner import Runner
 
+import transvision  # noqa:F401
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a 3D detector')

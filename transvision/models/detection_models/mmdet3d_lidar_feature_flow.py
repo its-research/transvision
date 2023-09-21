@@ -6,9 +6,8 @@ from os import path as osp
 
 import numpy as np
 import torch
-from mmcv.parallel import collate, scatter
-from mmdet3d.core.bbox import get_box_type
-from mmdet3d.datasets.pipelines import Compose
+from mmdet3d.structures import get_box_type
+from mmengine.dataset import Compose, pseudo_collate
 
 from transvision.models.base_model import BaseModel
 from transvision.models.model_utils import init_model
@@ -60,7 +59,7 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
         tuple: Predicted results and data from pipeline.
     """
     cfg = model.cfg
-    device = next(model.parameters()).device  # model device
+    # device = next(model.parameters()).device  # model device
     # build the data pipeline
     test_pipeline = deepcopy(cfg.data.test.pipeline)
     test_pipeline = Compose(test_pipeline)
@@ -86,10 +85,10 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     data = test_pipeline(data)
     a = dict(rotation=rotation, translation=translation)
 
-    data = collate([data], samples_per_gpu=1)
+    data = pseudo_collate(data)
     if next(model.parameters()).is_cuda:
         # scatter to specified GPU
-        data = scatter(data, [device.index])[0]
+        # data = scatter(data, [device.index])[0]
         data['img_metas'][0][0]['inf2veh'] = a
         data['img_metas'][0][0]['infrastructure_idx_t_1'] = vic_frame['infrastructure_idx_t_1']
         data['img_metas'][0][0]['infrastructure_pointcloud_bin_path_t_1'] = vic_frame['infrastructure_pointcloud_bin_path_t_1']
