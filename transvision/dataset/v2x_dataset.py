@@ -2,9 +2,10 @@
 import copy
 import json
 import os
+import pickle
 import tempfile
 from os import path as osp
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import mmcv
 import numpy as np
@@ -13,7 +14,7 @@ from mmdet3d.datasets import Det3DDataset
 from mmdet3d.registry import DATASETS
 from mmdet3d.structures import Box3DMode, CameraInstance3DBoxes, points_cam2img
 from mmengine.dataset import Compose
-from mmengine.fileio import load
+from mmengine.fileio import join_path, load
 from mmengine.logging import print_log
 
 
@@ -35,7 +36,6 @@ class V2XDataset(Det3DDataset):
                  split,
                  data_prefix='velodyne',
                  pipeline=None,
-                 classes=None,
                  modality=None,
                  box_type_3d='LiDAR',
                  filter_empty_gt=True,
@@ -58,7 +58,6 @@ class V2XDataset(Det3DDataset):
         assert self.modality is not None
         self.pcd_limit_range = pcd_limit_range
         self.data_prefix = data_prefix
-        self.data_list: List[dict] = []
 
     def load_data_list(self) -> List[dict]:
         annotations = load(self.ann_file)
@@ -69,8 +68,7 @@ class V2XDataset(Det3DDataset):
             raise ValueError('Annotation must have data_list and metainfo '
                              'keys')
         self._metainfo = annotations['metainfo']
-        self.data_list = annotations['data_list']
-        self.__load_v2x_annotations()
+        return self.__load_v2x_annotations(annotations['data_list'])
 
     def __my_read_json(self, path_json):
         with open(path_json, 'r') as load_f:
@@ -91,7 +89,7 @@ class V2XDataset(Det3DDataset):
 
         return location_cam, dimension_cam, rotation_y, alpha
 
-    def __load_v2x_annotations(self):
+    def __load_v2x_annotations(self, data_list):
         """Load annotations from dair-v2x
         Args:
             dict_keys(['name', 'truncated', 'occluded',
@@ -101,7 +99,7 @@ class V2XDataset(Det3DDataset):
         Returns:
             Dict
         """
-        for info in self.data_list:
+        for info in data_list:
             anno_path = os.path.join(self.data_root, info['cooperative_label_w2v_path'])
             annos = self.__my_read_json(anno_path)
             kitti_annos = {}
@@ -159,6 +157,28 @@ class V2XDataset(Det3DDataset):
 
             info['annos'] = kitti_annos
 
+        return data_list
+
+    def parse_data_info(self, raw_data_info: dict) -> Union[dict, List[dict]]:
+        """Parse raw annotation to target format.
+
+        This method should return dict or list of dict. Each dict or list
+        contains the data information of a training sample. If the protocol of
+        the sample annotations is changed, this function can be overridden to
+        update the parsing logic while keeping compatibility.
+
+        Args:
+            raw_data_info (dict): Raw data information load from ``ann_file``
+
+        Returns:
+            list or list[dict]: Parsed annotation.
+        """
+        for prefix_key, prefix in self.data_prefix.items():
+            assert prefix_key in raw_data_info, (f'raw_data_info: {raw_data_info} dose not contain prefix key'
+                                                 f'{prefix_key}, please check your data_prefix.')
+            raw_data_info[prefix_key] = join_path(prefix, raw_data_info[prefix_key])
+        return raw_data_info
+
     def _get_pts_filename(self, idx):
         """Get point cloud filename according to the given index.
 
@@ -171,7 +191,7 @@ class V2XDataset(Det3DDataset):
         pts_filename = osp.join(self.root_split, self.data_prefix, f'{idx:06d}.bin')
         return pts_filename
 
-    def get_data_info(self, index):
+    def get_data_info(self, index: int) -> dict:
         """Get data info according to the given index.
 
         Args:
@@ -189,31 +209,45 @@ class V2XDataset(Det3DDataset):
                     from lidar to different cameras.
                 - ann_info (dict): Annotation info.
         """
-        info = self.data_list[index]
-        sample_veh_idx = info['vehicle_idx']
-        sample_inf_idx = info['infrastructure_idx']
-        # inf_img_filename = os.path.join(self.data_root, info['infrastructure_image_path'])
-        veh_img_filename = os.path.join(self.data_root, info['vehicle_image_path'])
+        if self.serialize_data:
+            start_addr = 0 if index == 0 else self.data_address[index - 1].item()
+            end_addr = self.data_address[index].item()
+            bytes = memoryview(self.data_bytes[start_addr:end_addr])  # type: ignore
+            data_info = pickle.loads(bytes)  # type: ignore
+        else:
+            data_info = copy.deepcopy(self.data_list[index])
+        # Some codebase needs `sample_idx` of data information. Here we convert
+        # the idx to a positive number and save it in data information.
+        if index >= 0:
+            data_info['sample_idx'] = index
+        else:
+            data_info['sample_idx'] = len(self) + index
 
-        calib_inf2veh_filename = os.path.join(self.data_root, info['calib_lidar_i2v_path'])
+        # data_info = self.data_list[index]
+        sample_veh_idx = data_info['vehicle_idx']
+        sample_inf_idx = data_info['infrastructure_idx']
+        # inf_img_filename = os.path.join(self.data_root, info['infrastructure_image_path'])
+        veh_img_filename = os.path.join(self.data_root, data_info['vehicle_image_path'])
+
+        calib_inf2veh_filename = os.path.join(self.data_root, data_info['calib_lidar_i2v_path'])
         calib_inf2veh = self.__my_read_json(calib_inf2veh_filename)
 
         # TODO: consider use torch.Tensor only
-        rect = info['calib']['R0_rect'].astype(np.float32)
-        Trv2c = info['calib']['Tr_velo_to_cam'].astype(np.float32)
-        P2 = info['calib']['P2'].astype(np.float32)
+        rect = data_info['calib']['R0_rect'].astype(np.float32)
+        Trv2c = data_info['calib']['Tr_velo_to_cam'].astype(np.float32)
+        P2 = data_info['calib']['P2'].astype(np.float32)
         lidar2img = P2 @ rect @ Trv2c
 
-        inf_pts_filename = os.path.join(self.data_root, info['infrastructure_pointcloud_bin_path'])
-        veh_pts_filename = os.path.join(self.data_root, info['vehicle_pointcloud_bin_path'])
+        inf_pts_filename = os.path.join(self.data_root, data_info['infrastructure_pointcloud_bin_path'])
+        veh_pts_filename = os.path.join(self.data_root, data_info['vehicle_pointcloud_bin_path'])
 
         # For FlowNet
-        if 'infrastructure_idx_t_0' in info.keys():
-            infrastructure_pointcloud_bin_path_t_0 = info['infrastructure_pointcloud_bin_path_t_0']
-            infrastructure_pointcloud_bin_path_t_1 = info['infrastructure_pointcloud_bin_path_t_1']
-            infrastructure_pointcloud_bin_path_t_2 = info['infrastructure_pointcloud_bin_path_t_2']
-            infrastructure_t_0_1 = info['infrastructure_t_0_1']
-            infrastructure_t_1_2 = info['infrastructure_t_1_2']
+        if 'infrastructure_idx_t_0' in data_info.keys():
+            infrastructure_pointcloud_bin_path_t_0 = data_info['infrastructure_pointcloud_bin_path_t_0']
+            infrastructure_pointcloud_bin_path_t_1 = data_info['infrastructure_pointcloud_bin_path_t_1']
+            infrastructure_pointcloud_bin_path_t_2 = data_info['infrastructure_pointcloud_bin_path_t_2']
+            infrastructure_t_0_1 = data_info['infrastructure_t_0_1']
+            infrastructure_t_1_2 = data_info['infrastructure_t_1_2']
         else:
             infrastructure_pointcloud_bin_path_t_0 = None
             infrastructure_pointcloud_bin_path_t_1 = None
@@ -259,7 +293,15 @@ class V2XDataset(Det3DDataset):
                 - gt_names (list[str]): Class names of ground truths.
         """
         # Use index to get the annos, thus the evalhook could also use this api
-        info = self.data_list[index]
+        if self.serialize_data:
+            start_addr = 0 if index == 0 else self.data_address[index - 1].item()
+            end_addr = self.data_address[index].item()
+            bytes = memoryview(self.data_bytes[start_addr:end_addr])  # type: ignore
+            info = pickle.loads(bytes)  # type: ignore
+        else:
+            info = copy.deepcopy(self.data_list[index])
+
+        # info = self.data_list[index]
         rect = info['calib']['R0_rect'].astype(np.float32)
         Trv2c = info['calib']['Tr_velo_to_cam'].astype(np.float32)
 
@@ -282,8 +324,8 @@ class V2XDataset(Det3DDataset):
 
         gt_labels = []
         for cat in gt_names:
-            if cat in self.CLASSES:
-                gt_labels.append(self.CLASSES.index(cat))
+            if cat in self.METAINFO['classes']:
+                gt_labels.append(self.METAINFO['classes'].index(cat))
             else:
                 gt_labels.append(-1)
         gt_labels = np.array(gt_labels).astype(np.int64)

@@ -120,7 +120,6 @@ train_dataloader = dict(
             test_mode=False,
             metainfo=metainfo,
             pcd_limit_range=point_cloud_range,  # not sure
-            classes=class_names,  # not sure
             # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
             # and box_type_3d='Depth' in sunrgbd and scannet dataset.
             box_type_3d='LiDAR',
@@ -136,10 +135,10 @@ val_dataloader = dict(
         data_root=data_root,
         data_prefix=dict(pts='velodyne_reduced'),
         ann_file=data_info_val_path,
+        split='training',
         pipeline=test_pipeline,
         modality=input_modality,
         test_mode=True,
-        classes=class_names,  # not sure
         pcd_limit_range=point_cloud_range,  # not sure
         metainfo=metainfo,
         box_type_3d='LiDAR',
@@ -155,10 +154,10 @@ test_dataloader = dict(
         data_root=data_root,
         data_prefix=dict(pts='velodyne_reduced'),
         ann_file=data_info_val_path,
+        split='training',
         pipeline=test_pipeline,
         modality=input_modality,
         test_mode=True,
-        classes=class_names,  # not sure
         pcd_limit_range=point_cloud_range,  # not sure
         metainfo=metainfo,
         box_type_3d='LiDAR',
@@ -244,7 +243,8 @@ model = dict(
 # optimizer
 lr = 0.001
 epoch_num = 80
-optim_wrapper = dict(optimizer=dict(lr=lr), clip_grad=dict(max_norm=35, norm_type=2))
+# optim_wrapper = dict(optimizer=dict(lr=lr), clip_grad=dict(max_norm=35, norm_type=2))
+optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 param_scheduler = [
     dict(type='CosineAnnealingLR', T_max=epoch_num * 0.4, eta_min=lr * 10, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
     dict(type='CosineAnnealingLR', T_max=epoch_num * 0.6, eta_min=lr * 1e-4, begin=epoch_num * 0.4, end=epoch_num * 1, by_epoch=True, convert_to_iter_based=True),

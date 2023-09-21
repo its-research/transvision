@@ -249,7 +249,7 @@ class V2XVoxelNet(SingleStage3DDetector):
 
         return points_grids, int(H_L), int(W_L)
 
-    def forward_train(
+    def forward(
         self,
         points,
         img_metas,
@@ -275,6 +275,7 @@ class V2XVoxelNet(SingleStage3DDetector):
         """
         for ii in range(len(infrastructure_points)):
             infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
+        print(points)
         feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
         feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
