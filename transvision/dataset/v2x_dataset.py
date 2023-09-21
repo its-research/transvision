@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 from os import path as osp
-from typing import Optional
+from typing import List, Optional
 
 import mmcv
 import numpy as np
@@ -13,6 +13,7 @@ from mmdet3d.datasets import Det3DDataset
 from mmdet3d.registry import DATASETS
 from mmdet3d.structures import Box3DMode, CameraInstance3DBoxes, points_cam2img
 from mmengine.dataset import Compose
+from mmengine.fileio import load
 from mmengine.logging import print_log
 
 
@@ -20,35 +21,8 @@ from mmengine.logging import print_log
 class V2XDataset(Det3DDataset):
     r"""DAIR-V2X Dataset.
 
-    This class serves as the API for experiments on the `KITTI Dataset
-    <http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d>`_.
+    https://mmdetection3d.readthedocs.io/en/latest/advanced_guides/customize_dataset.html
 
-    Args:
-        data_root (str): Path of dataset root.
-        ann_file (str): Path of annotation file.
-        split (str): Split of input data.
-        data_prefix (str, optional): Prefix of points files.
-            Defaults to 'velodyne'.
-        pipeline (list[dict], optional): Pipeline used for data processing.
-            Defaults to None.
-        classes (tuple[str], optional): Classes used in the dataset.
-            Defaults to None.
-        modality (dict, optional): Modality to specify the sensor data used
-            as input. Defaults to None.
-        box_type_3d (str, optional): Type of 3D box of this dataset.
-            Based on the `box_type_3d`, the dataset will encapsulate the box
-            to its original format then converted them to `box_type_3d`.
-            Defaults to 'LiDAR' in this dataset. Available options includes
-
-            - 'LiDAR': Box in LiDAR coordinates.
-            - 'Depth': Box in depth coordinates, usually for indoor dataset.
-            - 'Camera': Box in camera coordinates.
-        filter_empty_gt (bool, optional): Whether to filter empty GT.
-            Defaults to True.
-        test_mode (bool, optional): Whether the dataset is in test mode.
-            Defaults to False.
-        pcd_limit_range (list): The range of point cloud used to filter
-            invalid predicted boxes. Default: [0, -40, -3, 70.4, 40, 0.0].
     """
     METAINFO = {
         'classes': ('Pedestrian', 'Cyclist', 'Car', 'Van', 'Truck', 'Person_sitting', 'Tram', 'Misc'),
@@ -84,7 +58,18 @@ class V2XDataset(Det3DDataset):
         assert self.modality is not None
         self.pcd_limit_range = pcd_limit_range
         self.data_prefix = data_prefix
+        self.data_list: List[dict] = []
 
+    def load_data_list(self) -> List[dict]:
+        annotations = load(self.ann_file)
+        if not isinstance(annotations, dict):
+            raise TypeError(f'The annotations loaded from annotation file '
+                            f'should be a dict, but got {type(annotations)}!')
+        if 'data_list' not in annotations or 'metainfo' not in annotations:
+            raise ValueError('Annotation must have data_list and metainfo '
+                             'keys')
+        self._metainfo = annotations['metainfo']
+        self.data_list = annotations['data_list']
         self.__load_v2x_annotations()
 
     def __my_read_json(self, path_json):
@@ -116,7 +101,7 @@ class V2XDataset(Det3DDataset):
         Returns:
             Dict
         """
-        for info in self.data_infos:
+        for info in self.data_list:
             anno_path = os.path.join(self.data_root, info['cooperative_label_w2v_path'])
             annos = self.__my_read_json(anno_path)
             kitti_annos = {}
@@ -204,7 +189,7 @@ class V2XDataset(Det3DDataset):
                     from lidar to different cameras.
                 - ann_info (dict): Annotation info.
         """
-        info = self.data_infos[index]
+        info = self.data_list[index]
         sample_veh_idx = info['vehicle_idx']
         sample_inf_idx = info['infrastructure_idx']
         # inf_img_filename = os.path.join(self.data_root, info['infrastructure_image_path'])
@@ -274,7 +259,7 @@ class V2XDataset(Det3DDataset):
                 - gt_names (list[str]): Class names of ground truths.
         """
         # Use index to get the annos, thus the evalhook could also use this api
-        info = self.data_infos[index]
+        info = self.data_list[index]
         rect = info['calib']['R0_rect'].astype(np.float32)
         Trv2c = info['calib']['Tr_velo_to_cam'].astype(np.float32)
 
@@ -422,7 +407,7 @@ class V2XDataset(Det3DDataset):
         eval_types = ['bev', '3d']
         result_files, tmp_dir = self.format_results(results, pklfile_prefix)
         from mmdet3d.core.evaluation import kitti_eval
-        gt_annos = [info['annos'] for info in self.data_infos]
+        gt_annos = [info['annos'] for info in self.data_list]
 
         # TODO: the effect of Bbox
         for ii in range(len(result_files)):
@@ -462,7 +447,7 @@ class V2XDataset(Det3DDataset):
         Returns:
             list[dict]: A list of dictionaries with the kitti format.
         """
-        assert len(net_outputs) == len(self.data_infos), \
+        assert len(net_outputs) == len(self.data_list), \
             'invalid list length of network outputs'
         if submission_prefix is not None:
             mmcv.mkdir_or_exist(submission_prefix)
@@ -471,7 +456,7 @@ class V2XDataset(Det3DDataset):
         print('\nConverting prediction to KITTI format')
         for idx, pred_dicts in enumerate(mmcv.track_iter_progress(net_outputs)):
             annos = []
-            info = self.data_infos[idx]
+            info = self.data_list[idx]
             sample_idx = info['vehicle_idx']
             image_shape = info['image']['image_shape'][:2]
             box_dict = self.convert_valid_bboxes(pred_dicts, info)
@@ -539,118 +524,6 @@ class V2XDataset(Det3DDataset):
             print(f'Result is saved to {out}.')
 
         return det_annos
-
-    # def bbox2result_kitti2d(self,
-    #                         net_outputs,
-    #                         class_names,
-    #                         pklfile_prefix=None,
-    #                         submission_prefix=None):
-    #     """Convert 2D detection results to kitti format for evaluation and test
-    #     submission.
-    #
-    #     Args:
-    #         net_outputs (list[np.ndarray]): List of array storing the \
-    #             inferenced bounding boxes and scores.
-    #         class_names (list[String]): A list of class names.
-    #         pklfile_prefix (str | None): The prefix of pkl file.
-    #         submission_prefix (str | None): The prefix of submission file.
-    #
-    #     Returns:
-    #         list[dict]: A list of dictionaries have the kitti format
-    #     """
-    #     assert len(net_outputs) == len(self.data_infos), \
-    #         'invalid list length of network outputs'
-    #     det_annos = []
-    #     print('\nConverting prediction to KITTI format')
-    #     for i, bboxes_per_sample in enumerate(
-    #             mmcv.track_iter_progress(net_outputs)):
-    #         annos = []
-    #         anno = dict(
-    #             name=[],
-    #             truncated=[],
-    #             occluded=[],
-    #             alpha=[],
-    #             bbox=[],
-    #             dimensions=[],
-    #             location=[],
-    #             rotation_y=[],
-    #             score=[])
-    #         sample_idx = self.data_infos[i]['image']['image_idx']
-    #
-    #         num_example = 0
-    #         for label in range(len(bboxes_per_sample)):
-    #             bbox = bboxes_per_sample[label]
-    #             for i in range(bbox.shape[0]):
-    #                 anno['name'].append(class_names[int(label)])
-    #                 anno['truncated'].append(0.0)
-    #                 anno['occluded'].append(0)
-    #                 anno['alpha'].append(0.0)
-    #                 anno['bbox'].append(bbox[i, :4])
-    #                 # set dimensions (height, width, length) to zero
-    #                 anno['dimensions'].append(
-    #                     np.zeros(shape=[3], dtype=np.float32))
-    #                 # set the 3D translation to (-1000, -1000, -1000)
-    #                 anno['location'].append(
-    #                     np.ones(shape=[3], dtype=np.float32) * (-1000.0))
-    #                 anno['rotation_y'].append(0.0)
-    #                 anno['score'].append(bbox[i, 4])
-    #                 num_example += 1
-    #
-    #         if num_example == 0:
-    #             annos.append(
-    #                 dict(
-    #                     name=np.array([]),
-    #                     truncated=np.array([]),
-    #                     occluded=np.array([]),
-    #                     alpha=np.array([]),
-    #                     bbox=np.zeros([0, 4]),
-    #                     dimensions=np.zeros([0, 3]),
-    #                     location=np.zeros([0, 3]),
-    #                     rotation_y=np.array([]),
-    #                     score=np.array([]),
-    #                 ))
-    #         else:
-    #             anno = {k: np.stack(v) for k, v in anno.items()}
-    #             annos.append(anno)
-    #
-    #         annos[-1]['sample_idx'] = np.array(
-    #             [sample_idx] * num_example, dtype=np.int64)
-    #         det_annos += annos
-    #
-    #     if pklfile_prefix is not None:
-    #         # save file in pkl format
-    #         pklfile_path = (
-    #             pklfile_prefix[:-4] if pklfile_prefix.endswith(
-    #                 ('.pkl', '.pickle')) else pklfile_prefix)
-    #         mmcv.dump(det_annos, pklfile_path)
-    #
-    #     if submission_prefix is not None:
-    #         # save file in submission format
-    #         mmcv.mkdir_or_exist(submission_prefix)
-    #         print(f'Saving KITTI submission to {submission_prefix}')
-    #         for i, anno in enumerate(det_annos):
-    #             sample_idx = self.data_infos[i]['image']['image_idx']
-    #             cur_det_file = f'{submission_prefix}/{sample_idx:06d}.txt'
-    #             with open(cur_det_file, 'w') as f:
-    #                 bbox = anno['bbox']
-    #                 loc = anno['location']
-    #                 dims = anno['dimensions'][::-1]  # lhw -> hwl
-    #                 for idx in range(len(bbox)):
-    #                     print(
-    #                         '{} -1 -1 {:4f} {:4f} {:4f} {:4f} {:4f} {:4f} '
-    #                         '{:4f} {:4f} {:4f} {:4f} {:4f} {:4f} {:4f}'.format(
-    #                             anno['name'][idx],
-    #                             anno['alpha'][idx],
-    #                             *bbox[idx],  # 4 float
-    #                             *dims[idx],  # 3 float
-    #                             *loc[idx],  # 3 float
-    #                             anno['rotation_y'][idx],
-    #                             anno['score'][idx]),
-    #                         file=f,
-    #                     )
-    #         print(f'Result is saved to {submission_prefix}')
-    #
-    #     return det_annos
 
     def convert_valid_bboxes(self, box_dict, info):
         """Convert the predicted boxes into valid ones.
