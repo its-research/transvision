@@ -1,12 +1,17 @@
 # Copyright (c) DAIR-V2X (AIR). All rights reserved.
+from typing import Dict, List, Optional
+
 import numpy as np
 import pypcd
 import torch
+from mmdet3d.models import Base3DDetector
 from mmdet3d.models.data_preprocessors.voxelize import VoxelizationByGridShape
-from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
+from mmdet3d.structures import Det3DDataSample
 # from mmcv.runner import force_fp32
 from mmdet3d.structures.ops import bbox3d2result
+from mmdet3d.utils import OptSampleList
+from torch import Tensor
 from torch import nn as nn
 from torch.nn import functional as F
 
@@ -57,15 +62,16 @@ class PixelWeightedFusion(nn.Module):
 
 
 @MODELS.register_module()
-class V2XVoxelNet(SingleStage3DDetector):
+class V2XVoxelNet(Base3DDetector):
     r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
     def __init__(self, voxel_layer, voxel_encoder, middle_encoder, backbone, neck=None, bbox_head=None, train_cfg=None, test_cfg=None, data_preprocessor=None, init_cfg=None):
-        super(V2XVoxelNet, self).__init__(
-            backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+        super().__init__(data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+
         self.voxel_layer = VoxelizationByGridShape(**voxel_layer)
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
+        self.backbone = MODELS.build(backbone)
 
         self.inf_voxel_layer = VoxelizationByGridShape(**voxel_layer)
         self.inf_voxel_encoder = MODELS.build(voxel_encoder)
@@ -77,6 +83,13 @@ class V2XVoxelNet(SingleStage3DDetector):
         # TODO: channel configuration
         self.fusion_weighted = PixelWeightedFusion(384)
         self.encoder = ReduceInfTC(768)
+
+    def _forward(self, batch_inputs: Tensor, batch_data_samples: OptSampleList = None):
+        """Network forward process.
+
+        Usually includes backbone, neck and head forward without any post- processing.
+        """
+        pass
 
     def generate_matrix(self, theta, x0, y0):
         import numpy as np
@@ -249,7 +262,7 @@ class V2XVoxelNet(SingleStage3DDetector):
 
         return points_grids, int(H_L), int(W_L)
 
-    def forward(
+    def forward_train(
         self,
         points,
         img_metas,
@@ -275,13 +288,22 @@ class V2XVoxelNet(SingleStage3DDetector):
         """
         for ii in range(len(infrastructure_points)):
             infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
-        print(points)
         feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
         feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
         outs = self.bbox_head(feat_fused)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        return losses
+
+    def loss(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
+
+        batch_input_metas = [item.metainfo for item in batch_data_samples]
+        batch_input_bboxes_3d = [item.gt_instances_3d.bboxes_3d for item in batch_data_samples]
+        batch_input_labels_3d = [item.gt_instances_3d.labels_3d for item in batch_data_samples]
+
+        losses = self.forward_train(batch_inputs_dict['points'], batch_input_metas, batch_input_bboxes_3d, batch_input_labels_3d, batch_inputs_dict['infrastructure_points'])
+
         return losses
 
     def simple_test(self, points, img_metas, imgs=None, infrastructure_points=None, rescale=False):
@@ -301,6 +323,41 @@ class V2XVoxelNet(SingleStage3DDetector):
             bbox_list[0][2] = torch.zeros(1).cuda(points[0].device)
         bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
         return bbox_results
+
+    def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
+        """Forward of testing.
+
+        Args:
+            batch_inputs_dict (dict): The model input dict which include
+                'points' keys.
+
+                - points (list[torch.Tensor]): Point cloud of each sample.
+            batch_data_samples (List[:obj:`Det3DDataSample`]): The Data
+                Samples. It usually includes information such as
+                `gt_instance_3d`.
+
+        Returns:
+            list[:obj:`Det3DDataSample`]: Detection results of the
+            input sample. Each Det3DDataSample usually contain
+            'pred_instances_3d'. And the ``pred_instances_3d`` usually
+            contains following keys.
+
+            - scores_3d (Tensor): Classification scores, has a shape
+                (num_instances, )
+            - labels_3d (Tensor): Labels of bboxes, has a shape
+                (num_instances, ).
+            - bbox_3d (:obj:`BaseInstance3DBoxes`): Prediction of bboxes,
+                contains a tensor with shape (num_instances, 7).
+        """
+        batch_input_metas = [item.metainfo for item in batch_data_samples]
+        feats = self.extract_feat(batch_inputs_dict, batch_input_metas)
+
+        if self.with_bbox_head:
+            outputs = self.bbox_head.predict(feats, batch_input_metas)
+
+        res = self.add_pred_to_datasample(batch_data_samples, outputs)
+
+        return res
 
     def aug_test(self, points, img_metas, imgs=None, rescale=False):
         """Test function with augmentaiton."""

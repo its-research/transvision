@@ -17,6 +17,8 @@ from mmengine.dataset import Compose
 from mmengine.fileio import join_path, load
 from mmengine.logging import print_log
 
+# TODO https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/datasets/det3d_dataset.py#L218
+
 
 @DATASETS.register_module()
 class V2XDataset(Det3DDataset):

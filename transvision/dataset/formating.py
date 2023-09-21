@@ -14,10 +14,7 @@ from mmengine.structures import InstanceData
 class Pack3DDetDAIRInputs(BaseTransform):
     INPUTS_KEYS = ['points', 'img', 'infrastructure_points']
     INSTANCEDATA_3D_KEYS = ['gt_bboxes_3d', 'gt_labels_3d', 'attr_labels', 'depths', 'centers_2d']
-    INSTANCEDATA_2D_KEYS = [
-        'gt_bboxes',
-        'gt_bboxes_labels',
-    ]
+    INSTANCEDATA_2D_KEYS = ['gt_bboxes', 'gt_bboxes_labels']
 
     SEG_KEYS = ['gt_seg_map', 'pts_instance_mask', 'pts_semantic_mask', 'gt_semantic_seg']
 
