@@ -168,6 +168,7 @@ test_evaluator = val_evaluator
 vis_backends = [dict(type='LocalVisBackend')]
 visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 
+# TODO 合并voxel_layer
 model = dict(
     type='V2XVoxelNet',
     voxel_layer=dict(
@@ -177,7 +178,7 @@ model = dict(
         max_voxels=(40000, 40000)),
     data_preprocessor=dict(
         type='Det3DDataDAIRPreprocessor',
-        voxel=True,
+        voxel=False,
         voxel_layer=dict(
             max_num_points=100,  # max_points_per_voxel
             point_cloud_range=point_cloud_range,
