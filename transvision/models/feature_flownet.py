@@ -10,7 +10,6 @@ from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
 # from mmcv.runner import force_fp32
 from mmdet3d.structures.ops import bbox3d2result
-from pypcd import pypcd
 from torch import nn as nn
 from torch.nn import functional as F
 
@@ -532,50 +531,6 @@ class FeatureFlowNet(SingleStage3DDetector):
 
             feat_inf = feat_inf_apprs
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
-        """
-        import cv2
-        hot_map_feat_cat = np.zeros((288, 288))+255
-        #flow_pred feat_inf_t_1  feat_inf_t_2
-        self.count+=1
-        hot_map_feat_flow=np.zeros((288,288))
-        for ii in range(flow_pred[0].shape[1]):
-                hot_map_feat_flow = hot_map_feat_flow + torch.abs(flow_pred[0][0, ii]).cpu().detach().numpy()
-        hot_map_feat_pred=np.zeros((288,288))
-        for ii in range(feat_inf_apprs[0].shape[1]):
-                hot_map_feat_pred = hot_map_feat_pred + torch.abs(feat_inf_apprs[0][0, ii]).cpu().detach().numpy()
-        hot_map_feat_t1=np.zeros((288,288))
-        for ii in range(feat_inf_t_1[0].shape[1]):
-                hot_map_feat_t1 = hot_map_feat_t1 + torch.abs(feat_inf_t_1[0][0, ii]).cpu().detach().numpy()
-        hot_map_feat_t2=np.zeros((288,288))
-        for ii in range(feat_inf_t_2[0].shape[1]):
-                hot_map_feat_t2 = hot_map_feat_t2 + torch.abs(feat_inf_t_2[0][0, ii]).cpu().detach().numpy()
-        hot_map_feat_veh=np.zeros((288,288))
-        for ii in range(feat_veh[0].shape[1]):
-                hot_map_feat_veh = hot_map_feat_veh + torch.abs(feat_veh[0][0, ii]).cpu().detach().numpy()
-
-        cv2.imwrite('./result/flow_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_flow*10)
-        cv2.imwrite('./result/pred_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_pred*10)
-        cv2.imwrite('./result/t2_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_t2*10)
-        cv2.imwrite('./result/t1_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_t1*10)
-        """
-        """
-        hot_map_feat_fused=np.zeros((288,288))
-        for ii in range(feat_fused[0].shape[1]):
-                hot_map_feat_fused = hot_map_feat_fused + torch.abs(feat_fused[0][0, ii]).cpu().detach().numpy()
-        cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_veh*10)
-        cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_fused*10)
-        # cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-feat_veh[0][0,79].cpu().detach().numpy()*7000)
-        # cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-feat_fused[0][0,79].cpu().detach().numpy()*7000)
-
-        # cv2.imwrite('./result/flow_'+str(self.count)+'.png', hot_map_feat_cat-flow_pred[0][0,79].cpu().detach().numpy()*7000)
-        # cv2.imwrite('./result/pred_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_apprs[0][0,79].cpu().detach().numpy()*7000)
-        # cv2.imwrite('./result/t2_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_t_2[0][0,79].cpu().detach().numpy()*10000)
-        # cv2.imwrite('./result/t1_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_t_1[0][0,79].cpu().detach().numpy()*7000)
-
-        # feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
-        # cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-feat_veh[0][0,79].cpu().detach().numpy()*7000)
-        # cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-feat_fused[0][0,79].cpu().detach().numpy()*7000)
-        """
 
         outs = self.bbox_head(feat_fused)
         bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
@@ -585,32 +540,3 @@ class FeatureFlowNet(SingleStage3DDetector):
     def aug_test(self):
         """Test function with augmentaiton."""
         return None
-
-    def tensor_to_pcd(self, tensor_points):
-        # size_float = 4
-        list_pcd = []
-        for ii in range(tensor_points.shape[0]):
-            if tensor_points.shape[1] == 4:
-                x, y, z, intensity = tensor_points[ii, 0], tensor_points[ii, 1], tensor_points[ii, 2], tensor_points[ii, 3]
-            else:
-                x, y, z = tensor_points[ii, 0], tensor_points[ii, 1], tensor_points[ii, 2]
-                intensity = 1.0
-            list_pcd.append((x, y, z, intensity))
-
-        dt = np.dtype([('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('intensity', 'f4')])
-        np_pcd = np.array(list_pcd, dtype=dt)
-
-        new_metadata = {}
-        new_metadata['version'] = '0.7'
-        new_metadata['fields'] = ['x', 'y', 'z', 'intensity']
-        new_metadata['size'] = [4, 4, 4, 4]
-        new_metadata['type'] = ['F', 'F', 'F', 'F']
-        new_metadata['count'] = [1, 1, 1, 1]
-        new_metadata['width'] = len(np_pcd)
-        new_metadata['height'] = 1
-        new_metadata['viewpoint'] = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
-        new_metadata['points'] = len(np_pcd)
-        new_metadata['data'] = 'binary'
-        pc_save = pypcd.PointCloud(new_metadata, np_pcd)
-
-        return pc_save

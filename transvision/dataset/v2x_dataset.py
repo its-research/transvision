@@ -14,7 +14,7 @@ from mmdet3d.datasets import Det3DDataset
 from mmdet3d.registry import DATASETS
 from mmdet3d.structures import Box3DMode, CameraInstance3DBoxes, points_cam2img
 from mmengine.dataset import Compose
-from mmengine.fileio import join_path, load
+from mmengine.fileio import dump, join_path, load
 from mmengine.logging import print_log
 
 # TODO https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/datasets/det3d_dataset.py#L218
@@ -28,7 +28,7 @@ class V2XDataset(Det3DDataset):
 
     """
     METAINFO = {
-        'classes': ('Pedestrian', 'Cyclist', 'Car', 'Van', 'Truck', 'Person_sitting', 'Tram', 'Misc'),
+        'classes': ('Pedestrian', 'Cyclist', 'Car', 'Truck', 'Van', 'Person_sitting', 'Tram', 'Misc'),
         'palette': [(106, 0, 228), (119, 11, 32), (165, 42, 42), (0, 0, 192), (197, 226, 255), (0, 60, 100), (0, 0, 142), (255, 77, 255)]
     }
 
@@ -70,7 +70,16 @@ class V2XDataset(Det3DDataset):
             raise ValueError('Annotation must have data_list and metainfo '
                              'keys')
         self._metainfo = annotations['metainfo']
-        return self.__load_v2x_annotations(annotations['data_list'])
+
+        # metainfo = annotations['metainfo']
+        raw_data_list = annotations['data_list']
+
+        data_list = self.__load_v2x_annotations(raw_data_list)
+
+        annotations['data_list'] = data_list
+        dump(annotations, self.ann_file)
+
+        return data_list
 
     def __my_read_json(self, path_json):
         with open(path_json, 'r') as load_f:
@@ -91,7 +100,7 @@ class V2XDataset(Det3DDataset):
 
         return location_cam, dimension_cam, rotation_y, alpha
 
-    def __load_v2x_annotations(self, data_list):
+    def __load_v2x_annotations(self, raw_data_list):
         """Load annotations from dair-v2x
         Args:
             dict_keys(['name', 'truncated', 'occluded',
@@ -101,8 +110,11 @@ class V2XDataset(Det3DDataset):
         Returns:
             Dict
         """
-        for info in data_list:
-            anno_path = os.path.join(self.data_root, info['cooperative_label_w2v_path'])
+        data_list = []
+        for raw_data_info in raw_data_list:
+            # data_info = self.parse_data_info(raw_data_info)
+            data_info = raw_data_info
+            anno_path = os.path.join(self.data_root, data_info['cooperative_label_w2v_path'])
             annos = self.__my_read_json(anno_path)
             kitti_annos = {}
             kitti_annos['name'] = []
@@ -115,9 +127,9 @@ class V2XDataset(Det3DDataset):
             kitti_annos['alpha'] = []
             kitti_annos['bbox'] = []
 
-            calib_v_lidar2cam_filename = os.path.join(self.data_root, info['calib_v_lidar2cam_path'])
+            calib_v_lidar2cam_filename = os.path.join(self.data_root, data_info['calib_v_lidar2cam_path'])
             calib_v_lidar2cam = self.__my_read_json(calib_v_lidar2cam_filename)
-            calib_v_cam_intrinsic_filename = os.path.join(self.data_root, info['calib_v_cam_intrinsic_path'])
+            calib_v_cam_intrinsic_filename = os.path.join(self.data_root, data_info['calib_v_cam_intrinsic_path'])
             calib_v_cam_intrinsic = self.__my_read_json(calib_v_cam_intrinsic_filename)
             rect = np.identity(4)
             Trv2c = np.identity(4)
@@ -125,16 +137,16 @@ class V2XDataset(Det3DDataset):
             Trv2c[0:3, 3] = [calib_v_lidar2cam['translation'][0][0], calib_v_lidar2cam['translation'][1][0], calib_v_lidar2cam['translation'][2][0]]
             P2 = np.identity(4)
             P2[0:3, 0:3] = np.array(calib_v_cam_intrinsic['cam_K']).reshape(3, 3)
-            info['calib'] = {}
-            info['calib']['R0_rect'] = rect
-            info['calib']['Tr_velo_to_cam'] = Trv2c
-            info['calib']['P2'] = P2
+            data_info['calib'] = {}
+            data_info['calib']['R0_rect'] = rect
+            data_info['calib']['Tr_velo_to_cam'] = Trv2c
+            data_info['calib']['P2'] = P2
 
             for idx, anno in enumerate(annos):
                 location, dimensions, rotation_y, alpha = self.__box_convert_lidar2cam(anno['3d_location'], anno['3d_dimensions'], anno['rotation'], Trv2c)
                 if dimensions[0] == 0.0:
                     continue
-
+                anno['bbox_label'] = anno['type'].capitalize()
                 kitti_annos['name'].append(anno['type'].capitalize())
                 kitti_annos['dimensions'].append(dimensions)
                 kitti_annos['location'].append(location)
@@ -157,7 +169,10 @@ class V2XDataset(Det3DDataset):
             kitti_annos['alpha'] = np.array(kitti_annos['alpha'])
             kitti_annos['bbox'] = np.array(kitti_annos['bbox'])
 
-            info['annos'] = kitti_annos
+            data_info['annos'] = kitti_annos
+            data_info['instances'] = annos
+
+            data_list.append(data_info)
 
         return data_list
 
@@ -270,7 +285,8 @@ class V2XDataset(Det3DDataset):
             infrastructure_pointcloud_bin_path_t_1=infrastructure_pointcloud_bin_path_t_1,
             infrastructure_pointcloud_bin_path_t_2=infrastructure_pointcloud_bin_path_t_2,
             infrastructure_t_0_1=infrastructure_t_0_1,
-            infrastructure_t_1_2=infrastructure_t_1_2)
+            infrastructure_t_1_2=infrastructure_t_1_2,
+            sample_idx=data_info['sample_idx'])
 
         if not self.test_mode:
             annos = self.get_ann_info(index)

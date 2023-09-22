@@ -1,15 +1,12 @@
 # Copyright (c) DAIR-V2X (AIR). All rights reserved.
 from typing import Dict, List, Optional
 
-import numpy as np
-import pypcd
 import torch
 from mmdet3d.models import Base3DDetector
 from mmdet3d.models.data_preprocessors.voxelize import VoxelizationByGridShape
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import Det3DDataSample
 # from mmcv.runner import force_fp32
-from mmdet3d.structures.ops import bbox3d2result
 from mmdet3d.utils import OptSampleList
 from torch import Tensor
 from torch import nn as nn
@@ -114,7 +111,7 @@ class V2XVoxelNet(Base3DDetector):
         matrix[2, 2] = 1
         return matrix
 
-    def extract_feat(self, points, img_metas=None, points_view='vehicle'):
+    def extract_feat(self, points, points_view='vehicle'):
         """Extract features from points."""
         if points_view == 'vehicle':
             voxels, num_points, coors = self.voxelize(points)
@@ -271,15 +268,7 @@ class V2XVoxelNet(Base3DDetector):
 
         return points_grids, int(H_L), int(W_L)
 
-    def _forward_train(
-        self,
-        points,
-        img_metas,
-        gt_bboxes_3d,
-        gt_labels_3d,
-        infrastructure_points=None,
-        gt_bboxes_ignore=None,
-    ):
+    def _forward_train(self, points, infrastructure_points=None, img_metas=None):
         """Training forward function.
 
         Args:
@@ -297,22 +286,13 @@ class V2XVoxelNet(Base3DDetector):
         """
         for ii in range(len(infrastructure_points)):
             infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
-        feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
-        feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
+        feat_veh = self.extract_feat(points, points_view='vehicle')
+        feat_inf = self.extract_feat(infrastructure_points, points_view='infrastructure')
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
         outs = self.bbox_head(feat_fused)
         return outs
 
     def loss(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
-
-        batch_input_metas = [item.metainfo for item in batch_data_samples]
-        batch_input_bboxes_3d = [item.gt_instances_3d.bboxes_3d for item in batch_data_samples]
-        batch_input_labels_3d = [item.gt_instances_3d.labels_3d for item in batch_data_samples]
-
-        # losses = self.forward_train(batch_inputs_dict['points'], batch_input_metas, batch_input_bboxes_3d, batch_input_labels_3d, batch_inputs_dict['infrastructure_points'])
-        # return losses
-        outs = self._forward_train(batch_inputs_dict['points'], batch_input_metas, batch_input_bboxes_3d, batch_input_labels_3d, batch_inputs_dict['infrastructure_points'])
-        # https://github.com/open-mmlab/mmdetection3d/blob/v1.2.0/mmdet3d/models/dense_heads/base_3d_dense_head.py#L68
 
         batch_gt_instances_3d = []
         batch_gt_instances_ignore = []
@@ -322,60 +302,44 @@ class V2XVoxelNet(Base3DDetector):
             batch_gt_instances_3d.append(data_sample.gt_instances_3d)
             batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
 
+        # https://github.com/open-mmlab/mmdetection3d/blob/v1.2.0/mmdet3d/models/dense_heads/base_3d_dense_head.py#L68
+
+        outs = self._forward_train(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas)
         loss_inputs = outs + (batch_gt_instances_3d, batch_input_metas, batch_gt_instances_ignore)
         losses = self.bbox_head.loss_by_feat(*loss_inputs)
+
         return losses
 
-    def simple_test(self, points, img_metas, imgs=None, infrastructure_points=None, rescale=False):
+    def simple_test(self, points, infrastructure_points, img_metas, batch_data_samples, imgs=None, rescale=False):
         """Test function without augmentaiton."""
-        for ii in range(len(infrastructure_points[0])):
-            infrastructure_points[0][ii][:, 3] = 255 * infrastructure_points[0][ii][:, 3]
+        for ii in range(len(infrastructure_points)):
+            infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
 
-        feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
-        feat_inf = self.extract_feat(infrastructure_points[0], img_metas, points_view='infrastructure')
+        feat_veh = self.extract_feat(points, points_view='vehicle')
+        feat_inf = self.extract_feat(infrastructure_points, points_view='infrastructure')
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
-        outs = self.bbox_head(feat_fused)
-        bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
-        if len(bbox_list[0][0].tensor) == 0:  # return a zero list when pre is empty
-            bbox_list[0] = list(bbox_list[0])
-            bbox_list[0][0].tensor = torch.zeros(1, 7).cuda(points[0].device)
-            bbox_list[0][1] = torch.zeros(1).cuda(points[0].device)
-            bbox_list[0][2] = torch.zeros(1).cuda(points[0].device)
-        bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
-        return bbox_results
+
+        # outs = self.bbox_head(feat_fused)
+        # bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
+
+        bbox_list = self.bbox_head.predict(feat_fused, batch_data_samples, rescale=rescale)
+        # bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
+
+        return bbox_list
 
     def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
-        """Forward of testing.
 
-        Args:
-            batch_inputs_dict (dict): The model input dict which include
-                'points' keys.
-
-                - points (list[torch.Tensor]): Point cloud of each sample.
-            batch_data_samples (List[:obj:`Det3DDataSample`]): The Data
-                Samples. It usually includes information such as
-                `gt_instance_3d`.
-
-        Returns:
-            list[:obj:`Det3DDataSample`]: Detection results of the
-            input sample. Each Det3DDataSample usually contain
-            'pred_instances_3d'. And the ``pred_instances_3d`` usually
-            contains following keys.
-
-            - scores_3d (Tensor): Classification scores, has a shape
-                (num_instances, )
-            - labels_3d (Tensor): Labels of bboxes, has a shape
-                (num_instances, ).
-            - bbox_3d (:obj:`BaseInstance3DBoxes`): Prediction of bboxes,
-                contains a tensor with shape (num_instances, 7).
-        """
         batch_input_metas = [item.metainfo for item in batch_data_samples]
-        feats = self.extract_feat(batch_inputs_dict, batch_input_metas)
+        batch_gt_instances_3d = []
+        batch_gt_instances_ignore = []
+        batch_input_metas = []
+        for data_sample in batch_data_samples:
+            batch_input_metas.append(data_sample.metainfo)
+            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
+            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
 
-        if self.with_bbox_head:
-            outputs = self.bbox_head.predict(feats, batch_input_metas)
-
-        res = self.add_pred_to_datasample(batch_data_samples, outputs)
+        bbox_results = self.simple_test(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas, batch_data_samples)
+        res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
 
         return res
 
@@ -383,32 +347,3 @@ class V2XVoxelNet(Base3DDetector):
         """Test function with augmentaiton."""
 
         return None
-
-    def tensor_to_pcd(self, tensor_points):
-        # size_float = 4
-        list_pcd = []
-        for ii in range(tensor_points.shape[0]):
-            if tensor_points.shape[1] == 4:
-                x, y, z, intensity = tensor_points[ii, 0], tensor_points[ii, 1], tensor_points[ii, 2], tensor_points[ii, 3]
-            else:
-                x, y, z = tensor_points[ii, 0], tensor_points[ii, 1], tensor_points[ii, 2]
-                intensity = 1.0
-            list_pcd.append((x, y, z, intensity))
-
-        dt = np.dtype([('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('intensity', 'f4')])
-        np_pcd = np.array(list_pcd, dtype=dt)
-
-        new_metadata = {}
-        new_metadata['version'] = '0.7'
-        new_metadata['fields'] = ['x', 'y', 'z', 'intensity']
-        new_metadata['size'] = [4, 4, 4, 4]
-        new_metadata['type'] = ['F', 'F', 'F', 'F']
-        new_metadata['count'] = [1, 1, 1, 1]
-        new_metadata['width'] = len(np_pcd)
-        new_metadata['height'] = 1
-        new_metadata['viewpoint'] = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
-        new_metadata['points'] = len(np_pcd)
-        new_metadata['data'] = 'binary'
-        pc_save = pypcd.PointCloud(new_metadata, np_pcd)
-
-        return pc_save

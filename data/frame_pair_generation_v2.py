@@ -77,6 +77,8 @@ def data_info_flow_train(data_infos, inf_idx_batch_mappings):
 
     metainfo['dataset'] = 'v2x_dataset'
     metainfo['info_version'] = '1.1'
+    metainfo['classes'] = ['Pedestrian', 'Cyclist', 'Car']
+    metainfo['categories'] = [{'id': 0, 'name': 'Pedestrian'}, {'id': 1, 'name': 'Cyclist'}, {'id': 2, 'name': 'Car'}]
     converted_data_info = dict(metainfo=metainfo, data_list=data_infos_flow)
 
     return converted_data_info
@@ -122,6 +124,8 @@ def data_info_flow_val(data_infos, inf_idx_batch_mappings, async_k=1):
 
     metainfo['dataset'] = 'v2x_dataset'
     metainfo['info_version'] = '1.1'
+    metainfo['classes'] = ['Pedestrian', 'Cyclist', 'Car']
+    metainfo['categories'] = [{'id': 0, 'name': 'Pedestrian'}, {'id': 1, 'name': 'Cyclist'}, {'id': 2, 'name': 'Car'}]
     converted_data_info = dict(metainfo=metainfo, data_list=data_infos_flow)
 
     return converted_data_info

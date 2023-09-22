@@ -1,4 +1,4 @@
-_base_ = ['../_base_/schedules/cyclic-40e.py', '../_base_/default_runtime.py']
+_base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py', '../__base__/models/v2x_voxelnet.py']
 
 dataset_type = 'V2XDataset'
 data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
@@ -35,45 +35,63 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+    # dict(
+    #     type='MultiScaleFlipAug3D',
+    #     img_scale=(h, l),
+    #     pts_scale_ratio=1,
+    #     flip=False,
+    #     transforms=[
+    #         dict(
+    #             type='Pack3DDetDAIRInputs',
+    #             keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+    #             # fmt:off
+    #             meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip',
+    #                        'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
+    #                        'transformation_3d_flow', 'inf2veh'),
+    #             # fmt:on
+    #         ),
+    #     ],
+    # ),
     dict(
-        type='MultiScaleFlipAug3D',
-        img_scale=(h, l),
-        pts_scale_ratio=1,
-        flip=False,
-        transforms=[
-            dict(
-                type='Pack3DDetDAIRInputs',
-                keys=['points', 'infrastructure_points'],
-                # fmt:off
-                meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip',
-                           'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
-                           'transformation_3d_flow', 'inf2veh'),
-                # fmt:on
-            ),
-        ],
-    ),
+        type='Pack3DDetDAIRInputs',
+        keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+        # fmt:off
+        meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
+                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow',
+                   'inf2veh'),
+        # fmt:on
+    )
 ]
 # construct a pipeline for data and gt loading in show function
 # please keep its loading function consistent with test_pipeline (e.g. client)
 eval_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+    # dict(
+    #     type='MultiScaleFlipAug3D',
+    #     img_scale=(h, l),
+    #     pts_scale_ratio=1,
+    #     flip=False,
+    #     transforms=[
+    #         dict(
+    #             type='Pack3DDetDAIRInputs',
+    #             keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+    #             # fmt:off
+    #             meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip',
+    #                        'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
+    #                        'transformation_3d_flow', 'inf2veh'),
+    #             # fmt:on
+    #         ),
+    #     ],
+    # )
     dict(
-        type='MultiScaleFlipAug3D',
-        img_scale=(h, l),
-        pts_scale_ratio=1,
-        flip=False,
-        transforms=[
-            dict(
-                type='Pack3DDetDAIRInputs',
-                keys=['points', 'infrastructure_points'],
-                # fmt:off
-                meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip',
-                           'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
-                           'transformation_3d_flow', 'inf2veh'),
-                # fmt:on
-            ),
-        ],
+        type='Pack3DDetDAIRInputs',
+        keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+        # fmt:off
+        meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
+                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow',
+                   'inf2veh'),
+        # fmt:on
     )
 ]
 
@@ -138,7 +156,7 @@ test_dataloader = dict(
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
-val_evaluator = dict(type='KittiMetric', ann_file=data_info_val_path, metric='bbox', backend_args=backend_args)
+val_evaluator = dict(type='V2XKittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', backend_args=backend_args)
 test_evaluator = val_evaluator
 
 vis_backends = [dict(type='LocalVisBackend')]
@@ -157,4 +175,4 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=1)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=-1)

@@ -8,6 +8,8 @@ from mmengine.config import Config, ConfigDict, DictAction
 from mmengine.registry import RUNNERS
 from mmengine.runner import Runner
 
+import transvision  # noqa:F401
+
 
 # TODO: support fuse_conv_bn and format_only
 def parse_args():
