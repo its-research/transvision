@@ -72,6 +72,15 @@ class V2XVoxelNet(Base3DDetector):
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
         self.backbone = MODELS.build(backbone)
+        if neck is not None:
+            self.neck = MODELS.build(neck)
+
+        bbox_head.update(train_cfg=train_cfg)
+        bbox_head.update(test_cfg=test_cfg)
+        self.bbox_head = MODELS.build(bbox_head)
+
+        self.train_cfg = train_cfg
+        self.test_cfg = test_cfg
 
         self.inf_voxel_layer = VoxelizationByGridShape(**voxel_layer)
         self.inf_voxel_encoder = MODELS.build(voxel_encoder)
@@ -262,7 +271,7 @@ class V2XVoxelNet(Base3DDetector):
 
         return points_grids, int(H_L), int(W_L)
 
-    def forward_train(
+    def _forward_train(
         self,
         points,
         img_metas,
@@ -292,9 +301,7 @@ class V2XVoxelNet(Base3DDetector):
         feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
         outs = self.bbox_head(feat_fused)
-        loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-        losses = self.bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-        return losses
+        return outs
 
     def loss(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
 
@@ -302,8 +309,21 @@ class V2XVoxelNet(Base3DDetector):
         batch_input_bboxes_3d = [item.gt_instances_3d.bboxes_3d for item in batch_data_samples]
         batch_input_labels_3d = [item.gt_instances_3d.labels_3d for item in batch_data_samples]
 
-        losses = self.forward_train(batch_inputs_dict['points'], batch_input_metas, batch_input_bboxes_3d, batch_input_labels_3d, batch_inputs_dict['infrastructure_points'])
+        # losses = self.forward_train(batch_inputs_dict['points'], batch_input_metas, batch_input_bboxes_3d, batch_input_labels_3d, batch_inputs_dict['infrastructure_points'])
+        # return losses
+        outs = self._forward_train(batch_inputs_dict['points'], batch_input_metas, batch_input_bboxes_3d, batch_input_labels_3d, batch_inputs_dict['infrastructure_points'])
+        # https://github.com/open-mmlab/mmdetection3d/blob/v1.2.0/mmdet3d/models/dense_heads/base_3d_dense_head.py#L68
 
+        batch_gt_instances_3d = []
+        batch_gt_instances_ignore = []
+        batch_input_metas = []
+        for data_sample in batch_data_samples:
+            batch_input_metas.append(data_sample.metainfo)
+            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
+            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
+
+        loss_inputs = outs + (batch_gt_instances_3d, batch_input_metas, batch_gt_instances_ignore)
+        losses = self.bbox_head.loss_by_feat(*loss_inputs)
         return losses
 
     def simple_test(self, points, img_metas, imgs=None, infrastructure_points=None, rescale=False):
