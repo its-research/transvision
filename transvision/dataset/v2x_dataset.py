@@ -170,7 +170,8 @@ class V2XDataset(Det3DDataset):
             kitti_annos['bbox'] = np.array(kitti_annos['bbox'])
 
             data_info['annos'] = kitti_annos
-            data_info['instances'] = annos
+            data_info['kitti_annos'] = kitti_annos
+            data_info['sample_idx'] = data_info['vehicle_idx']
 
             data_list.append(data_info)
 
