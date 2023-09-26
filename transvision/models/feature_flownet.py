@@ -2,14 +2,16 @@
 import copy
 import json
 import os
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 from mmdet3d.models.data_preprocessors.voxelize import VoxelizationByGridShape
 from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
+from mmdet3d.structures import Det3DDataSample
 # from mmcv.runner import force_fp32
-from mmdet3d.structures.ops import bbox3d2result
+from torch import Tensor
 from torch import nn as nn
 from torch.nn import functional as F
 
@@ -165,7 +167,7 @@ class FeatureFlowNet(SingleStage3DDetector):
     r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
     def __init__(self, voxel_layer, voxel_encoder, middle_encoder, backbone, neck=None, bbox_head=None, train_cfg=None, test_cfg=None, init_cfg=None, pretrained=None):
-        super(FeatureFlowNet, self).__init__(backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, init_cfg=init_cfg, pretrained=pretrained)
+        super(FeatureFlowNet, self).__init__(backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, init_cfg=init_cfg)
         self.voxel_layer = VoxelizationByGridShape(**voxel_layer)
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
@@ -350,7 +352,28 @@ class FeatureFlowNet(SingleStage3DDetector):
 
         self.load_state_dict(pretraind_checkpoint_modify, strict=False)
 
-    def forward_train(self, points, img_metas, gt_bboxes_3d, gt_labels_3d, infrastructure_points=None, gt_bboxes_ignore=None):
+    def loss(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
+
+        batch_gt_instances_3d = []
+        batch_gt_instances_ignore = []
+        batch_input_metas = []
+        batch_gt_bboxes_3d = []
+        batch_gt_labels_3d = []
+        for data_sample in batch_data_samples:
+            batch_input_metas.append(data_sample.metainfo)
+            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
+            batch_gt_bboxes_3d.append(data_sample.gt_instances_3d.bboxes_3d)
+            batch_gt_labels_3d.append(data_sample.gt_instances_3d.labels_3d)
+            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
+
+        # https://github.com/open-mmlab/mmdetection3d/blob/v1.2.0/mmdet3d/models/dense_heads/base_3d_dense_head.py#L68
+
+        losses = self._forward_train(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas, batch_gt_bboxes_3d, batch_gt_labels_3d,
+                                     batch_gt_instances_3d, batch_gt_instances_ignore)
+
+        return losses
+
+    def _forward_train(self, points, infrastructure_points, img_metas, gt_bboxs_3d, gt_labels_3d, batch_gt_instances_3d, gt_bboxes_ignore=None):
         """Training forward function."""
         for ii in range(len(infrastructure_points)):
             infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
@@ -359,8 +382,11 @@ class FeatureFlowNet(SingleStage3DDetector):
             feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
             feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
             outs = self.bbox_head(feat_fused)
-            loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-            losses = self.bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+            # loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
+            # losses = self.bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+
+            loss_inputs = outs + (batch_gt_instances_3d, img_metas, gt_bboxes_ignore)
+            losses = self.bbox_head.loss_by_feat(*loss_inputs)
 
         if self.flow_training:
             inf_points_t_0 = []
@@ -423,7 +449,8 @@ class FeatureFlowNet(SingleStage3DDetector):
                 feat_inf_apprs = []
                 for ii in range(len(flow_pred)):
                     for bs in range(len(points)):
-                        tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean()
+                        # tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean()
+                        tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean().detach()
                         feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] + flow_pred[ii][bs] / points_t_0_1[bs] * points_t_1_2[bs]
                         tem_feat_inf_t_1_after_max = feat_inf_t_1[ii][bs].mean().detach()
                         feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] / tem_feat_inf_t_1_after_max * tem_feat_inf_t_1_before_max
@@ -436,34 +463,21 @@ class FeatureFlowNet(SingleStage3DDetector):
                 if not self.fusion_training:
                     losses = {}
                 losses['similarity_loss'] = self.mse_loss(similarity, label)
-            """visualize the features
-            import cv2 as cv
-            for bs, data_info_idx in enumerate(data_info_idxs):
-                inf_points_t_2_idx = self.flow_data_infos[data_info_idx]['infrastructure_idx_t_2']
-
-                channel_idx = 1
-                tensor_save = torch.sigmoid(feat_inf_t_2[0][bs, channel_idx]) * 255
-                img_save_path = os.path.join('vis_feature', 'feat_t_2_' + inf_points_t_2_idx + '_' + str(channel_idx) + '.png')
-                cv.imwrite(img_save_path, tensor_save.cpu().numpy())
-                tensor_save = torch.sigmoid(feat_inf_apprs[0][bs, channel_idx]) * 255
-                img_save_path = os.path.join('vis_feature', 'feat_t_2_' + inf_points_t_2_idx + '_appr_' + str(channel_idx) + '.png')
-                cv.imwrite(img_save_path, tensor_save.detach().cpu().numpy())
-            """
 
         return losses
 
-    def simple_test(self, points, img_metas, imgs=None, infrastructure_points=None, rescale=False):
+    def simple_test(self, points, infrastructure_points, img_metas, batch_data_samples, imgs=None, rescale=False):
         """Test function without augmentaiton."""
-        for ii in range(len(infrastructure_points[0])):
-            infrastructure_points[0][ii][:, 3] = 255 * infrastructure_points[0][ii][:, 3]
+        for ii in range(len(infrastructure_points)):
+            infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
         feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
-        feat_inf = self.extract_feat(infrastructure_points[0], img_metas, points_view='infrastructure')
+        feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
 
         if self.test_mode not in ['FlowPred', 'OriginFeat', 'Async']:
             raise Exception('FlowNet Test Mode is Error: {}'.format(self.test_mode))
 
         if self.test_mode == 'OriginFeat':
-            feat_inf = self.extract_feat(infrastructure_points[0], img_metas, points_view='infrastructure')
+            feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
 
         if self.test_mode == 'Async':
             inf_points_t_1 = []
@@ -532,10 +546,28 @@ class FeatureFlowNet(SingleStage3DDetector):
             feat_inf = feat_inf_apprs
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
 
-        outs = self.bbox_head(feat_fused)
-        bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
-        bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
-        return bbox_results
+        # outs = self.bbox_head(feat_fused)
+        # bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
+        bbox_list = self.bbox_head.predict(feat_fused, batch_data_samples, rescale=rescale)
+
+        # bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
+        return bbox_list
+
+    def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
+
+        batch_input_metas = [item.metainfo for item in batch_data_samples]
+        batch_gt_instances_3d = []
+        batch_gt_instances_ignore = []
+        batch_input_metas = []
+        for data_sample in batch_data_samples:
+            batch_input_metas.append(data_sample.metainfo)
+            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
+            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
+
+        bbox_results = self.simple_test(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas, batch_data_samples)
+        res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
+
+        return res
 
     def aug_test(self):
         """Test function with augmentaiton."""

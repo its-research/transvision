@@ -45,3 +45,7 @@ i15 = str(-eval(str(item["rotation"])))
 ```bash
    pre-commit run --all-files
 ```
+
+### 6. AttributeError: 'str' object has no attribute 'new_zeros'
+
+undefine loss function

@@ -1,11 +1,10 @@
+_base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py']
+
 dataset_type = 'V2XDataset'
 data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
-# flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'}
-# FlowPred: Use feature flow to compensate for the temporary asynchrony
-# OriginFeat: Do not introduce the simulated temporal asychrony
-# Async: Introduce the temporal asynchrony and do not use feature flow to compensate for the temporary asynchrony
-data_info_train_path = './data/flow_data_jsons/flow_data_info_train_2.json'
-data_info_val_path = './data/flow_data_jsons/flow_data_info_val_2.json'
+
+data_info_train_path = 'flow_data_jsons/flow_data_info_train_2.json'
+data_info_val_path = 'flow_data_jsons/flow_data_info_val_2.json'
 flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
 pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40.pth'
 work_dir = './ffnet_work_dir/work_dir_ffnet'
@@ -19,6 +18,10 @@ output_shape = [h, l]
 z_center_pedestrian = -0.6
 z_center_cyclist = -0.6
 z_center_car = -2.66
+
+input_modality = dict(use_lidar=True, use_camera=False)
+metainfo = dict(classes=class_names)
+backend_args = None
 
 model = dict(
     type='FeatureFlowNet',
@@ -46,15 +49,15 @@ model = dict(
         ),
         diff_rad_by_sin=True,
         bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
-        loss_cls=dict(type='FocalLoss', use_sigmoid=True, gamma=2.0, alpha=0.25, loss_weight=1.0),
-        loss_bbox=dict(type='SmoothL1Loss', beta=0.1111111111111111, loss_weight=2.0),
-        loss_dir=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.2),
+        loss_cls=dict(type='mmdet.FocalLoss', use_sigmoid=True, gamma=2.0, alpha=0.25, loss_weight=1.0),
+        loss_bbox=dict(type='mmdet.SmoothL1Loss', beta=0.1111111111111111, loss_weight=2.0),
+        loss_dir=dict(type='mmdet.CrossEntropyLoss', use_sigmoid=False, loss_weight=0.2),
     ),
     train_cfg=dict(
         assigner=[
-            dict(type='MaxIoUAssigner', iou_calculator=dict(type='BboxOverlapsNearest3D'), pos_iou_thr=0.5, neg_iou_thr=0.35, min_pos_iou=0.35, ignore_iof_thr=-1),
-            dict(type='MaxIoUAssigner', iou_calculator=dict(type='BboxOverlapsNearest3D'), pos_iou_thr=0.5, neg_iou_thr=0.35, min_pos_iou=0.35, ignore_iof_thr=-1),
-            dict(type='MaxIoUAssigner', iou_calculator=dict(type='BboxOverlapsNearest3D'), pos_iou_thr=0.6, neg_iou_thr=0.45, min_pos_iou=0.45, ignore_iof_thr=-1),
+            dict(type='Max3DIoUAssigner', iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'), pos_iou_thr=0.5, neg_iou_thr=0.35, min_pos_iou=0.35, ignore_iof_thr=-1),
+            dict(type='Max3DIoUAssigner', iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'), pos_iou_thr=0.5, neg_iou_thr=0.35, min_pos_iou=0.35, ignore_iof_thr=-1),
+            dict(type='Max3DIoUAssigner', iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'), pos_iou_thr=0.6, neg_iou_thr=0.45, min_pos_iou=0.45, ignore_iof_thr=-1),
         ],
         allowed_border=0,
         pos_weight=-1,
@@ -78,10 +81,58 @@ model = dict(
 
 file_client_args = dict(backend='disk')
 
-data = dict(
-    samples_per_gpu=2,
-    workers_per_gpu=2,
-    train=dict(
+train_pipeline = [
+    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
+    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+    dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
+    dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
+    dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
+    dict(
+        type='Pack3DDetDAIRInputs',
+        keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+        # fmt:off
+        meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
+                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
+                   'infrastructure_pointcloud_bin_path_t_0', 'infrastructure_pointcloud_bin_path_t_1', 'infrastructure_pointcloud_bin_path_t_2', 'infrastructure_t_0_1',
+                   'infrastructure_t_1_2'),
+        # fmt:on
+    )
+]
+test_pipeline = [
+    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
+    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+    dict(
+        type='Pack3DDetDAIRInputs',
+        keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+        # fmt:off
+        meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
+                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
+                   'infrastructure_pointcloud_bin_path_t_0', 'infrastructure_pointcloud_bin_path_t_1', 'infrastructure_pointcloud_bin_path_t_2', 'infrastructure_t_0_1',
+                   'infrastructure_t_1_2'),
+        # fmt:on
+    )
+]
+eval_pipeline = [
+    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
+    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+    dict(
+        type='Pack3DDetDAIRInputs',
+        keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+        # fmt:off
+        meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
+                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
+                   'infrastructure_pointcloud_bin_path_t_0', 'infrastructure_pointcloud_bin_path_t_1', 'infrastructure_pointcloud_bin_path_t_2', 'infrastructure_t_0_1',
+                   'infrastructure_t_1_2'),
+        # fmt:on
+    )
+]
+
+train_dataloader = dict(
+    batch_size=2,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=True),
+    dataset=dict(
         type='RepeatDataset',
         times=2,
         dataset=dict(
@@ -89,195 +140,72 @@ data = dict(
             data_root=data_root,
             ann_file=data_info_train_path,
             split='training',
-            pts_prefix='velodyne_reduced',
-            pipeline=[
-                dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
-                dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
-                dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-                # dict(type='RandomFlip3D', flip_ratio_bev_horizontal=0.5),
-                # dict(
-                #     type='GlobalRotScaleTrans',
-                #     rot_range=[-0.78539816, 0.78539816],
-                #     scale_ratio_range=[0.95, 1.05]),
-                dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
-                dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
-                # dict(type='PointShuffle'),
-                dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names),
-                dict(
-                    type='Collect3D',
-                    keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
-                    meta_keys=(
-                        'filename',
-                        'ori_shape',
-                        'img_shape',
-                        'lidar2img',
-                        'depth2img',
-                        'cam2img',
-                        'pad_shape',
-                        'scale_factor',
-                        'flip',
-                        'pcd_horizontal_flip',
-                        'pcd_vertical_flip',
-                        'box_mode_3d',
-                        'box_type_3d',
-                        'img_norm_cfg',
-                        'pcd_trans',
-                        'sample_idx',
-                        'pcd_scale_factor',
-                        'pcd_rotation',
-                        'pts_filename',
-                        'transformation_3d_flow',
-                        'inf2veh',
-                        'infrastructure_pointcloud_bin_path_t_0',
-                        'infrastructure_pointcloud_bin_path_t_1',
-                        'infrastructure_pointcloud_bin_path_t_2',
-                        'infrastructure_t_0_1',
-                        'infrastructure_t_1_2',
-                    ),
-                ),
-            ],
-            modality=dict(use_lidar=True, use_camera=False),
-            classes=class_names,
+            data_prefix=dict(pts='velodyne_reduced'),
+            pipeline=train_pipeline,
+            modality=input_modality,
             test_mode=False,
-            pcd_limit_range=point_cloud_range,
+            metainfo=metainfo,
+            pcd_limit_range=point_cloud_range,  # not sure
+            # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
+            # and box_type_3d='Depth' in sunrgbd and scannet dataset.
             box_type_3d='LiDAR',
-        ),
-    ),
-    val=dict(
+            backend_args=backend_args)))
+val_dataloader = dict(
+    batch_size=1,
+    num_workers=1,
+    persistent_workers=True,
+    drop_last=False,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
         type=dataset_type,
         data_root=data_root,
+        data_prefix=dict(pts='velodyne_reduced'),
         ann_file=data_info_val_path,
         split='training',
-        pts_prefix='velodyne_reduced',
-        pipeline=[
-            dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
-            dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
-            dict(
-                type='MultiScaleFlipAug3D',
-                img_scale=(h, l),
-                pts_scale_ratio=1,
-                flip=False,
-                transforms=[
-                    dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
-                    dict(
-                        type='Collect3D',
-                        keys=['points', 'infrastructure_points'],
-                        meta_keys=(
-                            'filename',
-                            'ori_shape',
-                            'img_shape',
-                            'lidar2img',
-                            'depth2img',
-                            'cam2img',
-                            'pad_shape',
-                            'scale_factor',
-                            'flip',
-                            'pcd_horizontal_flip',
-                            'pcd_vertical_flip',
-                            'box_mode_3d',
-                            'box_type_3d',
-                            'img_norm_cfg',
-                            'pcd_trans',
-                            'sample_idx',
-                            'pcd_scale_factor',
-                            'pcd_rotation',
-                            'pts_filename',
-                            'transformation_3d_flow',
-                            'inf2veh',
-                            'infrastructure_pointcloud_bin_path_t_0',
-                            'infrastructure_pointcloud_bin_path_t_1',
-                            'infrastructure_pointcloud_bin_path_t_2',
-                            'infrastructure_t_0_1',
-                            'infrastructure_t_1_2',
-                        ),
-                    ),
-                ],
-            ),
-        ],
-        modality=dict(use_lidar=True, use_camera=False),
-        classes=class_names,
+        pipeline=test_pipeline,
+        modality=input_modality,
         test_mode=True,
-        pcd_limit_range=point_cloud_range,
+        pcd_limit_range=point_cloud_range,  # not sure
+        metainfo=metainfo,
         box_type_3d='LiDAR',
-    ),
-    test=dict(
+        backend_args=backend_args))
+test_dataloader = dict(
+    batch_size=1,
+    num_workers=1,
+    persistent_workers=True,
+    drop_last=False,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
         type=dataset_type,
         data_root=data_root,
+        data_prefix=dict(pts='velodyne_reduced'),
         ann_file=data_info_val_path,
         split='training',
-        pts_prefix='velodyne_reduced',
-        pipeline=[
-            dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
-            dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
-            dict(
-                type='MultiScaleFlipAug3D',
-                img_scale=(h, l),
-                pts_scale_ratio=1,
-                flip=False,
-                transforms=[
-                    dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
-                    dict(
-                        type='Collect3D',
-                        keys=['points', 'infrastructure_points'],
-                        meta_keys=(
-                            'filename',
-                            'ori_shape',
-                            'img_shape',
-                            'lidar2img',
-                            'depth2img',
-                            'cam2img',
-                            'pad_shape',
-                            'scale_factor',
-                            'flip',
-                            'pcd_horizontal_flip',
-                            'pcd_vertical_flip',
-                            'box_mode_3d',
-                            'box_type_3d',
-                            'img_norm_cfg',
-                            'pcd_trans',
-                            'sample_idx',
-                            'pcd_scale_factor',
-                            'pcd_rotation',
-                            'pts_filename',
-                            'transformation_3d_flow',
-                            'inf2veh',
-                            'infrastructure_pointcloud_bin_path_t_0',
-                            'infrastructure_pointcloud_bin_path_t_1',
-                            'infrastructure_pointcloud_bin_path_t_2',
-                            'infrastructure_t_0_1',
-                            'infrastructure_t_1_2',
-                        ),
-                    ),
-                ],
-            ),
-        ],
-        modality=dict(use_lidar=True, use_camera=False),
-        classes=class_names,
+        pipeline=test_pipeline,
+        modality=input_modality,
         test_mode=True,
-        pcd_limit_range=point_cloud_range,
+        pcd_limit_range=point_cloud_range,  # not sure
+        metainfo=metainfo,
         box_type_3d='LiDAR',
-    ),
-)
-evaluation = dict(
-    interval=10,
-    pipeline=[
-        dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, file_client_args=dict(backend='disk')),
-        dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
-        dict(type='Collect3D', keys=['points']),
-    ],
-)
+        backend_args=backend_args))
+val_evaluator = dict(type='V2XKittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', backend_args=backend_args)
+test_evaluator = val_evaluator
+
+vis_backends = [dict(type='LocalVisBackend')]
+visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
+
+# In practice PointPillars also uses a different schedule
+# optimizer
 lr = 0.008
-optimizer = dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01)
-optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
-lr_config = dict(policy='cyclic', target_ratio=(10, 0.0001), cyclic_times=1, step_ratio_up=0.4)
-momentum_config = dict(policy='cyclic', target_ratio=(0.8947368421052632, 1), cyclic_times=1, step_ratio_up=0.4)
-runner = dict(type='EpochBasedRunner', max_epochs=10)
-checkpoint_config = dict(interval=10)
-log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook'), dict(type='TensorboardLoggerHook')])
-dist_params = dict(backend='nccl')
+epoch_num = 10
+optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
+
+param_scheduler = [
+    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.4, eta_min=lr * 10, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.6, eta_min=lr * 1e-4, begin=epoch_num * 0.4, end=epoch_num * 1, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.4, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
+]
+
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=5)
 find_unused_parameters = True
-log_level = 'INFO'
-load_from = None
-resume_from = None
-workflow = [('train', 1)]
-gpu_ids = range(0, 1)
