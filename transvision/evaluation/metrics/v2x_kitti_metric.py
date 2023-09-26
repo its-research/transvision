@@ -39,41 +39,11 @@ class V2XKittiMetric(KittiMetric):
     def convert_annos_to_kitti_annos(self, data_infos: dict) -> List[dict]:
 
         data_annos = data_infos['data_list']
-        # if not self.format_only:
-        #     cat2label = data_infos['metainfo']['categories']
-        #     label2cat = dict((v, k) for (k, v) in cat2label.items())
-        #     assert 'instances' in data_annos[0]
-        #     for i, annos in enumerate(data_annos):
-        #         if len(annos['instances']) == 0:
-        #             kitti_annos = {
-        #                 'name': np.array([]),
-        #                 'truncated': np.array([]),
-        #                 'occluded': np.array([]),
-        #                 'alpha': np.array([]),
-        #                 'bbox': np.zeros([0, 4]),
-        #                 'dimensions': np.zeros([0, 3]),
-        #                 'location': np.zeros([0, 3]),
-        #                 'rotation_y': np.array([]),
-        #                 'score': np.array([]),
-        #             }
-        #         else:
-        #             kitti_annos = {'name': [], 'truncated': [], 'occluded': [], 'alpha': [], 'bbox': [], 'location': [], 'dimensions': [], 'rotation_y': [], 'score': []}
-        #             for instance in annos['instances']:
 
-        #                 label = instance['bbox_label']
-        #                 print(instance)
-        #                 kitti_annos['name'].append(label2cat[label])
-        #                 kitti_annos['truncated'].append(instance['truncated'])
-        #                 kitti_annos['occluded'].append(instance['occluded'])
-        #                 kitti_annos['alpha'].append(instance['alpha'])
-        #                 kitti_annos['bbox'].append(instance['bbox'])
-        #                 kitti_annos['location'].append(instance['bbox_3d'][:3])
-        #                 kitti_annos['dimensions'].append(instance['bbox_3d'][3:6])
-        #                 kitti_annos['rotation_y'].append(instance['bbox_3d'][6])
-        #                 kitti_annos['score'].append(instance['score'])
-        #             for name in kitti_annos:
-        #                 kitti_annos[name] = np.array(kitti_annos[name])
-        #         data_annos[i]['kitti_annos'] = kitti_annos
+        for _, annos in enumerate(data_annos):
+            for name in annos['kitti_annos']:
+                annos['kitti_annos'][name] = np.array(annos['kitti_annos'][name])
+
         return data_annos
 
     def bbox2result_kitti(self,
