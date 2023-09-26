@@ -15,6 +15,8 @@ from mmdet3d.models import build_model
 from mmdet.apis import multi_gpu_test, set_random_seed
 from mmdet.datasets import replace_ImageToTensor
 
+import transvision  # noqa: F401
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MMDet test (and eval) a model')
