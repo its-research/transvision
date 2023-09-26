@@ -3,9 +3,10 @@ from typing import List, Optional, Union
 
 import mmengine
 import numpy as np
+import torch
 from mmdet3d.evaluation import KittiMetric
 from mmdet3d.registry import METRICS
-from mmdet3d.structures import CameraInstance3DBoxes, LiDARInstance3DBoxes
+from mmdet3d.structures import Box3DMode, CameraInstance3DBoxes, LiDARInstance3DBoxes, points_cam2img
 
 
 @METRICS.register_module()
@@ -107,10 +108,9 @@ class V2XKittiMetric(KittiMetric):
         for idx, pred_dicts in enumerate(mmengine.track_iter_progress(net_outputs)):
             sample_idx = sample_idx_list[idx]
             info = self.data_infos[sample_idx]
-            print(info)
             # Here default used 'CAM2' to compute metric. If you want to
             # use another camera, please modify it.
-            image_shape = (info['images'][self.default_cam_key]['height'], info['images'][self.default_cam_key]['width'])
+            image_shape = (info['image']['image_shape'][0], info['image']['image_shape'][1])
             box_dict = self.convert_valid_bboxes(pred_dicts, info)
             anno = {'name': [], 'truncated': [], 'occluded': [], 'alpha': [], 'bbox': [], 'dimensions': [], 'location': [], 'rotation_y': [], 'score': []}
             if len(box_dict['bbox']) > 0:
@@ -180,3 +180,93 @@ class V2XKittiMetric(KittiMetric):
             print(f'Result is saved to {out}.')
 
         return det_annos
+
+    def convert_valid_bboxes(self, box_dict: dict, info: dict) -> dict:
+        """Convert the predicted boxes into valid ones.
+
+        Args:
+            box_dict (dict): Box dictionaries to be converted.
+
+                - bboxes_3d (:obj:`BaseInstance3DBoxes`): 3D bounding boxes.
+                - scores_3d (Tensor): Scores of boxes.
+                - labels_3d (Tensor): Class labels of boxes.
+            info (dict): Data info.
+
+        Returns:
+            dict: Valid predicted boxes.
+
+            - bbox (np.ndarray): 2D bounding boxes.
+            - box3d_camera (np.ndarray): 3D bounding boxes in
+              camera coordinate.
+            - box3d_lidar (np.ndarray): 3D bounding boxes in
+              LiDAR coordinate.
+            - scores (np.ndarray): Scores of boxes.
+            - label_preds (np.ndarray): Class label predictions.
+            - sample_idx (int): Sample index.
+        """
+        # TODO: refactor this function
+        box_preds = box_dict['bboxes_3d']
+        scores = box_dict['scores_3d']
+        labels = box_dict['labels_3d']
+        sample_idx = info['sample_idx']
+        box_preds.limit_yaw(offset=0.5, period=np.pi * 2)
+
+        if len(box_preds) == 0:
+            return dict(
+                bbox=np.zeros([0, 4]), box3d_camera=np.zeros([0, 7]), box3d_lidar=np.zeros([0, 7]), scores=np.zeros([0]), label_preds=np.zeros([0, 4]), sample_idx=sample_idx)
+        # Here default used 'CAM2' to compute metric. If you want to
+        # use another camera, please modify it.
+        # lidar2cam = np.array(info['images'][self.default_cam_key]['lidar2cam']).astype(np.float32)
+        P2 = np.array(info['calib']['P2']).astype(np.float32)
+        img_shape = (info['image']['image_shape'][0], info['image']['image_shape'][1])
+        P2 = box_preds.tensor.new_tensor(P2)
+
+        rect = np.array(info['calib']['R0_rect']).astype(np.float32)
+        Trv2c = np.array(info['calib']['Tr_velo_to_cam']).astype(np.float32)
+        lidar2cam = rect @ Trv2c
+
+        # box_preds_camera = box_preds.convert_to(Box3DMode.CAM, rect @ Trv2c)
+
+        if isinstance(box_preds, LiDARInstance3DBoxes):
+            box_preds_camera = box_preds.convert_to(Box3DMode.CAM, lidar2cam)
+            box_preds_lidar = box_preds
+        elif isinstance(box_preds, CameraInstance3DBoxes):
+            box_preds_camera = box_preds
+            box_preds_lidar = box_preds.convert_to(Box3DMode.LIDAR, np.linalg.inv(lidar2cam))
+
+        box_corners = box_preds_camera.corners
+        box_corners_in_image = points_cam2img(box_corners, P2)
+        # box_corners_in_image: [N, 8, 2]
+        minxy = torch.min(box_corners_in_image, dim=1)[0]
+        maxxy = torch.max(box_corners_in_image, dim=1)[0]
+        box_2d_preds = torch.cat([minxy, maxxy], dim=1)
+        # Post-processing
+        # check box_preds_camera
+        image_shape = box_preds.tensor.new_tensor(img_shape)
+        valid_cam_inds = ((box_2d_preds[:, 0] < image_shape[1]) & (box_2d_preds[:, 1] < image_shape[0]) & (box_2d_preds[:, 2] > 0) & (box_2d_preds[:, 3] > 0))
+        # check box_preds_lidar
+        if isinstance(box_preds, LiDARInstance3DBoxes):
+            limit_range = box_preds.tensor.new_tensor(self.pcd_limit_range)
+            valid_pcd_inds = ((box_preds_lidar.center > limit_range[:3]) & (box_preds_lidar.center < limit_range[3:]))
+            valid_inds = valid_cam_inds & valid_pcd_inds.all(-1)
+        else:
+            valid_inds = valid_cam_inds
+
+        if valid_inds.sum() > 0:
+            return dict(
+                bbox=box_2d_preds[valid_inds, :].numpy(),
+                pred_box_type_3d=type(box_preds),
+                box3d_camera=box_preds_camera[valid_inds].numpy(),
+                box3d_lidar=box_preds_lidar[valid_inds].numpy(),
+                scores=scores[valid_inds].numpy(),
+                label_preds=labels[valid_inds].numpy(),
+                sample_idx=sample_idx)
+        else:
+            return dict(
+                bbox=np.zeros([0, 4]),
+                pred_box_type_3d=type(box_preds),
+                box3d_camera=np.zeros([0, 7]),
+                box3d_lidar=np.zeros([0, 7]),
+                scores=np.zeros([0]),
+                label_preds=np.zeros([0]),
+                sample_idx=sample_idx)

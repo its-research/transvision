@@ -154,8 +154,8 @@ class V2XDataset(Det3DDataset):
                 kitti_annos['alpha'].append(alpha)
                 kitti_annos['index'].append(idx)
                 """ TODO: Valid Bbox"""
-                kitti_annos['occluded'].append([0])
-                kitti_annos['truncated'].append([0])
+                kitti_annos['occluded'].append(0)
+                kitti_annos['truncated'].append(0)
                 bbox = [0, 0, 100, 100]
                 kitti_annos['bbox'].append(bbox)
 
