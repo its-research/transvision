@@ -37,7 +37,7 @@ model = dict(
             ranges=[
                 [point_cloud_range[0], point_cloud_range[1], z_center_car, point_cloud_range[3], point_cloud_range[4], z_center_car],
             ],
-            sizes=[[1.6, 3.9, 1.56]],
+            sizes=[[3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False,
         ),

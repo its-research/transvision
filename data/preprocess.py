@@ -186,7 +186,7 @@ def label_world2vlidar(sub_root, idx):
 
 
 parser = argparse.ArgumentParser('Preprocess the DAIR-V2X-C for FFNET.')
-parser.add_argument('--source-root', type=str, default='./data/dair-v2x/DAIR-V2X-Examples/cooperative-vehicle-infrastructure', help='Raw data root of DAIR-V2X-C.')
+parser.add_argument('--source-root', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure', help='Raw data root of DAIR-V2X-C.')
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -213,24 +213,6 @@ if __name__ == '__main__':
             os.makedirs(calib_lidar_i2v_save_dir)
         calib_lidar_i2v_save_path = os.path.join(calib_lidar_i2v_save_dir, veh_idx + '.json')
         write_json(calib_lidar_i2v_save_path, calib_lidar_i2v)
-
-        # inf_pcd_path = os.path.join(dair_v2x_c_root,
-        #                             c_json['infrastructure_pointcloud_path'])
-        # inf_pcd = pypcd.PointCloud.from_path(inf_pcd_path)
-        # for ii in range(len(inf_pcd.pc_data['x'])):
-        #     np_x = inf_pcd.pc_data['x'][ii]
-        #     np_y = inf_pcd.pc_data['y'][ii]
-        #     np_z = inf_pcd.pc_data['z'][ii]
-        #     inf_point = np.array([np_x, np_y, np_z])
-        #     i2v_point = trans_point(inf_point, calib_lidar_i2v_r, calib_lidar_i2v_t)
-        #     inf_pcd.pc_data['x'][ii] = i2v_point[0]
-        #     inf_pcd.pc_data['y'][ii] = i2v_point[1]
-        #     inf_pcd.pc_data['z'][ii] = i2v_point[2]
-        #     inf_pcd.pc_data['intensity'][ii] = inf_pcd.pc_data['intensity'][ii] / 255
-        #         i2v_pcd_save_path = os.path.join(dair_v2x_c_root, 'cooperative/velodyne_i2v/' + veh_idx + '.pcd')
-        # pypcd.save_point_cloud(inf_pcd, i2v_pcd_save_path)
-        # i2v_bin_save_path = os.path.join(dair_v2x_c_root, 'cooperative/velodyne_i2v/' + veh_idx + '.bin')
-        # pcd2bin(i2v_pcd_save_path, i2v_bin_save_path)
 
         pcd_path = os.path.join(dair_v2x_c_root, 'infrastructure-side/velodyne/' + inf_idx + '.pcd')
         bin_save_path = os.path.join(dair_v2x_c_root, 'infrastructure-side/velodyne/' + inf_idx + '.bin')
