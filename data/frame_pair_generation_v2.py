@@ -143,7 +143,7 @@ if __name__ == '__main__':
     inf_idx_batch_mappings = idx_batch_mapping(inf_data_infos)
 
     # You should split the data_info_new.json generated from preprocessing into train/val.
-    split_json_path = os.path.join('data/split_datas', 'example-cooperative-split-data.json')
+    split_json_path = os.path.join('data/split_datas', 'cooperative-split-data.json')
     split_jsons = read_json(split_json_path)
 
     # Generate training part

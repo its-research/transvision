@@ -86,7 +86,9 @@ class V2XDataset(Det3DDataset):
         extended_xyz = np.array([location['x'], location['y'], location['z'], 1])
         location_cam = extended_xyz @ calib_lidar2cam.T
         location_cam = location_cam[:3]
-        dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
+        # l, w, h
+        # dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
+        dimension_cam = [dimension['l'], dimension['w'], dimension['h']]
         rotation_y = -rotation
         alpha = -np.arctan2(-location['y'], location['x']) + rotation
 
