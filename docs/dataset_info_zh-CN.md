@@ -1,12 +1,12 @@
-## [English](./README.md) | 简体中文
+# [English](./README.md) | 简体中文
 
 ## DAIR-V2X车路协同数据集
 
 ### 目录结构
 
-```
+```txt
 single-infrastructure-side              # 路端数据集(DAIR-V2X-I)
-    ├── image			        # 图像
+    ├── image       # 图像
         ├── {id}.jpg
     ├── velodyne                        # 点云(为方便研究, 已转到虚拟LiDAR坐标系下)
         ├── {id}.pcd
@@ -22,7 +22,7 @@ single-infrastructure-side              # 路端数据集(DAIR-V2X-I)
             ├── {id}.json
     ├── data_info.json                  # 数据索引
 single-vehicle-side                     # 车端数据集(DAIR-V2X-V)
-    ├── image		                # 图像
+    ├── image                # 图像
         ├── {id}.jpg
     ├── velodyne                        # 点云
         ├── {id}.pcd
@@ -31,7 +31,7 @@ single-vehicle-side                     # 车端数据集(DAIR-V2X-V)
             ├── {id}.json
         ├── lidar_to_camera             # LiDAR坐标系到相机坐标系变换参数
             ├── {id}.json
-    ├── label				# 标注文件
+    ├── label # 标注文件
         ├── camera                      # 标注文件(以图像时间戳为基准, 3D标注贴合图像中的障碍物)
             ├── {id}.json
         ├── lidar                       # 标注文件(以点云时间戳为基准, 3D标注贴合点云中的障碍物)
@@ -39,7 +39,7 @@ single-vehicle-side                     # 车端数据集(DAIR-V2X-V)
     ├── data_info.json                  # 数据索引
 cooperative-vehicle-infrastructure      # 车路协同数据集(DAIR-V2X-C)
     ├── infrastructure-side             # 车路协同路端
-        ├── image		        # 图像
+        ├── image        # 图像
             ├── {id}.jpg
         ├── velodyne                    # 点云(为方便研究, 已转到虚拟LiDAR坐标系下)
             ├── {id}.pcd
@@ -50,14 +50,14 @@ cooperative-vehicle-infrastructure      # 车路协同数据集(DAIR-V2X-C)
                 ├── {id}.json
             ├── virtuallidar_to_camera  # 虚拟LiDAR坐标系到相机坐标系变换参数
                 ├── {id}.json
-        ├── label			# 标注文件：路端数据标注
+        ├── label   # 标注文件：路端数据标注
             ├── camera                  # 标注文件(以图像时间戳为基准, 3D标注贴合图像中的障碍物)
                 ├── {id}.json
             ├── virtuallidar            # 标注文件(以点云时间戳为基准, 3D标注贴合点云中的障碍物)
                 ├── {id}.json
         ├── data_info.json              # 数据索引
     ├── vehicle-side                    # 车路协同车端：此处车端id与路端id非一一对应
-        ├── image		        # 图像
+        ├── image           # 图像
             ├── {id}.jpg
         ├── velodyne                    # 点云(LiDAR坐标系下)
             ├── {id}.pcd
@@ -70,7 +70,7 @@ cooperative-vehicle-infrastructure      # 车路协同数据集(DAIR-V2X-C)
                 ├── {id}.json
             ├── novatel_to_world        # NovAtel在世界坐标系下定位坐标(世界坐标系经过简单位置处理)
                 ├── {id}.json
-        ├── label			# 标注文件：车端数据标注
+        ├── label   # 标注文件：车端数据标注
             ├── camera                  # 标注文件(以图像时间戳为基准, 3D标注贴合图像中的障碍物)
                 ├── {id}.json
             ├── lidar                   # 标注文件(以点云时间戳为基准, 3D标注贴合点云中的障碍物)
@@ -203,7 +203,7 @@ ______________________________________________________________________
 }
 ```
 
-**备注**
+备注
 
 标签共有10类, 如下所示。
 
@@ -237,7 +237,7 @@ ______________________________________________________________________
 }
 ```
 
-**备注**
+备注
 
 目前融合标注只考虑如下4类, 生成约1w帧。
 
@@ -263,7 +263,7 @@ ______________________________________________________________________
 
 ### Citation
 
-```
+```txt
 @inproceedings{yu2022dairv2x,
     title={DAIR-V2X: A Large-Scale Dataset for Vehicle-Infrastructure Cooperative 3D Object Detection},
     author={Yu, Haibao and Luo, Yizhen and Shu, Mao and Huo, Yiyi and Yang, Zebang and Shi, Yifeng and Guo, Zhenglong and Li, Hanyu and Hu, Xing and Yuan, Jirui and Nie, Zaiqing},

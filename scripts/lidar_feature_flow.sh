@@ -3,10 +3,10 @@ export PYTHONPATH=$PYTHONPATH:${FFNet_workdir}
 
 DELAY_K=$3
 DATA=${FFNet_workdir}'/data/DAIR-V2X/cooperative-vehicle-infrastructure'
-VAL_DATA_PATH=${FFNet_workdir}'/data/flow_data_jsons/flow_data_info_val_'${DELAY_K}'.json'
+VAL_DATA_PATH=${FFNet_workdir}'/data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_val_'${DELAY_K}'.json'
 OUTPUT="./cache/vic-feature-flow"
 VEHICLE_MODEL_PATH=${FFNet_workdir}'/configs/ffnet/epoch_10.pth'
-VEHICLE_CONFIG_NAME=${FFNet_workdir}'/configs/ffnet/config_ffnet_car.py'
+VEHICLE_CONFIG_NAME=${FFNet_workdir}'/configs/ffnet/config_ffnet_3cls.py'
 
 CUDA_VISIBLE_DEVICES=$1
 

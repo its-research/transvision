@@ -17,17 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 def get_box_info(result):
-    for i in range(len(result[0]['boxes_3d'])):
-        temp = result[0]['boxes_3d'].tensor[i][4].clone()
-        result[0]['boxes_3d'].tensor[i][4] = result[0]['boxes_3d'].tensor[i][3]
-        result[0]['boxes_3d'].tensor[i][3] = temp
-        result[0]['boxes_3d'].tensor[i][6] = result[0]['boxes_3d'].tensor[i][6]
-    if len(result[0]['boxes_3d'].tensor) == 0:
+    for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
+        temp = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].clone()
+        result[0].pred_instances_3d.bboxes_3d.tensor[i][4] = result[0].pred_instances_3d.bboxes_3d.tensor[i][3]
+        result[0].pred_instances_3d.bboxes_3d.tensor[i][3] = temp
+        result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
+    if len(result[0].pred_instances_3d.bboxes_3d.tensor) == 0:
         box_lidar = np.zeros((1, 8, 3))
         box_ry = np.zeros(1)
     else:
-        box_lidar = result[0]['boxes_3d'].corners.numpy()
-        box_ry = result[0]['boxes_3d'].tensor[:, -1].numpy()
+        box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.numpy()
+        box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].numpy()
     box_centers_lidar = box_lidar.mean(axis=1)
     arrow_ends_lidar = get_arrow_end(box_centers_lidar, box_ry)
     return box_lidar, box_ry, box_centers_lidar, arrow_ends_lidar
@@ -61,18 +61,17 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     cfg = model.cfg
     # device = next(model.parameters()).device  # model device
     # build the data pipeline
-    test_pipeline = deepcopy(cfg.data.test.pipeline)
+    test_pipeline = deepcopy(cfg.test_dataloader.dataset.pipeline)
     test_pipeline = Compose(test_pipeline)
-    box_type_3d, box_mode_3d = get_box_type(cfg.data.test.box_type_3d)
-    data = dict(
+    box_type_3d, box_mode_3d = get_box_type(cfg.test_dataloader.dataset.box_type_3d)
+
+    data_ = dict(
         vehicle_pts_filename=veh_bin,
         infrastructure_pts_filename=inf_bin,
         box_type_3d=box_type_3d,
         box_mode_3d=box_mode_3d,
-        # for ScanNet demo we need axis_align_matrix
         ann_info=dict(axis_align_matrix=np.eye(4)),
         sweeps=[],
-        # set timestamp = 0
         timestamp=[0],
         img_fields=[],
         bbox3d_fields=[],
@@ -82,30 +81,26 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
         mask_fields=[],
         seg_fields=[],
     )
-    data = test_pipeline(data)
-    a = dict(rotation=rotation, translation=translation)
 
-    data = pseudo_collate(data)
-    if next(model.parameters()).is_cuda:
-        # scatter to specified GPU
-        # data = scatter(data, [device.index])[0]
-        data['img_metas'][0][0]['inf2veh'] = a
-        data['img_metas'][0][0]['infrastructure_idx_t_1'] = vic_frame['infrastructure_idx_t_1']
-        data['img_metas'][0][0]['infrastructure_pointcloud_bin_path_t_1'] = vic_frame['infrastructure_pointcloud_bin_path_t_1']
-        data['img_metas'][0][0]['infrastructure_idx_t_0'] = vic_frame['infrastructure_idx_t_0']
-        data['img_metas'][0][0]['infrastructure_pointcloud_bin_path_t_0'] = vic_frame['infrastructure_pointcloud_bin_path_t_0']
-        data['img_metas'][0][0]['infrastructure_t_0_1'] = vic_frame['infrastructure_t_0_1']
-        data['img_metas'][0][0]['infrastructure_idx_t_2'] = vic_frame['infrastructure_idx_t_2']
-        data['img_metas'][0][0]['infrastructure_pointcloud_bin_path_t_2'] = vic_frame['infrastructure_pointcloud_bin_path_t_2']
-        data['img_metas'][0][0]['infrastructure_t_1_2'] = vic_frame['infrastructure_t_1_2']
-    else:
-        # this is a workaround to avoid the bug of MMDataParallel
-        data['img_metas'] = data['img_metas'][0].data
-        data['points'] = data['points'][0].data
-    # forward the model
-    # print(data["img_metas"])
+    data_ = test_pipeline(data_)
+
+    data = []
+    data.append(data_)
+    collate_data = pseudo_collate(data)
+
+    collate_data['data_samples'][0].set_metainfo(dict(inf2veh=dict(rotation=rotation, translation=translation)))
+    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_1=vic_frame['infrastructure_idx_t_1']))
+    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_1=vic_frame['infrastructure_pointcloud_bin_path_t_1']))
+    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_0=vic_frame['infrastructure_idx_t_0']))
+    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_0=vic_frame['infrastructure_pointcloud_bin_path_t_0']))
+    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_t_0_1=vic_frame['infrastructure_t_0_1']))
+    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_2=vic_frame['infrastructure_idx_t_2']))
+    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_2=vic_frame['infrastructure_pointcloud_bin_path_t_2']))
+    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_t_1_2=vic_frame['infrastructure_t_1_2']))
+
     with torch.no_grad():
-        result = model(return_loss=False, rescale=True, **data)
+        result = model.test_step(collate_data)
+
     return result, data
 
 
@@ -153,7 +148,7 @@ class FeatureFlow(BaseModel):
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
         remain = []
-        if len(result[0]['boxes_3d'].tensor) != 0:
+        if len(result[0].pred_instances_3d.bboxes_3d.tensor) != 0:
             for i in range(box.shape[0]):
                 if filt(box[i]):
                     remain.append(i)
@@ -161,14 +156,14 @@ class FeatureFlow(BaseModel):
             box = box[remain]
             box_center = box_center[remain]
             arrow_ends = arrow_ends[remain]
-            result[0]['scores_3d'] = result[0]['scores_3d'].numpy()[remain]
-            result[0]['labels_3d'] = result[0]['labels_3d'].numpy()[remain]
+            result[0].pred_instances_3d.scores_3d = result[0].pred_instances_3d.scores_3d.numpy()[remain]
+            result[0].pred_instances_3d.labels_3d = result[0].pred_instances_3d.labels_3d.numpy()[remain]
         else:
             box = np.zeros((1, 8, 3))
             box_center = np.zeros((1, 1, 3))
             arrow_ends = np.zeros((1, 1, 3))
-            result[0]['labels_3d'] = np.zeros((1))
-            result[0]['scores_3d'] = np.zeros((1))
+            result[0].pred_instances_3d.labels_3d = np.zeros((1))
+            result[0].pred_instances_3d.scores_3d = np.zeros((1))
         # Save results
         pred = gen_pred_dict(
             id,
@@ -176,14 +171,10 @@ class FeatureFlow(BaseModel):
             box,
             np.concatenate([box_center, arrow_ends], axis=1),
             np.array(1),
-            result[0]['scores_3d'].tolist(),
-            result[0]['labels_3d'].tolist(),
+            result[0].pred_instances_3d.scores_3d.tolist(),
+            result[0].pred_instances_3d.labels_3d.tolist(),
         )
-        # if self.args.save_point_cloud:
-        #     # points = trans(frame.point_cloud(format="array"))
-        #     points = vic_frame.point_cloud(format="array")
-        # else:
-        #     points = np.array([])
+
         for ii in range(len(pred['labels_3d'])):
             pred['labels_3d'][ii] = 2
         self.pipe.send('boxes_3d', pred['boxes_3d'])

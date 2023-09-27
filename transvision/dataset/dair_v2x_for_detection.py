@@ -137,6 +137,7 @@ class VICDataset(DAIRV2XDataset):
         # Patch for FFNet evaluation
         if args.model == 'feature_flow':
             frame_pairs = load_json(val_data_path)
+            frame_pairs = frame_pairs['data_list']
         else:
             frame_pairs = load_json(osp.join(path, 'cooperative/data_info.json'))
             split_path = args.split_data_path

@@ -2,7 +2,7 @@
 import copy
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -10,6 +10,7 @@ from mmdet3d.models.data_preprocessors.voxelize import VoxelizationByGridShape
 from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import Det3DDataSample
+from mmdet3d.structures.det3d_data_sample import OptSampleList
 # from mmcv.runner import force_fp32
 from torch import Tensor
 from torch import nn as nn
@@ -552,6 +553,20 @@ class FeatureFlowNet(SingleStage3DDetector):
 
         # bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
         return bbox_list
+
+    def _forward(self, batch_inputs_dict: dict, data_samples: OptSampleList = None, **kwargs) -> Tuple[List[torch.Tensor]]:
+
+        batch_input_metas = [item.metainfo for item in data_samples]
+        batch_gt_instances_3d = []
+        batch_gt_instances_ignore = []
+        batch_input_metas = []
+        for data_sample in data_samples:
+            batch_input_metas.append(data_sample.metainfo)
+            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
+            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
+
+        bbox_results = self.simple_test(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas, data_samples)
+        return bbox_results
 
     def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
 

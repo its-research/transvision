@@ -54,7 +54,7 @@ def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
     return save_dict
 
 
-def inference_detector_fature_fusion(model, veh_bin, inf_bin, rotation, translation):
+def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, translation):
     """Inference point cloud with the detector.
 
     Args:
@@ -139,7 +139,7 @@ class FeatureFusion(BaseModel):
         tmp_inf = vic_frame.inf_frame.point_cloud(data_format='file')
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
-        result, _ = inference_detector_fature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
+        result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
         remain = []

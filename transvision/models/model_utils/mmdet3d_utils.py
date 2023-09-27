@@ -85,7 +85,7 @@ def init_model(config: Union[str, Path, Config], checkpoint: Optional[str] = Non
 
         test_dataset_cfg = deepcopy(config.test_dataloader.dataset)
         # lazy init. We only need the metainfo.
-        test_dataset_cfg['lazy_init'] = True
+        # test_dataset_cfg['lazy_init'] = True
         metainfo = DATASETS.build(test_dataset_cfg).metainfo
         cfg_palette = metainfo.get('palette', None)
         if cfg_palette is not None:
