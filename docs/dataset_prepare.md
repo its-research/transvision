@@ -81,7 +81,7 @@ You can generate your frame pairs with the provided [example script](./frame_pai
 
 ```shell
 # Preprocess the dair-v2x-c dataset
-python ./data/frame_pair_generation_v2.py --source-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure
+python ./data/frame_pair_generation.py --source-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure
 ```
 
 ## Convert to Kitti

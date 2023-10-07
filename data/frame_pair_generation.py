@@ -73,7 +73,15 @@ def data_info_flow_train(data_infos, inf_idx_batch_mappings):
 
             data_infos_flow.append(data_info_flow)
 
-    return data_infos_flow
+    metainfo = dict()
+
+    metainfo['dataset'] = 'v2x_dataset'
+    metainfo['info_version'] = '1.1'
+    metainfo['classes'] = ['Pedestrian', 'Cyclist', 'Car']
+    metainfo['categories'] = [{'id': 0, 'name': 'Pedestrian'}, {'id': 1, 'name': 'Cyclist'}, {'id': 2, 'name': 'Car'}]
+    converted_data_info = dict(metainfo=metainfo, data_list=data_infos_flow)
+
+    return converted_data_info
 
 
 def data_info_flow_val(data_infos, inf_idx_batch_mappings, async_k=1):
@@ -83,9 +91,6 @@ def data_info_flow_val(data_infos, inf_idx_batch_mappings, async_k=1):
 
     data_infos_flow = []
     for data_info in data_infos:
-        # count = count + 1
-        # if count % 10 != 0:
-        #     continue
 
         data_info_flow = copy.deepcopy(data_info)
 
@@ -115,7 +120,15 @@ def data_info_flow_val(data_infos, inf_idx_batch_mappings, async_k=1):
 
         data_infos_flow.append(data_info_flow)
 
-    return data_infos_flow
+    metainfo = dict()
+
+    metainfo['dataset'] = 'v2x_dataset'
+    metainfo['info_version'] = '1.1'
+    metainfo['classes'] = ['Pedestrian', 'Cyclist', 'Car']
+    metainfo['categories'] = [{'id': 0, 'name': 'Pedestrian'}, {'id': 1, 'name': 'Cyclist'}, {'id': 2, 'name': 'Car'}]
+    converted_data_info = dict(metainfo=metainfo, data_list=data_infos_flow)
+
+    return converted_data_info
 
 
 parser = argparse.ArgumentParser('Preprocess the DAIR-V2X-C for FFNET.')
@@ -130,7 +143,7 @@ if __name__ == '__main__':
     inf_idx_batch_mappings = idx_batch_mapping(inf_data_infos)
 
     # You should split the data_info_new.json generated from preprocessing into train/val.
-    split_json_path = os.path.join('split_datas', 'cooperative-split-data.json')
+    split_json_path = os.path.join('data/split_datas', 'cooperative-split-data.json')
     split_jsons = read_json(split_json_path)
 
     # Generate training part
@@ -138,10 +151,10 @@ if __name__ == '__main__':
     data_infos = read_json(data_infos_path)
     data_infos_train = split_datas(data_infos, split_jsons, split='train')
 
-    data_infos_train_path = './data/dair-v2x/flow_data_jsons/flow_data_info_train.json'
+    data_infos_train_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train.json'
     write_json(data_infos_train_path, data_infos_train)
     data_infos_flow_train = data_info_flow_train(data_infos_train, inf_idx_batch_mappings)
-    data_infos_flow_path = './data/dair-v2x/flow_data_jsons/flow_data_info_train_2.json'
+    data_infos_flow_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train_2.json'
     write_json(data_infos_flow_path, data_infos_flow_train)
 
     # Generate val part
@@ -152,5 +165,5 @@ if __name__ == '__main__':
     for async_k in range(0, 6):
         data_infos_flow_val = data_info_flow_val(data_infos_val, inf_idx_batch_mappings, async_k=async_k)
         print('The length of data_infos_flow_val is: ', async_k, len(data_infos_flow_val))
-        data_infos_flow_path = './data/dair-v2x/flow_data_jsons/flow_data_info_val_' + str(async_k) + '.json'
+        data_infos_flow_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_val_' + str(async_k) + '.json'
         write_json(data_infos_flow_path, data_infos_flow_val)
