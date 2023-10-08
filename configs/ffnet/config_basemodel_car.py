@@ -45,23 +45,6 @@ train_pipeline = [
 test_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
-    # dict(
-    #     type='MultiScaleFlipAug3D',
-    #     img_scale=(h, l),
-    #     pts_scale_ratio=1,
-    #     flip=False,
-    #     transforms=[
-    #         dict(
-    #             type='Pack3DDetDAIRInputs',
-    #             keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
-    #             # fmt:off
-    #             meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip',
-    #                        'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
-    #                        'transformation_3d_flow', 'inf2veh'),
-    #             # fmt:on
-    #         ),
-    #     ],
-    # ),
     dict(
         type='Pack3DDetDAIRInputs',
         keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
@@ -77,23 +60,6 @@ test_pipeline = [
 eval_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
-    # dict(
-    #     type='MultiScaleFlipAug3D',
-    #     img_scale=(h, l),
-    #     pts_scale_ratio=1,
-    #     flip=False,
-    #     transforms=[
-    #         dict(
-    #             type='Pack3DDetDAIRInputs',
-    #             keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
-    #             # fmt:off
-    #             meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip',
-    #                        'pcd_vertical_flip', 'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
-    #                        'transformation_3d_flow', 'inf2veh'),
-    #             # fmt:on
-    #         ),
-    #     ],
-    # )
     dict(
         type='Pack3DDetDAIRInputs',
         keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
@@ -185,7 +151,7 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=1)
 
 model = dict(
     type='V2XVoxelNet',
@@ -208,7 +174,7 @@ model = dict(
     neck=dict(type='SECONDFPN', in_channels=[64, 128, 256], upsample_strides=[1, 2, 4], out_channels=[128, 128, 128]),
     bbox_head=dict(
         type='Anchor3DHead',
-        num_classes=3,
+        num_classes=1,
         in_channels=384,
         feat_channels=384,
         use_direction_classifier=True,
@@ -218,7 +184,7 @@ model = dict(
             ranges=[
                 [point_cloud_range[0], point_cloud_range[1], z_center_car, point_cloud_range[3], point_cloud_range[4], z_center_car],
             ],
-            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
+            sizes=[[3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),
         diff_rad_by_sin=True,

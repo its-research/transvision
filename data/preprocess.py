@@ -175,12 +175,26 @@ def label_world2vlidar(sub_root, idx):
         lidar_3d_data['occluded_state'] = label_world['occluded_state']
         lidar_3d_data['truncated_state'] = label_world['truncated_state']
         lidar_3d_data['2d_box'] = label_world['2d_box']
-        lidar_3d_data['3d_dimensions'] = label_world['3d_dimensions']
+
         lidar_3d_data['3d_location'] = {}
         lidar_3d_data['3d_location']['x'] = (world_8_points[0][0] + world_8_points[2][0]) / 2
         lidar_3d_data['3d_location']['y'] = (world_8_points[0][1] + world_8_points[2][1]) / 2
         lidar_3d_data['3d_location']['z'] = (world_8_points[0][2] + world_8_points[4][2]) / 2
         lidar_3d_data['rotation'] = get_label_lidar_rotation(world_8_points)
+
+        tmp_3d_dimensions = label_world['3d_dimensions']
+        label_world['3d_dimensions']['l'] = tmp_3d_dimensions['l']
+        label_world['3d_dimensions']['w'] = tmp_3d_dimensions['h']
+        label_world['3d_dimensions']['h'] = tmp_3d_dimensions['w']
+
+        lidar_3d_data['3d_dimensions'] = label_world['3d_dimensions']
+        lidar_3d_data['rotation'] = -lidar_3d_data['rotation'] - np.pi / 2
+        # # l, w, h
+        # # l h w -- w l h -- l, w, h
+        # # dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
+        # dimension_cam = [dimension['h'], dimension['l'], dimension['w']]
+        # # rotation_y = -rotation
+        # rotation_y = -rotation - np.pi / 2
         lidar_3d_list.append(lidar_3d_data)
     write_json(path_output_label_file, lidar_3d_list)
 

@@ -117,3 +117,5 @@ bash ./scripts/convert_dair_v2x_c.sh
 | Car            | 81393  |
 +----------------+--------+
 ```
+
+{"metainfo": {"dataset": "v2x_dataset", "info_version": "1.1", "classes": \["Pedestrian", "Cyclist", "Car"\], "categories": \[{"id": 0, "name": "Pedestrian"}, {"id": 1, "name": "Cyclist"}, {"id": 2, "name": "Car"}\]}, "data_list": \[\]}
