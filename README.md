@@ -135,6 +135,10 @@ i15 = str(-eval(str(item["rotation"])))
    pre-commit run --all-files
 ```
 
+### 6. numba.cuda.cudadrv.error.NvvmError: Failed to compile
+
+downgrade cuda from 11.7 to 11.1
+
 ## Reference
 
 - [mmdetection3d](https://github.com/open-mmlab/mmdetection3d)

@@ -53,6 +53,7 @@ model = dict(
         allowed_border=0,
         pos_weight=-1,
         debug=False,
+        val_interval=1,
     ),
     test_cfg=dict(use_rotate_nms=False, nms_across_levels=False, nms_thr=0.01, score_thr=0.2, min_bbox_size=0, nms_pre=1000, max_num=300),
 )
@@ -274,7 +275,7 @@ optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(policy='cyclic', target_ratio=(10, 0.0001), cyclic_times=1, step_ratio_up=0.4)
 momentum_config = dict(policy='cyclic', target_ratio=(0.8947368421052632, 1), cyclic_times=1, step_ratio_up=0.4)
 runner = dict(type='EpochBasedRunner', max_epochs=40)
-checkpoint_config = dict(interval=10)
+checkpoint_config = dict(interval=1)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook'), dict(type='TensorboardLoggerHook')])
 dist_params = dict(backend='nccl')
 find_unused_parameters = True
