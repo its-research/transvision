@@ -164,6 +164,6 @@ if __name__ == '__main__':
 
     for async_k in range(0, 6):
         data_infos_flow_val = data_info_flow_val(data_infos_val, inf_idx_batch_mappings, async_k=async_k)
-        print('The length of data_infos_flow_val is: ', async_k, len(data_infos_flow_val))
+        print('The length of data_infos_flow_val is: ', async_k, len(data_infos_flow_val['data_list']))
         data_infos_flow_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_val_' + str(async_k) + '.json'
         write_json(data_infos_flow_path, data_infos_flow_val)
