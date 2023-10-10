@@ -151,8 +151,16 @@ if __name__ == '__main__':
     data_infos = read_json(data_infos_path)
     data_infos_train = split_datas(data_infos, split_jsons, split='train')
 
+    metainfo = dict()
+    metainfo['dataset'] = 'v2x_dataset'
+    metainfo['info_version'] = '1.1'
+    metainfo['classes'] = ['Pedestrian', 'Cyclist', 'Car']
+    metainfo['categories'] = [{'id': 0, 'name': 'Pedestrian'}, {'id': 1, 'name': 'Cyclist'}, {'id': 2, 'name': 'Car'}]
+    converted_data_info = dict(metainfo=metainfo, data_list=data_infos_train)
     data_infos_train_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train.json'
-    write_json(data_infos_train_path, data_infos_train)
+
+    write_json(data_infos_train_path, converted_data_info)
+
     data_infos_flow_train = data_info_flow_train(data_infos_train, inf_idx_batch_mappings)
     data_infos_flow_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train_2.json'
     write_json(data_infos_flow_path, data_infos_flow_train)

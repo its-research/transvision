@@ -87,7 +87,7 @@ class V2XDataset(Det3DDataset):
         location_cam = extended_xyz @ calib_lidar2cam.T
         location_cam = location_cam[:3]
 
-        dimension_cam = [dimension['w'], dimension['h'], dimension['l']]
+        dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
         rotation_y = rotation
 
         # TODO: hard code by yuhb
@@ -320,6 +320,10 @@ class V2XDataset(Det3DDataset):
         rots = annos['rotation_y']
         gt_names = annos['name']
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
+        if index == 0:
+            print(annos)
+            print(gt_bboxes_3d)
+            print(rect @ Trv2c)
 
         # convert gt_bboxes_3d to velodyne coordinates
         gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
@@ -337,6 +341,9 @@ class V2XDataset(Det3DDataset):
                 gt_labels.append(-1)
         gt_labels = np.array(gt_labels).astype(np.int64)
         gt_labels_3d = copy.deepcopy(gt_labels)
+        if index == 0:
+            print(gt_bboxes_3d)
+            exit()
 
         anns_results = dict(gt_bboxes_3d=gt_bboxes_3d, gt_labels_3d=gt_labels_3d, bboxes=gt_bboxes, labels=gt_labels, gt_names=gt_names)
         return anns_results

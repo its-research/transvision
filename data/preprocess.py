@@ -200,10 +200,11 @@ def label_world2vlidar(sub_root, idx):
 
         lidar_3d_data['3d_dimensions'] = label_world['3d_dimensions']
         # lidar_3d_data['rotation'] = -lidar_3d_data['rotation'] - np.pi / 2
-        # rotation_y = get_label_lidar_rotation(world_8_points)
+
         # TODO: Rotation计算公式确认，及对模型的影响
-        new_3d_point = [lidar_3d_data['3d_location']['x'], lidar_3d_data['3d_location']['y'], lidar_3d_data['3d_location']['z']]
-        rotation_y = get_rotation(world_8_points, new_3d_point, label_world['3d_dimensions']['l'], label_world['3d_dimensions']['w'])
+        rotation_y = get_label_lidar_rotation(world_8_points)
+        # new_3d_point = [lidar_3d_data['3d_location']['x'], lidar_3d_data['3d_location']['y'], lidar_3d_data['3d_location']['z']]
+        # rotation_y = get_rotation(world_8_points, new_3d_point, label_world['3d_dimensions']['l'], label_world['3d_dimensions']['w'])
         lidar_3d_data['rotation'] = -rotation_y
 
         lidar_3d_data['world_8_points'] = world_8_points
