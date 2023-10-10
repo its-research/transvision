@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import math
 import os
@@ -101,6 +102,16 @@ def get_label_lidar_rotation(lidar_3d_8_points):
     return rotation_z
 
 
+def get_rotation(world_8_points, my_3d_point, length, w):
+    x = my_3d_point[0]
+    a = world_8_points[0][0]
+    b = world_8_points[1][0]
+    c = world_8_points[2][0]
+    r_tan = ((b + c - 2 * x) * length) / ((a + b - 2 * x) * w)
+    rotation = math.atan(r_tan)
+    return rotation
+
+
 def get_novatel2world(path_novatel2world):
     novatel2world = read_json(path_novatel2world)
     rotation = novatel2world['rotation']
@@ -171,6 +182,7 @@ def label_world2vlidar(sub_root, idx):
             world_8_points.append(point_new)
 
         lidar_3d_data = {}
+
         lidar_3d_data['type'] = label_world['type']
         lidar_3d_data['occluded_state'] = label_world['occluded_state']
         lidar_3d_data['truncated_state'] = label_world['truncated_state']
@@ -180,15 +192,22 @@ def label_world2vlidar(sub_root, idx):
         lidar_3d_data['3d_location']['x'] = (world_8_points[0][0] + world_8_points[2][0]) / 2
         lidar_3d_data['3d_location']['y'] = (world_8_points[0][1] + world_8_points[2][1]) / 2
         lidar_3d_data['3d_location']['z'] = (world_8_points[0][2] + world_8_points[4][2]) / 2
-        lidar_3d_data['rotation'] = get_label_lidar_rotation(world_8_points)
 
-        tmp_3d_dimensions = label_world['3d_dimensions']
+        tmp_3d_dimensions = copy.deepcopy(label_world['3d_dimensions'])
         label_world['3d_dimensions']['l'] = tmp_3d_dimensions['l']
-        label_world['3d_dimensions']['w'] = tmp_3d_dimensions['h']
-        label_world['3d_dimensions']['h'] = tmp_3d_dimensions['w']
+        label_world['3d_dimensions']['w'] = tmp_3d_dimensions['w']
+        label_world['3d_dimensions']['h'] = tmp_3d_dimensions['h']
 
         lidar_3d_data['3d_dimensions'] = label_world['3d_dimensions']
-        lidar_3d_data['rotation'] = -lidar_3d_data['rotation'] - np.pi / 2
+        # lidar_3d_data['rotation'] = -lidar_3d_data['rotation'] - np.pi / 2
+        # rotation_y = get_label_lidar_rotation(world_8_points)
+        # TODO: Rotation计算公式确认，及对模型的影响
+        new_3d_point = [lidar_3d_data['3d_location']['x'], lidar_3d_data['3d_location']['y'], lidar_3d_data['3d_location']['z']]
+        rotation_y = get_rotation(world_8_points, new_3d_point, label_world['3d_dimensions']['l'], label_world['3d_dimensions']['w'])
+        lidar_3d_data['rotation'] = -rotation_y
+
+        lidar_3d_data['world_8_points'] = world_8_points
+
         # # l, w, h
         # # l h w -- w l h -- l, w, h
         # # dimension_cam = [dimension['l'], dimension['h'], dimension['w']]

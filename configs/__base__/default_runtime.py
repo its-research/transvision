@@ -2,7 +2,7 @@ default_scope = 'mmdet3d'
 
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
-    logger=dict(type='LoggerHook', interval=50),
+    logger=dict(type='LoggerHook', interval=300),
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(type='CheckpointHook', interval=1, max_keep_ckpts=2),
     sampler_seed=dict(type='DistSamplerSeedHook'),

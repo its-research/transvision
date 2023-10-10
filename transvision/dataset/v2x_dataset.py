@@ -87,21 +87,7 @@ class V2XDataset(Det3DDataset):
         location_cam = extended_xyz @ calib_lidar2cam.T
         location_cam = location_cam[:3]
 
-        # l, w, h
-        # l h w -- w l h -- l, w, h
-        # dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
-        # dimension_cam = [dimension['h'], dimension['l'], dimension['w']]
-        # # rotation_y = -rotation
-        # rotation_y = -rotation - np.pi / 2
-        # alpha = -np.arctan2(-location['y'], location['x']) + rotation
-
-        # item['box3d_lidar'][3] = boxes[4]
-        # item['box3d_lidar'][4] = boxes[3]
-        # change yaw
-        # item['box3d_lidar'][6] = -boxes[6] - np.pi / 2
-        # item['box3d_lidar'][6] = limit_period(item['box3d_lidar'][6], period=np.pi * 2)
-
-        dimension_cam = [dimension['l'], dimension['w'], dimension['h']]
+        dimension_cam = [dimension['w'], dimension['h'], dimension['l']]
         rotation_y = rotation
 
         # TODO: hard code by yuhb
