@@ -9,7 +9,8 @@ from typing import List, Optional, Union
 import numpy as np
 from mmdet3d.datasets import Det3DDataset
 from mmdet3d.registry import DATASETS
-from mmdet3d.structures import CameraInstance3DBoxes
+from mmdet3d.structures import CameraInstance3DBoxes, limit_period
+# from mmdet3d.structures import LiDARInstance3DBoxes
 from mmengine.fileio import dump, join_path, load
 
 # TODO https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/datasets/det3d_dataset.py#L218
@@ -87,11 +88,18 @@ class V2XDataset(Det3DDataset):
         location_cam = extended_xyz @ calib_lidar2cam.T
         location_cam = location_cam[:3]
 
-        dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
-        rotation_y = rotation
+        # dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
+        # rotation_y = rotation
+
+        dimension_cam = [dimension['h'], dimension['l'], dimension['w']]  # 交换前两项, 适配1.*版本
+        rotation_y = rotation - np.pi / 2
+        rotation_y = limit_period(rotation_y, period=np.pi * 2)
+        rotation_y = -rotation_y
 
         # TODO: hard code by yuhb
         alpha = -10.0
+
+        # location_cam = [location['x'], location['y'], location['z']] #不进行坐标转化了, 已经是
 
         return location_cam, dimension_cam, rotation_y, alpha
 
@@ -320,14 +328,18 @@ class V2XDataset(Det3DDataset):
         rots = annos['rotation_y']
         gt_names = annos['name']
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
-        if index == 0:
-            print(annos)
-            print(gt_bboxes_3d)
-            print(rect @ Trv2c)
+        # if index == 0:
+        #     print(annos)
+        #     print(gt_bboxes_3d)
+        #     print(rect @ Trv2c)
 
         # convert gt_bboxes_3d to velodyne coordinates
         gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
+        # gt_bboxes_3d = LiDARInstance3DBoxes(gt_bboxes_3d) # 不进行坐标转换
         gt_bboxes = annos['bbox']
+        # if index == 0:
+        #     print(gt_bboxes_3d)
+        #     exit()
 
         selected = self.drop_arrays_by_name(gt_names, ['DontCare'])
         gt_bboxes = gt_bboxes[selected].astype('float32')
@@ -341,9 +353,6 @@ class V2XDataset(Det3DDataset):
                 gt_labels.append(-1)
         gt_labels = np.array(gt_labels).astype(np.int64)
         gt_labels_3d = copy.deepcopy(gt_labels)
-        if index == 0:
-            print(gt_bboxes_3d)
-            exit()
 
         anns_results = dict(gt_bboxes_3d=gt_bboxes_3d, gt_labels_3d=gt_labels_3d, bboxes=gt_bboxes, labels=gt_labels, gt_names=gt_names)
         return anns_results
