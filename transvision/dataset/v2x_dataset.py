@@ -281,14 +281,14 @@ class V2XDataset(Custom3DDataset):
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
 
         # convert gt_bboxes_3d to velodyne coordinates
-        if index == 0:
-            print(gt_bboxes_3d)
-            print(rect @ Trv2c)
+        # if index == 0:
+        #     print(gt_bboxes_3d)
+        #     print(rect @ Trv2c)
         gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
         gt_bboxes = annos['bbox']
-        if index == 0:
-            print(gt_bboxes_3d)
-            exit()
+        # if index == 0:
+        #     print(gt_bboxes_3d)
+        #     exit()
 
         selected = self.drop_arrays_by_name(gt_names, ['DontCare'])
         gt_bboxes = gt_bboxes[selected].astype('float32')

@@ -262,7 +262,7 @@ data = dict(
     ),
 )
 evaluation = dict(
-    interval=1,
+    interval=10,
     pipeline=[
         dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, file_client_args=dict(backend='disk')),
         dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
