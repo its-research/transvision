@@ -268,6 +268,9 @@ class V2XDataset(Custom3DDataset):
         """
         # Use index to get the annos, thus the evalhook could also use this api
         info = self.data_infos[index]
+        # if info['vehicle_image_path'] ==  'vehicle-side/image/000010.jpg':
+        #     print(index)
+        #     exit()
         rect = info['calib']['R0_rect'].astype(np.float32)
         Trv2c = info['calib']['Tr_velo_to_cam'].astype(np.float32)
 
@@ -281,12 +284,12 @@ class V2XDataset(Custom3DDataset):
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
 
         # convert gt_bboxes_3d to velodyne coordinates
-        # if index == 0:
+        # if index == 728:
         #     print(gt_bboxes_3d)
         #     print(rect @ Trv2c)
         gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
         gt_bboxes = annos['bbox']
-        # if index == 0:
+        # if index == 728:
         #     print(gt_bboxes_3d)
         #     exit()
 
