@@ -122,7 +122,7 @@ test_dataloader = dict(
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
-val_evaluator = dict(type='V2XKittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', backend_args=backend_args)
+val_evaluator = dict(type='V2XKittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args)
 test_evaluator = val_evaluator
 
 vis_backends = [dict(type='LocalVisBackend')]
@@ -141,4 +141,4 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=1)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)

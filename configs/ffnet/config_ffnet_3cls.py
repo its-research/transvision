@@ -6,7 +6,7 @@ data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
 data_info_train_path = 'flow_data_jsons/flow_data_info_train_2.json'
 data_info_val_path = 'flow_data_jsons/flow_data_info_val_2.json'
 flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
-pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40.pth'
+pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40_1.pth'
 work_dir = './ffnet_work_dir/work_dir_ffnet'
 
 class_names = ['Pedestrian', 'Cyclist', 'Car']
@@ -188,7 +188,7 @@ test_dataloader = dict(
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
-val_evaluator = dict(type='V2XKittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', backend_args=backend_args)
+val_evaluator = dict(type='V2XKittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args)
 test_evaluator = val_evaluator
 
 vis_backends = [dict(type='LocalVisBackend')]

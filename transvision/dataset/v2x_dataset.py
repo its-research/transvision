@@ -328,18 +328,11 @@ class V2XDataset(Det3DDataset):
         rots = annos['rotation_y']
         gt_names = annos['name']
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
-        # if index == 0:
-        #     print(annos)
-        #     print(gt_bboxes_3d)
-        #     print(rect @ Trv2c)
 
         # convert gt_bboxes_3d to velodyne coordinates
         gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
         # gt_bboxes_3d = LiDARInstance3DBoxes(gt_bboxes_3d) # 不进行坐标转换
         gt_bboxes = annos['bbox']
-        # if index == 0:
-        #     print(gt_bboxes_3d)
-        #     exit()
 
         selected = self.drop_arrays_by_name(gt_names, ['DontCare'])
         gt_bboxes = gt_bboxes[selected].astype('float32')
