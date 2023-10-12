@@ -1,5 +1,5 @@
 dataset_type = 'KittiDataset'
-data_root = '../../../../data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/'
+data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/'
 class_names = ['Pedestrian', 'Cyclist', 'Car']
 # point_cloud_range = [0, -39.68, -3, 69.12, 39.68, 1]
 point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
