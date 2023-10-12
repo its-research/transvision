@@ -6,7 +6,7 @@ data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
 data_info_train_path = 'flow_data_jsons/flow_data_info_train_2.json'
 data_info_val_path = 'flow_data_jsons/flow_data_info_val_2.json'
 flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
-pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40_1.pth'
+pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40.pth'
 work_dir = './ffnet_work_dir/work_dir_ffnet'
 
 class_names = ['Pedestrian', 'Cyclist', 'Car']
@@ -43,7 +43,7 @@ model = dict(
                 [point_cloud_range[0], point_cloud_range[1], z_center_cyclist, point_cloud_range[3], point_cloud_range[4], z_center_cyclist],
                 [point_cloud_range[0], point_cloud_range[1], z_center_car, point_cloud_range[3], point_cloud_range[4], z_center_car],
             ],
-            sizes=[[0.6, 0.8, 1.73], [0.6, 1.76, 1.73], [1.6, 3.9, 1.56]],
+            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False,
         ),
@@ -196,7 +196,7 @@ visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.008
+lr = 0.0018
 epoch_num = 10
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
@@ -207,5 +207,5 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=5)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=1)
 find_unused_parameters = True
