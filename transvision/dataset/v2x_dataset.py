@@ -9,8 +9,8 @@ from typing import List, Optional, Union
 import numpy as np
 from mmdet3d.datasets import Det3DDataset
 from mmdet3d.registry import DATASETS
-from mmdet3d.structures import CameraInstance3DBoxes
-# from mmdet3d.structures import LiDARInstance3DBoxes, limit_period
+from mmdet3d.structures import CameraInstance3DBoxes, limit_period
+# from mmdet3d.structures import LiDARInstance3DBoxes
 from mmengine.fileio import dump, join_path, load
 
 # TODO https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/datasets/det3d_dataset.py#L218
@@ -88,13 +88,13 @@ class V2XDataset(Det3DDataset):
         location_cam = extended_xyz @ calib_lidar2cam.T
         location_cam = location_cam[:3]
 
-        dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
-        rotation_y = rotation
+        # dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
+        # rotation_y = rotation
 
-        # dimension_cam = [dimension['h'], dimension['l'], dimension['w']]  # 交换前两项, 适配1.*版本
-        # rotation_y = rotation - np.pi / 2
-        # rotation_y = limit_period(rotation_y, period=np.pi * 2)
-        # rotation_y = -rotation_y
+        dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
+        # rotation_y = -rotation - np.pi / 2  # or -rotation
+        rotation_y = rotation
+        rotation_y = limit_period(rotation_y, period=np.pi * 2)
 
         # TODO: hard code by yuhb
         alpha = -10.0
@@ -327,7 +327,7 @@ class V2XDataset(Det3DDataset):
         gt_names = annos['name']
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
 
-        # convert gt_bboxes_3d to velodyne coordinates
+        # # convert gt_bboxes_3d to velodyne coordinates
         # if index == 728:
         #     print(gt_bboxes_3d[0])
         #     print(rect @ Trv2c)
