@@ -4,6 +4,7 @@ dataset_type = 'V2XDataset'
 data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
 data_info_train_path = 'flow_data_jsons/flow_data_info_train.json'
 data_info_val_path = 'flow_data_jsons/flow_data_info_val_0.json'
+data_info_val_path = 'flow_data_jsons/flow_data_info_train.json'
 work_dir = './ffnet_work_dir/work_dir_baseline-V1'
 
 input_modality = dict(use_lidar=True, use_camera=False)
@@ -141,4 +142,4 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=1)
