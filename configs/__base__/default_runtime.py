@@ -14,7 +14,7 @@ env_cfg = dict(
     dist_cfg=dict(backend='nccl'),
 )
 
-log_processor = dict(type='LogProcessor', window_size=50, by_epoch=True)
+log_processor = dict(type='LogProcessor', window_size=100, by_epoch=True)
 
 log_level = 'INFO'
 load_from = None

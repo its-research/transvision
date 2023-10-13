@@ -1,13 +1,12 @@
 # Copyright (c) DAIR-V2X (AIR). All rights reserved.
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
-from mmdet3d.models import Base3DDetector
-from mmdet3d.models.data_preprocessors.voxelize import VoxelizationByGridShape
+from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import Det3DDataSample
+from mmdet3d.utils import ConfigType, OptConfigType, OptMultiConfig
 # from mmcv.runner import force_fp32
-from mmdet3d.utils import OptSampleList
 from torch import Tensor
 from torch import nn as nn
 from torch.nn import functional as F
@@ -59,43 +58,33 @@ class PixelWeightedFusion(nn.Module):
 
 
 @MODELS.register_module()
-class V2XVoxelNet(Base3DDetector):
+class V2XVoxelNet(SingleStage3DDetector):
     r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
-    def __init__(self, voxel_layer, voxel_encoder, middle_encoder, backbone, neck=None, bbox_head=None, train_cfg=None, test_cfg=None, data_preprocessor=None, init_cfg=None):
-        super().__init__(data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+    def __init__(self,
+                 voxel_encoder: ConfigType,
+                 middle_encoder: ConfigType,
+                 backbone: ConfigType,
+                 neck: OptConfigType = None,
+                 bbox_head: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None) -> None:
+        super().__init__(backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, data_preprocessor=data_preprocessor, init_cfg=init_cfg)
 
-        self.voxel_layer = VoxelizationByGridShape(**voxel_layer)
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
-        self.backbone = MODELS.build(backbone)
-        if neck is not None:
-            self.neck = MODELS.build(neck)
 
-        bbox_head.update(train_cfg=train_cfg)
-        bbox_head.update(test_cfg=test_cfg)
-        self.bbox_head = MODELS.build(bbox_head)
-
-        self.train_cfg = train_cfg
-        self.test_cfg = test_cfg
-
-        self.inf_voxel_layer = VoxelizationByGridShape(**voxel_layer)
-        self.inf_voxel_encoder = MODELS.build(voxel_encoder)
-        self.inf_middle_encoder = MODELS.build(middle_encoder)
         self.inf_backbone = MODELS.build(backbone)
         if neck is not None:
             self.inf_neck = MODELS.build(neck)
+        self.inf_voxel_encoder = MODELS.build(voxel_encoder)
+        self.inf_middle_encoder = MODELS.build(middle_encoder)
 
         # TODO: channel configuration
         self.fusion_weighted = PixelWeightedFusion(384)
         self.encoder = ReduceInfTC(768)
-
-    def _forward(self, batch_inputs: Tensor, batch_data_samples: OptSampleList = None):
-        """Network forward process.
-
-        Usually includes backbone, neck and head forward without any post- processing.
-        """
-        pass
 
     def generate_matrix(self, theta, x0, y0):
         import numpy as np
@@ -111,23 +100,23 @@ class V2XVoxelNet(Base3DDetector):
         matrix[2, 2] = 1
         return matrix
 
-    def extract_feat(self, points, points_view='vehicle'):
+    def extract_feat(self, batch_inputs_dict: Dict[str, Tensor], points_view='vehicle') -> Union[Tuple[torch.Tensor], Dict[str, Tensor]]:
         """Extract features from points."""
         if points_view == 'vehicle':
-            voxels, num_points, coors = self.voxelize(points)
-            voxel_features = self.voxel_encoder(voxels, num_points, coors)
-            batch_size = coors[-1, 0].item() + 1
-            veh_x = self.middle_encoder(voxel_features, coors, batch_size)
+            voxel_dict = batch_inputs_dict['voxels']
+            voxel_features = self.voxel_encoder(voxel_dict['voxels'], voxel_dict['num_points'], voxel_dict['coors'])
+            batch_size = voxel_dict['coors'][-1, 0].item() + 1
+            veh_x = self.middle_encoder(voxel_features, voxel_dict['coors'], batch_size)
             veh_x = self.backbone(veh_x)
             if self.with_neck:
                 veh_x = self.neck(veh_x)
             return veh_x
 
         elif points_view == 'infrastructure':
-            inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(points)
-            inf_voxel_features = self.inf_voxel_encoder(inf_voxels, inf_num_points, inf_coors)
-            inf_batch_size = inf_coors[-1, 0].item() + 1
-            inf_x = self.inf_middle_encoder(inf_voxel_features, inf_coors, inf_batch_size)
+            inf_voxel_dict = batch_inputs_dict['infrastructure_voxels']
+            inf_voxel_features = self.voxel_encoder(inf_voxel_dict['voxels'], inf_voxel_dict['num_points'], inf_voxel_dict['coors'])
+            inf_batch_size = inf_voxel_dict['coors'][-1, 0].item() + 1
+            inf_x = self.inf_middle_encoder(inf_voxel_features, inf_voxel_dict['coors'], inf_batch_size)
             inf_x = self.inf_backbone(inf_x)
             if self.with_neck:
                 inf_x = self.inf_neck(inf_x)
@@ -140,40 +129,15 @@ class V2XVoxelNet(Base3DDetector):
     def feature_fusion(self, veh_x, inf_x, img_metas, mode='fusion'):
         """Method II: Based on affine transformation."""
         wrap_feats_ii = []
-        '''
-        for ii in range(len(veh_x[0])):
-            inf_feature = inf_x[0][ii:ii+1]
-            veh_feature = veh_x[0][ii:ii+1]
+        point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
-            calib_inf2veh_rotation = img_metas[ii]['inf2veh']['rotation']
-            calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
-            inf_pointcloud_range = self.inf_voxel_layer.point_cloud_range
-            # theta_rot = [[cos(-theta), sin(-theta), 0.0], [cos(-theta), sin(-theta), 0.0]], theta is in the lidar coordinate.
-            # according to the relationship between lidar coordinate system and input coordinate system.
-            theta_rot = torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0],
-                                      [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0]]).type(dtype=torch.float).cuda(next(self.parameters()).device)
-            theta_rot = torch.unsqueeze(theta_rot, 0)
-            grid_rot = F.affine_grid(theta_rot, size=torch.Size(veh_feature.shape), align_corners=False)
-            # range: [-1, 1].
-            # Moving right and down is negative.
-            x_trans = -2 * calib_inf2veh_translation[0][0] / (inf_pointcloud_range[3] - inf_pointcloud_range[0])
-            y_trans = -2 * calib_inf2veh_translation[1][0] / (inf_pointcloud_range[4] - inf_pointcloud_range[1])
-            theta_trans = torch.tensor([[1.0, 0.0, x_trans], [0.0, 1.0, y_trans]]).type(dtype=torch.float).cuda(next(self.parameters()).device)
-            theta_trans = torch.unsqueeze(theta_trans, 0)
-            grid_trans = F.affine_grid(theta_trans, size=torch.Size(veh_feature.shape), align_corners=False)
-
-            warp_feat_rot = F.grid_sample(inf_feature, grid_rot, mode='bilinear', align_corners=False)
-            warp_feat_trans = F.grid_sample(warp_feat_rot, grid_trans, mode='bilinear', align_corners=False)
-
-            wrap_feats_ii.append(warp_feat_trans)
-        '''
         for ii in range(len(veh_x[0])):
             inf_feature = inf_x[0][ii:ii + 1]
             veh_feature = veh_x[0][ii:ii + 1]
 
             calib_inf2veh_rotation = img_metas[ii]['inf2veh']['rotation']
             calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
-            inf_pointcloud_range = self.inf_voxel_layer.point_cloud_range
+            inf_pointcloud_range = point_cloud_range
 
             theta_rot = torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
                                       [0, 0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device)
@@ -201,74 +165,7 @@ class V2XVoxelNet(Base3DDetector):
 
         return veh_cat_feats
 
-    @torch.no_grad()
-    # @force_fp32()
-    def voxelize(self, points):
-        """Apply hard voxelization to points."""
-        voxels, coors, num_points = [], [], []
-        for res in points:
-            res_voxels, res_coors, res_num_points = self.voxel_layer(res)
-            voxels.append(res_voxels)
-            coors.append(res_coors)
-            num_points.append(res_num_points)
-        voxels = torch.cat(voxels, dim=0)
-        num_points = torch.cat(num_points, dim=0)
-        coors_batch = []
-        for i, coor in enumerate(coors):
-            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-            coors_batch.append(coor_pad)
-        coors_batch = torch.cat(coors_batch, dim=0)
-        return voxels, num_points, coors_batch
-
-    @torch.no_grad()
-    # @force_fp32()
-    def inf_voxelize(self, points):
-        """Apply hard voxelization to points."""
-        voxels, coors, num_points = [], [], []
-        for res in points:
-            res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
-            voxels.append(res_voxels)
-            coors.append(res_coors)
-            num_points.append(res_num_points)
-        voxels = torch.cat(voxels, dim=0)
-        num_points = torch.cat(num_points, dim=0)
-        coors_batch = []
-        for i, coor in enumerate(coors):
-            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-            coors_batch.append(coor_pad)
-        coors_batch = torch.cat(coors_batch, dim=0)
-        return voxels, num_points, coors_batch
-
-    def points_grid(self, points, point_cloud_range, voxel_size, feature_shape):
-        """Assign each points with id.
-        Args:
-            feature_shape: N * C * H * W
-        Returns:
-            points_grids: N * 5, 0 - idx in H * W, [1, 2] - h, w idx in [H, W], [3, 4] - [0, 1] range for [H, W]
-        Comment:
-            LiDAR Coordinate Systems: x - forward, y - left, z - upward
-        """
-        origin_size_x = (point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0]
-        feat_scale = origin_size_x / feature_shape[3]
-
-        points_grids = torch.zeros(len(points), 3).cuda()
-        range_start_x = point_cloud_range[0]
-        range_lenth_x = point_cloud_range[3] - point_cloud_range[0]
-        voxel_size_x = voxel_size[0] * feat_scale
-        W_L = range_lenth_x / voxel_size_x
-
-        range_start_y = point_cloud_range[1]
-        range_lenth_y = point_cloud_range[4] - point_cloud_range[1]
-        voxel_size_y = voxel_size[1] * feat_scale
-        H_L = range_lenth_y / voxel_size_y
-
-        points_grids[:, 1] = torch.round((points[:, 1] - range_start_y) / voxel_size_y)
-        points_grids[:, 2] = torch.round((points[:, 0] - range_start_x) / voxel_size_x)
-        points_grids[:, 0] = points_grids[:, 1] * W_L + points_grids[:, 2]
-
-        return points_grids, int(H_L), int(W_L)
-
-    def _forward_train(self, points, infrastructure_points=None, img_metas=None):
+    def _forward_train(self, batch_inputs_dict: Dict[str, Optional[Tensor]], img_metas=None):
         """Training forward function.
 
         Args:
@@ -284,10 +181,9 @@ class V2XVoxelNet(Base3DDetector):
         Returns:
             dict: Losses of each branch.
         """
-        for ii in range(len(infrastructure_points)):
-            infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
-        feat_veh = self.extract_feat(points, points_view='vehicle')
-        feat_inf = self.extract_feat(infrastructure_points, points_view='infrastructure')
+
+        feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
+        feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
         outs = self.bbox_head(feat_fused)
         return outs
@@ -304,19 +200,19 @@ class V2XVoxelNet(Base3DDetector):
 
         # https://github.com/open-mmlab/mmdetection3d/blob/v1.2.0/mmdet3d/models/dense_heads/base_3d_dense_head.py#L68
 
-        outs = self._forward_train(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas)
+        outs = self._forward_train(batch_inputs_dict, batch_input_metas)
         loss_inputs = outs + (batch_gt_instances_3d, batch_input_metas, batch_gt_instances_ignore)
         losses = self.bbox_head.loss_by_feat(*loss_inputs)
 
         return losses
 
-    def simple_test(self, points, infrastructure_points, img_metas, batch_data_samples, imgs=None, rescale=False):
+    def simple_test(self, batch_inputs_dict: Dict[str, Optional[Tensor]], img_metas, batch_data_samples, imgs=None, rescale=False):
         """Test function without augmentaiton."""
-        for ii in range(len(infrastructure_points)):
-            infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
+        # for ii in range(len(infrastructure_points)):
+        #     infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
 
-        feat_veh = self.extract_feat(points, points_view='vehicle')
-        feat_inf = self.extract_feat(infrastructure_points, points_view='infrastructure')
+        feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
+        feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
 
         # outs = self.bbox_head(feat_fused)
@@ -328,7 +224,6 @@ class V2XVoxelNet(Base3DDetector):
         return bbox_list
 
     def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
-
         batch_input_metas = [item.metainfo for item in batch_data_samples]
         batch_gt_instances_3d = []
         batch_gt_instances_ignore = []
@@ -338,12 +233,7 @@ class V2XVoxelNet(Base3DDetector):
             batch_gt_instances_3d.append(data_sample.gt_instances_3d)
             batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
 
-        bbox_results = self.simple_test(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas, batch_data_samples)
+        bbox_results = self.simple_test(batch_inputs_dict, batch_input_metas, batch_data_samples)
         res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
 
         return res
-
-    def aug_test(self, points, img_metas, imgs=None, rescale=False):
-        """Test function with augmentaiton."""
-
-        return None

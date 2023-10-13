@@ -49,3 +49,9 @@ i15 = str(-eval(str(item["rotation"])))
 ### 6. AttributeError: 'str' object has no attribute 'new_zeros'
 
 undefine loss function
+
+### 7. AttributeError: module 'numpy' has no attribute 'long'
+
+```python
+    pip install 'numpy==1.23.5'
+```
