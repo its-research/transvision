@@ -1,10 +1,7 @@
-# Copyright (c) DAIR-V2X (AIR). All rights reserved.
 import copy
-import json
 import os
 import pickle
-from os import path as osp
-from typing import List, Optional, Union
+from typing import Callable, List, Union
 
 import numpy as np
 from mmdet3d.datasets import Det3DDataset
@@ -29,33 +26,34 @@ class V2XDataset(Det3DDataset):
     }
 
     def __init__(self,
-                 data_root,
-                 ann_file,
-                 split,
-                 data_prefix='velodyne',
-                 pipeline=None,
-                 modality=None,
-                 box_type_3d='LiDAR',
-                 filter_empty_gt=True,
-                 test_mode=False,
-                 metainfo: Optional[dict] = None,
-                 backend_args: Optional[dict] = None,
-                 pcd_limit_range=[0, -40, -3, 70.4, 40, 0.0]):
+                 data_root: str,
+                 ann_file: str,
+                 pipeline: List[Union[dict, Callable]] = [],
+                 data_prefix: str = 'velodyne',
+                 modality: dict = dict(use_lidar=True),
+                 default_cam_key: str = 'CAM2',
+                 load_type: str = 'frame_based',
+                 box_type_3d: str = 'LiDAR',
+                 filter_empty_gt: bool = True,
+                 test_mode: bool = False,
+                 pcd_limit_range: List[float] = [0, -40, -3, 70.4, 40, 0.0],
+                 **kwargs) -> None:
+
+        self.pcd_limit_range = pcd_limit_range
+        assert load_type in ('frame_based', 'mv_image_based', 'fov_image_based')
+        self.load_type = load_type
         super().__init__(
             data_root=data_root,
             ann_file=ann_file,
             pipeline=pipeline,
             modality=modality,
+            default_cam_key=default_cam_key,
             box_type_3d=box_type_3d,
             filter_empty_gt=filter_empty_gt,
             test_mode=test_mode,
-            metainfo=metainfo)
-        self.backend_args = backend_args
-        self.split = split
-        self.root_split = os.path.join(self.data_root, split)
+            **kwargs)
         assert self.modality is not None
-        self.pcd_limit_range = pcd_limit_range
-        self.data_prefix = data_prefix
+        assert box_type_3d.lower() in ('lidar', 'camera')
 
     def load_data_list(self) -> List[dict]:
         annotations = load(self.ann_file)
@@ -77,22 +75,13 @@ class V2XDataset(Det3DDataset):
 
         return data_list
 
-    def __my_read_json(self, path_json):
-        with open(path_json, 'r') as load_f:
-            my_json = json.load(load_f)
-        return my_json
-
     def __box_convert_lidar2cam(self, location, dimension, rotation, calib_lidar2cam):
         location['z'] = location['z'] - dimension['h'] / 2
         extended_xyz = np.array([location['x'], location['y'], location['z'], 1])
         location_cam = extended_xyz @ calib_lidar2cam.T
         location_cam = location_cam[:3]
 
-        # dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
-        # rotation_y = rotation
-
         dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
-        # rotation_y = -rotation - np.pi / 2  # or -rotation
         rotation_y = rotation
         rotation_y = limit_period(rotation_y, period=np.pi * 2)
 
@@ -116,7 +105,7 @@ class V2XDataset(Det3DDataset):
             # data_info = self.parse_data_info(raw_data_info)
             data_info = raw_data_info
             anno_path = os.path.join(self.data_root, data_info['cooperative_label_w2v_path'])
-            annos = self.__my_read_json(anno_path)
+            annos = load(anno_path)
             kitti_annos = {}
             kitti_annos['name'] = []
             kitti_annos['occluded'] = []
@@ -129,9 +118,9 @@ class V2XDataset(Det3DDataset):
             kitti_annos['bbox'] = []
 
             calib_v_lidar2cam_filename = os.path.join(self.data_root, data_info['calib_v_lidar2cam_path'])
-            calib_v_lidar2cam = self.__my_read_json(calib_v_lidar2cam_filename)
+            calib_v_lidar2cam = load(calib_v_lidar2cam_filename)
             calib_v_cam_intrinsic_filename = os.path.join(self.data_root, data_info['calib_v_cam_intrinsic_path'])
-            calib_v_cam_intrinsic = self.__my_read_json(calib_v_cam_intrinsic_filename)
+            calib_v_cam_intrinsic = load(calib_v_cam_intrinsic_filename)
             rect = np.identity(4)
             Trv2c = np.identity(4)
             Trv2c[0:3, 0:3] = calib_v_lidar2cam['rotation']
@@ -185,23 +174,13 @@ class V2XDataset(Det3DDataset):
         Returns:
             list or list[dict]: Parsed annotation.
         """
+        print(raw_data_info)
+        exit()
         for prefix_key, prefix in self.data_prefix.items():
             assert prefix_key in raw_data_info, (f'raw_data_info: {raw_data_info} dose not contain prefix key'
                                                  f'{prefix_key}, please check your data_prefix.')
             raw_data_info[prefix_key] = join_path(prefix, raw_data_info[prefix_key])
         return raw_data_info
-
-    def _get_pts_filename(self, idx):
-        """Get point cloud filename according to the given index.
-
-        Args:
-            index (int): Index of the point cloud file to get.
-
-        Returns:
-            str: Name of the point cloud file.
-        """
-        pts_filename = osp.join(self.root_split, self.data_prefix, f'{idx:06d}.bin')
-        return pts_filename
 
     def get_data_info(self, index: int) -> dict:
         """Get data info according to the given index.
@@ -242,7 +221,7 @@ class V2XDataset(Det3DDataset):
         veh_img_filename = os.path.join(self.data_root, data_info['vehicle_image_path'])
 
         calib_inf2veh_filename = os.path.join(self.data_root, data_info['calib_lidar_i2v_path'])
-        calib_inf2veh = self.__my_read_json(calib_inf2veh_filename)
+        calib_inf2veh = load(calib_inf2veh_filename)
 
         # TODO: consider use torch.Tensor only
         rect = data_info['calib']['R0_rect'].astype(np.float32)
@@ -320,7 +299,7 @@ class V2XDataset(Det3DDataset):
 
         annos = info['annos']
         # we need other objects to avoid collision when sample
-        annos = self.remove_dontcare(annos)
+        # annos = self._remove_dontcare(annos)
         loc = annos['location']
         dims = annos['dimensions']
         rots = annos['rotation_y']
@@ -336,10 +315,7 @@ class V2XDataset(Det3DDataset):
         #     print(gt_bboxes_3d[0])
         #     exit()
 
-        gt_bboxes = annos['bbox']
-        selected = self.drop_arrays_by_name(gt_names, ['DontCare'])
-        gt_bboxes = gt_bboxes[selected].astype('float32')
-        gt_names = gt_names[selected]
+        gt_bboxes = annos['bbox'].astype('float32')
 
         gt_labels = []
         for cat in gt_names:
@@ -352,47 +328,3 @@ class V2XDataset(Det3DDataset):
 
         anns_results = dict(gt_bboxes_3d=gt_bboxes_3d, gt_labels_3d=gt_labels_3d, bboxes=gt_bboxes, labels=gt_labels, gt_names=gt_names)
         return anns_results
-
-    def drop_arrays_by_name(self, gt_names, used_classes):
-        """Drop irrelevant ground truths by name.
-
-        Args:
-            gt_names (list[str]): Names of ground truths.
-            used_classes (list[str]): Classes of interest.
-
-        Returns:
-            np.ndarray: Indices of ground truths that will be dropped.
-        """
-        inds = [i for i, x in enumerate(gt_names) if x not in used_classes]
-        inds = np.array(inds, dtype=np.int64)
-        return inds
-
-    def keep_arrays_by_name(self, gt_names, used_classes):
-        """Keep useful ground truths by name.
-
-        Args:
-            gt_names (list[str]): Names of ground truths.
-            used_classes (list[str]): Classes of interest.
-
-        Returns:
-            np.ndarray: Indices of ground truths that will be keeped.
-        """
-        inds = [i for i, x in enumerate(gt_names) if x in used_classes]
-        inds = np.array(inds, dtype=np.int64)
-        return inds
-
-    def remove_dontcare(self, ann_info):
-        """Remove annotations that do not need to be cared.
-
-        Args:
-            ann_info (dict): Dict of annotation infos. The ``'DontCare'``
-                annotations will be removed according to ann_file['name'].
-
-        Returns:
-            dict: Annotations after filtering.
-        """
-        img_filtered_annotations = {}
-        relevant_annotation_indices = [i for i, x in enumerate(ann_info['name']) if x != 'DontCare']
-        for key in ann_info.keys():
-            img_filtered_annotations[key] = (ann_info[key][relevant_annotation_indices])
-        return img_filtered_annotations

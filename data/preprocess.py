@@ -209,12 +209,6 @@ def label_world2vlidar(sub_root, idx):
 
         lidar_3d_data['world_8_points'] = world_8_points
 
-        # # l, w, h
-        # # l h w -- w l h -- l, w, h
-        # # dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
-        # dimension_cam = [dimension['h'], dimension['l'], dimension['w']]
-        # # rotation_y = -rotation
-        # rotation_y = -rotation - np.pi / 2
         lidar_3d_list.append(lidar_3d_data)
     write_json(path_output_label_file, lidar_3d_list)
 
