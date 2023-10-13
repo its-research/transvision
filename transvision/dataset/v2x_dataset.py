@@ -8,7 +8,7 @@ from mmdet3d.datasets import Det3DDataset
 from mmdet3d.registry import DATASETS
 from mmdet3d.structures import CameraInstance3DBoxes, limit_period
 # from mmdet3d.structures import LiDARInstance3DBoxes
-from mmengine.fileio import dump, join_path, load
+from mmengine.fileio import load
 
 # TODO https://github.com/open-mmlab/mmdetection3d/blob/main/mmdet3d/datasets/det3d_dataset.py#L218
 
@@ -55,26 +55,6 @@ class V2XDataset(Det3DDataset):
         assert self.modality is not None
         assert box_type_3d.lower() in ('lidar', 'camera')
 
-    def load_data_list(self) -> List[dict]:
-        annotations = load(self.ann_file)
-        if not isinstance(annotations, dict):
-            raise TypeError(f'The annotations loaded from annotation file '
-                            f'should be a dict, but got {type(annotations)}!')
-        if 'data_list' not in annotations or 'metainfo' not in annotations:
-            raise ValueError('Annotation must have data_list and metainfo '
-                             'keys')
-        self._metainfo = annotations['metainfo']
-
-        # metainfo = annotations['metainfo']
-        raw_data_list = annotations['data_list']
-
-        data_list = self.__load_v2x_annotations(raw_data_list)
-
-        annotations['data_list'] = data_list
-        dump(annotations, self.ann_file)
-
-        return data_list
-
     def __box_convert_lidar2cam(self, location, dimension, rotation, calib_lidar2cam):
         location['z'] = location['z'] - dimension['h'] / 2
         extended_xyz = np.array([location['x'], location['y'], location['z'], 1])
@@ -90,7 +70,7 @@ class V2XDataset(Det3DDataset):
 
         return location_cam, dimension_cam, rotation_y, alpha
 
-    def __load_v2x_annotations(self, raw_data_list):
+    def parse_data_info(self, raw_data_info: dict) -> Union[dict, List[dict]]:
         """Load annotations from dair-v2x
         Args:
             dict_keys(['name', 'truncated', 'occluded',
@@ -100,87 +80,61 @@ class V2XDataset(Det3DDataset):
         Returns:
             Dict
         """
-        data_list = []
-        for raw_data_info in raw_data_list:
-            # data_info = self.parse_data_info(raw_data_info)
-            data_info = raw_data_info
-            anno_path = os.path.join(self.data_root, data_info['cooperative_label_w2v_path'])
-            annos = load(anno_path)
-            kitti_annos = {}
-            kitti_annos['name'] = []
-            kitti_annos['occluded'] = []
-            kitti_annos['truncated'] = []
-            kitti_annos['dimensions'] = []
-            kitti_annos['location'] = []
-            kitti_annos['rotation_y'] = []
-            kitti_annos['index'] = []
-            kitti_annos['alpha'] = []
-            kitti_annos['bbox'] = []
+        # data_info = self.parse_data_info(raw_data_info)
+        data_info = raw_data_info
+        anno_path = os.path.join(self.data_root, data_info['cooperative_label_w2v_path'])
+        annos = load(anno_path)
+        kitti_annos = {}
+        kitti_annos['name'] = []
+        kitti_annos['occluded'] = []
+        kitti_annos['truncated'] = []
+        kitti_annos['dimensions'] = []
+        kitti_annos['location'] = []
+        kitti_annos['rotation_y'] = []
+        kitti_annos['index'] = []
+        kitti_annos['alpha'] = []
+        kitti_annos['bbox'] = []
 
-            calib_v_lidar2cam_filename = os.path.join(self.data_root, data_info['calib_v_lidar2cam_path'])
-            calib_v_lidar2cam = load(calib_v_lidar2cam_filename)
-            calib_v_cam_intrinsic_filename = os.path.join(self.data_root, data_info['calib_v_cam_intrinsic_path'])
-            calib_v_cam_intrinsic = load(calib_v_cam_intrinsic_filename)
-            rect = np.identity(4)
-            Trv2c = np.identity(4)
-            Trv2c[0:3, 0:3] = calib_v_lidar2cam['rotation']
-            Trv2c[0:3, 3] = [calib_v_lidar2cam['translation'][0][0], calib_v_lidar2cam['translation'][1][0], calib_v_lidar2cam['translation'][2][0]]
-            P2 = np.identity(4)
-            P2[0:3, 0:3] = np.array(calib_v_cam_intrinsic['cam_K']).reshape(3, 3)
-            data_info['calib'] = {}
-            data_info['calib']['R0_rect'] = rect
-            data_info['calib']['Tr_velo_to_cam'] = Trv2c
-            data_info['calib']['P2'] = P2
+        calib_v_lidar2cam_filename = os.path.join(self.data_root, data_info['calib_v_lidar2cam_path'])
+        calib_v_lidar2cam = load(calib_v_lidar2cam_filename)
+        calib_v_cam_intrinsic_filename = os.path.join(self.data_root, data_info['calib_v_cam_intrinsic_path'])
+        calib_v_cam_intrinsic = load(calib_v_cam_intrinsic_filename)
+        rect = np.identity(4)
+        Trv2c = np.identity(4)
+        Trv2c[0:3, 0:3] = calib_v_lidar2cam['rotation']
+        Trv2c[0:3, 3] = [calib_v_lidar2cam['translation'][0][0], calib_v_lidar2cam['translation'][1][0], calib_v_lidar2cam['translation'][2][0]]
+        P2 = np.identity(4)
+        P2[0:3, 0:3] = np.array(calib_v_cam_intrinsic['cam_K']).reshape(3, 3)
+        data_info['calib'] = {}
+        data_info['calib']['R0_rect'] = rect
+        data_info['calib']['Tr_velo_to_cam'] = Trv2c
+        data_info['calib']['P2'] = P2
 
-            for idx, anno in enumerate(annos):
-                location, dimensions, rotation_y, alpha = self.__box_convert_lidar2cam(anno['3d_location'], anno['3d_dimensions'], anno['rotation'], Trv2c)
-                if dimensions[0] == 0.0:
-                    continue
-                anno['bbox_label'] = anno['type'].capitalize()
-                kitti_annos['name'].append(anno['type'].capitalize())
-                kitti_annos['dimensions'].append(dimensions)
-                kitti_annos['location'].append(location)
-                kitti_annos['rotation_y'].append(rotation_y)
-                kitti_annos['alpha'].append(alpha)
-                kitti_annos['index'].append(idx)
-                """ TODO: Valid Bbox"""
-                kitti_annos['occluded'].append(0)
-                kitti_annos['truncated'].append(0)
-                bbox = [0, 0, 100, 100]
-                kitti_annos['bbox'].append(bbox)
+        for idx, anno in enumerate(annos):
+            location, dimensions, rotation_y, alpha = self.__box_convert_lidar2cam(anno['3d_location'], anno['3d_dimensions'], anno['rotation'], Trv2c)
+            if dimensions[0] == 0.0:
+                continue
+            anno['bbox_label'] = anno['type'].capitalize()
+            kitti_annos['name'].append(anno['type'].capitalize())
+            kitti_annos['dimensions'].append(dimensions)
+            kitti_annos['location'].append(location)
+            kitti_annos['rotation_y'].append(rotation_y)
+            kitti_annos['alpha'].append(alpha)
+            kitti_annos['index'].append(idx)
+            """ TODO: Valid Bbox"""
+            kitti_annos['occluded'].append(0)
+            kitti_annos['truncated'].append(0)
+            bbox = [0, 0, 100, 100]
+            kitti_annos['bbox'].append(bbox)
 
-            for name in kitti_annos:
-                kitti_annos[name] = np.array(kitti_annos[name])
+        for name in kitti_annos:
+            kitti_annos[name] = np.array(kitti_annos[name])
 
-            data_info['annos'] = kitti_annos
-            data_info['kitti_annos'] = kitti_annos
-            data_info['sample_idx'] = data_info['vehicle_idx']
+        data_info['annos'] = kitti_annos
+        data_info['kitti_annos'] = kitti_annos
+        data_info['sample_idx'] = data_info['vehicle_idx']
 
-            data_list.append(data_info)
-
-        return data_list
-
-    def parse_data_info(self, raw_data_info: dict) -> Union[dict, List[dict]]:
-        """Parse raw annotation to target format.
-
-        This method should return dict or list of dict. Each dict or list
-        contains the data information of a training sample. If the protocol of
-        the sample annotations is changed, this function can be overridden to
-        update the parsing logic while keeping compatibility.
-
-        Args:
-            raw_data_info (dict): Raw data information load from ``ann_file``
-
-        Returns:
-            list or list[dict]: Parsed annotation.
-        """
-        print(raw_data_info)
-        exit()
-        for prefix_key, prefix in self.data_prefix.items():
-            assert prefix_key in raw_data_info, (f'raw_data_info: {raw_data_info} dose not contain prefix key'
-                                                 f'{prefix_key}, please check your data_prefix.')
-            raw_data_info[prefix_key] = join_path(prefix, raw_data_info[prefix_key])
-        return raw_data_info
+        return data_info
 
     def get_data_info(self, index: int) -> dict:
         """Get data info according to the given index.
