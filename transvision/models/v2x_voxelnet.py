@@ -277,8 +277,11 @@ class V2XVoxelNet(SingleStage3DDetector):
             infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
         feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
         feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
-        feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
+        # TODO: 通过配置文件控制是否使用infrastructure
+        # feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
+        feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='veh_only')
         outs = self.bbox_head(feat_fused)
+
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
         return losses
@@ -290,7 +293,9 @@ class V2XVoxelNet(SingleStage3DDetector):
 
         feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
         feat_inf = self.extract_feat(infrastructure_points[0], img_metas, points_view='infrastructure')
-        feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
+        # feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
+        # TODO: 通过配置文件控制是否使用infrastructure
+        feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='veh_only')
         outs = self.bbox_head(feat_fused)
         bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
         if len(bbox_list[0][0].tensor) == 0:  # return a zero list when pre is empty

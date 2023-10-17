@@ -69,29 +69,6 @@ data = dict(
                 dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
                 dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
                 dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-                # dict(
-                #     type='ObjectSample',
-                #     db_sampler=dict(
-                #         data_root=data_root,
-                #         info_path=data_root + 'kitti_dbinfos_train.pkl',
-                #         rate=1.0,
-                #         prepare=dict(
-                #             filter_by_difficulty=[-1],
-                #             filter_by_min_points=dict(
-                #                 Car=5)),
-                #         classes=class_names,
-                #         sample_groups=dict(Car=15))),
-                # dict(
-                #     type='ObjectNoise',
-                #     num_try=100,
-                #     translation_std=[0.25, 0.25, 0.25],
-                #     global_rot_range=[0.0, 0.0],
-                #     rot_range=[-0.15707963267, 0.15707963267]),
-                # dict(type='RandomFlip3D', flip_ratio_bev_horizontal=0.5),
-                # dict(
-                #     type='GlobalRotScaleTrans',
-                #     rot_range=[-0.78539816, 0.78539816],
-                #     scale_ratio_range=[0.95, 1.05]),
                 dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
                 dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
                 # dict(type='PointShuffle'),
@@ -99,6 +76,7 @@ data = dict(
                 dict(
                     type='Collect3D',
                     keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+                    # fmt: off
                     meta_keys=(
                         'filename',
                         'ori_shape',
@@ -122,6 +100,7 @@ data = dict(
                         'transformation_3d_flow',
                         'inf2veh',
                     ),
+                    # fmt: on
                 ),
             ],
             modality=dict(use_lidar=True, use_camera=False),
@@ -146,19 +125,11 @@ data = dict(
                 pts_scale_ratio=1,
                 flip=False,
                 transforms=[
-                    # dict(
-                    #     type='GlobalRotScaleTrans',
-                    #     rot_range=[0, 0],
-                    #     scale_ratio_range=[1.0, 1.0],
-                    #     translation_std=[0, 0, 0]),
-                    # dict(type='RandomFlip3D'),
-                    # dict(
-                    #     type='PointsRangeFilter',
-                    #     point_cloud_range=point_cloud_range),
                     dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
                     dict(
                         type='Collect3D',
                         keys=['points', 'infrastructure_points'],
+                        # fmt: off
                         meta_keys=(
                             'filename',
                             'ori_shape',
@@ -182,6 +153,7 @@ data = dict(
                             'transformation_3d_flow',
                             'inf2veh',
                         ),
+                        # fmt: on
                     ),
                 ],
             ),
@@ -207,19 +179,11 @@ data = dict(
                 pts_scale_ratio=1,
                 flip=False,
                 transforms=[
-                    # dict(
-                    #     type='GlobalRotScaleTrans',
-                    #     rot_range=[0, 0],
-                    #     scale_ratio_range=[1.0, 1.0],
-                    #     translation_std=[0, 0, 0]),
-                    # dict(type='RandomFlip3D'),
-                    # dict(
-                    #     type='PointsRangeFilter',
-                    #     point_cloud_range=point_cloud_range),
                     dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
                     dict(
                         type='Collect3D',
                         keys=['points', 'infrastructure_points'],
+                        # fmt: off
                         meta_keys=(
                             'filename',
                             'ori_shape',
@@ -243,6 +207,7 @@ data = dict(
                             'transformation_3d_flow',
                             'inf2veh',
                         ),
+                        # fmt: on
                     ),
                 ],
             ),
@@ -262,7 +227,7 @@ evaluation = dict(
         dict(type='Collect3D', keys=['points']),
     ],
 )
-lr = 0.008
+lr = 0.0018
 optimizer = dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(policy='cyclic', target_ratio=(10, 0.0001), cyclic_times=1, step_ratio_up=0.4)
