@@ -1,12 +1,11 @@
 _base_ = ['../../../__base__/schedules/cyclic-40e.py', '../../../__base__/default_runtime.py']
+dataset_type = 'V2XDatasetV2'
 point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
 voxel_size = [0.16, 0.16, 4]
 
-dataset_type = 'V2XDataset'
-data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
-data_info_train_path = 'flow_data_jsons/flow_data_info_train.json'
-data_info_val_path = 'flow_data_jsons/flow_data_info_val_0.json'
-
+data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/'
+data_info_train_path = 'data_info.json'
+data_info_val_path = 'data_info.json'
 class_names = ['Pedestrian', 'Cyclist', 'Car']
 metainfo = dict(classes=class_names)
 input_modality = dict(use_lidar=True, use_camera=False)
@@ -17,18 +16,18 @@ z_center_car = -1.78
 
 backend_args = None
 
-db_sampler = dict(
-    data_root=data_root,
-    info_path=data_root + 'kitti_dbinfos_train.pkl',
-    rate=1.0,
-    prepare=dict(filter_by_difficulty=[-1], filter_by_min_points=dict(Car=5, Pedestrian=10, Cyclist=10)),
-    classes=class_names,
-    sample_groups=dict(Car=15, Pedestrian=10, Cyclist=10),
-    points_loader=dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
-    backend_args=backend_args)
+# db_sampler = dict(
+#     data_root=data_root,
+#     info_path=data_root + 'kitti_dbinfos_train.pkl',
+#     rate=1.0,
+#     prepare=dict(filter_by_difficulty=[-1], filter_by_min_points=dict(Car=5, Pedestrian=10, Cyclist=10)),
+#     classes=class_names,
+#     sample_groups=dict(Car=15, Pedestrian=10, Cyclist=10),
+#     points_loader=dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
+#     backend_args=backend_args)
 
 train_pipeline = [
-    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args, sensor_view='vehicle'),
+    dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     # dict(type='ObjectSample', db_sampler=db_sampler, use_ground_plane=False),
     dict(type='RandomFlip3D', flip_ratio_bev_horizontal=0.5),
@@ -39,7 +38,7 @@ train_pipeline = [
     dict(type='Pack3DDetInputs', keys=['points', 'gt_labels_3d', 'gt_bboxes_3d'])
 ]
 test_pipeline = [
-    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args, sensor_view='vehicle'),
+    dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
     dict(
         type='MultiScaleFlipAug3D',
         img_scale=(496, 576),  # (1333, 800)
@@ -52,10 +51,7 @@ test_pipeline = [
         ]),
     dict(type='Pack3DDetInputs', keys=['points'])
 ]
-eval_pipeline = [
-    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args, sensor_view='vehicle'),
-    dict(type='Pack3DDetInputs', keys=['points'])
-]
+eval_pipeline = [dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args), dict(type='Pack3DDetInputs', keys=['points'])]
 
 train_dataloader = dict(
     batch_size=6,
@@ -69,7 +65,7 @@ train_dataloader = dict(
             type=dataset_type,
             data_root=data_root,
             ann_file=data_info_train_path,
-            data_prefix=dict(pts='velodyne_reduced'),
+            data_prefix=dict(pts='training/velodyne_reduced'),
             pipeline=train_pipeline,
             modality=input_modality,
             test_mode=False,
@@ -87,7 +83,7 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(pts='velodyne_reduced'),
+        data_prefix=dict(pts='training/velodyne_reduced'),
         ann_file=data_info_val_path,
         pipeline=test_pipeline,
         modality=input_modality,
@@ -104,7 +100,7 @@ test_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(pts='velodyne_reduced'),
+        data_prefix=dict(pts='training/velodyne_reduced'),
         ann_file=data_info_val_path,
         pipeline=test_pipeline,
         modality=input_modality,
@@ -112,7 +108,7 @@ test_dataloader = dict(
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
-val_evaluator = dict(type='V2XKittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args)
+val_evaluator = dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', backend_args=backend_args)
 test_evaluator = val_evaluator
 # optimizer
 lr = 0.001

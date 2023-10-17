@@ -3,7 +3,7 @@ dataset_type = 'KittiDataset'
 point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
 voxel_size = [0.16, 0.16, 4]
 
-data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/'
+data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/'
 class_names = ['Pedestrian', 'Cyclist', 'Car']
 metainfo = dict(classes=class_names)
 input_modality = dict(use_lidar=True, use_camera=False)
