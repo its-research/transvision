@@ -257,7 +257,7 @@ class V2XDataset(Det3DDataset):
         loc = annos['location']
         dims = annos['dimensions']
         rots = annos['rotation_y']
-        gt_names = annos['name']
+
         gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
 
         # # convert gt_bboxes_3d to velodyne coordinates
@@ -272,6 +272,7 @@ class V2XDataset(Det3DDataset):
         gt_bboxes = annos['bbox'].astype('float32')
 
         gt_labels = []
+        gt_names = annos['name']
         for cat in gt_names:
             if cat in self.METAINFO['classes']:
                 gt_labels.append(self.METAINFO['classes'].index(cat))

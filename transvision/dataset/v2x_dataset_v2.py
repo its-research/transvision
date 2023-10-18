@@ -79,6 +79,7 @@ class V2XDatasetV2(Det3DDataset):
         assert load_type in ('frame_based', 'mv_image_based', 'fov_image_based')
         self.load_type = load_type
         self.sensor_view = sensor_view
+
         super().__init__(
             data_root=data_root,
             ann_file=ann_file,
@@ -150,6 +151,11 @@ class V2XDatasetV2(Det3DDataset):
             info['calib']['Tr_velo_to_cam'] = Trv2c
             info['calib']['P2'] = P2
 
+            info['lidar_points'] = {}
+            info['lidar_points']['lidar_path'] = os.path.join(self.data_root, info['pointcloud_path'].replace('pcd', 'bin'))
+
+        instances = []
+
         for idx, anno in enumerate(annos):
             location, dimensions, rotation_y, alpha = self.__box_convert_lidar2cam(anno['3d_location'], anno['3d_dimensions'], anno['rotation'], Trv2c)
             if dimensions[0] == 0.0:
@@ -166,13 +172,27 @@ class V2XDatasetV2(Det3DDataset):
             kitti_annos['truncated'].append(0)
             bbox = [0, 0, 100, 100]
             kitti_annos['bbox'].append(bbox)
+            instance = {}
+            instance['truncated'] = 0
+            instance['occluded'] = 0
+            instance['alpha'] = alpha
+            instance['bbox'] = bbox
+            instance['bbox_3d'] = [location, dimensions, rotation_y]
+            instance['score'] = 1.0
+            instances.append(instance)
 
         for name in kitti_annos:
             kitti_annos[name] = np.array(kitti_annos[name])
 
-        info['annos'] = kitti_annos
+        info['ann_info'] = kitti_annos
+        info['instances'] = instances
         info['kitti_annos'] = kitti_annos
         # info['sample_idx'] = info['vehicle_idx']
+        if not self.test_mode:
+            # used in training
+            info['ann_info'] = self.parse_ann_info(info)
+        if self.test_mode and self.load_eval_anns:
+            info['eval_ann_info'] = self.parse_ann_info(info)
 
         return info
 
@@ -193,7 +213,8 @@ class V2XDatasetV2(Det3DDataset):
                 - difficulty (int): Difficulty defined by KITTI.
                   0, 1, 2 represent xxxxx respectively.
         """
-        ann_info = super().parse_ann_info(info)
+        # ann_info = super().parse_ann_info(info)
+        ann_info = info
 
         if ann_info is None:
             ann_info = dict()
@@ -207,12 +228,39 @@ class V2XDatasetV2(Det3DDataset):
                 ann_info['centers_2d'] = np.zeros((0, 2), dtype=np.float32)
                 ann_info['depths'] = np.zeros((0), dtype=np.float32)
 
-        ann_info = self._remove_dontcare(ann_info)
         # in kitti, lidar2cam = R0_rect @ Tr_velo_to_cam
-        lidar2cam = np.array(info['images']['CAM2']['lidar2cam'])
-        # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
-        gt_bboxes_3d = CameraInstance3DBoxes(ann_info['gt_bboxes_3d']).convert_to(self.box_mode_3d, np.linalg.inv(lidar2cam))
+        rect = ann_info['calib']['R0_rect'].astype(np.float32)
+        Trv2c = ann_info['calib']['Tr_velo_to_cam'].astype(np.float32)
+
+        loc = ann_info['ann_info']['location']
+        dims = ann_info['ann_info']['dimensions']
+        rots = ann_info['ann_info']['rotation_y']
+
+        gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
+
+        # # convert gt_bboxes_3d to velodyne coordinates
+        gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
         ann_info['gt_bboxes_3d'] = gt_bboxes_3d
+
+        gt_names = ann_info['ann_info']['name']
+        gt_labels = []
+        for cat in gt_names:
+            if cat in self.METAINFO['classes']:
+                gt_labels.append(self.METAINFO['classes'].index(cat))
+            else:
+                gt_labels.append(-1)
+        gt_labels = np.array(gt_labels).astype(np.int64)
+        gt_labels_3d = copy.deepcopy(gt_labels)
+
+        ann_info['gt_labels_3d'] = np.array([self.label_mapping[item] for item in gt_labels_3d]).astype(np.int64)
+
+        for label in ann_info['gt_labels_3d']:
+            if label != -1:
+                cat_name = self.metainfo['classes'][label]
+                self.num_ins_per_cat[cat_name] += 1
+
+        ann_info = self._remove_dontcare(ann_info)
+
         return ann_info
 
     def prepare_data(self, index: int) -> Union[dict, None]:
@@ -320,14 +368,8 @@ class V2XDatasetV2(Det3DDataset):
             # parse raw data information to target format
             data_info = self.parse_data_info(raw_data_info)
             if isinstance(data_info, dict):
-                # For image tasks, `data_info` should information if single
-                # image, such as dict(img_path='xxx', width=360, ...)
                 data_list.append(data_info)
             elif isinstance(data_info, list):
-                # For video tasks, `data_info` could contain image
-                # information of multiple frames, such as
-                # [dict(video_path='xxx', timestamps=...),
-                #  dict(video_path='xxx', timestamps=...)]
                 for item in data_info:
                     if not isinstance(item, dict):
                         raise TypeError('data_info must be list of dict, but '
@@ -338,3 +380,26 @@ class V2XDatasetV2(Det3DDataset):
                                 f'but got {type(data_info)}')
 
         return data_list
+
+    def _remove_dontcare(self, ann_info: dict) -> dict:
+        """Remove annotations that do not need to be cared.
+
+        -1 indicates dontcare in MMDet3d.
+
+        Args:
+            ann_info (dict): Dict of annotation infos. The
+                instance with label `-1` will be removed.
+
+        Returns:
+            dict: Annotations after filtering.
+        """
+        img_filtered_annotations = {}
+        filter_mask = ann_info['gt_labels_3d'] > -1
+
+        for key in ann_info.keys():
+            # if key != 'instances':
+            if key == 'gt_bboxes_3d' or key == 'gt_labels_3d':
+                img_filtered_annotations[key] = (ann_info[key][filter_mask])
+            else:
+                img_filtered_annotations[key] = ann_info[key]
+        return img_filtered_annotations

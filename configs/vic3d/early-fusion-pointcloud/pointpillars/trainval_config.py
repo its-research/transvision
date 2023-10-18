@@ -190,7 +190,7 @@ val_evaluator = dict(type='KittiMetric', ann_file=data_root + 'kitti_infos_val.p
 test_evaluator = val_evaluator
 
 # optimizer
-lr = 0.001
+lr = 0.0018
 epoch_num = 80
 optim_wrapper = dict(optimizer=dict(lr=lr), clip_grad=dict(max_norm=35, norm_type=2))
 param_scheduler = [
