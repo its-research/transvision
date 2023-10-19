@@ -40,9 +40,10 @@ if __name__ == '__main__':
 
     ori_dair_infos_train = load(os.path.join(root_path, 'data_info.json'))
 
-    for idx, ori_info in enumerate(tqdm(ori_dair_infos_train)):
+    sample_idx = 0
+
+    for ori_info in tqdm(ori_dair_infos_train):
         data_info = {'sample_idx': 0, 'images': {}, 'lidar_points': {}, 'instances': {}, 'cam_instances': {}}
-        data_info['sample_idx'] = idx
 
         images = {}
         defalut_cam = 'CAM2'
@@ -89,15 +90,11 @@ if __name__ == '__main__':
         images[defalut_cam]['lidar2cam'] = lidar2cam
         images[defalut_cam]['lidar2img'] = P2 @ lidar2cam
 
-        data_info['images'] = images
-
         lidar_points = {}
         lidar_points['num_pts_feats'] = 4  # default value
         lidar_points['lidar_path'] = images[defalut_cam]['img_path'].replace('.jpg', '.bin')
         lidar_points['Tr_velo_to_cam'] = Tr_velo_to_cam.tolist()
         lidar_points['Tr_imu_to_velo'] = Tr_velo_to_cam.tolist()  # equal to Tr_velo_to_cam
-
-        data_info['lidar_points'] = lidar_points
 
         cam_instances = {}
         for cam_idx in range(4):
@@ -105,6 +102,8 @@ if __name__ == '__main__':
 
         cam_labels_path = os.path.join(root_path, 'label/camera', images[defalut_cam]['img_path'].replace('.jpg', '.json'))
         label_infos = load(cam_labels_path)
+        if label_infos == []:
+            continue
         for label_info in label_infos:
 
             cam_instance = {}
@@ -119,6 +118,7 @@ if __name__ == '__main__':
             else:
                 cam_instance['bbox_label'] = -1
                 cam_instance['bbox_label_3d'] = -1
+                continue
 
             h, w, l, x, y, z, yaw_lidar = get_label(label_info)
             z = z - h / 2
@@ -187,13 +187,15 @@ if __name__ == '__main__':
 
             cam_instances[defalut_cam].append(cam_instance)
 
-        data_info['cam_instances'] = cam_instances
-
         instances = []
 
         lidar_labels_path = os.path.join(root_path, 'label/lidar', images[defalut_cam]['img_path'].replace('.jpg', '.json'))
         label_infos = load(lidar_labels_path)
-        for idx, label_info in enumerate(label_infos):
+        if label_infos == []:
+            continue
+
+        object_idx = 0
+        for label_info in label_infos:
             instance = get_empty_instance()
 
             instance['bbox'] = [label_info['2d_box']['xmin'], label_info['2d_box']['ymin'], label_info['2d_box']['xmax'], label_info['2d_box']['ymax']]
@@ -209,8 +211,11 @@ if __name__ == '__main__':
                 instance['bbox_label'] = -1
                 instance['bbox_label_3d'] = -1
                 instance['attr_label'] = -1
+                continue
 
             h, w, l, x, y, z, yaw_lidar = get_label(label_info)
+            if w == 0.0 or h == 0.0 or l == 0.0:
+                continue
             z = z - h / 2
             bottom_center = [x, y, z]
             obj_size = [l, w, h]
@@ -237,16 +242,17 @@ if __name__ == '__main__':
             instance['occluded'] = label_info['occluded_state']
             instance['alpha'] = alpha
             instance['score'] = 0.0
-            instance['index'] = idx
+            instance['index'] = object_idx
             instance['group_id'] = 0
             instance['difficulty'] = 2
+            object_idx += 1
 
-            v_path = os.path.join(root_path, 'velodyne', data_info['lidar_points']['lidar_path'])
-            points_v = np.fromfile(v_path, dtype=np.float32, count=-1).reshape([-1, data_info['lidar_points']['num_pts_feats']])
-            rect = data_info['images']['R0_rect']
-            Trv2c = data_info['lidar_points']['Tr_velo_to_cam']
-            P2 = data_info['images'][defalut_cam]['cam2img']
-            image_shape = [data_info['images'][defalut_cam]['height'], data_info['images'][defalut_cam]['width']]
+            v_path = os.path.join(root_path, 'velodyne', lidar_points['lidar_path'])
+            points_v = np.fromfile(v_path, dtype=np.float32, count=-1).reshape([-1, lidar_points['num_pts_feats']])
+            rect = images['R0_rect']
+            Trv2c = lidar_points['Tr_velo_to_cam']
+            P2 = images[defalut_cam]['cam2img']
+            image_shape = [images[defalut_cam]['height'], images[defalut_cam]['width']]
             points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2, image_shape)
 
             gt_boxes_camera = np.concatenate([loc, dims, rots])
@@ -260,9 +266,14 @@ if __name__ == '__main__':
 
             instances.append(instance)
 
-        data_info['instances'] = instances
+        if instances != []:
+            data_info['sample_idx'] = sample_idx
+            data_info['images'] = images
+            data_info['lidar_points'] = lidar_points
+            data_info['cam_instances'] = cam_instances
+            data_info['instances'] = instances
+            sample_idx += 1
 
-        data_infos['data_list'].append(data_info)
-    # print(data_infos['data_list'][0]['images'])
+            data_infos['data_list'].append(data_info)
 
     dump(data_infos, dair_infos_trainval_path)
