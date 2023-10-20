@@ -104,8 +104,8 @@ class LoadPointsFromFile_w_sensor_view(BaseTransform):
 
                 - points (:obj:`BasePoints`): Point clouds data.
         """
-        if self.sensor_view is not None:
-            pts_file_path = results[self.sensor_view + '_pts_filename']
+        if self.sensor_view == 'infrastructure':
+            pts_file_path = results['lidar_points']['inf_lidar_path']
         else:
             pts_file_path = results['lidar_points']['lidar_path']
         points = self._load_points(pts_file_path)

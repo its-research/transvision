@@ -173,6 +173,7 @@ class Pack3DDetDAIRInputs(BaseTransform):
         gt_pts_seg = PointData()
 
         data_metas = {}
+
         for key in self.meta_keys:
             if key in results:
                 data_metas[key] = results[key]
@@ -194,6 +195,7 @@ class Pack3DDetDAIRInputs(BaseTransform):
             elif 'lidar_points' in results:
                 if key in results['lidar_points']:
                     data_metas[key] = results['lidar_points'][key]
+
         data_sample.set_metainfo(data_metas)
 
         inputs = {}

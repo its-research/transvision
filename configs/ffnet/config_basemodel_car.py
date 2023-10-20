@@ -1,6 +1,6 @@
 _base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py', '../__base__/models/v2x_voxelnet.py']
 
-dataset_type = 'V2XDataset'
+dataset_type = 'V2XDatasetV2'
 data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
 data_info_train_path = 'flow_data_jsons/flow_data_info_train.json'
 data_info_val_path = 'flow_data_jsons/flow_data_info_val_0.json'
@@ -37,8 +37,8 @@ train_pipeline = [
         keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
         # fmt:off
         meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
-                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow',
-                   'inf2veh'),
+                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
+                   'calib'),
         # fmt:on
     )
 ]
@@ -50,8 +50,8 @@ test_pipeline = [
         keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
         # fmt:off
         meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
-                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow',
-                   'inf2veh'),
+                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
+                   'calib'),
         # fmt:on
     )
 ]
@@ -65,8 +65,8 @@ eval_pipeline = [
         keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
         # fmt:off
         meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
-                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow',
-                   'inf2veh'),
+                   'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
+                   'calib'),
         # fmt:on
     )
 ]
@@ -82,9 +82,8 @@ train_dataloader = dict(
         dataset=dict(
             type=dataset_type,
             data_root=data_root,
-            ann_file=data_info_train_path,
-            split='training',
-            data_prefix=dict(pts='velodyne_reduced'),
+            ann_file='dair_infos_train.pkl',
+            data_prefix=dict(pts=''),
             pipeline=train_pipeline,
             modality=input_modality,
             test_mode=False,
@@ -101,9 +100,8 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(pts='velodyne_reduced'),
-        ann_file=data_info_val_path,
-        split='training',
+        data_prefix=dict(pts=''),
+        ann_file='dair_infos_val.pkl',
         pipeline=test_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -120,9 +118,8 @@ test_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(pts='velodyne_reduced'),
-        ann_file=data_info_val_path,
-        split='training',
+        data_prefix=dict(pts=''),
+        ann_file='dair_infos_val.pkl',
         pipeline=test_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -130,7 +127,7 @@ test_dataloader = dict(
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
-val_evaluator = dict(type='V2XKittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', backend_args=backend_args)
+val_evaluator = dict(type='KittiMetric', ann_file=data_root + 'dair_infos_val.pkl', metric='bbox', backend_args=backend_args)
 test_evaluator = val_evaluator
 
 vis_backends = [dict(type='LocalVisBackend')]
@@ -153,14 +150,9 @@ train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=1)
 
 model = dict(
     type='V2XVoxelNet',
-    voxel_layer=dict(
-        max_num_points=100,  # max_points_per_voxel
-        point_cloud_range=point_cloud_range,
-        voxel_size=voxel_size,
-        max_voxels=(40000, 40000)),
     data_preprocessor=dict(
         type='Det3DDataDAIRPreprocessor',
-        voxel=False,
+        voxel=True,
         voxel_layer=dict(
             max_num_points=100,  # max_points_per_voxel
             point_cloud_range=point_cloud_range,
@@ -205,3 +197,4 @@ model = dict(
         pos_weight=-1,
         debug=False),
     test_cfg=dict(use_rotate_nms=False, nms_across_levels=False, nms_thr=0.01, score_thr=0.2, min_bbox_size=0, nms_pre=1000, max_num=300))
+find_unused_parameters = True

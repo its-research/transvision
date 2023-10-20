@@ -39,8 +39,79 @@ def get_metainfo():
     return metainfo
 
 
-def get_calib_info():
-    pass
+def get_calibs(calib_path):
+    calib = load(calib_path)
+    if 'transform' in calib.keys():
+        calib = calib['transform']
+    rotation = calib['rotation']
+    translation = calib['translation']
+    return rotation, translation
+
+
+def rev_matrix(rotation, translation):
+    rotation = np.matrix(rotation)
+    rev_R = rotation.I
+    rev_R = np.array(rev_R)
+    rev_T = -np.dot(rev_R, translation)
+    return rev_R, rev_T
+
+
+def inverse_matrix(R):
+    R = np.matrix(R)
+    rev_R = R.I
+    rev_R = np.array(rev_R)
+    return rev_R
+
+
+def mul_matrix(rotation_1, translation_1, rotation_2, translation_2):
+    rotation_1 = np.matrix(rotation_1)
+    translation_1 = np.matrix(translation_1)
+    rotation_2 = np.matrix(rotation_2)
+    translation_2 = np.matrix(translation_2)
+
+    rotation = rotation_2 * rotation_1
+    translation = rotation_2 * translation_1 + translation_2
+    rotation = np.array(rotation)
+    translation = np.array(translation)
+
+    return rotation, translation
+
+
+def trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2world_path, system_error_offset=None):
+    inf_lidar2world_r, inf_lidar2world_t = get_calibs(inf_lidar2world_path)
+    if system_error_offset is not None:
+        inf_lidar2world_t[0][0] = inf_lidar2world_t[0][0] + system_error_offset['delta_x']
+        inf_lidar2world_t[1][0] = inf_lidar2world_t[1][0] + system_error_offset['delta_y']
+
+    veh_novatel2world_r, veh_novatel2world_t = get_calibs(veh_novatel2world_path)
+    veh_world2novatel_r, veh_world2novatel_t = rev_matrix(veh_novatel2world_r, veh_novatel2world_t)
+    inf_lidar2novatel_r, inf_lidar2novatel_t = mul_matrix(inf_lidar2world_r, inf_lidar2world_t, veh_world2novatel_r, veh_world2novatel_t)
+
+    veh_lidar2novatel_r, veh_lidar2novatel_t = get_calibs(veh_lidar2novatel_path)
+    veh_novatel2lidar_r, veh_novatel2lidar_t = rev_matrix(veh_lidar2novatel_r, veh_lidar2novatel_t)
+    inf_lidar2lidar_r, inf_lidar2lidar_t = mul_matrix(inf_lidar2novatel_r, inf_lidar2novatel_t, veh_novatel2lidar_r, veh_novatel2lidar_t)
+
+    return inf_lidar2lidar_r, inf_lidar2lidar_t
+
+
+def get_calib_info(ori_info, root_path):
+    calib = {}
+    inf_idx = ori_info['infrastructure_image_path'].split('/')[-1].replace('.jpg', '')
+    inf_lidar2world_path = os.path.join(root_path, 'infrastructure-side/calib/virtuallidar_to_world/' + inf_idx + '.json')
+    veh_idx = ori_info['vehicle_image_path'].split('/')[-1].replace('.jpg', '')
+    veh_lidar2novatel_path = os.path.join(root_path, 'vehicle-side/calib/lidar_to_novatel/' + veh_idx + '.json')
+    veh_novatel2world_path = os.path.join(root_path, 'vehicle-side/calib/novatel_to_world/' + veh_idx + '.json')
+    system_error_offset = ori_info['system_error_offset']
+    if system_error_offset == '':
+        system_error_offset = None
+    calib_lidar_i2v_r, calib_lidar_i2v_t = trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2world_path, system_error_offset)
+    # print('calib_lidar_i2v: ', calib_lidar_i2v_r, calib_lidar_i2v_t)
+    calib_lidar_i2v = {}
+    calib_lidar_i2v['rotation'] = calib_lidar_i2v_r.tolist()
+    calib_lidar_i2v['translation'] = calib_lidar_i2v_t.tolist()
+
+    calib['lidar_i2v'] = calib_lidar_i2v
+    return calib
 
 
 def get_images_info(ori_info, defalut_cam, root_path, veh_idx, inf_idx, sensor_view='vehicle'):
@@ -346,9 +417,13 @@ if __name__ == '__main__':
         lidar_points['Tr_velo_to_cam'] = images[defalut_cam]['tr_velo_to_cam']
         lidar_points['Tr_imu_to_velo'] = images[defalut_cam]['tr_velo_to_cam']  # equal to Tr_velo_to_cam
 
+        lidar_points['inf_lidar_path'] = os.path.join('infrastructure-side/velodyne', data_info['inf_sample_idx'] + '.bin')
+
         cam_instances = get_cam_instances(images, metainfo, root_path)
 
         instances = get_instances(images, metainfo, root_path)
+
+        calib = get_calib_info(ori_info, root_path)
 
         if instances != []:
             frame_id = images[defalut_cam]['img_path'].split('/')[-1].replace('.jpg', '')
@@ -359,6 +434,7 @@ if __name__ == '__main__':
             data_info['lidar_points'] = lidar_points
             data_info['cam_instances'] = cam_instances
             data_info['instances'] = instances
+            data_info['calib'] = calib
 
             data_infos['data_list'].append(data_info)
             if frame_id in split_list['train']:

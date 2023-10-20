@@ -1,15 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import copy
 import os
-import pickle
+from os import path as osp
 from typing import Callable, List, Union
 
 import numpy as np
-from mmdet3d.datasets import Det3DDataset
+from mmdet3d.datasets.det3d_dataset import Det3DDataset
 from mmdet3d.registry import DATASETS
-from mmdet3d.structures import CameraInstance3DBoxes, limit_period
-from mmengine.fileio import load
-from mmengine.logging import print_log
+from mmdet3d.structures import CameraInstance3DBoxes
 
 
 @DATASETS.register_module()
@@ -66,7 +63,6 @@ class V2XDatasetV2(Det3DDataset):
                  ann_file: str,
                  pipeline: List[Union[dict, Callable]] = [],
                  modality: dict = dict(use_lidar=True),
-                 sensor_view: str = 'vehicle',
                  default_cam_key: str = 'CAM2',
                  load_type: str = 'frame_based',
                  box_type_3d: str = 'LiDAR',
@@ -78,8 +74,6 @@ class V2XDatasetV2(Det3DDataset):
         self.pcd_limit_range = pcd_limit_range
         assert load_type in ('frame_based', 'mv_image_based', 'fov_image_based')
         self.load_type = load_type
-        self.sensor_view = sensor_view
-
         super().__init__(
             data_root=data_root,
             ann_file=ann_file,
@@ -92,21 +86,6 @@ class V2XDatasetV2(Det3DDataset):
             **kwargs)
         assert self.modality is not None
         assert box_type_3d.lower() in ('lidar', 'camera')
-
-    def __box_convert_lidar2cam(self, location, dimension, rotation, calib_lidar2cam):
-        location['z'] = location['z'] - dimension['h'] / 2
-        extended_xyz = np.array([location['x'], location['y'], location['z'], 1])
-        location_cam = extended_xyz @ calib_lidar2cam.T
-        location_cam = location_cam[:3]
-
-        dimension_cam = [dimension['l'], dimension['h'], dimension['w']]
-        rotation_y = rotation
-        rotation_y = limit_period(rotation_y, period=np.pi * 2)
-
-        # TODO: hard code by yuhb
-        alpha = -10.0
-
-        return location_cam, dimension_cam, rotation_y, alpha
 
     def parse_data_info(self, info: dict) -> dict:
         """Process the raw data info.
@@ -121,78 +100,76 @@ class V2XDatasetV2(Det3DDataset):
             dict: Has `ann_info` in training stage. And
             all path has been converted to absolute path.
         """
-        # if self.modality['use_lidar']:
-        if self.sensor_view == 'vehicle':
-            anno_path = os.path.join(self.data_root, info['label_lidar_std_path'])
-            annos = load(anno_path)
-            kitti_annos = {}
-            kitti_annos['name'] = []
-            kitti_annos['occluded'] = []
-            kitti_annos['truncated'] = []
-            kitti_annos['dimensions'] = []
-            kitti_annos['location'] = []
-            kitti_annos['rotation_y'] = []
-            kitti_annos['index'] = []
-            kitti_annos['alpha'] = []
-            kitti_annos['bbox'] = []
+        if self.modality['use_lidar']:
+            if 'plane' in info:
+                # convert ground plane to velodyne coordinates
+                plane = np.array(info['plane'])
+                lidar2cam = np.array(info['images']['CAM2']['lidar2cam'], dtype=np.float32)
+                reverse = np.linalg.inv(lidar2cam)
 
-            calib_v_lidar2cam_filename = os.path.join(self.data_root, info['calib_lidar_to_camera_path'])
-            calib_v_lidar2cam = load(calib_v_lidar2cam_filename)
-            calib_v_cam_intrinsic_filename = os.path.join(self.data_root, info['calib_camera_intrinsic_path'])
-            calib_v_cam_intrinsic = load(calib_v_cam_intrinsic_filename)
-            rect = np.identity(4)
-            Trv2c = np.identity(4)
-            Trv2c[0:3, 0:3] = calib_v_lidar2cam['rotation']
-            Trv2c[0:3, 3] = [calib_v_lidar2cam['translation'][0][0], calib_v_lidar2cam['translation'][1][0], calib_v_lidar2cam['translation'][2][0]]
-            P2 = np.identity(4)
-            P2[0:3, 0:3] = np.array(calib_v_cam_intrinsic['cam_K']).reshape(3, 3)
-            info['calib'] = {}
-            info['calib']['R0_rect'] = rect
-            info['calib']['Tr_velo_to_cam'] = Trv2c
-            info['calib']['P2'] = P2
+                (plane_norm_cam, plane_off_cam) = (plane[:3], -plane[:3] * plane[3])
+                plane_norm_lidar = \
+                    (reverse[:3, :3] @ plane_norm_cam[:, None])[:, 0]
+                plane_off_lidar = (reverse[:3, :3] @ plane_off_cam[:, None][:, 0] + reverse[:3, 3])
+                plane_lidar = np.zeros_like(plane_norm_lidar, shape=(4, ))
+                plane_lidar[:3] = plane_norm_lidar
+                plane_lidar[3] = -plane_norm_lidar.T @ plane_off_lidar
+            else:
+                plane_lidar = None
 
-            info['lidar_points'] = {}
-            info['lidar_points']['lidar_path'] = os.path.join(self.data_root, info['pointcloud_path'].replace('pcd', 'bin'))
+            info['plane'] = plane_lidar
 
-        instances = []
+        if self.load_type == 'fov_image_based' and self.load_eval_anns:
+            info['instances'] = info['cam_instances'][self.default_cam_key]
 
-        for idx, anno in enumerate(annos):
-            location, dimensions, rotation_y, alpha = self.__box_convert_lidar2cam(anno['3d_location'], anno['3d_dimensions'], anno['rotation'], Trv2c)
-            if dimensions[0] == 0.0:
-                continue
-            anno['bbox_label'] = anno['type'].capitalize()
-            kitti_annos['name'].append(anno['type'].capitalize())
-            kitti_annos['dimensions'].append(dimensions)
-            kitti_annos['location'].append(location)
-            kitti_annos['rotation_y'].append(rotation_y)
-            kitti_annos['alpha'].append(alpha)
-            kitti_annos['index'].append(idx)
-            """ TODO: Valid Bbox"""
-            kitti_annos['occluded'].append(0)
-            kitti_annos['truncated'].append(0)
-            bbox = [0, 0, 100, 100]
-            kitti_annos['bbox'].append(bbox)
-            instance = {}
-            instance['truncated'] = 0
-            instance['occluded'] = 0
-            instance['alpha'] = alpha
-            instance['bbox'] = bbox
-            instance['bbox_3d'] = [location, dimensions, rotation_y]
-            instance['score'] = 1.0
-            instances.append(instance)
+        if self.modality['use_lidar']:
+            info['lidar_points']['lidar_path'] = \
+                osp.join(
+                    self.data_prefix.get('pts', ''),
+                    info['lidar_points']['lidar_path'])
 
-        for name in kitti_annos:
-            kitti_annos[name] = np.array(kitti_annos[name])
+            info['lidar_points']['inf_lidar_path'] = \
+                osp.join(
+                    self.data_prefix.get('pts', ''),
+                    info['lidar_points']['inf_lidar_path'])
 
-        info['ann_info'] = kitti_annos
-        info['instances'] = instances
-        info['kitti_annos'] = kitti_annos
-        # info['sample_idx'] = info['vehicle_idx']
+            info['num_pts_feats'] = info['lidar_points']['num_pts_feats']
+            info['lidar_path'] = info['lidar_points']['lidar_path']
+            info['inf_lidar_path'] = info['lidar_points']['inf_lidar_path']
+            if 'lidar_sweeps' in info:
+                for sweep in info['lidar_sweeps']:
+                    file_suffix = sweep['lidar_points']['lidar_path'].split(os.sep)[-1]
+                    if 'samples' in sweep['lidar_points']['lidar_path']:
+                        sweep['lidar_points']['lidar_path'] = osp.join(self.data_prefix['pts'], file_suffix)
+                    else:
+                        sweep['lidar_points']['lidar_path'] = osp.join(self.data_prefix['sweeps'], file_suffix)
+
+        if self.modality['use_camera']:
+            for cam_id, img_info in info['images'].items():
+                if 'img_path' in img_info:
+                    if cam_id in self.data_prefix:
+                        cam_prefix = self.data_prefix[cam_id]
+                    else:
+                        cam_prefix = self.data_prefix.get('img', '')
+                    img_info['img_path'] = osp.join(cam_prefix, img_info['img_path'])
+            if self.default_cam_key is not None:
+                info['img_path'] = info['images'][self.default_cam_key]['img_path']
+                if 'lidar2cam' in info['images'][self.default_cam_key]:
+                    info['lidar2cam'] = np.array(info['images'][self.default_cam_key]['lidar2cam'])
+                if 'cam2img' in info['images'][self.default_cam_key]:
+                    info['cam2img'] = np.array(info['images'][self.default_cam_key]['cam2img'])
+                if 'lidar2img' in info['images'][self.default_cam_key]:
+                    info['lidar2img'] = np.array(info['images'][self.default_cam_key]['lidar2img'])
+                else:
+                    info['lidar2img'] = info['cam2img'] @ info['lidar2cam']
+
         if not self.test_mode:
             # used in training
             info['ann_info'] = self.parse_ann_info(info)
         if self.test_mode and self.load_eval_anns:
             info['eval_ann_info'] = self.parse_ann_info(info)
+
+        return info
 
         return info
 
@@ -213,9 +190,7 @@ class V2XDatasetV2(Det3DDataset):
                 - difficulty (int): Difficulty defined by KITTI.
                   0, 1, 2 represent xxxxx respectively.
         """
-        # ann_info = super().parse_ann_info(info)
-        ann_info = info
-
+        ann_info = super().parse_ann_info(info)
         if ann_info is None:
             ann_info = dict()
             # empty instance
@@ -228,178 +203,12 @@ class V2XDatasetV2(Det3DDataset):
                 ann_info['centers_2d'] = np.zeros((0, 2), dtype=np.float32)
                 ann_info['depths'] = np.zeros((0), dtype=np.float32)
 
+        ann_info = self._remove_dontcare(ann_info)
         # in kitti, lidar2cam = R0_rect @ Tr_velo_to_cam
-        rect = ann_info['calib']['R0_rect'].astype(np.float32)
-        Trv2c = ann_info['calib']['Tr_velo_to_cam'].astype(np.float32)
+        lidar2cam = np.array(info['images']['CAM2']['lidar2cam'])
+        # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
 
-        loc = ann_info['ann_info']['location']
-        dims = ann_info['ann_info']['dimensions']
-        rots = ann_info['ann_info']['rotation_y']
-
-        gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
-
-        # # convert gt_bboxes_3d to velodyne coordinates
-        gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(self.box_mode_3d, np.linalg.inv(rect @ Trv2c))
+        gt_bboxes_3d = CameraInstance3DBoxes(ann_info['gt_bboxes_3d']).convert_to(self.box_mode_3d, np.linalg.inv(lidar2cam))
         ann_info['gt_bboxes_3d'] = gt_bboxes_3d
 
-        gt_names = ann_info['ann_info']['name']
-        gt_labels = []
-        for cat in gt_names:
-            if cat in self.METAINFO['classes']:
-                gt_labels.append(self.METAINFO['classes'].index(cat))
-            else:
-                gt_labels.append(-1)
-        gt_labels = np.array(gt_labels).astype(np.int64)
-        gt_labels_3d = copy.deepcopy(gt_labels)
-
-        ann_info['gt_labels_3d'] = np.array([self.label_mapping[item] for item in gt_labels_3d]).astype(np.int64)
-
-        for label in ann_info['gt_labels_3d']:
-            if label != -1:
-                cat_name = self.metainfo['classes'][label]
-                self.num_ins_per_cat[cat_name] += 1
-
-        ann_info = self._remove_dontcare(ann_info)
-
         return ann_info
-
-    def prepare_data(self, index: int) -> Union[dict, None]:
-        """Data preparation for both training and testing stage.
-
-        Called by `__getitem__`  of dataset.
-
-        Args:
-            index (int): Index for accessing the target data.
-
-        Returns:
-            dict or None: Data dict of the corresponding index.
-        """
-        ori_input_dict = self.get_data_info(index)
-
-        # deepcopy here to avoid inplace modification in pipeline.
-        input_dict = copy.deepcopy(ori_input_dict)
-
-        # box_type_3d (str): 3D box type.
-        input_dict['box_type_3d'] = self.box_type_3d
-        # box_mode_3d (str): 3D box mode.
-        input_dict['box_mode_3d'] = self.box_mode_3d
-
-        # pre-pipline return None to random another in `__getitem__`
-        if not self.test_mode and self.filter_empty_gt:
-            if len(input_dict['ann_info']['gt_labels_3d']) == 0:
-                return None
-
-        example = self.pipeline(input_dict)
-
-        if not self.test_mode and self.filter_empty_gt:
-            # after pipeline drop the example with empty annotations
-            # return None to random another in `__getitem__`
-            if example is None or len(example['data_samples'].gt_instances_3d.labels_3d) == 0:
-                return None
-
-        if self.show_ins_var:
-            if 'ann_info' in ori_input_dict:
-                self._show_ins_var(ori_input_dict['ann_info']['gt_labels_3d'], example['data_samples'].gt_instances_3d.labels_3d)
-            else:
-                print_log("'ann_info' is not in the input dict. It's probably that "
-                          'the data is not in training mode', 'current', level=30)
-
-        return example
-
-    # @force_full_init
-    def get_data_info(self, idx: int) -> dict:
-        """Get annotation by index and automatically call ``full_init`` if the
-        dataset has not been fully initialized.
-
-        Args:
-            idx (int): The index of data.
-
-        Returns:
-            dict: The idx-th annotation of the dataset.
-        """
-        if self.serialize_data:
-            start_addr = 0 if idx == 0 else self.data_address[idx - 1].item()
-            end_addr = self.data_address[idx].item()
-            bytes = memoryview(self.data_bytes[start_addr:end_addr])  # type: ignore
-            data_info = pickle.loads(bytes)  # type: ignore
-        else:
-            data_info = copy.deepcopy(self.data_list[idx])
-        # Some codebase needs `sample_idx` of data information. Here we convert
-        # the idx to a positive number and save it in data information.
-        if idx >= 0:
-            data_info['sample_idx'] = idx
-        else:
-            data_info['sample_idx'] = len(self) + idx
-
-        return data_info
-
-    def load_data_list(self) -> List[dict]:
-        """Load annotations from an annotation file named as ``self.ann_file``
-
-        If the annotation file does not follow `OpenMMLab 2.0 format dataset
-        <https://mmengine.readthedocs.io/en/latest/advanced_tutorials/basedataset.html>`_ .
-        The subclass must override this method for load annotations. The meta
-        information of annotation file will be overwritten :attr:`METAINFO`
-        and ``metainfo`` argument of constructor.
-
-        Returns:
-            list[dict]: A list of annotation.
-        """  # noqa: E501
-
-        annotations = load(self.ann_file)
-        if not isinstance(annotations, dict):
-            raise TypeError(f'The annotations loaded from annotation file '
-                            f'should be a dict, but got {type(annotations)}!')
-        if 'data_list' not in annotations or 'metainfo' not in annotations:
-            raise ValueError('Annotation must have data_list and metainfo '
-                             'keys')
-        metainfo = annotations['metainfo']
-        raw_data_list = annotations['data_list']
-
-        # Meta information load from annotation file will not influence the
-        # existed meta information load from `BaseDataset.METAINFO` and
-        # `metainfo` arguments defined in constructor.
-        for k, v in metainfo.items():
-            self._metainfo.setdefault(k, v)
-
-        # load and parse data_infos.
-        data_list = []
-        for raw_data_info in raw_data_list:
-            # parse raw data information to target format
-            data_info = self.parse_data_info(raw_data_info)
-            if isinstance(data_info, dict):
-                data_list.append(data_info)
-            elif isinstance(data_info, list):
-                for item in data_info:
-                    if not isinstance(item, dict):
-                        raise TypeError('data_info must be list of dict, but '
-                                        f'got {type(item)}')
-                data_list.extend(data_info)
-            else:
-                raise TypeError('data_info should be a dict or list of dict, '
-                                f'but got {type(data_info)}')
-
-        return data_list
-
-    def _remove_dontcare(self, ann_info: dict) -> dict:
-        """Remove annotations that do not need to be cared.
-
-        -1 indicates dontcare in MMDet3d.
-
-        Args:
-            ann_info (dict): Dict of annotation infos. The
-                instance with label `-1` will be removed.
-
-        Returns:
-            dict: Annotations after filtering.
-        """
-        img_filtered_annotations = {}
-        filter_mask = ann_info['gt_labels_3d'] > -1
-
-        for key in ann_info.keys():
-            # if key != 'instances':
-            if key == 'gt_bboxes_3d' or key == 'gt_labels_3d':
-                img_filtered_annotations[key] = (ann_info[key][filter_mask])
-            else:
-                img_filtered_annotations[key] = ann_info[key]
-        return img_filtered_annotations

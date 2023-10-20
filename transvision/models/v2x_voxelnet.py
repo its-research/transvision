@@ -135,8 +135,10 @@ class V2XVoxelNet(SingleStage3DDetector):
             inf_feature = inf_x[0][ii:ii + 1]
             veh_feature = veh_x[0][ii:ii + 1]
 
-            calib_inf2veh_rotation = img_metas[ii]['inf2veh']['rotation']
-            calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
+            # calib_inf2veh_rotation = img_metas[ii]['inf2veh']['rotation']
+            # calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
+            calib_inf2veh_rotation = img_metas[ii]['calib']['lidar_i2v']['rotation']
+            calib_inf2veh_translation = img_metas[ii]['calib']['lidar_i2v']['translation']
             inf_pointcloud_range = point_cloud_range
 
             theta_rot = torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
@@ -193,6 +195,7 @@ class V2XVoxelNet(SingleStage3DDetector):
         batch_gt_instances_3d = []
         batch_gt_instances_ignore = []
         batch_input_metas = []
+
         for data_sample in batch_data_samples:
             batch_input_metas.append(data_sample.metainfo)
             batch_gt_instances_3d.append(data_sample.gt_instances_3d)

@@ -97,9 +97,9 @@ python tools/create_data.py kitti --root-path data/DAIR-V2X/single-vehicle-side/
 ### DAIR-V2X-I
 
 ```shell
-python tools/dataset_converters/dair2kitti.py --source-root ./data/DAIR-V2X/single-infrastructure-side --target-root ./data/DAIR-V2X/single-infrastructure-side --split-path ./data/split_datas/single-infrastructure-split-data.json --label-type camera --sensor-view infrastructure
+python tools/dataset_converters/dair2kitti.py --source-root data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side --target-root data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side --split-path ./data/split_datas/single-infrastructure-split-data.json --label-type camera --sensor-view infrastructure
 
-python tools/create_data.py kitti --root-path data/DAIR-V2X/single-infrastructure-side --out-dir data/DAIR-V2X/single-infrastructure-side --extra-tag kitti
+python tools/create_data.py kitti --root-path  data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side --out-dir  data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side --extra-tag kitti
 ```
 
 ```shell
