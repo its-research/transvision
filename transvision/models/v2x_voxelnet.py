@@ -128,6 +128,13 @@ class V2XVoxelNet(SingleStage3DDetector):
 
     def feature_fusion(self, veh_x, inf_x, img_metas, mode='fusion'):
         """Method II: Based on affine transformation."""
+
+        if mode not in ['fusion', 'inf_only', 'veh_only']:
+            raise Exception('Mode is Error: {}'.format(mode))
+
+        if mode == 'veh_only':
+            return veh_x
+
         wrap_feats_ii = []
         point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
@@ -135,8 +142,6 @@ class V2XVoxelNet(SingleStage3DDetector):
             inf_feature = inf_x[0][ii:ii + 1]
             veh_feature = veh_x[0][ii:ii + 1]
 
-            # calib_inf2veh_rotation = img_metas[ii]['inf2veh']['rotation']
-            # calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
             calib_inf2veh_rotation = img_metas[ii]['calib']['lidar_i2v']['rotation']
             calib_inf2veh_translation = img_metas[ii]['calib']['lidar_i2v']['translation']
             inf_pointcloud_range = point_cloud_range
@@ -156,37 +161,25 @@ class V2XVoxelNet(SingleStage3DDetector):
 
         wrap_feats = [torch.cat(wrap_feats_ii, dim=0)]
 
-        if mode not in ['fusion', 'inf_only', 'veh_only']:
-            raise Exception('Mode is Error: {}'.format(mode))
         if mode == 'inf_only':
             return wrap_feats
-        elif mode == 'veh_only':
-            return veh_x
+
         veh_cat_feats = [torch.cat([veh_x[0], wrap_feats[0]], dim=1)]
         veh_cat_feats[0] = self.fusion_weighted(veh_cat_feats[0])
 
         return veh_cat_feats
 
-    def _forward_train(self, batch_inputs_dict: Dict[str, Optional[Tensor]], img_metas=None):
-        """Training forward function.
-
-        Args:
-            points (list[torch.Tensor]): Point cloud of each sample.
-            img_metas (list[dict]): Meta information of each sample
-            gt_bboxes_3d (list[:obj:`BaseInstance3DBoxes`]): Ground truth
-                boxes for each sample.
-            gt_labels_3d (list[torch.Tensor]): Ground truth labels for
-                boxes of each sampole
-            gt_bboxes_ignore (list[torch.Tensor], optional): Ground truth
-                boxes to be ignored. Defaults to None.
-
-        Returns:
-            dict: Losses of each branch.
-        """
-
+    def extract_feats(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample]):
+        batch_input_metas = [item.metainfo for item in batch_data_samples]
         feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
         feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
-        feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
+        feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas, mode='fusion')
+        # feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas, mode='veh_only')
+        return feat_fused
+
+    def _forward_train(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample]):
+        """Training forward function."""
+        feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
         outs = self.bbox_head(feat_fused)
         return outs
 
@@ -201,42 +194,19 @@ class V2XVoxelNet(SingleStage3DDetector):
             batch_gt_instances_3d.append(data_sample.gt_instances_3d)
             batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
 
-        # https://github.com/open-mmlab/mmdetection3d/blob/v1.2.0/mmdet3d/models/dense_heads/base_3d_dense_head.py#L68
-
-        outs = self._forward_train(batch_inputs_dict, batch_input_metas)
+        outs = self._forward_train(batch_inputs_dict, batch_data_samples)
         loss_inputs = outs + (batch_gt_instances_3d, batch_input_metas, batch_gt_instances_ignore)
         losses = self.bbox_head.loss_by_feat(*loss_inputs)
 
         return losses
 
-    def simple_test(self, batch_inputs_dict: Dict[str, Optional[Tensor]], img_metas, batch_data_samples, imgs=None, rescale=False):
-        """Test function without augmentaiton."""
+    def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
+
         # for ii in range(len(infrastructure_points)):
         #     infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
 
-        feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
-        feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
-        feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
-
-        # outs = self.bbox_head(feat_fused)
-        # bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
-
-        bbox_list = self.bbox_head.predict(feat_fused, batch_data_samples, rescale=rescale)
-        # bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
-
-        return bbox_list
-
-    def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
-        batch_input_metas = [item.metainfo for item in batch_data_samples]
-        batch_gt_instances_3d = []
-        batch_gt_instances_ignore = []
-        batch_input_metas = []
-        for data_sample in batch_data_samples:
-            batch_input_metas.append(data_sample.metainfo)
-            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
-            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
-
-        bbox_results = self.simple_test(batch_inputs_dict, batch_input_metas, batch_data_samples)
+        feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
+        bbox_results = self.bbox_head.predict(feat_fused, batch_data_samples)
         res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
 
         return res
