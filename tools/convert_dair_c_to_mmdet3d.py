@@ -2,7 +2,9 @@ import argparse
 import os
 
 import numpy as np
+from dataset_converters.gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_cam_K, get_velo2cam
 from dataset_converters.gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points, get_label
+from dataset_converters.kitti_data_utils import _extend_matrix
 from dataset_converters.update_infos_to_v2 import get_empty_instance
 from mmdet3d.structures import points_cam2img
 from mmdet3d.structures.ops import box_np_ops
@@ -58,24 +60,32 @@ def get_images_info(ori_info, defalut_cam, root_path, veh_idx, inf_idx, sensor_v
     images[defalut_cam]['width'] = image_shape[1]
 
     calib_v_lidar2cam_filename = os.path.join(root_path, 'vehicle-side/calib/lidar_to_camera', veh_idx + '.json')
-    calib_v_lidar2cam = load(calib_v_lidar2cam_filename)
     calib_v_cam_intrinsic_filename = os.path.join(root_path, 'vehicle-side/calib/camera_intrinsic/', veh_idx + '.json')
-    calib_v_cam_intrinsic = load(calib_v_cam_intrinsic_filename)
-    R0_rect = np.identity(4)
-    Tr_velo_to_cam = np.identity(4)
-    Tr_velo_to_cam[0:3, 0:3] = calib_v_lidar2cam['rotation']
-    Tr_velo_to_cam[0:3, 3] = [calib_v_lidar2cam['translation'][0][0], calib_v_lidar2cam['translation'][1][0], calib_v_lidar2cam['translation'][2][0]]
-    P2 = np.identity(4)
-    P2[0:3, 0:3] = np.array(calib_v_cam_intrinsic['cam_K']).reshape(3, 3)
-    lidar2cam = R0_rect @ Tr_velo_to_cam
 
-    images[defalut_cam]['cam2img'] = P2
-    images[defalut_cam]['tr_velo_to_cam'] = Tr_velo_to_cam
-    images[defalut_cam]['t_velo2cam'] = calib_v_lidar2cam['translation']
-    images[defalut_cam]['r_velo2cam'] = calib_v_lidar2cam['rotation']
-    images['R0_rect'] = R0_rect
-    images[defalut_cam]['lidar2cam'] = lidar2cam
-    images[defalut_cam]['lidar2img'] = P2 @ lidar2cam
+    cam_D, cam_K = get_cam_D_and_cam_K(calib_v_cam_intrinsic_filename)
+    t_velo2cam, r_velo2cam = get_velo2cam(calib_v_lidar2cam_filename)
+
+    t_velo2cam = np.array(t_velo2cam).reshape(3, 1)
+    r_velo2cam = np.array(r_velo2cam).reshape(3, 3)
+    P2, Tr_velo_to_cam = convert_calib_v2x_to_kitti(cam_D, cam_K, t_velo2cam, r_velo2cam)
+    P2 = _extend_matrix(np.array(P2).reshape(3, 4))
+    Tr_velo_to_cam = _extend_matrix(np.array(Tr_velo_to_cam).reshape(3, 4))
+
+    R0_rect = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
+    rect_4x4[3, 3] = 1.
+    rect_4x4[:3, :3] = R0_rect
+    R0_rect = rect_4x4
+    R0_rect = R0_rect
+
+    images[defalut_cam]['cam2img'] = P2.tolist()
+    images[defalut_cam]['tr_velo_to_cam'] = Tr_velo_to_cam.astype(np.float32).tolist()
+    images[defalut_cam]['t_velo2cam'] = t_velo2cam.tolist()
+    images[defalut_cam]['r_velo2cam'] = r_velo2cam.tolist()
+    images['R0_rect'] = R0_rect.tolist()
+    lidar2cam = R0_rect.astype(np.float32) @ Tr_velo_to_cam.astype(np.float32)
+    images[defalut_cam]['lidar2cam'] = lidar2cam.tolist()
+    images[defalut_cam]['lidar2img'] = (P2 @ lidar2cam).tolist()
 
     return images
 
@@ -170,6 +180,39 @@ def get_cam_instances(images, metainfo, root_path):
     return cam_instances
 
 
+def add_difficulty_to_annos(dims, bbox, occlusion, truncation):
+    min_height = [40, 25, 25]  # minimum height for evaluated groundtruth/detections
+    max_occlusion = [0, 1, 2]  # maximum occlusion level of the groundtruth used for evaluation
+    max_trunc = [0.15, 0.3, 0.5]  # maximum truncation level of the groundtruth used for evaluation
+    height = bbox[3] - bbox[1]
+
+    diff = []
+    easy_mask = np.ones((len(dims), ), dtype=bool)
+    moderate_mask = np.ones((len(dims), ), dtype=bool)
+    hard_mask = np.ones((len(dims), ), dtype=bool)
+    if occlusion > max_occlusion[0] or height <= min_height[0] or truncation > max_trunc[0]:
+        easy_mask[0] = False
+    if occlusion > max_occlusion[1] or height <= min_height[1] or truncation > max_trunc[1]:
+        moderate_mask[0] = False
+    if occlusion > max_occlusion[2] or height <= min_height[2] or truncation > max_trunc[2]:
+        hard_mask[0] = False
+
+    is_easy = easy_mask
+    is_moderate = np.logical_xor(easy_mask, moderate_mask)
+    is_hard = np.logical_xor(hard_mask, moderate_mask)
+
+    for i in range(len(dims)):
+        if is_easy[i]:
+            diff.append(0)
+        elif is_moderate[i]:
+            diff.append(1)
+        elif is_hard[i]:
+            diff.append(2)
+        else:
+            diff.append(-1)
+    return diff[0]
+
+
 def get_instances(images, metainfo, root_path):
     instances = []
 
@@ -204,11 +247,11 @@ def get_instances(images, metainfo, root_path):
             continue
         z = z - h / 2
         bottom_center = [x, y, z]
-        obj_size = [l, w, h]
+        obj_size = [l, h, w]  # [l, w, h]
 
         bottom_center_in_cam = images[defalut_cam]['r_velo2cam'] * np.matrix(bottom_center).T + images[defalut_cam]['t_velo2cam']
         alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, images[defalut_cam]['r_velo2cam'], images[defalut_cam]['t_velo2cam'])
-        [cam_x, cam_y, cam_z, _] = convert_point(np.array([x, y, z, 1]).T, images[defalut_cam]['tr_velo_to_cam'])
+        [cam_x, cam_y, cam_z, _] = convert_point(np.array([x, y, z, 1]).T, np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32))
 
         dst = np.array([0.5, 0.5, 0.5])
         src = np.array([0.5, 1.0, 0.5])
@@ -229,15 +272,15 @@ def get_instances(images, metainfo, root_path):
         instance['alpha'] = alpha
         instance['score'] = 0.0
         instance['index'] = object_idx
-        instance['group_id'] = 0
-        instance['difficulty'] = 2
+        instance['group_id'] = len(label_infos)
+        instance['difficulty'] = add_difficulty_to_annos(dims, instance['bbox'], instance['occluded'], instance['truncated'])
         object_idx += 1
 
         v_path = os.path.join(root_path, lidar_points['lidar_path'])
         points_v = np.fromfile(v_path, dtype=np.float32, count=-1).reshape([-1, lidar_points['num_pts_feats']])
-        rect = images['R0_rect']
-        Trv2c = lidar_points['Tr_velo_to_cam']
-        P2 = images[defalut_cam]['cam2img']
+        rect = np.array(images['R0_rect'])
+        Trv2c = np.array(lidar_points['Tr_velo_to_cam'])
+        P2 = np.array(images[defalut_cam]['cam2img'])
         image_shape = [images[defalut_cam]['height'], images[defalut_cam]['width']]
         points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2, image_shape)
 
@@ -278,9 +321,7 @@ if __name__ == '__main__':
 
     ori_dair_infos_train = load(os.path.join(root_path, args.dataset, 'data_info.json'))
     defalut_cam = 'CAM2'
-    sample_idx = 0
-    sample_idx_train = 0
-    sample_idx_val = 0
+
     for ori_info in tqdm(ori_dair_infos_train):
         data_info = {
             'sample_idx': 0,
@@ -302,8 +343,8 @@ if __name__ == '__main__':
         lidar_points = {}
         lidar_points['num_pts_feats'] = 4  # default value
         lidar_points['lidar_path'] = os.path.join('vehicle-side/velodyne', images[defalut_cam]['img_path'].split('/')[-1].replace('.jpg', '.bin'))
-        lidar_points['Tr_velo_to_cam'] = images[defalut_cam]['tr_velo_to_cam'].tolist()
-        lidar_points['Tr_imu_to_velo'] = images[defalut_cam]['tr_velo_to_cam'].tolist()  # equal to Tr_velo_to_cam
+        lidar_points['Tr_velo_to_cam'] = images[defalut_cam]['tr_velo_to_cam']
+        lidar_points['Tr_imu_to_velo'] = images[defalut_cam]['tr_velo_to_cam']  # equal to Tr_velo_to_cam
 
         cam_instances = get_cam_instances(images, metainfo, root_path)
 
@@ -311,22 +352,18 @@ if __name__ == '__main__':
 
         if instances != []:
             frame_id = images[defalut_cam]['img_path'].split('/')[-1].replace('.jpg', '')
+            sample_idx = int(frame_id)
 
             data_info['sample_idx'] = sample_idx
             data_info['images'] = images
             data_info['lidar_points'] = lidar_points
             data_info['cam_instances'] = cam_instances
             data_info['instances'] = instances
-            sample_idx += 1
-            data_infos['data_list'].append(data_info)
 
+            data_infos['data_list'].append(data_info)
             if frame_id in split_list['train']:
-                data_info['sample_idx'] = sample_idx_train
-                sample_idx_train += 1
                 data_infos_train['data_list'].append(data_info)
             else:
-                data_info['sample_idx'] = sample_idx_val
-                sample_idx_val += 1
                 data_infos_val['data_list'].append(data_info)
 
     dump(data_infos, dair_infos_trainval_path)

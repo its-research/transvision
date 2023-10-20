@@ -9,5 +9,6 @@ python tools/dataset_converters/get_fusion_data_info.py --source-root ./data/DAI
 rm ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/data_info.json
 mv ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/fusion_data_info.json ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/data_info.json
 python tools/dataset_converters/dair2kitti.py --source-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training --target-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training --split-path ./data/split_datas/cooperative-split-data.json --label-type lidar --sensor-view cooperative
-# --no-classmerge
 python tools/create_data.py kitti --root-path data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/ --out-dir data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/ --extra-tag kitti
+# cp -r ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/label/lidar ./data/DAIR-V2X/cooperative-vehicle-infrastructure/cooperative/
+# cp data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/training/velodyne/*  ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/velodyne
