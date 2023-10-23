@@ -7,24 +7,11 @@ data_info_val_path = 'flow_data_jsons/flow_data_info_val_0.json'
 work_dir = './work_dirs/ffnet-vic3d/basemodel/mmdet3d_1.2.0'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
-voxel_size = [0.16, 0.16, 4]
-l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
-h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
-
-output_shape = [h, l]
-z_center_pedestrian = -0.6
-z_center_cyclist = -0.6
-z_center_car = -2.66
 
 input_modality = dict(use_lidar=True, use_camera=False)
 class_names = ['Car']
 metainfo = dict(classes=class_names)
 backend_args = None
-
-point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
-voxel_size = [0.16, 0.16, 4]
-l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
-h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 
 train_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),

@@ -4,18 +4,17 @@ l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 
 output_shape = [h, l]
-z_center_pedestrian = -0.6
-z_center_cyclist = -0.6
 z_center_car = -2.66
 
 # TODO 合并voxel_layer
 model = dict(
     type='V2XVoxelNet',
+    mode='veh_only',  # veh_only, inf_only, fusion
     data_preprocessor=dict(
         type='Det3DDataDAIRPreprocessor',
         voxel=True,
         voxel_layer=dict(
-            max_num_points=100,  # max_points_per_voxel
+            max_num_points=100,  # max_points_per_voxel 100
             point_cloud_range=point_cloud_range,
             voxel_size=voxel_size,
             max_voxels=(40000, 40000))),
