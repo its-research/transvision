@@ -8,7 +8,7 @@ data_info_train_path = './data/flow_data_jsons/flow_data_info_train_2.json'
 data_info_val_path = './data/flow_data_jsons/flow_data_info_val_2.json'
 flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
 pretrained_basemodel = './ffnet_work_dir/pretrained-checkpoints/epoch_40.pth'
-work_dir = './ffnet_work_dir/work_dir_ffnet'
+work_dir = './work_dirs/ffnet-vic3d/basemodel/'
 
 class_names = ['Pedestrian', 'Cyclist', 'Car']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]

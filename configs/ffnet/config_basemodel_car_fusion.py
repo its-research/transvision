@@ -1,13 +1,7 @@
 dataset_type = 'V2XDataset'
 data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
-# flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'}
-# FlowPred: Use feature flow to compensate for the temporary asynchrony
-# OriginFeat: Do not introduce the simulated temporal asychrony
-# Async: Introduce the temporal asynchrony and do not use feature flow to compensate for the temporary asynchrony
-data_info_train_path = './data/flow_data_jsons/flow_data_info_train_2.json'
-data_info_val_path = './data/flow_data_jsons/flow_data_info_val_2.json'
-flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
-pretrained_basemodel = './work_dirs/ffnet-vic3d/pretrained-checkpoints/epoch_40.pth'
+data_info_train_path = './data/flow_data_jsons/flow_data_info_train.json'
+data_info_val_path = './data/flow_data_jsons/flow_data_info_val_0.json'
 work_dir = './work_dirs/ffnet-vic3d/basemodel/'
 
 class_names = ['Car']
@@ -16,11 +10,11 @@ voxel_size = [0.16, 0.16, 4]
 l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 output_shape = [h, l]
-
 z_center_car = -2.66
 
 model = dict(
-    type='FeatureFlowNet',
+    type='V2XVoxelNet',
+    mode='fusion',  # veh_only | inf_only | fusion
     voxel_layer=dict(max_num_points=100, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=(40000, 40000)),
     voxel_encoder=dict(type='PillarFeatureNet', in_channels=4, feat_channels=[64], with_distance=False, voxel_size=voxel_size, point_cloud_range=point_cloud_range),
     middle_encoder=dict(type='PointPillarsScatter', in_channels=64, output_shape=output_shape),
@@ -54,21 +48,8 @@ model = dict(
         allowed_border=0,
         pos_weight=-1,
         debug=False,
-        pretrained_model=pretrained_basemodel,
-        data_root=data_root,
     ),
-    test_cfg=dict(
-        use_rotate_nms=False,
-        nms_across_levels=False,
-        nms_thr=0.01,
-        score_thr=0.2,
-        min_bbox_size=0,
-        nms_pre=1000,
-        max_num=300,
-        test_mode=flownet_test_mode,
-        pretrained_model='',
-        data_root=data_root,
-    ),
+    test_cfg=dict(use_rotate_nms=False, nms_across_levels=False, nms_thr=0.01, score_thr=0.2, min_bbox_size=0, nms_pre=1000, max_num=300),
 )
 
 file_client_args = dict(backend='disk')
@@ -89,11 +70,6 @@ data = dict(
                 dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
                 dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
                 dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-                # dict(type='RandomFlip3D', flip_ratio_bev_horizontal=0.5),
-                # dict(
-                #     type='GlobalRotScaleTrans',
-                #     rot_range=[-0.78539816, 0.78539816],
-                #     scale_ratio_range=[0.95, 1.05]),
                 dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
                 dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
                 # dict(type='PointShuffle'),
@@ -101,6 +77,7 @@ data = dict(
                 dict(
                     type='Collect3D',
                     keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
+                    # fmt: off
                     meta_keys=(
                         'filename',
                         'ori_shape',
@@ -123,12 +100,8 @@ data = dict(
                         'pts_filename',
                         'transformation_3d_flow',
                         'inf2veh',
-                        'infrastructure_pointcloud_bin_path_t_0',
-                        'infrastructure_pointcloud_bin_path_t_1',
-                        'infrastructure_pointcloud_bin_path_t_2',
-                        'infrastructure_t_0_1',
-                        'infrastructure_t_1_2',
                     ),
+                    # fmt: on
                 ),
             ],
             modality=dict(use_lidar=True, use_camera=False),
@@ -157,6 +130,7 @@ data = dict(
                     dict(
                         type='Collect3D',
                         keys=['points', 'infrastructure_points'],
+                        # fmt: off
                         meta_keys=(
                             'filename',
                             'ori_shape',
@@ -179,12 +153,8 @@ data = dict(
                             'pts_filename',
                             'transformation_3d_flow',
                             'inf2veh',
-                            'infrastructure_pointcloud_bin_path_t_0',
-                            'infrastructure_pointcloud_bin_path_t_1',
-                            'infrastructure_pointcloud_bin_path_t_2',
-                            'infrastructure_t_0_1',
-                            'infrastructure_t_1_2',
                         ),
+                        # fmt: on
                     ),
                 ],
             ),
@@ -214,6 +184,7 @@ data = dict(
                     dict(
                         type='Collect3D',
                         keys=['points', 'infrastructure_points'],
+                        # fmt: off
                         meta_keys=(
                             'filename',
                             'ori_shape',
@@ -236,12 +207,8 @@ data = dict(
                             'pts_filename',
                             'transformation_3d_flow',
                             'inf2veh',
-                            'infrastructure_pointcloud_bin_path_t_0',
-                            'infrastructure_pointcloud_bin_path_t_1',
-                            'infrastructure_pointcloud_bin_path_t_2',
-                            'infrastructure_t_0_1',
-                            'infrastructure_t_1_2',
                         ),
+                        # fmt: on
                     ),
                 ],
             ),
@@ -261,13 +228,13 @@ evaluation = dict(
         dict(type='Collect3D', keys=['points']),
     ],
 )
-lr = 0.008
+lr = 0.0018
 optimizer = dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(policy='cyclic', target_ratio=(10, 0.0001), cyclic_times=1, step_ratio_up=0.4)
 momentum_config = dict(policy='cyclic', target_ratio=(0.8947368421052632, 1), cyclic_times=1, step_ratio_up=0.4)
-runner = dict(type='EpochBasedRunner', max_epochs=10)
-checkpoint_config = dict(interval=10)
+runner = dict(type='EpochBasedRunner', max_epochs=40)
+checkpoint_config = dict(interval=1)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook'), dict(type='TensorboardLoggerHook')])
 dist_params = dict(backend='nccl')
 find_unused_parameters = True

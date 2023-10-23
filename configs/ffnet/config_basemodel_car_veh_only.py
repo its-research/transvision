@@ -2,7 +2,7 @@ dataset_type = 'V2XDataset'
 data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
 data_info_train_path = './data/flow_data_jsons/flow_data_info_train.json'
 data_info_val_path = './data/flow_data_jsons/flow_data_info_val_0.json'
-work_dir = './ffnet_work_dir/work_dir_baseline-V1'
+work_dir = './work_dirs/ffnet-vic3d/basemodel/'
 
 class_names = ['Car']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
@@ -14,6 +14,7 @@ z_center_car = -2.66
 
 model = dict(
     type='V2XVoxelNet',
+    mode='veh_only',  # veh_only | inf_only | fusion
     voxel_layer=dict(max_num_points=100, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=(40000, 40000)),
     voxel_encoder=dict(type='PillarFeatureNet', in_channels=4, feat_channels=[64], with_distance=False, voxel_size=voxel_size, point_cloud_range=point_cloud_range),
     middle_encoder=dict(type='PointPillarsScatter', in_channels=64, output_shape=output_shape),
@@ -220,7 +221,7 @@ data = dict(
     ),
 )
 evaluation = dict(
-    interval=1,
+    interval=10,
     pipeline=[
         dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, file_client_args=dict(backend='disk')),
         dict(type='DefaultFormatBundle3D_FFNet', class_names=class_names, with_label=False),
