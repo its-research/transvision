@@ -70,7 +70,8 @@ class V2XVoxelNet(SingleStage3DDetector):
                  train_cfg: OptConfigType = None,
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
-                 init_cfg: OptMultiConfig = None) -> None:
+                 init_cfg: OptMultiConfig = None,
+                 mode: str = 'fusion') -> None:
         super().__init__(backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, data_preprocessor=data_preprocessor, init_cfg=init_cfg)
 
         self.voxel_encoder = MODELS.build(voxel_encoder)
@@ -85,6 +86,8 @@ class V2XVoxelNet(SingleStage3DDetector):
         # TODO: channel configuration
         self.fusion_weighted = PixelWeightedFusion(384)
         self.encoder = ReduceInfTC(768)
+
+        self.mode = mode
 
     def generate_matrix(self, theta, x0, y0):
         import numpy as np
@@ -173,8 +176,7 @@ class V2XVoxelNet(SingleStage3DDetector):
         batch_input_metas = [item.metainfo for item in batch_data_samples]
         feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
         feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
-        feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas, mode='fusion')
-        # feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas, mode='veh_only')
+        feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas, mode=self.mode)
         return feat_fused
 
     def _forward_train(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample]):
