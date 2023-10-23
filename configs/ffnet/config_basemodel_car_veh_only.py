@@ -2,7 +2,7 @@ dataset_type = 'V2XDataset'
 data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
 data_info_train_path = './data/flow_data_jsons/flow_data_info_train.json'
 data_info_val_path = './data/flow_data_jsons/flow_data_info_val_0.json'
-work_dir = './work_dirs/ffnet-vic3d/basemodel/'
+work_dir = './work_dirs/ffnet-vic3d/basemodel/mmdet3d_0.17.1/'
 
 class_names = ['Car']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
