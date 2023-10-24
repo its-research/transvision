@@ -171,8 +171,6 @@ class V2XDatasetV2(Det3DDataset):
 
         return info
 
-        return info
-
     def parse_ann_info(self, info: dict) -> dict:
         """Process the `instances` in data info to `ann_info`.
 
