@@ -3,7 +3,7 @@ _base_ = [
     '../__base__/default_runtime.py',
 ]
 dataset_type = 'KittiDataset'
-data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
+data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet'
 class_names = ['Car']
 # point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
@@ -16,7 +16,7 @@ z_center_car = -2.66
 metainfo = dict(classes=class_names)
 input_modality = dict(use_lidar=True, use_camera=False)
 
-work_dir = './work_dirs/ffnet-vic3d/basemodel/mmdet3d_1.2.0'
+work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/'
 
 model = dict(
     type='VoxelNet',

@@ -2,19 +2,20 @@ import argparse
 import os
 
 import numpy as np
-from dataset_converters.gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_cam_K, get_velo2cam
-from dataset_converters.gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points, get_label
-from dataset_converters.kitti_data_utils import _extend_matrix
-from dataset_converters.update_infos_to_v2 import get_empty_instance
+from gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_cam_K, get_velo2cam
+from gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points, get_label
+from kitti_data_utils import _extend_matrix
 from mmdet3d.structures import points_cam2img
 from mmdet3d.structures.ops import box_np_ops
 from mmengine.fileio import dump, load
 from skimage import io
 from tqdm import tqdm
+from update_infos_to_v2 import get_empty_instance
 
 parser = argparse.ArgumentParser(description='Data converter arg parser')
 parser.add_argument('--dataset', type=str, default='cooperative')
 parser.add_argument('--root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/', help='specify the root path of dataset')
+parser.add_argument('--dst-root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet', help='specify the root path of dataset')
 parser.add_argument('--split_file_path', type=str, default='data/split_datas/cooperative-split-data.json', help='specify the split file')
 args = parser.parse_args()
 
@@ -371,9 +372,9 @@ def get_instances(images, metainfo, root_path):
 
 if __name__ == '__main__':
     root_path = args.root_path
-    dair_infos_trainval_path = os.path.join(root_path, 'dair_infos_trainval.pkl')
-    dair_infos_train_path = os.path.join(root_path, 'dair_infos_train.pkl')
-    dair_infos_val_path = os.path.join(root_path, 'dair_infos_val.pkl')
+    dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_trainval.pkl')
+    dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_train.pkl')
+    dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_val.pkl')
 
     split_list = get_split_list(args.split_file_path)
 

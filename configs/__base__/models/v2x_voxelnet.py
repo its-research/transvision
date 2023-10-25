@@ -5,7 +5,6 @@ h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 
 z_center_car = -2.66
 
-# TODO 合并voxel_layer
 model = dict(
     type='V2XVoxelNet',
     mode='veh_only',  # veh_only, inf_only, fusion

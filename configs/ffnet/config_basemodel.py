@@ -1,10 +1,10 @@
 _base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py', '../__base__/models/v2x_voxelnet.py']
 
 dataset_type = 'V2XDatasetV2'
-data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
+data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
 data_info_train_path = 'flow_data_jsons/flow_data_info_train.json'
 data_info_val_path = 'flow_data_jsons/flow_data_info_val_0.json'
-work_dir = './work_dirs/ffnet-vic3d/basemodel/mmdet3d_1.2.0'
+work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
@@ -122,7 +122,7 @@ visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.008
+lr = 0.0018
 epoch_num = 40
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 

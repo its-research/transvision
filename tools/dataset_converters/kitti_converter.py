@@ -134,9 +134,6 @@ def _calculate_num_points_in_gt(data_path, infos, relative_path, remove_outside=
         num_ignored = len(annos['dimensions']) - num_obj
         num_points_in_gt = np.concatenate([num_points_in_gt, -np.ones([num_ignored])])
         annos['num_points_in_gt'] = num_points_in_gt.astype(np.int32)
-        print(image_info['image_shape'])
-        print(v_path, num_points_in_gt[13], gt_boxes_camera[13], gt_boxes_lidar[13], rect, Trv2c)
-        exit()
 
 
 def create_kitti_info_file(data_path, pkl_prefix='kitti', with_plane=False, save_path=None, relative_path=True):
