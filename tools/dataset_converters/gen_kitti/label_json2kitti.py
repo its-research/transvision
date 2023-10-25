@@ -77,7 +77,8 @@ def label_filter(label_dir):
             lines = f.readlines()
             for line in lines:
                 wlh = float(line.split(' ')[9])
-                if wlh > 0:
+                label_type = line.split(' ')[0]
+                if wlh > 0 and label_type == 'Car':
                     lines_write.append(line)
 
         with open(path, 'w') as f:

@@ -8,7 +8,7 @@ height = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 output_shape = [height, length]
 z_center_car = -1.78
 
-work_dir = './work_dirs/vic3d_earlyfusion_pointpillars'
+work_dir = './work_dirs/early_fusion_lidar/mmdet3d_0.17.1/'
 
 model = dict(
     type='VoxelNet',
@@ -140,7 +140,7 @@ data = dict(
             data_root=data_root,
             ann_file=data_root + '/kitti_infos_train.pkl',
             split='training',
-            pts_prefix='velodyne_reduced',
+            pts_prefix='velodyne',
             pipeline=[
                 dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
                 dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
@@ -182,7 +182,7 @@ data = dict(
         data_root=data_root,
         ann_file=data_root + '/kitti_infos_val.pkl',
         split='training',
-        pts_prefix='velodyne_reduced',
+        pts_prefix='velodyne',
         pipeline=[
             dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
             dict(
@@ -215,7 +215,7 @@ data = dict(
         data_root=data_root,
         ann_file=data_root + '/kitti_infos_val.pkl',
         split='training',
-        pts_prefix='velodyne_reduced',
+        pts_prefix='velodyne',
         pipeline=[
             dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
             dict(
@@ -258,7 +258,7 @@ optimizer = dict(type='AdamW', lr=0.001, betas=(0.95, 0.99), weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(policy='cyclic', target_ratio=(10, 0.0001), cyclic_times=1, step_ratio_up=0.4)
 momentum_config = dict(policy='cyclic', target_ratio=(0.8947368421052632, 1), cyclic_times=1, step_ratio_up=0.4)
-runner = dict(type='EpochBasedRunner', max_epochs=40)
+runner = dict(type='EpochBasedRunner', max_epochs=80)
 checkpoint_config = dict(interval=10)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook'), dict(type='TensorboardLoggerHook')])
 dist_params = dict(backend='nccl')
