@@ -104,10 +104,11 @@ dair_data = pickle.load(dair_data_file)['data_list']
 kitti_data_file = open('data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/kitti_infos_trainval.pkl', 'rb')
 kitti_data = pickle.load(kitti_data_file)['data_list']
 
+pt_diff_count = 0
 for kitti in kitti_data:
     sample_idx = kitti['sample_idx']
     dair = get_dair_data(dair_data, sample_idx)
-    print('sample_idx:', sample_idx)
+    # print('sample_idx:', sample_idx)
 
     # print('keys:', kitti.keys())
     # check images
@@ -180,6 +181,7 @@ for kitti in kitti_data:
     # print('instances keys:', kitti_instances[0].keys())
 
     isinstance_num = len(kitti_instances)
+
     for i in range(isinstance_num):
         # ['bbox', 'bbox_label', 'bbox_3d', 'bbox_label_3d', 'depth', 'center_2d', 'num_lidar_pts', 'difficulty', 'truncated', 'occluded', 'alpha', 'score', 'index', 'group_id'])
         if kitti_instances[i]['bbox'] != dair_instances[i]['bbox']:
@@ -215,9 +217,11 @@ for kitti in kitti_data:
             print(kitti_instances[i]['center_2d'])
             print(dair_instances[i]['center_2d'])
         if kitti_instances[i]['num_lidar_pts'] != dair_instances[i]['num_lidar_pts']:
+            print('sample_idx:', sample_idx)
             print('num_lidar_pts is different')
             print(kitti_instances[i]['num_lidar_pts'])
             print(dair_instances[i]['num_lidar_pts'])
+            pt_diff_count += 1
         if kitti_instances[i]['difficulty'] != dair_instances[i]['difficulty']:
             print('difficulty is different')
             print(kitti_instances[i]['difficulty'])
@@ -246,3 +250,4 @@ for kitti in kitti_data:
         #     print('group_id is different')
         #     print(kitti_instances[i]['group_id'])
         #     print(dair_instances[i]['group_id'])
+print(pt_diff_count)

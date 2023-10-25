@@ -128,11 +128,15 @@ def _calculate_num_points_in_gt(data_path, infos, relative_path, remove_outside=
         rots = annos['rotation_y'][:num_obj]
         gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1)
         gt_boxes_lidar = box_np_ops.box_camera_to_lidar(gt_boxes_camera, rect, Trv2c)
+
         indices = box_np_ops.points_in_rbbox(points_v[:, :3], gt_boxes_lidar)
         num_points_in_gt = indices.sum(0)
         num_ignored = len(annos['dimensions']) - num_obj
         num_points_in_gt = np.concatenate([num_points_in_gt, -np.ones([num_ignored])])
         annos['num_points_in_gt'] = num_points_in_gt.astype(np.int32)
+        print(image_info['image_shape'])
+        print(v_path, num_points_in_gt[13], gt_boxes_camera[13], gt_boxes_lidar[13], rect, Trv2c)
+        exit()
 
 
 def create_kitti_info_file(data_path, pkl_prefix='kitti', with_plane=False, save_path=None, relative_path=True):

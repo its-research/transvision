@@ -10,7 +10,6 @@ point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 voxel_size = [0.16, 0.16, 4]
 length = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 height = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
-output_shape = [height, length]
 
 z_center_car = -2.66
 
@@ -28,7 +27,7 @@ model = dict(
             max_num_points=100,  # max_points_per_voxel
             point_cloud_range=point_cloud_range,
             voxel_size=voxel_size,
-            max_voxels=(16000, 40000))),
+            max_voxels=(40000, 40000))),
     voxel_encoder=dict(
         type='PillarFeatureNet',
         in_channels=4,
@@ -37,7 +36,7 @@ model = dict(
         voxel_size=voxel_size,
         point_cloud_range=point_cloud_range,
     ),
-    middle_encoder=dict(type='PointPillarsScatter', in_channels=64, output_shape=output_shape),
+    middle_encoder=dict(type='PointPillarsScatter', in_channels=64, output_shape=[height, length]),
     backbone=dict(type='SECOND', in_channels=64, layer_nums=[3, 5, 5], layer_strides=[2, 2, 2], out_channels=[64, 128, 256]),
     neck=dict(type='SECONDFPN', in_channels=[64, 128, 256], upsample_strides=[1, 2, 4], out_channels=[128, 128, 128]),
     bbox_head=dict(
@@ -120,7 +119,7 @@ test_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
     dict(
         type='MultiScaleFlipAug3D',
-        img_scale=(496, 576),  # (1333, 800)
+        img_scale=(height, length),  # (1333, 800)
         pts_scale_ratio=1,
         flip=False,
         transforms=[

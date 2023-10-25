@@ -16,7 +16,7 @@ z_center_car = -2.66
 metainfo = dict(classes=class_names)
 input_modality = dict(use_lidar=True, use_camera=False)
 
-work_dir = './work_dirs/vic3d_earlyfusion_pointpillars'
+work_dir = './work_dirs/ffnet-vic3d/basemodel/mmdet3d_1.2.0'
 
 model = dict(
     type='VoxelNet',

@@ -106,7 +106,8 @@ def get_cam_instances(images, metainfo, root_path):
     for label_info in label_infos:
         cam_instance = {}
         cam_instance['bbox'] = [label_info['2d_box']['xmin'], label_info['2d_box']['ymin'], label_info['2d_box']['xmax'], label_info['2d_box']['ymax']]
-        if label_info['type'] in ['Truck', 'Van', 'Bus']:
+        # if label_info['type'] in ['Truck', 'Van', 'Bus']:
+        if label_info['type'] in ['Car']:
             label_info['type'] == 'Car'
 
         if label_info['type'] in metainfo['classes']:

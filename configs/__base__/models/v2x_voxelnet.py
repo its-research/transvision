@@ -3,7 +3,6 @@ voxel_size = [0.16, 0.16, 4]
 l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 
-output_shape = [h, l]
 z_center_car = -2.66
 
 # TODO 合并voxel_layer
@@ -19,7 +18,7 @@ model = dict(
             voxel_size=voxel_size,
             max_voxels=(40000, 40000))),
     voxel_encoder=dict(type='PillarFeatureNet', in_channels=4, feat_channels=[64], with_distance=False, voxel_size=voxel_size, point_cloud_range=point_cloud_range),
-    middle_encoder=dict(type='PointPillarsScatter', in_channels=64, output_shape=output_shape),
+    middle_encoder=dict(type='PointPillarsScatter', in_channels=64, output_shape=[h, l]),
     backbone=dict(type='SECOND', in_channels=64, layer_nums=[3, 5, 5], layer_strides=[2, 2, 2], out_channels=[64, 128, 256]),
     neck=dict(type='SECONDFPN', in_channels=[64, 128, 256], upsample_strides=[1, 2, 4], out_channels=[128, 128, 128]),
     bbox_head=dict(
@@ -34,12 +33,6 @@ model = dict(
             ranges=[
                 [point_cloud_range[0], point_cloud_range[1], z_center_car, point_cloud_range[3], point_cloud_range[4], z_center_car],
             ],
-            # Since the LiDAR system (x_size, y_size, z_size) now corresponds to (l, w, h) instead of (w, l, h),
-            # the anchor sizes for LiDAR boxes are also changed, e.g., from [1.6, 3.9, 1.56] to [3.9, 1.6, 1.56].
-            # sizes=[[0.6, 0.8, 1.73], [0.6, 1.76, 1.73], [1.6, 3.9, 1.56]], # ffnet-paper:    w l h
-            # sizes=[[0.6, 0.8, 1.73], [0.6, 1.76, 1.73], [1.6, 3.9, 1.56]], # mmdet3d-0.17.1: w l h
-            # sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]], # mmdet3d-1.2.0:  l w h
-            # Dair中lhw等价于旧版本中的wlh, 实际训练中需要交换dair中的l、w
             sizes=[[3.9, 1.6, 1.56]],
             rotations=[0, 1.57],
             reshape_out=False),

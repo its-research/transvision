@@ -1,12 +1,13 @@
-_base_ = ['../../../__base__/schedules/cyclic-40e.py', '../../../__base__/default_runtime.py']
-dataset_type = 'V2XDatasetV2'
+_base_ = [
+    '../__base__/schedules/cyclic-40e.py',
+    '../__base__/default_runtime.py',
+]
+dataset_type = 'KittiDataset'
 point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
 voxel_size = [0.16, 0.16, 4]
 
-data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/'
-data_info_train_path = 'data_info.json'
-data_info_val_path = 'data_info.json'
-class_names = ['Pedestrian', 'Cyclist', 'Car']
+data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
+class_names = ['Car']
 metainfo = dict(classes=class_names)
 input_modality = dict(use_lidar=True, use_camera=False)
 
@@ -16,15 +17,15 @@ z_center_car = -1.78
 
 backend_args = None
 
-# db_sampler = dict(
-#     data_root=data_root,
-#     info_path=data_root + 'kitti_dbinfos_train.pkl',
-#     rate=1.0,
-#     prepare=dict(filter_by_difficulty=[-1], filter_by_min_points=dict(Car=5, Pedestrian=10, Cyclist=10)),
-#     classes=class_names,
-#     sample_groups=dict(Car=15, Pedestrian=10, Cyclist=10),
-#     points_loader=dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
-#     backend_args=backend_args)
+db_sampler = dict(
+    data_root=data_root,
+    info_path=data_root + 'kitti_dbinfos_train.pkl',
+    rate=1.0,
+    prepare=dict(filter_by_difficulty=[-1], filter_by_min_points=dict(Car=5)),
+    classes=class_names,
+    sample_groups=dict(Car=15),
+    points_loader=dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
+    backend_args=backend_args)
 
 train_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
@@ -64,8 +65,8 @@ train_dataloader = dict(
         dataset=dict(
             type=dataset_type,
             data_root=data_root,
-            ann_file=data_info_train_path,
-            data_prefix=dict(pts='training/velodyne_reduced'),
+            ann_file='dair_infos_train.pkl',
+            data_prefix=dict(pts=''),
             pipeline=train_pipeline,
             modality=input_modality,
             test_mode=False,
@@ -83,8 +84,8 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(pts='training/velodyne_reduced'),
-        ann_file=data_info_val_path,
+        data_prefix=dict(pts=''),
+        ann_file='dair_infos_val.pkl',
         pipeline=test_pipeline,
         modality=input_modality,
         test_mode=True,
@@ -100,15 +101,15 @@ test_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(pts='training/velodyne_reduced'),
-        ann_file=data_info_val_path,
+        data_prefix=dict(pts=''),
+        ann_file='dair_infos_val.pkl',
         pipeline=test_pipeline,
         modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
-val_evaluator = dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', backend_args=backend_args)
+val_evaluator = dict(type='KittiMetric', ann_file=data_root + 'dair_infos_val.pkl', metric='bbox', backend_args=backend_args)
 test_evaluator = val_evaluator
 # optimizer
 lr = 0.001
@@ -141,21 +142,15 @@ model = dict(
     neck=dict(type='SECONDFPN', in_channels=[64, 128, 256], upsample_strides=[1, 2, 4], out_channels=[128, 128, 128]),
     bbox_head=dict(
         type='Anchor3DHead',
-        num_classes=3,
+        num_classes=1,
         in_channels=384,
         feat_channels=384,
         use_direction_classifier=True,
         assign_per_class=True,
         anchor_generator=dict(
-            type='AlignedAnchor3DRangeGenerator',
-            ranges=[
-                [0, -39.68, -0.6, 92.16, 39.68, -0.6],
-                [0, -39.68, -0.6, 92.16, 39.68, -0.6],
+            type='AlignedAnchor3DRangeGenerator', ranges=[
                 [0, -39.68, -1.78, 92.16, 39.68, -1.78],
-            ],
-            sizes=[[0.8, 0.6, 1.73], [1.76, 0.6, 1.73], [3.9, 1.6, 1.56]],
-            rotations=[0, 1.57],
-            reshape_out=False),
+            ], sizes=[[3.9, 1.6, 1.56]], rotations=[0, 1.57], reshape_out=False),
         diff_rad_by_sin=True,
         bbox_coder=dict(type='DeltaXYZWLHRBBoxCoder'),
         loss_cls=dict(type='mmdet.FocalLoss', use_sigmoid=True, gamma=2.0, alpha=0.25, loss_weight=1.0),
@@ -164,20 +159,6 @@ model = dict(
     # model training and testing settings
     train_cfg=dict(
         assigner=[
-            dict(  # for Pedestrian
-                type='Max3DIoUAssigner',
-                iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'),
-                pos_iou_thr=0.5,
-                neg_iou_thr=0.35,
-                min_pos_iou=0.35,
-                ignore_iof_thr=-1),
-            dict(  # for Cyclist
-                type='Max3DIoUAssigner',
-                iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'),
-                pos_iou_thr=0.5,
-                neg_iou_thr=0.35,
-                min_pos_iou=0.35,
-                ignore_iof_thr=-1),
             dict(  # for Car
                 type='Max3DIoUAssigner',
                 iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'),

@@ -300,7 +300,8 @@ def get_instances(images, metainfo, root_path):
 
         instance['bbox'] = [label_info['2d_box']['xmin'], label_info['2d_box']['ymin'], label_info['2d_box']['xmax'], label_info['2d_box']['ymax']]
         #
-        if label_info['type'] in ['truck', 'van', 'bus', 'car']:
+        # if label_info['type'] in ['truck', 'van', 'bus', 'car']:
+        if label_info['type'] in ['car']:
             label_info['type'] = 'Car'
 
         if label_info['type'] in metainfo['classes']:
@@ -362,7 +363,7 @@ def get_instances(images, metainfo, root_path):
         num_points_in_gt = indices.sum(0)
         num_ignored = 0
         num_points_in_gt = np.concatenate([num_points_in_gt, -np.ones([num_ignored])])
-        instance['num_lidar_pts'] = num_points_in_gt[0]
+        instance['num_lidar_pts'] = num_points_in_gt[0].astype(np.int32)
 
         instances.append(instance)
     return instances
