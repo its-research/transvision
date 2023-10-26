@@ -24,6 +24,8 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 
 ### config_basemodel
 
+(work with mmdet3d==0.17.1)
+
 | origin | Car(AP@0.70) | fusion  | veh_only | inf_only | transvision | Car(AP@0.70) | fusion  | veh_only | inf_only |
 | :----: | :----------: | :-----: | :------: | :------: | :---------: | :----------: | :-----: | :------: | :------: |
 |        |     bev      | 34.4805 |          |          |             |     bev      | 40.5926 | 32.9987  |  1.2987  |
@@ -32,7 +34,15 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 |        |     bev      | 43.5100 |          |          |             |     bev      | 43.5164 | 35.0143  |  6.5574  |
 |        |      3d      | 41.1886 |          |          |             |      3d      | 40.8895 | 33.9840  |  4.5455  |
 
-(work with mmdet3d==0.17.1)
+(work with mmdet3d==1.2.0)
+
+| transvision | Car(AP@0.70) | fusion | veh_only | inf_only |
+| :---------: | :----------: | :----: | :------: | :------: |
+|             |     bev      |        |          |          |
+|             |      3d      |        |          |          |
+|             | Car(AP@0.50) | fusion | veh_only | inf_only |
+|             |     bev      |        |          |          |
+|             |      3d      |        |          |          |
 
 ### config_ffnet
 

@@ -98,10 +98,10 @@ def get_dair_data(data, idx):
     return None
 
 
-dair_data_file = open('data/DAIR-V2X/cooperative-vehicle-infrastructure/dair_infos_trainval.pkl', 'rb')
+dair_data_file = open('data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/dair_infos_trainval.pkl', 'rb')
 dair_data = pickle.load(dair_data_file)['data_list']
 
-kitti_data_file = open('data/DAIR-V2X/cooperative-vehicle-infrastructure/vic3d-early-fusion-training/kitti_infos_trainval.pkl', 'rb')
+kitti_data_file = open('data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/kitti_infos_trainval.pkl', 'rb')
 kitti_data = pickle.load(kitti_data_file)['data_list']
 
 pt_diff_count = 0

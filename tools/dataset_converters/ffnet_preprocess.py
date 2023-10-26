@@ -1,27 +1,17 @@
 import argparse
 import copy
-import json
 import math
 import os
 
 import numpy as np
-from pypcd import pypcd
+from gen_kitti.utils import pcd2bin
+from mmengine import dump as mmengine_dump
+from mmengine import load as mmengine_load
 from tqdm import tqdm
 
 
-def read_json(path_json):
-    with open(path_json, 'r') as load_f:
-        my_json = json.load(load_f)
-    return my_json
-
-
-def write_json(path_json, new_dict):
-    with open(path_json, 'w') as f:
-        json.dump(new_dict, f)
-
-
 def get_calibs(calib_path):
-    calib = read_json(calib_path)
+    calib = mmengine_load(calib_path)
     if 'transform' in calib.keys():
         calib = calib['transform']
     rotation = calib['rotation']
@@ -113,14 +103,14 @@ def get_rotation(world_8_points, my_3d_point, length, w):
 
 
 def get_novatel2world(path_novatel2world):
-    novatel2world = read_json(path_novatel2world)
+    novatel2world = mmengine_load(path_novatel2world)
     rotation = novatel2world['rotation']
     translation = novatel2world['translation']
     return rotation, translation
 
 
 def get_lidar2novatel(path_lidar2novatel):
-    lidar2novatel = read_json(path_lidar2novatel)
+    lidar2novatel = mmengine_load(path_lidar2novatel)
     rotation = lidar2novatel['transform']['rotation']
     translation = lidar2novatel['transform']['translation']
     return rotation, translation
@@ -151,18 +141,6 @@ def trans_point_w2l(input_point, path_novatel2world, path_lidar2novatel):
     return point
 
 
-def pcd2bin(pcd_file_path, bin_file_path):
-    pc = pypcd.PointCloud.from_path(pcd_file_path)
-
-    np_x = (np.array(pc.pc_data['x'], dtype=np.float32)).astype(np.float32)
-    np_y = (np.array(pc.pc_data['y'], dtype=np.float32)).astype(np.float32)
-    np_z = (np.array(pc.pc_data['z'], dtype=np.float32)).astype(np.float32)
-    np_i = (np.array(pc.pc_data['intensity'], dtype=np.float32)).astype(np.float32) / 255
-
-    points_32 = np.transpose(np.vstack((np_x, np_y, np_z, np_i)))
-    points_32.tofile(bin_file_path)
-
-
 def label_world2vlidar(sub_root, idx):
     path_input_label_file = os.path.join(sub_root, 'cooperative/label_world', idx + '.json')
     path_output_label_dir = os.path.join(sub_root, 'cooperative/label/lidar')
@@ -170,7 +148,7 @@ def label_world2vlidar(sub_root, idx):
         os.makedirs(path_output_label_dir)
     path_output_label_file = os.path.join(path_output_label_dir, idx + '.json')
 
-    input_label_data = read_json(path_input_label_file)
+    input_label_data = mmengine_load(path_input_label_file)
     lidar_3d_list = []
     path_novatel2world = os.path.join(sub_root, 'vehicle-side/calib/novatel_to_world', idx + '.json')
     path_lidar2novatel = os.path.join(sub_root, 'vehicle-side/calib/lidar_to_novatel', idx + '.json')
@@ -210,7 +188,7 @@ def label_world2vlidar(sub_root, idx):
         lidar_3d_data['world_8_points'] = world_8_points
 
         lidar_3d_list.append(lidar_3d_data)
-    write_json(path_output_label_file, lidar_3d_list)
+    mmengine_dump(lidar_3d_list, path_output_label_file)
 
 
 parser = argparse.ArgumentParser('Preprocess the DAIR-V2X-C for FFNET.')
@@ -220,7 +198,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dair_v2x_c_root = args.source_root
     c_jsons_path = os.path.join(dair_v2x_c_root, 'cooperative/data_info.json')
-    c_jsons = read_json(c_jsons_path)
+    c_jsons = mmengine_load(c_jsons_path)
 
     for c_json in tqdm(c_jsons):
         inf_idx = c_json['infrastructure_image_path'].split('/')[-1].replace('.jpg', '')
@@ -240,7 +218,7 @@ if __name__ == '__main__':
         if not os.path.exists(calib_lidar_i2v_save_dir):
             os.makedirs(calib_lidar_i2v_save_dir)
         calib_lidar_i2v_save_path = os.path.join(calib_lidar_i2v_save_dir, veh_idx + '.json')
-        write_json(calib_lidar_i2v_save_path, calib_lidar_i2v)
+        mmengine_dump(calib_lidar_i2v, calib_lidar_i2v_save_path)
 
         pcd_path = os.path.join(dair_v2x_c_root, 'infrastructure-side/velodyne/' + inf_idx + '.pcd')
         bin_save_path = os.path.join(dair_v2x_c_root, 'infrastructure-side/velodyne/' + inf_idx + '.bin')
@@ -265,11 +243,11 @@ if __name__ == '__main__':
         c_json['image'] = {'image_shape': [1080, 1920]}
 
     c_jsons_write_path = os.path.join(dair_v2x_c_root, 'cooperative/data_info_new.json')
-    write_json(c_jsons_write_path, c_jsons)
+    mmengine_dump(c_jsons, c_jsons_write_path)
 
     # Complementary process:  missing infrastructure point clouds
     c_jsons_path = os.path.join(dair_v2x_c_root, 'infrastructure-side/data_info.json')
-    c_jsons = read_json(c_jsons_path)
+    c_jsons = mmengine_load(c_jsons_path)
     for c_json in c_jsons:
         inf_idx = c_json['pointcloud_path'].split('/')[-1].replace('.pcd', '')
         pcd_path = os.path.join(dair_v2x_c_root, 'infrastructure-side/velodyne/' + inf_idx + '.pcd')

@@ -1,16 +1,19 @@
-_base_ = ['../../../__base__/schedules/cyclic-40e.py', '../../../__base__/default_runtime.py']
+_base_ = ['../../../__base__/default_runtime.py']
 dataset_type = 'KittiDataset'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/'
 class_names = ['Car']
+# point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 voxel_size = [0.16, 0.16, 4]
 length = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 height = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 output_shape = [height, length]
 # z_center_car = -1.78
+z_center_pedestrian = -0.6
+z_center_cyclist = -0.6
 z_center_car = -2.66
 
-data_prefix = 'training/velodyne_reduced'
+data_prefix = 'training/velodyne'
 ann_file_train = 'kitti_infos_train.pkl'
 ann_file_val = 'kitti_infos_val.pkl'
 
@@ -120,7 +123,7 @@ test_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, backend_args=backend_args),
     dict(
         type='MultiScaleFlipAug3D',
-        img_scale=(1920, 1080),  # (1333, 800)
+        img_scale=(496, 576),  # (1333, 800)
         pts_scale_ratio=1,
         flip=False,
         transforms=[
@@ -187,20 +190,21 @@ test_dataloader = dict(
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
-val_evaluator = dict(type='KittiMetric', ann_file=data_root + ann_file_val, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args)
+val_evaluator = dict(type='KittiMetric', ann_file=data_root + ann_file_val, metric='bbox', backend_args=backend_args)
 test_evaluator = val_evaluator
 
 # optimizer
-lr = 0.0018
-epoch_num = 80
-optim_wrapper = dict(optimizer=dict(lr=lr), clip_grad=dict(max_norm=35, norm_type=2))
+lr = 0.2
+max_epochs = 80
+# training schedule for 1x
+train_cfg = dict(type='EpochBasedTrainLoop', max_epochs=max_epochs, val_interval=10)
+val_cfg = dict(type='ValLoop')
+test_cfg = dict(type='TestLoop')
+
+# learning rate
 param_scheduler = [
-    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.4, eta_min=lr * 10, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.6, eta_min=lr * 1e-4, begin=epoch_num * 0.4, end=epoch_num * 1, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.4, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
+    dict(type='LinearLR', start_factor=0.001, by_epoch=False, begin=0, end=500),
+    dict(type='MultiStepLR', begin=0, end=max_epochs, by_epoch=True, milestones=[40, 60, 75], gamma=0.1)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
-val_cfg = dict()
-test_cfg = dict()
+optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='SGD', lr=lr, momentum=0.9, weight_decay=0.0001))

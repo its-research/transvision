@@ -340,9 +340,15 @@ def get_instances(images, metainfo, root_path):
         instance['depth'] = center_2d[2]
         gt_bboxes_3d = np.concatenate([loc, dims, rots]).tolist()
         instance['bbox_3d'] = gt_bboxes_3d
-        instance['truncated'] = int(label_info['truncated_state'])
-        instance['occluded'] = int(label_info['occluded_state'])
-        instance['alpha'] = alpha
+        # instance['truncated'] = int(label_info['truncated_state'])
+        # instance['occluded'] = int(label_info['occluded_state'])
+        # instance['alpha'] = alpha
+        # TODO Fake data
+        instance['alpha'] = -10
+        instance['bbox'] = [0, 0, 100, 100]
+        instance['truncated'] = 0
+        instance['occluded'] = 0
+
         instance['score'] = 0.0
         instance['index'] = object_idx
         instance['group_id'] = len(label_infos)

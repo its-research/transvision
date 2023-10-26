@@ -1,19 +1,10 @@
 import argparse
 import copy
-import json
 import os
 import random
 
-
-def read_json(path):
-    with open(path, 'r') as f:
-        my_json = json.load(f)
-        return my_json
-
-
-def write_json(path_json, new_dict):
-    with open(path_json, 'w') as f:
-        json.dump(new_dict, f)
+from mmengine import dump as mmengine_dump
+from mmengine import load as mmengine_load
 
 
 def idx_batch_mapping(inf_data_infos):
@@ -139,16 +130,16 @@ if __name__ == '__main__':
     dair_v2x_c_root = args.source_root
 
     inf_data_infos_path = os.path.join(dair_v2x_c_root, 'infrastructure-side/data_info.json')
-    inf_data_infos = read_json(inf_data_infos_path)
+    inf_data_infos = mmengine_load(inf_data_infos_path)
     inf_idx_batch_mappings = idx_batch_mapping(inf_data_infos)
 
     # You should split the data_info_new.json generated from preprocessing into train/val.
     split_json_path = os.path.join('data/split_datas', 'cooperative-split-data.json')
-    split_jsons = read_json(split_json_path)
+    split_jsons = mmengine_load(split_json_path)
 
     # Generate training part
     data_infos_path = os.path.join(dair_v2x_c_root, 'cooperative/data_info_new.json')
-    data_infos = read_json(data_infos_path)
+    data_infos = mmengine_load(data_infos_path)
     data_infos_train = split_datas(data_infos, split_jsons, split='train')
 
     metainfo = dict()
@@ -159,19 +150,19 @@ if __name__ == '__main__':
     converted_data_info = dict(metainfo=metainfo, data_list=data_infos_train)
     data_infos_train_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train.json'
 
-    write_json(data_infos_train_path, converted_data_info)
+    mmengine_dump(converted_data_info, data_infos_train_path)
 
     data_infos_flow_train = data_info_flow_train(data_infos_train, inf_idx_batch_mappings)
     data_infos_flow_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train_2.json'
-    write_json(data_infos_flow_path, data_infos_flow_train)
+    mmengine_dump(data_infos_flow_train, data_infos_flow_path)
 
     # Generate val part
     data_infos_path = os.path.join(dair_v2x_c_root, 'cooperative/data_info_new.json')
-    data_infos = read_json(data_infos_path)
+    data_infos = mmengine_load(data_infos_path)
     data_infos_val = split_datas(data_infos, split_jsons, split='val')
 
     for async_k in range(0, 6):
         data_infos_flow_val = data_info_flow_val(data_infos_val, inf_idx_batch_mappings, async_k=async_k)
         print('The length of data_infos_flow_val is: ', async_k, len(data_infos_flow_val['data_list']))
         data_infos_flow_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_val_' + str(async_k) + '.json'
-        write_json(data_infos_flow_path, data_infos_flow_val)
+        mmengine_dump(data_infos_flow_val, data_infos_flow_path)

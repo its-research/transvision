@@ -204,9 +204,6 @@ class V2XVoxelNet(SingleStage3DDetector):
 
     def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
 
-        # for ii in range(len(infrastructure_points)):
-        #     infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
-
         feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
         bbox_results = self.bbox_head.predict(feat_fused, batch_data_samples)
         res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
