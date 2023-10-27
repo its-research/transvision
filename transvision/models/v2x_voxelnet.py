@@ -145,6 +145,12 @@ class V2XVoxelNet(SingleStage3DDetector):
             inf_feature = inf_x[0][ii:ii + 1]
             veh_feature = veh_x[0][ii:ii + 1]
 
+            # Affine transformation module.
+            # The affine transformation is implemented with the affine_grid function supported in Pytorch.
+            # We ignore the rotation around the x-y plane.
+            # theta_rot = [[cos(-theta), sin(-theta), 0.0], [cos(-theta), sin(-theta), 0.0]], theta is in the lidar coordinate.
+            # according to the relationship between lidar coordinate system and input coordinate system.
+
             calib_inf2veh_rotation = img_metas[ii]['calib']['lidar_i2v']['rotation']
             calib_inf2veh_translation = img_metas[ii]['calib']['lidar_i2v']['translation']
             inf_pointcloud_range = point_cloud_range
@@ -152,6 +158,7 @@ class V2XVoxelNet(SingleStage3DDetector):
             theta_rot = torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
                                       [0, 0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device)
             theta_rot = torch.FloatTensor(self.generate_matrix(theta_rot, -1, 0)).type(dtype=torch.float).cuda(next(self.parameters()).device)
+            # range: [-1, 1].
             # Moving right and down is negative.
             x_trans = -2 * calib_inf2veh_translation[0][0] / (inf_pointcloud_range[3] - inf_pointcloud_range[0])
             y_trans = -2 * calib_inf2veh_translation[1][0] / (inf_pointcloud_range[4] - inf_pointcloud_range[1])

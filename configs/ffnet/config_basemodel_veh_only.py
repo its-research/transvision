@@ -4,7 +4,7 @@ dataset_type = 'V2XDatasetV2'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
 data_info_train_path = 'dair_infos_train.pkl'
 data_info_val_path = 'dair_infos_val.pkl'
-work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/'
+work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/veh_only'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
@@ -191,7 +191,7 @@ visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='
 # In practice PointPillars also uses a different schedule
 # optimizer
 lr = 0.001
-epoch_num = 80
+epoch_num = 40
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
 param_scheduler = [
