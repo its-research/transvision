@@ -150,6 +150,10 @@ class V2XVoxelNet(SingleStage3DDetector):
             # We ignore the rotation around the x-y plane.
             # theta_rot = [[cos(-theta), sin(-theta), 0.0], [cos(-theta), sin(-theta), 0.0]], theta is in the lidar coordinate.
             # according to the relationship between lidar coordinate system and input coordinate system.
+            # First, the coordinates of features and the real world are different in units,
+            # so the rotation/translation matrix of the real world needs to be mapped to the feature world.
+            # Secondly, there are also some constraints when using the F.affine_grid() function for feature translation and rotation.
+            # You can refer to Pytorch's introduction for details
 
             calib_inf2veh_rotation = img_metas[ii]['calib']['lidar_i2v']['rotation']
             calib_inf2veh_translation = img_metas[ii]['calib']['lidar_i2v']['translation']
