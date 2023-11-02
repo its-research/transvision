@@ -23,7 +23,7 @@ def featuremap_2_heatmap(feature_map):
 def save_feature_map(save_file, featuremap):
     heatmap = featuremap_2_heatmap(featuremap)
     heatmap = cv2.resize(heatmap, (288, 288))
-    heatmap = np.uint8(255 * heatmap)
+    heatmap = np.uint8(255 * heatmap) + 40
     heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
     superimposed_img = heatmap * 1.0
     cv2.imwrite(os.path.join(save_file), superimposed_img)
