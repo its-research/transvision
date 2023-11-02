@@ -76,7 +76,7 @@ train_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type='RepeatDataset',
-        times=1,
+        times=2,
         dataset=dict(
             type=dataset_type,
             data_root=data_root,
