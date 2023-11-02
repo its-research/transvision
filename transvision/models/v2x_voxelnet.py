@@ -166,7 +166,6 @@ class V2XVoxelNet(SingleStage3DDetector):
         for ii in range(len(veh_x[0])):
             inf_feature = inf_x[0][ii:ii + 1]
             veh_feature = veh_x[0][ii:ii + 1]
-            print(img_metas[ii])
 
             calib_inf2veh_rotation = img_metas[ii]['inf2veh']['rotation']
             calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
@@ -188,7 +187,6 @@ class V2XVoxelNet(SingleStage3DDetector):
             save_feature_map('work_dirs/inf_feature_map_0.17.1/inf_feature_map_{}_b.png'.format(ii), inf_feature)
             save_feature_map('work_dirs/inf_feature_map_0.17.1/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
             save_feature_map('work_dirs/inf_feature_map_0.17.1/veh_feature_map_{}.png'.format(ii), veh_feature)
-        exit()
 
         wrap_feats = [torch.cat(wrap_feats_ii, dim=0)]
 
