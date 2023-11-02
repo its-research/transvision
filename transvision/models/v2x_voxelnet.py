@@ -192,7 +192,6 @@ class V2XVoxelNet(SingleStage3DDetector):
             # With the help of visualization, you can make necessary adjustments to the transformation as needed.
             # 为简化问题，我们只考虑bev方向的rotation, 暂时忽略z方向的rotation, 取负是考虑Lidar坐标系的y方向与feature坐标系在H维度不一致，所以旋转方向取负。
             # 具体可以画下坐标系的图看看
-            print(img_metas[ii])
 
             calib_inf2veh_rotation = img_metas[ii]['calib']['lidar_i2v']['rotation']
             calib_inf2veh_translation = img_metas[ii]['calib']['lidar_i2v']['translation']
@@ -226,12 +225,12 @@ class V2XVoxelNet(SingleStage3DDetector):
             )
             warp_feat_trans = F.grid_sample(inf_feature, grid_r_t, mode='bilinear', align_corners=False)
             wrap_feats_ii.append(warp_feat_trans)
-            print(inf_feature.shape)
-            print(veh_feature.shape)
-            save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
-            save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
-            save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
-        exit()
+            if img_metas[ii]['sample_idx'] == 4545:
+                print(calib_inf2veh_rotation, calib_inf2veh_translation)
+                save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
+                save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
+                save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
+                exit()
 
         wrap_feats = [torch.cat(wrap_feats_ii, dim=0)]
 
