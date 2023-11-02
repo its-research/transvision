@@ -243,7 +243,7 @@ class V2XDataset(Custom3DDataset):
             infrastructure_pointcloud_bin_path_t_2=infrastructure_pointcloud_bin_path_t_2,
             infrastructure_t_0_1=infrastructure_t_0_1,
             infrastructure_t_1_2=infrastructure_t_1_2)
-
+        print(sample_veh_idx, calib_inf2veh)
         if not self.test_mode:
             annos = self.get_ann_info(index)
             input_dict['ann_info'] = annos
