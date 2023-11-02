@@ -11,46 +11,8 @@ from mmdet3d.structures import CameraInstance3DBoxes
 
 @DATASETS.register_module()
 class V2XDatasetV2(Det3DDataset):
-    r"""KITTI Dataset.
+    r"""Dair-V2X Dataset.
 
-    This class serves as the API for experiments on the `KITTI Dataset
-    <http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d>`_.
-
-    Args:
-        data_root (str): Path of dataset root.
-        ann_file (str): Path of annotation file.
-        pipeline (List[dict]): Pipeline used for data processing.
-            Defaults to [].
-        modality (dict): Modality to specify the sensor data used as input.
-            Defaults to dict(use_lidar=True).
-        default_cam_key (str): The default camera name adopted.
-            Defaults to 'CAM2'.
-        load_type (str): Type of loading mode. Defaults to 'frame_based'.
-
-            - 'frame_based': Load all of the instances in the frame.
-            - 'mv_image_based': Load all of the instances in the frame and need
-              to convert to the FOV-based data type to support image-based
-              detector.
-            - 'fov_image_based': Only load the instances inside the default
-              cam, and need to convert to the FOV-based data type to support
-              image-based detector.
-        box_type_3d (str): Type of 3D box of this dataset.
-            Based on the `box_type_3d`, the dataset will encapsulate the box
-            to its original format then converted them to `box_type_3d`.
-            Defaults to 'LiDAR' in this dataset. Available options includes:
-
-            - 'LiDAR': Box in LiDAR coordinates.
-            - 'Depth': Box in depth coordinates, usually for indoor dataset.
-            - 'Camera': Box in camera coordinates.
-        filter_empty_gt (bool): Whether to filter the data with empty GT.
-            If it's set to be True, the example with empty annotations after
-            data pipeline will be dropped and a random example will be chosen
-            in `__getitem__`. Defaults to True.
-        test_mode (bool): Whether the dataset is in test mode.
-            Defaults to False.
-        pcd_limit_range (List[float]): The range of point cloud used to filter
-            invalid predicted boxes.
-            Defaults to [0, -40, -3, 70.4, 40, 0.0].
     """
     # TODO: use full classes of kitti
     METAINFO = {
