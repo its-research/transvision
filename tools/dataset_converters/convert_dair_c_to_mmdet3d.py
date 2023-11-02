@@ -97,19 +97,23 @@ def trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2wo
 
 def get_calib_info(ori_info, root_path):
     calib = {}
-    inf_idx = ori_info['infrastructure_image_path'].split('/')[-1].replace('.jpg', '')
-    inf_lidar2world_path = os.path.join(root_path, 'infrastructure-side/calib/virtuallidar_to_world/' + inf_idx + '.json')
+    # inf_idx = ori_info['infrastructure_image_path'].split('/')[-1].replace('.jpg', '')
+    # inf_lidar2world_path = os.path.join(root_path, 'infrastructure-side/calib/virtuallidar_to_world/' + inf_idx + '.json')
+    # veh_idx = ori_info['vehicle_image_path'].split('/')[-1].replace('.jpg', '')
+    # veh_lidar2novatel_path = os.path.join(root_path, 'vehicle-side/calib/lidar_to_novatel/' + veh_idx + '.json')
+    # veh_novatel2world_path = os.path.join(root_path, 'vehicle-side/calib/novatel_to_world/' + veh_idx + '.json')
+    # system_error_offset = ori_info['system_error_offset']
+    # if system_error_offset == '':
+    #     system_error_offset = None
+    # calib_lidar_i2v_r, calib_lidar_i2v_t = trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2world_path, system_error_offset)
+    # # print('calib_lidar_i2v: ', calib_lidar_i2v_r, calib_lidar_i2v_t)
+    # calib_lidar_i2v = {}
+    # calib_lidar_i2v['rotation'] = calib_lidar_i2v_r.tolist()
+    # calib_lidar_i2v['translation'] = calib_lidar_i2v_t.tolist()
+
     veh_idx = ori_info['vehicle_image_path'].split('/')[-1].replace('.jpg', '')
-    veh_lidar2novatel_path = os.path.join(root_path, 'vehicle-side/calib/lidar_to_novatel/' + veh_idx + '.json')
-    veh_novatel2world_path = os.path.join(root_path, 'vehicle-side/calib/novatel_to_world/' + veh_idx + '.json')
-    system_error_offset = ori_info['system_error_offset']
-    if system_error_offset == '':
-        system_error_offset = None
-    calib_lidar_i2v_r, calib_lidar_i2v_t = trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2world_path, system_error_offset)
-    # print('calib_lidar_i2v: ', calib_lidar_i2v_r, calib_lidar_i2v_t)
-    calib_lidar_i2v = {}
-    calib_lidar_i2v['rotation'] = calib_lidar_i2v_r.tolist()
-    calib_lidar_i2v['translation'] = calib_lidar_i2v_t.tolist()
+    calib_lidar_i2v_path = os.path.join(root_path, 'cooperative/calib/lidar_i2v/' + veh_idx + '.json')
+    calib_lidar_i2v = load(calib_lidar_i2v_path)
 
     calib['lidar_i2v'] = calib_lidar_i2v
     return calib
@@ -431,7 +435,7 @@ if __name__ == '__main__':
 
         instances = get_instances(images, metainfo, root_path)
 
-        calib = get_calib_info(ori_info, root_path)
+        calib = get_calib_info(ori_info, args.dst_root_path)
 
         if instances != []:
             frame_id = images[defalut_cam]['img_path'].split('/')[-1].replace('.jpg', '')
