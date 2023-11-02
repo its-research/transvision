@@ -587,3 +587,47 @@ class FeatureFlowNet(SingleStage3DDetector):
     def aug_test(self):
         """Test function with augmentaiton."""
         return None
+
+    '''
+        import cv2
+        hot_map_feat_cat = np.zeros((288, 288))+255
+        #flow_pred feat_inf_t_1  feat_inf_t_2
+        self.count+=1
+        hot_map_feat_flow=np.zeros((288,288))
+        for ii in range(flow_pred[0].shape[1]):
+                hot_map_feat_flow = hot_map_feat_flow + torch.abs(flow_pred[0][0, ii]).cpu().detach().numpy()
+        hot_map_feat_pred=np.zeros((288,288))
+        for ii in range(feat_inf_apprs[0].shape[1]):
+                hot_map_feat_pred = hot_map_feat_pred + torch.abs(feat_inf_apprs[0][0, ii]).cpu().detach().numpy()
+        hot_map_feat_t1=np.zeros((288,288))
+        for ii in range(feat_inf_t_1[0].shape[1]):
+                hot_map_feat_t1 = hot_map_feat_t1 + torch.abs(feat_inf_t_1[0][0, ii]).cpu().detach().numpy()
+        hot_map_feat_t2=np.zeros((288,288))
+        for ii in range(feat_inf_t_2[0].shape[1]):
+                hot_map_feat_t2 = hot_map_feat_t2 + torch.abs(feat_inf_t_2[0][0, ii]).cpu().detach().numpy()
+        hot_map_feat_veh=np.zeros((288,288))
+        for ii in range(feat_veh[0].shape[1]):
+                hot_map_feat_veh = hot_map_feat_veh + torch.abs(feat_veh[0][0, ii]).cpu().detach().numpy()
+
+        cv2.imwrite('./result/flow_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_flow*10)
+        cv2.imwrite('./result/pred_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_pred*10)
+        cv2.imwrite('./result/t2_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_t2*10)
+        cv2.imwrite('./result/t1_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_t1*10)
+
+        hot_map_feat_fused=np.zeros((288,288))
+        for ii in range(feat_fused[0].shape[1]):
+                hot_map_feat_fused = hot_map_feat_fused + torch.abs(feat_fused[0][0, ii]).cpu().detach().numpy()
+        cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_veh*10)
+        cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_fused*10)
+        # cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-feat_veh[0][0,79].cpu().detach().numpy()*7000)
+        # cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-feat_fused[0][0,79].cpu().detach().numpy()*7000)
+
+        # cv2.imwrite('./result/flow_'+str(self.count)+'.png', hot_map_feat_cat-flow_pred[0][0,79].cpu().detach().numpy()*7000)
+        # cv2.imwrite('./result/pred_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_apprs[0][0,79].cpu().detach().numpy()*7000)
+        # cv2.imwrite('./result/t2_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_t_2[0][0,79].cpu().detach().numpy()*10000)
+        # cv2.imwrite('./result/t1_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_t_1[0][0,79].cpu().detach().numpy()*7000)
+
+        # feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
+        # cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-feat_veh[0][0,79].cpu().detach().numpy()*7000)
+        # cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-feat_fused[0][0,79].cpu().detach().numpy()*7000)
+        '''

@@ -11,6 +11,8 @@ from torch import Tensor
 from torch import nn as nn
 from torch.nn import functional as F
 
+from transvision.v2x_utils.visual import save_feature_map
+
 
 class ReduceInfTC(nn.Module):
 
@@ -27,7 +29,14 @@ class ReduceInfTC(nn.Module):
         self.bn2_1 = nn.BatchNorm2d(channel // 8, track_running_stats=True)
         self.deconv2_2 = nn.ConvTranspose2d(channel // 8, channel // 4, kernel_size=3, stride=2, padding=0)
         self.bn2_2 = nn.BatchNorm2d(channel // 4, track_running_stats=True)
-        self.deconv2_3 = nn.ConvTranspose2d(channel // 4, channel // 2, kernel_size=3, stride=2, padding=0, output_padding=1)
+        self.deconv2_3 = nn.ConvTranspose2d(
+            channel // 4,
+            channel // 2,
+            kernel_size=3,
+            stride=2,
+            padding=0,
+            output_padding=1,
+        )
         self.bn2_3 = nn.BatchNorm2d(channel // 2, track_running_stats=True)
 
     def forward(self, x):
@@ -61,18 +70,28 @@ class PixelWeightedFusion(nn.Module):
 class V2XVoxelNet(SingleStage3DDetector):
     r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
-    def __init__(self,
-                 voxel_encoder: ConfigType,
-                 middle_encoder: ConfigType,
-                 backbone: ConfigType,
-                 neck: OptConfigType = None,
-                 bbox_head: OptConfigType = None,
-                 train_cfg: OptConfigType = None,
-                 test_cfg: OptConfigType = None,
-                 data_preprocessor: OptConfigType = None,
-                 init_cfg: OptMultiConfig = None,
-                 mode: str = 'fusion') -> None:
-        super().__init__(backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+    def __init__(
+        self,
+        voxel_encoder: ConfigType,
+        middle_encoder: ConfigType,
+        backbone: ConfigType,
+        neck: OptConfigType = None,
+        bbox_head: OptConfigType = None,
+        train_cfg: OptConfigType = None,
+        test_cfg: OptConfigType = None,
+        data_preprocessor: OptConfigType = None,
+        init_cfg: OptMultiConfig = None,
+        mode: str = 'fusion',
+    ) -> None:
+        super().__init__(
+            backbone=backbone,
+            neck=neck,
+            bbox_head=bbox_head,
+            train_cfg=train_cfg,
+            test_cfg=test_cfg,
+            data_preprocessor=data_preprocessor,
+            init_cfg=init_cfg,
+        )
 
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
@@ -91,6 +110,7 @@ class V2XVoxelNet(SingleStage3DDetector):
 
     def generate_matrix(self, theta, x0, y0):
         import numpy as np
+
         c = theta[0][0]
         s = theta[1][0]
         matrix = np.zeros((3, 3))
@@ -117,7 +137,11 @@ class V2XVoxelNet(SingleStage3DDetector):
 
         elif points_view == 'infrastructure':
             inf_voxel_dict = batch_inputs_dict['infrastructure_voxels']
-            inf_voxel_features = self.voxel_encoder(inf_voxel_dict['voxels'], inf_voxel_dict['num_points'], inf_voxel_dict['coors'])
+            inf_voxel_features = self.voxel_encoder(
+                inf_voxel_dict['voxels'],
+                inf_voxel_dict['num_points'],
+                inf_voxel_dict['coors'],
+            )
             inf_batch_size = inf_voxel_dict['coors'][-1, 0].item() + 1
             inf_x = self.inf_middle_encoder(inf_voxel_features, inf_voxel_dict['coors'], inf_batch_size)
             inf_x = self.inf_backbone(inf_x)
@@ -154,24 +178,58 @@ class V2XVoxelNet(SingleStage3DDetector):
             # so the rotation/translation matrix of the real world needs to be mapped to the feature world.
             # Secondly, there are also some constraints when using the F.affine_grid() function for feature translation and rotation.
             # You can refer to Pytorch's introduction for details
+            # range: [-1, 1].
+            # Moving right and down is negative.
+            # This transformation is employed to convert a feature from the infrastructure-side
+            # feature coordinate system to the vehicle-side feature coordinate system.
+            # The process encompasses various coordinate systems, including the infrastructure-side
+            # feature coordinate system,
+            # infrastructure-side LiDAR coordinate system, vehicle-side feature coordinate system, and vehicle-side LiDAR coordinate system.
+
+            # Regarding the version concern you raised, we have been utilizing v0.17.1.
+            # We recommend visualizing the transformed feature to assess the relative positional
+            # relationship between the two versions.
+            # With the help of visualization, you can make necessary adjustments to the transformation as needed.
 
             calib_inf2veh_rotation = img_metas[ii]['calib']['lidar_i2v']['rotation']
             calib_inf2veh_translation = img_metas[ii]['calib']['lidar_i2v']['translation']
             inf_pointcloud_range = point_cloud_range
 
-            theta_rot = torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
-                                      [0, 0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device)
-            theta_rot = torch.FloatTensor(self.generate_matrix(theta_rot, -1, 0)).type(dtype=torch.float).cuda(next(self.parameters()).device)
-            # range: [-1, 1].
+            theta_rot = (
+                torch.tensor([
+                    [
+                        calib_inf2veh_rotation[0][0],
+                        -calib_inf2veh_rotation[0][1],
+                        0.0,
+                    ],
+                    [
+                        -calib_inf2veh_rotation[1][0],
+                        calib_inf2veh_rotation[1][1],
+                        0.0,
+                    ],
+                    [0, 0, 1],
+                ]).type(dtype=torch.float).cuda(next(self.parameters()).device))
+            theta_rot = (torch.FloatTensor(self.generate_matrix(theta_rot, -1, 0)).type(dtype=torch.float).cuda(next(self.parameters()).device))
             # Moving right and down is negative.
-            x_trans = -2 * calib_inf2veh_translation[0][0] / (inf_pointcloud_range[3] - inf_pointcloud_range[0])
-            y_trans = -2 * calib_inf2veh_translation[1][0] / (inf_pointcloud_range[4] - inf_pointcloud_range[1])
-            theta_trans = torch.tensor([[1.0, 0.0, x_trans], [0.0, 1.0, y_trans], [0.0, 0.0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device)
+            x_trans = (-2 * calib_inf2veh_translation[0][0] / (inf_pointcloud_range[3] - inf_pointcloud_range[0]))
+            y_trans = (-2 * calib_inf2veh_translation[1][0] / (inf_pointcloud_range[4] - inf_pointcloud_range[1]))
+            theta_trans = (torch.tensor([[1.0, 0.0, x_trans], [0.0, 1.0, y_trans], [0.0, 0.0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device))
             theta_r_t = torch.mm(theta_rot, theta_trans, out=None)
 
-            grid_r_t = F.affine_grid(theta_r_t[0:2].unsqueeze(0), size=torch.Size(veh_feature.shape), align_corners=False)
+            grid_r_t = F.affine_grid(
+                theta_r_t[0:2].unsqueeze(0),
+                size=torch.Size(veh_feature.shape),
+                align_corners=False,
+            )
             warp_feat_trans = F.grid_sample(inf_feature, grid_r_t, mode='bilinear', align_corners=False)
             wrap_feats_ii.append(warp_feat_trans)
+            print('inf_feature.shape: ', inf_feature.shape)
+            print('veh_feature.shape: ', veh_feature.shape)
+            save_feature_map('work_dirs/inf_feature_b.png', inf_feature)
+
+            save_feature_map('work_dirs/inf_feature_a.png', warp_feat_trans)
+            save_feature_map('work_dirs/veh_feature.png', veh_feature)
+            exit()
 
         wrap_feats = [torch.cat(wrap_feats_ii, dim=0)]
 
@@ -183,21 +241,28 @@ class V2XVoxelNet(SingleStage3DDetector):
 
         return veh_cat_feats
 
-    def extract_feats(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample]):
+    def extract_feats(
+        self,
+        batch_inputs_dict: Dict[str, Optional[Tensor]],
+        batch_data_samples: List[Det3DDataSample],
+    ):
         batch_input_metas = [item.metainfo for item in batch_data_samples]
         feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
         feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
         feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas, mode=self.mode)
         return feat_fused
 
-    def _forward_train(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample]):
+    def _forward_train(
+        self,
+        batch_inputs_dict: Dict[str, Optional[Tensor]],
+        batch_data_samples: List[Det3DDataSample],
+    ):
         """Training forward function."""
         feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
         outs = self.bbox_head(feat_fused)
         return outs
 
     def loss(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
-
         batch_gt_instances_3d = []
         batch_gt_instances_ignore = []
         batch_input_metas = []
@@ -208,13 +273,16 @@ class V2XVoxelNet(SingleStage3DDetector):
             batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
 
         outs = self._forward_train(batch_inputs_dict, batch_data_samples)
-        loss_inputs = outs + (batch_gt_instances_3d, batch_input_metas, batch_gt_instances_ignore)
+        loss_inputs = outs + (
+            batch_gt_instances_3d,
+            batch_input_metas,
+            batch_gt_instances_ignore,
+        )
         losses = self.bbox_head.loss_by_feat(*loss_inputs)
 
         return losses
 
     def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
-
         feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
         bbox_results = self.bbox_head.predict(feat_fused, batch_data_samples)
         res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
