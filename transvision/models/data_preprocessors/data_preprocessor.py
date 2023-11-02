@@ -174,9 +174,9 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
                 batch_inputs['voxels'] = voxel_dict
 
         if 'infrastructure_points' in inputs:
-            # TODO Notsure why this is needed
+            # TODO Not sure why this is needed
             for ii in range(len(inputs['infrastructure_points'])):
-                inputs['infrastructure_points'][ii][:, 3] = inputs['infrastructure_points'][ii][:, 3]
+                inputs['infrastructure_points'][ii][:, 3] = 255 * inputs['infrastructure_points'][ii][:, 3]
             batch_inputs['infrastructure_points'] = inputs['infrastructure_points']
 
             if self.voxel:
