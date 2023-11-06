@@ -65,8 +65,8 @@ if __name__ == '__main__':
 
     print('================ Start to Copy Raw Data ================')
     mdkir_kitti(target_root)
-    rawdata_copy(source_root, target_root)
-    kitti_pcd2bin(target_root)
+    # rawdata_copy(source_root, target_root)
+    # kitti_pcd2bin(target_root)
 
     print('================ Start to Generate Label ================')
     temp_root = args.temp_root

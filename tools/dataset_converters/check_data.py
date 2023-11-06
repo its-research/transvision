@@ -200,6 +200,8 @@ for kitti in kitti_data:
 
         kitti_instances[i]['bbox_3d'] = np.array(kitti_instances[i]['bbox_3d'])
         dair_instances[i]['bbox_3d'] = np.array(dair_instances[i]['bbox_3d'])
+        print(kitti_instances[i]['bbox_3d'])
+        print(dair_instances[i]['bbox_3d'])
         comp = np.isclose(kitti_instances[i]['bbox_3d'], dair_instances[i]['bbox_3d'])
         if comp.all() is False:
             print('bbox_3d is different')
@@ -223,13 +225,13 @@ for kitti in kitti_data:
         #     print(kitti_instances[i]['center_2d'])
         #     print(dair_instances[i]['center_2d'])
 
-        if kitti_instances[i]['num_lidar_pts'] != dair_instances[i]['num_lidar_pts']:
-            # if kitti_instances[i]['num_lidar_pts'] == 0:
-            print('sample_idx:', sample_idx)
-            # print('num_lidar_pts is different')
-            print(kitti_instances[i]['num_lidar_pts'])
-            print(dair_instances[i]['num_lidar_pts'])
-            pt_diff_count += 1
+        # if kitti_instances[i]['num_lidar_pts'] != dair_instances[i]['num_lidar_pts']:
+        #     # if kitti_instances[i]['num_lidar_pts'] == 0:
+        #     print('sample_idx:', sample_idx)
+        #     # print('num_lidar_pts is different')
+        #     print(kitti_instances[i]['num_lidar_pts'])
+        #     print(dair_instances[i]['num_lidar_pts'])
+        #     pt_diff_count += 1
 
         # if kitti_instances[i]['difficulty'] != dair_instances[i]['difficulty']:
         #     print('difficulty is different')

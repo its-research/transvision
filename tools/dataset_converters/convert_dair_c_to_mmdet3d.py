@@ -6,7 +6,7 @@ from gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_
 # from gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points
 from gen_kitti.label_lidarcoord_to_cameracoord import get_label
 from kitti_data_utils import _extend_matrix
-from mmdet3d.structures.bbox_3d.utils import limit_period
+# from mmdet3d.structures.bbox_3d.utils import limit_period
 # from mmdet3d.structures import points_cam2img
 from mmdet3d.structures.ops import box_np_ops
 from mmengine.fileio import dump, load
@@ -342,15 +342,17 @@ def get_instances(images, lidar_points, metainfo, root_path):
         extended_xyz = np.array([x, y, z, 1])
         loc = extended_xyz @ np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32).T
         loc = loc[:3]
-        # dims = np.array([l, h, w])  # 其实这里交换了w、h, lidar2cam lwh->lhw
-        # rots = np.array([-yaw_lidar])
-        dims = np.array([w, h, l])  # 初始为lwh, 交换lw, 变为wlh, 交换lh, 变为whl
-        rots = np.array([yaw_lidar])  # 交换lw  -yaw - np.pi / 2; 交换lh  -yaw - np.pi / 2; 等价于不变
+
+        # dims = np.array([w, h, l])  # 初始为lwh, 交换lw, 变为wlh, 交换lh, 变为whl
+        # rots = np.array([yaw_lidar])  # 交换lw  -yaw - np.pi / 2; 交换lh  -yaw - np.pi / 2; 等价于不变
+
+        dims = np.array([l, h, w])
+        rots = np.array([-yaw_lidar])
 
         # yaw = -yaw - np.pi / 2
         # yaw = limit_period(yaw, period=np.pi * 2)
 
-        gt_bboxes_3d = np.concatenate([loc, dims, rots]).tolist()
+        gt_bboxes_3d = np.concatenate([loc, dims, rots]).tolist()  # camera coord
         instance['bbox_3d'] = gt_bboxes_3d
 
         # center_3d = loc + dims * (dst - src)
@@ -381,13 +383,13 @@ def get_instances(images, lidar_points, metainfo, root_path):
         image_shape = [images[defalut_cam]['height'], images[defalut_cam]['width']]
         points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2, image_shape)
 
-        dims_cam_kitti = np.array([l, h, w])
-        yaw_lidar = -yaw_lidar - np.pi / 2
-        rots_cam_kitti = limit_period(yaw_lidar, period=np.pi * 2)
-        rots_cam_kitti = np.array([rots_cam_kitti])  # -rots_cam_kitti 31071
+        # dims_cam_kitti = np.array([l, h, w])
+        # yaw_lidar = -yaw_lidar - np.pi / 2
+        # rots_cam_kitti = limit_period(yaw_lidar, period=np.pi * 2)
+        # rots_cam_kitti = np.array([rots_cam_kitti])  # -rots_cam_kitti 31071
         # rots_cam_kitti = np.array([-yaw_lidar])
 
-        gt_boxes_camera = np.concatenate([loc, dims_cam_kitti, rots_cam_kitti])
+        gt_boxes_camera = np.concatenate([loc, dims, rots])
         gt_boxes_camera = gt_boxes_camera[np.newaxis, :]
         gt_boxes_lidar = box_np_ops.box_camera_to_lidar(gt_boxes_camera, rect, Trv2c)
         indices = box_np_ops.points_in_rbbox(points_v[:, :3], gt_boxes_lidar)

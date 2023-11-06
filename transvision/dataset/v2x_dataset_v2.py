@@ -173,5 +173,6 @@ class V2XDatasetV2(Det3DDataset):
         gt_bboxes_3d = CameraInstance3DBoxes(ann_info['gt_bboxes_3d']).convert_to(self.box_mode_3d, np.linalg.inv(lidar2cam))
         ann_info['gt_bboxes_3d'] = gt_bboxes_3d
         # print(gt_bboxes_3d)
+        # exit()
 
         return ann_info
