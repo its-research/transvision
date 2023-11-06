@@ -176,6 +176,7 @@ class VICDataset(DAIRV2XDataset):
 
             trans_1 = vic_frame.transform('World', 'Vehicle_lidar')
             label_v = Label(osp.join(path, elem['cooperative_label_path']), filt_world)
+
             label_v['boxes_3d'] = trans_1(label_v['boxes_3d'])
             filt = RectFilter(extended_range[0])
             tup = (

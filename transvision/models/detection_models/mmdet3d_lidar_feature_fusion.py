@@ -12,23 +12,39 @@ from mmengine.dataset import Compose, pseudo_collate
 from transvision.models.base_model import BaseModel
 from transvision.models.model_utils import init_model
 from transvision.v2x_utils import get_arrow_end, mkdir
+from transvision.v2x_utils.transformation_utils import get_3d_8points
 
 logger = logging.getLogger(__name__)
 
 
 def get_box_info(result):
-    for i in range(len(result[0]['boxes_3d'])):
-        temp = result[0]['boxes_3d'].tensor[i][4].clone()
-        result[0]['boxes_3d'].tensor[i][4] = result[0]['boxes_3d'].tensor[i][3]
-        result[0]['boxes_3d'].tensor[i][3] = temp
-        result[0]['boxes_3d'].tensor[i][6] = result[0]['boxes_3d'].tensor[i][6]
+    # for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
+    #     temp = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].clone()
+    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][4] = result[0].pred_instances_3d.bboxes_3d.tensor[i][3]
+    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][3] = temp
+    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
 
-    if len(result[0]['boxes_3d'].tensor) == 0:
+    if len(result[0].pred_instances_3d.bboxes_3d.tensor) == 0:
         box_lidar = np.zeros((1, 8, 3))
         box_ry = np.zeros(1)
     else:
-        box_lidar = result[0]['boxes_3d'].corners.numpy()
-        box_ry = result[0]['boxes_3d'].tensor[:, -1].numpy()
+        num = len(result[0].pred_instances_3d.bboxes_3d.tensor)
+        box_lidar = np.zeros((num, 8, 3))
+        box_ry = np.zeros(num)
+        for i in range(num):
+            # box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.cpu().numpy()
+            # box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].cpu().numpy()
+            l = result[0].pred_instances_3d.bboxes_3d.tensor[i][3].cpu().numpy()
+            w = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].cpu().numpy()
+            h = result[0].pred_instances_3d.bboxes_3d.tensor[i][5].cpu().numpy()
+
+            yaw = -result[0].pred_instances_3d.bboxes_3d.tensor[i][6].cpu().numpy() - np.pi / 2
+            x = result[0].pred_instances_3d.bboxes_3d.tensor[i][0].cpu().numpy()
+            y = result[0].pred_instances_3d.bboxes_3d.tensor[i][1].cpu().numpy()
+            z = result[0].pred_instances_3d.bboxes_3d.tensor[i][2].cpu().numpy()
+
+            box_lidar[i, :, :] = get_3d_8points([l, w, h], yaw, [x, y, z - h / 2])
+            box_ry[i] = yaw
 
     box_centers_lidar = box_lidar.mean(axis=1)
     arrow_ends_lidar = get_arrow_end(box_centers_lidar, box_ry)
@@ -66,14 +82,16 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     cfg = model.cfg
     # device = next(model.parameters()).device  # model device
     # build the data pipeline
-    test_pipeline = deepcopy(cfg.data.test.pipeline)
+    test_pipeline = deepcopy(cfg.test_dataloader.dataset.pipeline)
     test_pipeline = Compose(test_pipeline)
-    box_type_3d, box_mode_3d = get_box_type(cfg.data.test.box_type_3d)
-    data = dict(
-        vehicle_pts_filename=veh_bin,
-        infrastructure_pts_filename=inf_bin,
+    box_type_3d, box_mode_3d = get_box_type(cfg.test_dataloader.dataset.box_type_3d)
+    # print(veh_bin)
+
+    data_ = dict(
+        lidar_points=dict(lidar_path=veh_bin, inf_lidar_path=inf_bin),
         box_type_3d=box_type_3d,
         box_mode_3d=box_mode_3d,
+        calib=dict(lidar_i2v=dict(rotation=rotation, translation=translation)),
         # for ScanNet demo we need axis_align_matrix
         ann_info=dict(axis_align_matrix=np.eye(4)),
         sweeps=[],
@@ -86,24 +104,29 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
         mask_fields=[],
         seg_fields=[],
     )
-    data = test_pipeline(data)
-    a = dict(rotation=rotation, translation=translation)
-    data = pseudo_collate(data)
 
-    if next(model.parameters()).is_cuda:
-        # scatter to specified GPU
-        # data = scatter(data, [device.index])[0]
-        data['img_metas'][0][0]['inf2veh'] = a
-    else:
-        # this is a workaround to avoid the bug of MMDataParallel
-        data['img_metas'] = data['img_metas'][0].data
-        data['points'] = data['points'][0].data
+    data_ = test_pipeline(data_)
+    data = []
+    data.append(data_)
+    collate_data = pseudo_collate(data)
+
+    # a = dict(rotation=rotation, translation=translation)
+    # if next(model.parameters()).is_cuda:
+    #     # scatter to specified GPU
+    #     # data = scatter(data, [device.index])[0]
+    #     print(data)
+    #     data['img_metas'][0][0]['inf2veh'] = a
+    # else:
+    #     # this is a workaround to avoid the bug of MMDataParallel
+    #     data['img_metas'] = data['img_metas'][0].data
+    #     data['points'] = data['points'][0].data
 
     # forward the model
     with torch.no_grad():
-        result = model(return_loss=False, rescale=True, **data)
+        results = model.test_step(collate_data)
+        # result = model(return_loss=False, rescale=True, **collate_data)
 
-    return result, data
+    return results, collate_data
 
 
 class FeatureFusion(BaseModel):
@@ -140,25 +163,30 @@ class FeatureFusion(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
+        print(result[0].pred_instances_3d.bboxes_3d.tensor)
+        # exit()
         box, box_ry, box_center, arrow_ends = get_box_info(result)
+        print(box)
 
         remain = []
-        if len(result[0]['boxes_3d'].tensor) != 0:
+        # TODO add remaining filter
+        if len(result[0].pred_instances_3d.bboxes_3d.tensor) != 0:
             for i in range(box.shape[0]):
-                if filt(box[i]):
-                    remain.append(i)
+                # if filt(box[i]):
+                #     remain.append(i)
+                remain.append(i)
         if len(remain) >= 1:
             box = box[remain]
             box_center = box_center[remain]
             arrow_ends = arrow_ends[remain]
-            result[0]['scores_3d'] = result[0]['scores_3d'].numpy()[remain]
-            result[0]['labels_3d'] = result[0]['labels_3d'].numpy()[remain]
+            result[0].pred_instances_3d.scores_3d = result[0].pred_instances_3d.scores_3d.cpu().numpy()[remain]
+            result[0].pred_instances_3d.labels_3d = result[0].pred_instances_3d.labels_3d.cpu().numpy()[remain]
         else:
             box = np.zeros((1, 8, 3))
             box_center = np.zeros((1, 1, 3))
             arrow_ends = np.zeros((1, 1, 3))
-            result[0]['labels_3d'] = np.zeros((1))
-            result[0]['scores_3d'] = np.zeros((1))
+            result[0].pred_instances_3d.labels_3d = np.zeros((1))
+            result[0].pred_instances_3d.scores_3d = np.zeros((1))
         # Save results
         pred = gen_pred_dict(
             id,
@@ -166,8 +194,8 @@ class FeatureFusion(BaseModel):
             box,
             np.concatenate([box_center, arrow_ends], axis=1),
             np.array(1),
-            result[0]['scores_3d'].tolist(),
-            result[0]['labels_3d'].tolist(),
+            result[0].pred_instances_3d.scores_3d.tolist(),
+            result[0].pred_instances_3d.labels_3d.tolist(),
         )
         # if self.args.save_point_cloud:
         #     # points = trans(frame.point_cloud(format="array"))

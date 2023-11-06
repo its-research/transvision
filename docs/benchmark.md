@@ -34,6 +34,8 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 |        |     bev      | 43.5100 |          |          |             |     bev      | 43.5164 | 35.0143  |  6.5574  |
 |        |      3d      | 41.1886 |          |          |             |      3d      | 40.8895 | 33.9840  |  4.5455  |
 
+work_dirs/ffnet-vic3d/basemodel/mmdet3d_0.17.1/20231024_131833.log
+
 (work with mmdet3d==1.2.0)
 
 | transvision | Car(AP@0.70) | fusion | veh_only | inf_only |

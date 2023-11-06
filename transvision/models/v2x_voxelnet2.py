@@ -1,22 +1,17 @@
 # # Copyright (c) DAIR-V2X (AIR). All rights reserved.
-# import os
 # from typing import Dict, List, Optional, Tuple, Union
 
 # import torch
-# from mmcv.runner import force_fp32
-# from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d
 # from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
-# from mmdet3d.ops import Voxelization
 # from mmdet3d.registry import MODELS
 # from mmdet3d.structures import Det3DDataSample
 # from mmdet3d.utils import ConfigType, OptConfigType, OptMultiConfig
-# from mmdet.models import DETECTORS
 # # from mmcv.runner import force_fp32
 # from torch import Tensor
 # from torch import nn as nn
 # from torch.nn import functional as F
 
-# from .. import builder
+# from transvision.v2x_utils.visual import save_feature_map
 
 # class ReduceInfTC(nn.Module):
 
@@ -44,6 +39,7 @@
 #         self.bn2_3 = nn.BatchNorm2d(channel // 2, track_running_stats=True)
 
 #     def forward(self, x):
+#         # outputsize = x.shape
 #         # out = F.relu(self.bn1_1(self.conv1_1(x)))
 #         out = F.relu(self.bn1_2(self.conv1_2(x)))
 #         out = F.relu(self.bn1_3(self.conv1_3(out)))
@@ -67,46 +63,51 @@
 #         x_1 = F.relu(self.bn1_1(self.conv1_1(x)))
 #         return x_1
 
-# @DETECTORS.register_module()
+# @MODELS.register_module()
 # class V2XVoxelNetV2(SingleStage3DDetector):
 #     r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
 #     def __init__(
 #         self,
 #         voxel_layer,
-#         voxel_encoder,
-#         middle_encoder,
-#         backbone,
-#         neck=None,
-#         bbox_head=None,
-#         train_cfg=None,
-#         test_cfg=None,
-#         init_cfg=None,
-#         pretrained=None,
-#     ):
-#         super(V2XVoxelNetV2, self).__init__(
+#         voxel_encoder: ConfigType,
+#         middle_encoder: ConfigType,
+#         backbone: ConfigType,
+#         neck: OptConfigType = None,
+#         bbox_head: OptConfigType = None,
+#         train_cfg: OptConfigType = None,
+#         test_cfg: OptConfigType = None,
+#         data_preprocessor: OptConfigType = None,
+#         init_cfg: OptMultiConfig = None,
+#         mode: str = 'fusion',
+#     ) -> None:
+#         super().__init__(
 #             backbone=backbone,
 #             neck=neck,
 #             bbox_head=bbox_head,
 #             train_cfg=train_cfg,
 #             test_cfg=test_cfg,
+#             data_preprocessor=data_preprocessor,
 #             init_cfg=init_cfg,
-#             pretrained=pretrained,
 #         )
-#         self.voxel_layer = Voxelization(**voxel_layer)
-#         self.voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
-#         self.middle_encoder = builder.build_middle_encoder(middle_encoder)
 
+#         self.voxel_layer = Voxelization(**voxel_layer)
 #         self.inf_voxel_layer = Voxelization(**voxel_layer)
-#         self.inf_voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
-#         self.inf_middle_encoder = builder.build_middle_encoder(middle_encoder)
-#         self.inf_backbone = builder.build_backbone(backbone)
+
+#         self.voxel_encoder = MODELS.build(voxel_encoder)
+#         self.middle_encoder = MODELS.build(middle_encoder)
+
+#         self.inf_backbone = MODELS.build(backbone)
 #         if neck is not None:
-#             self.inf_neck = builder.build_neck(neck)
+#             self.inf_neck = MODELS.build(neck)
+#         self.inf_voxel_encoder = MODELS.build(voxel_encoder)
+#         self.inf_middle_encoder = MODELS.build(middle_encoder)
 
 #         # TODO: channel configuration
 #         self.fusion_weighted = PixelWeightedFusion(384)
 #         self.encoder = ReduceInfTC(768)
+
+#         self.mode = mode
 
 #     def generate_matrix(self, theta, x0, y0):
 #         import numpy as np
@@ -123,23 +124,27 @@
 #         matrix[2, 2] = 1
 #         return matrix
 
-#     def extract_feat(self, points, img_metas=None, points_view='vehicle'):
+#     def extract_feat(self, batch_inputs_dict: Dict[str, Tensor], points_view='vehicle') -> Union[Tuple[torch.Tensor], Dict[str, Tensor]]:
 #         """Extract features from points."""
 #         if points_view == 'vehicle':
-#             voxels, num_points, coors = self.voxelize(points)
-#             voxel_features = self.voxel_encoder(voxels, num_points, coors)
-#             batch_size = coors[-1, 0].item() + 1
-#             veh_x = self.middle_encoder(voxel_features, coors, batch_size)
+#             voxel_dict = batch_inputs_dict['voxels']
+#             voxel_features = self.voxel_encoder(voxel_dict['voxels'], voxel_dict['num_points'], voxel_dict['coors'])
+#             batch_size = voxel_dict['coors'][-1, 0].item() + 1
+#             veh_x = self.middle_encoder(voxel_features, voxel_dict['coors'], batch_size)
 #             veh_x = self.backbone(veh_x)
 #             if self.with_neck:
 #                 veh_x = self.neck(veh_x)
 #             return veh_x
 
 #         elif points_view == 'infrastructure':
-#             inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(points)
-#             inf_voxel_features = self.inf_voxel_encoder(inf_voxels, inf_num_points, inf_coors)
-#             inf_batch_size = inf_coors[-1, 0].item() + 1
-#             inf_x = self.inf_middle_encoder(inf_voxel_features, inf_coors, inf_batch_size)
+#             inf_voxel_dict = batch_inputs_dict['infrastructure_voxels']
+#             inf_voxel_features = self.voxel_encoder(
+#                 inf_voxel_dict['voxels'],
+#                 inf_voxel_dict['num_points'],
+#                 inf_voxel_dict['coors'],
+#             )
+#             inf_batch_size = inf_voxel_dict['coors'][-1, 0].item() + 1
+#             inf_x = self.inf_middle_encoder(inf_voxel_features, inf_voxel_dict['coors'], inf_batch_size)
 #             inf_x = self.inf_backbone(inf_x)
 #             if self.with_neck:
 #                 inf_x = self.inf_neck(inf_x)
@@ -151,15 +156,48 @@
 
 #     def feature_fusion(self, veh_x, inf_x, img_metas, mode='fusion'):
 #         """Method II: Based on affine transformation."""
+
+#         if mode not in ['fusion', 'inf_only', 'veh_only']:
+#             raise Exception('Mode is Error: {}'.format(mode))
+
+#         if mode == 'veh_only':
+#             return veh_x
+
 #         wrap_feats_ii = []
+#         point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
 #         for ii in range(len(veh_x[0])):
 #             inf_feature = inf_x[0][ii:ii + 1]
 #             veh_feature = veh_x[0][ii:ii + 1]
 
-#             calib_inf2veh_rotation = img_metas[ii]['inf2veh']['rotation']
-#             calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
-#             inf_pointcloud_range = self.inf_voxel_layer.point_cloud_range
+#             # Affine transformation module.
+#             # The affine transformation is implemented with the affine_grid function supported in Pytorch.
+#             # We ignore the rotation around the x-y plane.
+#             # theta_rot = [[cos(-theta), sin(-theta), 0.0], [cos(-theta), sin(-theta), 0.0]], theta is in the lidar coordinate.
+#             # according to the relationship between lidar coordinate system and input coordinate system.
+#             # First, the coordinates of features and the real world are different in units,
+#             # so the rotation/translation matrix of the real world needs to be mapped to the feature world.
+#             # Secondly, there are also some constraints when using the F.affine_grid() function for feature translation and rotation.
+#             # You can refer to Pytorch's introduction for details
+#             # range: [-1, 1].
+#             # Moving right and down is negative.
+#             # This transformation is employed to convert a feature from the infrastructure-side
+#             # feature coordinate system to the vehicle-side feature coordinate system.
+#             # The process encompasses various coordinate systems, including the infrastructure-side
+#             # feature coordinate system,
+#             # infrastructure-side LiDAR coordinate system, vehicle-side feature coordinate system, and vehicle-side LiDAR coordinate system.
+
+#             # Regarding the version concern you raised, we have been utilizing v0.17.1.
+#             # We recommend visualizing the transformed feature to assess the relative positional
+#             # relationship between the two versions.
+#             # With the help of visualization, you can make necessary adjustments to the transformation as needed.
+#             # 为简化问题，我们只考虑bev方向的rotation, 暂时忽略z方向的rotation, 取负是考虑Lidar坐标系的y方向与feature坐标系在H维度不一致，所以旋转方向取负。
+#             # 具体可以画下坐标系的图看看
+
+#             calib_inf2veh_rotation = img_metas[ii]['calib']['lidar_i2v']['rotation']
+#             calib_inf2veh_translation = img_metas[ii]['calib']['lidar_i2v']['translation']
+
+#             inf_pointcloud_range = point_cloud_range
 
 #             theta_rot = (
 #                 torch.tensor([
@@ -189,140 +227,66 @@
 #             )
 #             warp_feat_trans = F.grid_sample(inf_feature, grid_r_t, mode='bilinear', align_corners=False)
 #             wrap_feats_ii.append(warp_feat_trans)
+#             # if img_metas[ii]['sample_idx'] == 530:
+#             save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
+#             save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
+#             save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
+#             # exit()
 
 #         wrap_feats = [torch.cat(wrap_feats_ii, dim=0)]
 
-#         if mode not in ['fusion', 'inf_only', 'veh_only']:
-#             raise Exception('Mode is Error: {}'.format(mode))
 #         if mode == 'inf_only':
 #             return wrap_feats
-#         elif mode == 'veh_only':
-#             return veh_x
+
 #         veh_cat_feats = [torch.cat([veh_x[0], wrap_feats[0]], dim=1)]
 #         veh_cat_feats[0] = self.fusion_weighted(veh_cat_feats[0])
 
 #         return veh_cat_feats
 
-#     @torch.no_grad()
-#     @force_fp32()
-#     def voxelize(self, points):
-#         """Apply hard voxelization to points."""
-#         voxels, coors, num_points = [], [], []
-#         for res in points:
-#             res_voxels, res_coors, res_num_points = self.voxel_layer(res)
-#             voxels.append(res_voxels)
-#             coors.append(res_coors)
-#             num_points.append(res_num_points)
-#         voxels = torch.cat(voxels, dim=0)
-#         num_points = torch.cat(num_points, dim=0)
-#         coors_batch = []
-#         for i, coor in enumerate(coors):
-#             coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-#             coors_batch.append(coor_pad)
-#         coors_batch = torch.cat(coors_batch, dim=0)
-#         return voxels, num_points, coors_batch
-
-#     @torch.no_grad()
-#     @force_fp32()
-#     def inf_voxelize(self, points):
-#         """Apply hard voxelization to points."""
-#         voxels, coors, num_points = [], [], []
-#         for res in points:
-#             res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
-#             voxels.append(res_voxels)
-#             coors.append(res_coors)
-#             num_points.append(res_num_points)
-#         voxels = torch.cat(voxels, dim=0)
-#         num_points = torch.cat(num_points, dim=0)
-#         coors_batch = []
-#         for i, coor in enumerate(coors):
-#             coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-#             coors_batch.append(coor_pad)
-#         coors_batch = torch.cat(coors_batch, dim=0)
-#         return voxels, num_points, coors_batch
-
-#     def points_grid(self, points, point_cloud_range, voxel_size, feature_shape):
-#         """Assign each points with id.
-#         Args:
-#             feature_shape: N * C * H * W
-#         Returns:
-#             points_grids: N * 5, 0 - idx in H * W, [1, 2] - h, w idx in [H, W], [3, 4] - [0, 1] range for [H, W]
-#         Comment:
-#             LiDAR Coordinate Systems: x - forward, y - left, z - upward
-#         """
-#         origin_size_x = (point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0]
-#         feat_scale = origin_size_x / feature_shape[3]
-
-#         points_grids = torch.zeros(len(points), 3).cuda()
-#         range_start_x = point_cloud_range[0]
-#         range_lenth_x = point_cloud_range[3] - point_cloud_range[0]
-#         voxel_size_x = voxel_size[0] * feat_scale
-#         W_L = range_lenth_x / voxel_size_x
-
-#         range_start_y = point_cloud_range[1]
-#         range_lenth_y = point_cloud_range[4] - point_cloud_range[1]
-#         voxel_size_y = voxel_size[1] * feat_scale
-#         H_L = range_lenth_y / voxel_size_y
-
-#         points_grids[:, 1] = torch.round((points[:, 1] - range_start_y) / voxel_size_y)
-#         points_grids[:, 2] = torch.round((points[:, 0] - range_start_x) / voxel_size_x)
-#         points_grids[:, 0] = points_grids[:, 1] * W_L + points_grids[:, 2]
-
-#         return points_grids, int(H_L), int(W_L)
-
-#     def forward_train(
+#     def extract_feats(
 #         self,
-#         points,
-#         img_metas,
-#         gt_bboxes_3d,
-#         gt_labels_3d,
-#         infrastructure_points=None,
-#         gt_bboxes_ignore=None,
+#         batch_inputs_dict: Dict[str, Optional[Tensor]],
+#         batch_data_samples: List[Det3DDataSample],
 #     ):
-#         """Training forward function.
+#         batch_input_metas = [item.metainfo for item in batch_data_samples]
+#         feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
+#         feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
+#         feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas, mode=self.mode)
+#         return feat_fused
 
-#         Args:
-#             points (list[torch.Tensor]): Point cloud of each sample.
-#             img_metas (list[dict]): Meta information of each sample
-#             gt_bboxes_3d (list[:obj:`BaseInstance3DBoxes`]): Ground truth
-#                 boxes for each sample.
-#             gt_labels_3d (list[torch.Tensor]): Ground truth labels for
-#                 boxes of each sampole
-#             gt_bboxes_ignore (list[torch.Tensor], optional): Ground truth
-#                 boxes to be ignored. Defaults to None.
-
-#         Returns:
-#             dict: Losses of each branch.
-#         """
-#         for ii in range(len(infrastructure_points)):
-#             infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
-#         feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
-#         feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
-#         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
+#     def _forward_train(
+#         self,
+#         batch_inputs_dict: Dict[str, Optional[Tensor]],
+#         batch_data_samples: List[Det3DDataSample],
+#     ):
+#         """Training forward function."""
+#         feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
 #         outs = self.bbox_head(feat_fused)
-#         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-#         losses = self.bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+#         return outs
+
+#     def loss(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
+#         batch_gt_instances_3d = []
+#         batch_gt_instances_ignore = []
+#         batch_input_metas = []
+
+#         for data_sample in batch_data_samples:
+#             batch_input_metas.append(data_sample.metainfo)
+#             batch_gt_instances_3d.append(data_sample.gt_instances_3d)
+#             batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
+
+#         outs = self._forward_train(batch_inputs_dict, batch_data_samples)
+#         loss_inputs = outs + (
+#             batch_gt_instances_3d,
+#             batch_input_metas,
+#             batch_gt_instances_ignore,
+#         )
+#         losses = self.bbox_head.loss_by_feat(*loss_inputs)
+
 #         return losses
 
-#     def simple_test(self, points, img_metas, imgs=None, infrastructure_points=None, rescale=False):
-#         """Test function without augmentaiton."""
-#         for ii in range(len(infrastructure_points[0])):
-#             infrastructure_points[0][ii][:, 3] = (255 * infrastructure_points[0][ii][:, 3])
+#     def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
+#         feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
+#         bbox_results = self.bbox_head.predict(feat_fused, batch_data_samples)
+#         res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
 
-#         feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
-#         feat_inf = self.extract_feat(infrastructure_points[0], img_metas, points_view='infrastructure')
-#         feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas, mode='fusion')
-#         outs = self.bbox_head(feat_fused)
-#         bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
-#         if len(bbox_list[0][0].tensor) == 0:  # return a zero list when pre is empty
-#             bbox_list[0] = list(bbox_list[0])
-#             bbox_list[0][0].tensor = torch.zeros(1, 7).cuda(points[0].device)
-#             bbox_list[0][1] = torch.zeros(1).cuda(points[0].device)
-#             bbox_list[0][2] = torch.zeros(1).cuda(points[0].device)
-#         bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
-#         return bbox_results
-
-#     def aug_test(self, points, img_metas, imgs=None, rescale=False):
-#         """Test function with augmentaiton."""
-
-#         return None
+#         return res

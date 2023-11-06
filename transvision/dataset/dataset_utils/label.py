@@ -9,6 +9,8 @@ class Label(dict):
 
     def __init__(self, path, filt):
         raw_labels = load_json(path)
+        # path.replace('label_world', 'label/lidar')
+
         boxes = []
         class_types = []
         for label in raw_labels:

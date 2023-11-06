@@ -15,6 +15,7 @@ python tools/create_data.py kitti --root-path data/DAIR-V2X/cooperative-vehicle-
 
 # cp -r ./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/label/lidar ./data/DAIR-V2X/cooperative-vehicle-infrastructure/cooperative/
 # cp data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/training/velodyne/*  ./data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/velodyne
-rm -r ./data/DAIR-V2X/cooperative-vehicle-infrastructure/cooperative/label/lidar
-cp -r data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/label/lidar ./data/DAIR-V2X/cooperative-vehicle-infrastructure/cooperative/label/
-cp data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/training/velodyne/*.bin data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/velodyne/
+
+# rm -r ./data/DAIR-V2X/cooperative-vehicle-infrastructure/cooperative/label/lidar
+# cp -r data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/label/lidar ./data/DAIR-V2X/cooperative-vehicle-infrastructure/cooperative/label/
+# cp data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/training/velodyne/*.bin data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/velodyne/

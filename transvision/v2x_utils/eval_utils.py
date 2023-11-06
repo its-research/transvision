@@ -183,6 +183,7 @@ def compute_type(gt_annos, pred_annos, cla, iou_threshold, view):
     """
     gt_annos = build_label_list(gt_annos, filt=cla)
     pred_annos = build_label_list(pred_annos, filt=cla)
+
     pred_annos = sorted(pred_annos, key=cmp_to_key(cmp))
     result_pred_annos = []
     num_tp = 0

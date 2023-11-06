@@ -32,6 +32,8 @@ def eval_vic(args, dataset, model, evaluator):
             None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
         )
 
+        print(label)
+        exit()
         evaluator.add_frame(pred, label)
         pipe.flush()
         pred['label'] = label['boxes_3d']

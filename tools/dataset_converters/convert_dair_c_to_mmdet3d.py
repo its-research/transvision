@@ -3,14 +3,17 @@ import os
 
 import numpy as np
 from gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_cam_K, get_velo2cam
-from gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points, get_label
+# from gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points
+from gen_kitti.label_lidarcoord_to_cameracoord import get_label
 from kitti_data_utils import _extend_matrix
-from mmdet3d.structures import points_cam2img
+# from mmdet3d.structures import points_cam2img
 from mmdet3d.structures.ops import box_np_ops
 from mmengine.fileio import dump, load
 from skimage import io
 from tqdm import tqdm
 from update_infos_to_v2 import get_empty_instance
+
+# from mmdet3d.structures.bbox_3d.utils import limit_period
 
 parser = argparse.ArgumentParser(description='Data converter arg parser')
 parser.add_argument('--dataset', type=str, default='cooperative')
@@ -289,7 +292,7 @@ def add_difficulty_to_annos(dims, bbox, occlusion, truncation):
     return diff[0]
 
 
-def get_instances(images, metainfo, root_path):
+def get_instances(images, lidar_points, metainfo, root_path):
     instances = []
 
     # TODO 直接从label_world中读取
@@ -323,27 +326,39 @@ def get_instances(images, metainfo, root_path):
         if w == 0.0 or h == 0.0 or l == 0.0:
             continue
         z = z - h / 2
-        bottom_center = [x, y, z]
-        obj_size = [l, h, w]  # [l, w, h]
+        # bottom_center = [x, y, z]
+        # obj_size = [l, h, w]  # [l, w, h]
 
-        bottom_center_in_cam = images[defalut_cam]['r_velo2cam'] * np.matrix(bottom_center).T + images[defalut_cam]['t_velo2cam']
-        alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, images[defalut_cam]['r_velo2cam'], images[defalut_cam]['t_velo2cam'])
-        [cam_x, cam_y, cam_z, _] = convert_point(np.array([x, y, z, 1]).T, np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32))
+        # bottom_center_in_cam = images[defalut_cam]['r_velo2cam'] * np.matrix(bottom_center).T + images[defalut_cam]['t_velo2cam']
+        # alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, images[defalut_cam]['r_velo2cam'], images[defalut_cam]['t_velo2cam'])
+        # [cam_x, cam_y, cam_z, _] = convert_point(np.array([x, y, z, 1]).T, np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32))
 
-        dst = np.array([0.5, 0.5, 0.5])
-        src = np.array([0.5, 1.0, 0.5])
+        # dst = np.array([0.5, 0.5, 0.5])
+        # src = np.array([0.5, 1.0, 0.5])
 
-        loc = np.array([cam_x, cam_y, cam_z])
-        dims = np.array([w, h, l])
-        rots = np.array([-yaw_lidar])
+        # loc = np.array([cam_x, cam_y, cam_z])
+        # dims = np.array([w, h, l])
+        # rots = np.array([-yaw_lidar])
 
-        center_3d = loc + dims * (dst - src)
-        center_2d = points_cam2img(center_3d.reshape([1, 3]), images[defalut_cam]['cam2img'], with_depth=True)
-        center_2d = center_2d.squeeze().tolist()
-        instance['center_2d'] = center_2d[:2]
-        instance['depth'] = center_2d[2]
+        extended_xyz = np.array([x, y, z, 1])
+        loc = extended_xyz @ np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32).T
+        loc = loc[:3]
+        # dims = np.array([l, h, w])  # 其实这里交换了w、h, lidar2cam lwh->lhw
+        # rots = np.array([-yaw_lidar])
+        dims = np.array([w, h, l])  # 初始为lwh, 交换lw, 变为wlh, 交换lh, 变为whl
+        rots = np.array([yaw_lidar])  # 交换lw  -yaw - np.pi / 2; 交换lh  -yaw - np.pi / 2; 等价于不变
+
+        # yaw = -yaw - np.pi / 2
+        # yaw = limit_period(yaw, period=np.pi * 2)
+
         gt_bboxes_3d = np.concatenate([loc, dims, rots]).tolist()
         instance['bbox_3d'] = gt_bboxes_3d
+
+        # center_3d = loc + dims * (dst - src)
+        # center_2d = points_cam2img(center_3d.reshape([1, 3]), images[defalut_cam]['cam2img'], with_depth=True)
+        # center_2d = center_2d.squeeze().tolist()
+        # instance['center_2d'] = center_2d[:2]
+        # instance['depth'] = center_2d[2]
         # instance['truncated'] = int(label_info['truncated_state'])
         # instance['occluded'] = int(label_info['occluded_state'])
         # instance['alpha'] = alpha
@@ -433,7 +448,7 @@ if __name__ == '__main__':
 
         cam_instances = get_cam_instances(images, metainfo, root_path)
 
-        instances = get_instances(images, metainfo, root_path)
+        instances = get_instances(images, lidar_points, metainfo, root_path)
 
         calib = get_calib_info(ori_info, args.dst_root_path)
 

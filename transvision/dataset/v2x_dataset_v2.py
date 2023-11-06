@@ -167,8 +167,11 @@ class V2XDatasetV2(Det3DDataset):
         # in kitti, lidar2cam = R0_rect @ Tr_velo_to_cam
         lidar2cam = np.array(info['images']['CAM2']['lidar2cam'])
         # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
+        # print(info['images'])
+        # print(ann_info['gt_bboxes_3d'])
 
         gt_bboxes_3d = CameraInstance3DBoxes(ann_info['gt_bboxes_3d']).convert_to(self.box_mode_3d, np.linalg.inv(lidar2cam))
         ann_info['gt_bboxes_3d'] = gt_bboxes_3d
+        # print(gt_bboxes_3d)
 
         return ann_info
