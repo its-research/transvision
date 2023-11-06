@@ -1,4 +1,4 @@
-mkdir data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training
+# mkdir data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training
 cp -r data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training
 rm -r ./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/label/lidar
 python tools/dataset_converters/label_world2v.py --source-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure --target-root ./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/label/lidar
