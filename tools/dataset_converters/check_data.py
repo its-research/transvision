@@ -181,13 +181,18 @@ for kitti in kitti_data:
     # print('instances keys:', kitti_instances[0].keys())
 
     isinstance_num = len(kitti_instances)
+    if len(kitti_instances) != len(dair_instances):
+        print('instances num is different')
+        print(len(kitti_instances))
+        print(len(dair_instances))
 
     for i in range(isinstance_num):
         # ['bbox', 'bbox_label', 'bbox_3d', 'bbox_label_3d', 'depth', 'center_2d', 'num_lidar_pts', 'difficulty', 'truncated', 'occluded', 'alpha', 'score', 'index', 'group_id'])
-        if kitti_instances[i]['bbox'] != dair_instances[i]['bbox']:
-            print('bbox is different')
-            print(kitti_instances[i]['bbox'])
-            print(dair_instances[i]['bbox'])
+        # if kitti_instances[i]['bbox'] != dair_instances[i]['bbox']:
+        #     print('bbox is different')
+        #     print(kitti_instances[i]['bbox'])
+        #     print(dair_instances[i]['bbox'])
+
         if kitti_instances[i]['bbox_label'] != dair_instances[i]['bbox_label']:
             print('bbox_label is different')
             print(kitti_instances[i]['bbox_label'])
@@ -204,40 +209,44 @@ for kitti in kitti_data:
             print('bbox_label_3d is different')
             print(kitti_instances[i]['bbox_label_3d'])
             print(dair_instances[i]['bbox_label_3d'])
-        if np.isclose(kitti_instances[i]['depth'], dair_instances[i]['depth']) is False:
-            print('depth is different')
-            print(kitti_instances[i]['depth'])
-            print(dair_instances[i]['depth'])
 
-        kitti_instances[i]['center_2d'] = np.array(kitti_instances[i]['center_2d'])
-        dair_instances[i]['center_2d'] = np.array(dair_instances[i]['center_2d'])
-        comp = np.isclose(kitti_instances[i]['center_2d'], dair_instances[i]['center_2d'])
-        if comp.all() is False:
-            print('center_2d is different')
-            print(kitti_instances[i]['center_2d'])
-            print(dair_instances[i]['center_2d'])
+        # if np.isclose(kitti_instances[i]['depth'], dair_instances[i]['depth']) is False:
+        #     print('depth is different')
+        #     print(kitti_instances[i]['depth'])
+        #     print(dair_instances[i]['depth'])
+
+        # kitti_instances[i]['center_2d'] = np.array(kitti_instances[i]['center_2d'])
+        # dair_instances[i]['center_2d'] = np.array(dair_instances[i]['center_2d'])
+        # comp = np.isclose(kitti_instances[i]['center_2d'], dair_instances[i]['center_2d'])
+        # if comp.all() is False:
+        #     print('center_2d is different')
+        #     print(kitti_instances[i]['center_2d'])
+        #     print(dair_instances[i]['center_2d'])
+
         if kitti_instances[i]['num_lidar_pts'] != dair_instances[i]['num_lidar_pts']:
+            # if kitti_instances[i]['num_lidar_pts'] == 0:
             print('sample_idx:', sample_idx)
-            print('num_lidar_pts is different')
+            # print('num_lidar_pts is different')
             print(kitti_instances[i]['num_lidar_pts'])
             print(dair_instances[i]['num_lidar_pts'])
             pt_diff_count += 1
-        if kitti_instances[i]['difficulty'] != dair_instances[i]['difficulty']:
-            print('difficulty is different')
-            print(kitti_instances[i]['difficulty'])
-            print(dair_instances[i]['difficulty'])
-        if kitti_instances[i]['truncated'] != dair_instances[i]['truncated']:
-            print('truncated is different')
-            print(kitti_instances[i]['truncated'])
-            print(dair_instances[i]['truncated'])
-        if kitti_instances[i]['occluded'] != dair_instances[i]['occluded']:
-            print('occluded is different')
-            print(kitti_instances[i]['occluded'])
-            print(dair_instances[i]['occluded'])
-        if np.isclose(kitti_instances[i]['alpha'], dair_instances[i]['alpha']) is False:
-            print('alpha is different')
-            print(kitti_instances[i]['alpha'])
-            print(dair_instances[i]['alpha'])
+
+        # if kitti_instances[i]['difficulty'] != dair_instances[i]['difficulty']:
+        #     print('difficulty is different')
+        #     print(kitti_instances[i]['difficulty'])
+        #     print(dair_instances[i]['difficulty'])
+        # if kitti_instances[i]['truncated'] != dair_instances[i]['truncated']:
+        #     print('truncated is different')
+        #     print(kitti_instances[i]['truncated'])
+        #     print(dair_instances[i]['truncated'])
+        # if kitti_instances[i]['occluded'] != dair_instances[i]['occluded']:
+        #     print('occluded is different')
+        #     print(kitti_instances[i]['occluded'])
+        #     print(dair_instances[i]['occluded'])
+        # if np.isclose(kitti_instances[i]['alpha'], dair_instances[i]['alpha']) is False:
+        #     print('alpha is different')
+        #     print(kitti_instances[i]['alpha'])
+        #     print(dair_instances[i]['alpha'])
         if kitti_instances[i]['score'] != dair_instances[i]['score']:
             print('score is different')
             print(kitti_instances[i]['score'])
@@ -246,6 +255,7 @@ for kitti in kitti_data:
             print('index is different')
             print(kitti_instances[i]['index'])
             print(dair_instances[i]['index'])
+
         # if kitti_instances[i]['group_id'] != dair_instances[i]['group_id']:
         #     print('group_id is different')
         #     print(kitti_instances[i]['group_id'])

@@ -12,7 +12,8 @@ from mmengine.dataset import Compose, pseudo_collate
 from transvision.models.base_model import BaseModel
 from transvision.models.model_utils import init_model
 from transvision.v2x_utils import get_arrow_end, mkdir
-from transvision.v2x_utils.transformation_utils import get_3d_8points
+
+# from transvision.v2x_utils.transformation_utils import get_3d_8points
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +33,20 @@ def get_box_info(result):
         box_lidar = np.zeros((num, 8, 3))
         box_ry = np.zeros(num)
         for i in range(num):
-            # box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.cpu().numpy()
-            # box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].cpu().numpy()
-            l = result[0].pred_instances_3d.bboxes_3d.tensor[i][3].cpu().numpy()
-            w = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].cpu().numpy()
-            h = result[0].pred_instances_3d.bboxes_3d.tensor[i][5].cpu().numpy()
+            box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.cpu().numpy()
+            box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].cpu().numpy()
+            # l = result[0].pred_instances_3d.bboxes_3d.tensor[i][3].cpu().numpy()
+            # w = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].cpu().numpy()
+            # h = result[0].pred_instances_3d.bboxes_3d.tensor[i][5].cpu().numpy()
 
-            yaw = -result[0].pred_instances_3d.bboxes_3d.tensor[i][6].cpu().numpy() - np.pi / 2
-            x = result[0].pred_instances_3d.bboxes_3d.tensor[i][0].cpu().numpy()
-            y = result[0].pred_instances_3d.bboxes_3d.tensor[i][1].cpu().numpy()
-            z = result[0].pred_instances_3d.bboxes_3d.tensor[i][2].cpu().numpy()
+            # # yaw = -result[0].pred_instances_3d.bboxes_3d.tensor[i][6].cpu().numpy() - np.pi / 2
+            # yaw = result[0].pred_instances_3d.bboxes_3d.tensor[i][6].cpu().numpy()
+            # x = result[0].pred_instances_3d.bboxes_3d.tensor[i][0].cpu().numpy()
+            # y = result[0].pred_instances_3d.bboxes_3d.tensor[i][1].cpu().numpy()
+            # z = result[0].pred_instances_3d.bboxes_3d.tensor[i][2].cpu().numpy()
 
-            box_lidar[i, :, :] = get_3d_8points([l, w, h], yaw, [x, y, z - h / 2])
-            box_ry[i] = yaw
+            # box_lidar[i, :, :] = get_3d_8points([l, w, h], yaw, [x, y, z])
+            # box_ry[i] = yaw
 
     box_centers_lidar = box_lidar.mean(axis=1)
     arrow_ends_lidar = get_arrow_end(box_centers_lidar, box_ry)
@@ -163,10 +165,10 @@ class FeatureFusion(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
-        print(result[0].pred_instances_3d.bboxes_3d.tensor)
-        # exit()
+        print(result[0].pred_instances_3d)
+        exit()
         box, box_ry, box_center, arrow_ends = get_box_info(result)
-        print(box)
+        # print(box)
 
         remain = []
         # TODO add remaining filter

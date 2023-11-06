@@ -133,7 +133,7 @@ visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.001
+lr = 0.0018
 epoch_num = 40
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
@@ -144,5 +144,5 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=2)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
 find_unused_parameters = True

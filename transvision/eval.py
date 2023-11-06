@@ -19,8 +19,7 @@ def eval_vic(args, dataset, model, evaluator):
     idx = -1
     for VICFrame, label, filt in tqdm(dataset):
         idx += 1
-        # if idx % 10 != 0:
-        #     continue
+
         try:
             veh_id = dataset.data[idx][0]['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', '')
         except Exception:
@@ -32,7 +31,8 @@ def eval_vic(args, dataset, model, evaluator):
             None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
         )
 
-        print(label)
+        print('pred', pred)
+        print('label', label)
         exit()
         evaluator.add_frame(pred, label)
         pipe.flush()

@@ -6,14 +6,13 @@ from gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_
 # from gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points
 from gen_kitti.label_lidarcoord_to_cameracoord import get_label
 from kitti_data_utils import _extend_matrix
+from mmdet3d.structures.bbox_3d.utils import limit_period
 # from mmdet3d.structures import points_cam2img
 from mmdet3d.structures.ops import box_np_ops
 from mmengine.fileio import dump, load
 from skimage import io
 from tqdm import tqdm
 from update_infos_to_v2 import get_empty_instance
-
-# from mmdet3d.structures.bbox_3d.utils import limit_period
 
 parser = argparse.ArgumentParser(description='Data converter arg parser')
 parser.add_argument('--dataset', type=str, default='cooperative')
@@ -382,7 +381,13 @@ def get_instances(images, lidar_points, metainfo, root_path):
         image_shape = [images[defalut_cam]['height'], images[defalut_cam]['width']]
         points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2, image_shape)
 
-        gt_boxes_camera = np.concatenate([loc, dims, rots])
+        dims_cam_kitti = np.array([l, h, w])
+        yaw_lidar = -yaw_lidar - np.pi / 2
+        rots_cam_kitti = limit_period(yaw_lidar, period=np.pi * 2)
+        rots_cam_kitti = np.array([rots_cam_kitti])  # -rots_cam_kitti 31071
+        # rots_cam_kitti = np.array([-yaw_lidar])
+
+        gt_boxes_camera = np.concatenate([loc, dims_cam_kitti, rots_cam_kitti])
         gt_boxes_camera = gt_boxes_camera[np.newaxis, :]
         gt_boxes_lidar = box_np_ops.box_camera_to_lidar(gt_boxes_camera, rect, Trv2c)
         indices = box_np_ops.points_in_rbbox(points_v[:, :3], gt_boxes_lidar)
