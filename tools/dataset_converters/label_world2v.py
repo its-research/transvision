@@ -3,8 +3,9 @@ import math
 import os
 
 import numpy as np
-from gen_kitti.utils import mkdir_p, read_json, write_json
 from tqdm import tqdm
+
+from .gen_kitti.utils import mkdir_p, read_json, write_json
 
 
 def get_3d_location(data_label_world):

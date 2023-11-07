@@ -7,7 +7,7 @@ from mmdet3d.utils import array_converter
 from torch import Tensor
 
 # from mmdet3d.visualization import Det3DLocalVisualizer
-from tools.local_visualizer import Det3DLocalVisualizer2
+from tools.visual.local_visualizer import Det3DLocalVisualizer2
 
 
 @array_converter(apply_to=('val', ))
