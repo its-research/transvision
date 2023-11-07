@@ -60,34 +60,41 @@ def convert(box, src, dst, rt_mat=None):
 #     ],
 # }
 label_world = {
+    '2d_box': {
+        'xmin': 75.893105,
+        'ymin': 601.654663,
+        'xmax': 529.742012,
+        'ymax': 748.949097,
+    },
     '3d_dimensions': {
-        'h': 1.511236,
-        'w': 1.775471,
-        'l': 4.389911
+        'h': 1.537562,
+        'w': 1.764941,
+        'l': 4.534194
     },
     '3d_location': {
-        'x': 2697.088392035253,
-        'y': 1664.7439636434535,
-        'z': 20.639521343815193,
+        'x': 2651.310234532717,
+        'y': 1735.613395854671,
+        'z': 20.515609803372765,
     },
     'rotation':
-    0.01919062,
+    0.04081635,
     'world_8_points': [
-        [2699.0250672305233, 1663.379419095183, 19.88840887956328],
-        [2697.5283606190656, 1662.4247065439965, 19.862130372795534],
-        [2695.167344471905, 1666.1256006473477, 19.87957528081578],
-        [2696.6640510833627, 1667.0803131985342, 19.905853787583524],
-        [2699.009439598601, 1663.362326639559, 21.39946740681461],
-        [2697.5127329871434, 1662.4076140883728, 21.373188900046863],
-        [2695.1517168399832, 1666.1085081917238, 21.390633808067108],
-        [2696.6484234514405, 1667.0632207429103, 21.416912314834853],
+        [2653.3120116458444, 1734.228135196805, 19.751771756688676],
+        [2651.845055912768, 1733.2471318248156, 19.725503548057258],
+        [2649.324357287641, 1737.0160467217788, 19.74206641441238],
+        [2650.7913130207176, 1737.9970500937677, 19.768334623043803],
+        [2653.2961117777936, 1734.210744987563, 21.28915319233315],
+        [2651.8291560447174, 1733.2297416155736, 21.262884983701728],
+        [2649.30845741959, 1736.9986565125369, 21.279447850056854],
+        [2650.7754131526667, 1737.979659884526, 21.305716058688276],
     ],
 }
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure'
 
-path_novatel2world = os.path.join(data_root, 'vehicle-side/calib/novatel_to_world', '004105.json')
-path_lidar2novatel = os.path.join(data_root, 'vehicle-side/calib/lidar_to_novatel', '004105.json')
+path_novatel2world = os.path.join(data_root, 'vehicle-side/calib/novatel_to_world', '000010.json')
+path_lidar2novatel = os.path.join(data_root, 'vehicle-side/calib/lidar_to_novatel', '000010.json')
 
+# World to Vehicle
 world_8_points_old = label_world['world_8_points']
 world_8_points = []
 for point in world_8_points_old:
@@ -101,6 +108,7 @@ lidar_3d_data_veh_ff['3d_location']['y'] = (world_8_points[0][1] + world_8_point
 lidar_3d_data_veh_ff['3d_location']['z'] = (world_8_points[0][2] + world_8_points[4][2]) / 2
 lidar_3d_data_veh_ff['rotation'] = get_label_lidar_rotation(world_8_points)
 lidar_3d_data_veh_ff['world_8_points'] = world_8_points
+# World to Vehicle end
 print('###ffnet convert###')
 # print("origin lidar:", lidar_3d_data_veh_ff)
 
@@ -116,9 +124,11 @@ l, w, h = (
 )
 z = z - h / 2
 
-calib_v_lidar2cam_filename = os.path.join(data_root, 'vehicle-side/calib/lidar_to_camera', '004105.json')
+lidar_old = np.array([x, y, z, w, l, h, -lidar_3d_data_veh_ff['rotation']])
+
+calib_v_lidar2cam_filename = os.path.join(data_root, 'vehicle-side/calib/lidar_to_camera', '000010.json')
 calib_v_lidar2cam = load(calib_v_lidar2cam_filename)
-calib_v_cam_intrinsic_filename = os.path.join(data_root, 'vehicle-side/calib/camera_intrinsic', '004105.json')
+calib_v_cam_intrinsic_filename = os.path.join(data_root, 'vehicle-side/calib/camera_intrinsic', '000010.json')
 calib_v_cam_intrinsic = load(calib_v_cam_intrinsic_filename)
 rect = np.identity(4)
 Trv2c = np.identity(4)
@@ -141,6 +151,8 @@ camera_3d_data_ff = {}
 camera_3d_data_ff['3d_location'] = np.array(cam_location)
 camera_3d_data_ff['3d_dimensions'] = np.array(cam_dimension)
 camera_3d_data_ff['rotation'] = np.array([cam_rotation])
+
+camera_old = np.array([cam_location[0], cam_location[1], cam_location[2], l, h, w, cam_rotation])
 # print("kitti camera:", camera_3d_data_ff)
 gt_bboxes_3d_cam = np.concatenate(
     [
@@ -152,7 +164,12 @@ gt_bboxes_3d_cam = np.concatenate(
 ).astype(np.float32)
 
 gt_bboxes_3d_lidar_ff = convert(gt_bboxes_3d_cam, 'cam', 'lidar', np.linalg.inv(rect @ Trv2c))
-# print(gt_bboxes_3d_lidar_ff)
+print(lidar_old.tolist())
+print(camera_old.tolist())
+print(gt_bboxes_3d_lidar_ff.tolist())
+
+gt_bboxes_3d = CameraInstance3DBoxes(np.array([camera_old])).convert_to(0, np.linalg.inv(rect @ Trv2c))
+print(gt_bboxes_3d[0].numpy().tolist())
 
 # DAIR official code
 print('###dair convert###')
@@ -190,8 +207,8 @@ print(
     lidar_3d_data_veh_ff['rotation'],
 )
 print(x, y, z, w, h, l, rotation)
-print(lidar_3d_data_veh_ff['world_8_points'])
-print(my_world_8_points)
+# print(lidar_3d_data_veh_ff["world_8_points"])
+# print(my_world_8_points)
 print('#### origin lidar end')
 
 calib_lidar2cam = load(os.path.join(data_root, 'vehicle-side/calib/lidar_to_camera', '004105.json'))
@@ -212,11 +229,16 @@ print(
 )
 print(cam_x, cam_y, cam_z, l, h, w, yaw)
 print('###kitti camera end')
+
 gt_bboxes_3d = np.concatenate([np.array([cam_x, cam_y, cam_z]), np.array([l, h, w]), np.array([yaw])], axis=0).astype(np.float32)
 gt_bboxes_3d = np.array([gt_bboxes_3d])
 gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(0, np.linalg.inv(rect @ Trv2c))
 gt_bboxes_3d_17 = convert(
-    np.concatenate([np.array([cam_x, cam_y, cam_z]), np.array([l, h, w]), np.array([yaw])], axis=0).astype(np.float32), 'cam', 'lidar', np.linalg.inv(rect @ Trv2c))
+    np.concatenate([np.array([cam_x, cam_y, cam_z]), np.array([w, h, l]), np.array([yaw])], axis=0).astype(np.float32),
+    'cam',
+    'lidar',
+    np.linalg.inv(rect @ Trv2c),
+)
 # set_label(label, h, w, l, cam_x, cam_y, cam_z, alpha, yaw)
 print(gt_bboxes_3d_lidar_ff.tolist())
 print(gt_bboxes_3d_17.tolist())

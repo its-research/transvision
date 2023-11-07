@@ -120,7 +120,7 @@ def gen_lidar2cam(source_root, target_root, label_type='lidar'):
             bottom_center_in_cam = r_velo2cam * np.matrix(bottom_center).T + t_velo2cam
             alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, r_velo2cam, t_velo2cam)
             cam_x, cam_y, cam_z = convert_point(np.array([x, y, z, 1]).T, Tr_velo_to_cam)
-            print(yaw_lidar, yaw)
+            # print(yaw_lidar, yaw)
 
             set_label(label, h, w, l, cam_x, cam_y, cam_z, alpha, yaw)
 

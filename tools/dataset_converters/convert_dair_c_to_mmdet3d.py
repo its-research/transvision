@@ -343,11 +343,11 @@ def get_instances(images, lidar_points, metainfo, root_path):
         loc = extended_xyz @ np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32).T
         loc = loc[:3]
 
-        # dims = np.array([w, h, l])  # 初始为lwh, 交换lw, 变为wlh, 交换lh, 变为whl
-        # rots = np.array([yaw_lidar])  # 交换lw  -yaw - np.pi / 2; 交换lh  -yaw - np.pi / 2; 等价于不变
+        dims = np.array([l, h, w])  # 初始为wlh, 交换lhw
+        rots = np.array([-yaw_lidar])
 
-        dims = np.array([l, h, w])
-        rots = np.array([yaw_lidar])
+        # dims = np.array([l, h, w])
+        # rots = np.array([yaw_lidar])
 
         # yaw = -yaw - np.pi / 2
         # yaw = limit_period(yaw, period=np.pi * 2)
