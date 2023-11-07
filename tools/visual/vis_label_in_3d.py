@@ -202,11 +202,11 @@ def plot_label_pcd(args):
 
 
 def add_arguments(parser):
-    parser.add_argument('--task', type=str, default='coop', choices=['fusion', 'single', 'pcd_label'])
+    parser.add_argument('--task', type=str, default='pcd_label', choices=['fusion', 'single', 'pcd_label'])
     parser.add_argument('--path', type=str, default='./coop-mono_v50100')
     parser.add_argument('--id', type=int, default=0)
-    parser.add_argument('--pcd-path', type=str, default='./000029.bin', help='pcd path to visualize')
-    parser.add_argument('--label-path', type=str, default='./000029.json', help='label path to visualize')
+    parser.add_argument('--pcd-path', type=str, default='data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/velodyne/000010.pcd', help='pcd path to visualize')
+    parser.add_argument('--label-path', type=str, default='data/DAIR-V2X/cooperative-vehicle-infrastructure/lidar_trans/000010.json', help='label path to visualize')
 
 
 if __name__ == '__main__':

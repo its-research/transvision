@@ -41,10 +41,10 @@ def add_arguments(parser):
     parser.add_argument(
         '--path',
         type=str,
-        default='./cooperative-vehicle-infrastructure/vehicle-side',
+        default='data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side',
     )
-    parser.add_argument('--id', type=int, default=0)
-    parser.add_argument('--output-file', type=str, default='./veh')
+    parser.add_argument('--id', type=int, default=10)
+    parser.add_argument('--output-file', type=str, default='./work_dirs/visual_in_images')
 
 
 if __name__ == '__main__':
