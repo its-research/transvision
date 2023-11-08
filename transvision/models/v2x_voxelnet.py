@@ -199,19 +199,15 @@ class V2XVoxelNet(SingleStage3DDetector):
             inf_pointcloud_range = point_cloud_range
 
             theta_rot = (
-                torch.tensor([
-                    [
-                        calib_inf2veh_rotation[0][0],
-                        -calib_inf2veh_rotation[0][1],
-                        0.0,
-                    ],
-                    [
-                        -calib_inf2veh_rotation[1][0],
-                        calib_inf2veh_rotation[1][1],
-                        0.0,
-                    ],
-                    [0, 0, 1],
-                ]).type(dtype=torch.float).cuda(next(self.parameters()).device))
+                torch.tensor([[
+                    calib_inf2veh_rotation[0][0],
+                    -calib_inf2veh_rotation[0][1],
+                    0.0,
+                ], [
+                    -calib_inf2veh_rotation[1][0],
+                    calib_inf2veh_rotation[1][1],
+                    0.0,
+                ], [0, 0, 1]]).type(dtype=torch.float).cuda(next(self.parameters()).device))
             theta_rot = (torch.FloatTensor(self.generate_matrix(theta_rot, -1, 0)).type(dtype=torch.float).cuda(next(self.parameters()).device))
             # Moving right and down is negative.
             x_trans = (-2 * calib_inf2veh_translation[0][0] / (inf_pointcloud_range[3] - inf_pointcloud_range[0]))

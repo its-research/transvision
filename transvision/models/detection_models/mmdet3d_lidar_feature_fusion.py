@@ -19,34 +19,17 @@ logger = logging.getLogger(__name__)
 
 
 def get_box_info(result):
-    # for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
-    #     temp = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].clone()
-    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][4] = result[0].pred_instances_3d.bboxes_3d.tensor[i][3]
-    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][3] = temp
-    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
+    for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
+        tmp = result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
+        tmp = -tmp - np.pi / 2
+        result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = tmp
 
     if len(result[0].pred_instances_3d.bboxes_3d.tensor) == 0:
         box_lidar = np.zeros((1, 8, 3))
         box_ry = np.zeros(1)
     else:
-        num = len(result[0].pred_instances_3d.bboxes_3d.tensor)
-        box_lidar = np.zeros((num, 8, 3))
-        box_ry = np.zeros(num)
-        for i in range(num):
-            box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.cpu().numpy()
-            box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].cpu().numpy()
-            # l = result[0].pred_instances_3d.bboxes_3d.tensor[i][3].cpu().numpy()
-            # w = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].cpu().numpy()
-            # h = result[0].pred_instances_3d.bboxes_3d.tensor[i][5].cpu().numpy()
-
-            # # yaw = -result[0].pred_instances_3d.bboxes_3d.tensor[i][6].cpu().numpy() - np.pi / 2
-            # yaw = result[0].pred_instances_3d.bboxes_3d.tensor[i][6].cpu().numpy()
-            # x = result[0].pred_instances_3d.bboxes_3d.tensor[i][0].cpu().numpy()
-            # y = result[0].pred_instances_3d.bboxes_3d.tensor[i][1].cpu().numpy()
-            # z = result[0].pred_instances_3d.bboxes_3d.tensor[i][2].cpu().numpy()
-
-            # box_lidar[i, :, :] = get_3d_8points([l, w, h], yaw, [x, y, z])
-            # box_ry[i] = yaw
+        box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.cpu().numpy()
+        box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].cpu().numpy()
 
     box_centers_lidar = box_lidar.mean(axis=1)
     arrow_ends_lidar = get_arrow_end(box_centers_lidar, box_ry)
@@ -165,8 +148,7 @@ class FeatureFusion(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
-        print(result[0].pred_instances_3d)
-        exit()
+        # print(result[0].pred_instances_3d)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
         # print(box)
 
