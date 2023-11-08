@@ -6,7 +6,7 @@ from gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_
 # from gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points
 from gen_kitti.label_lidarcoord_to_cameracoord import get_label
 from kitti_data_utils import _extend_matrix
-# from mmdet3d.structures.bbox_3d.utils import limit_period
+from mmdet3d.structures.bbox_3d.utils import limit_period
 # from mmdet3d.structures import points_cam2img
 from mmdet3d.structures.ops import box_np_ops
 from mmengine.fileio import dump, load
@@ -344,7 +344,9 @@ def get_instances(images, lidar_points, metainfo, root_path):
         loc = loc[:3]
 
         dims = np.array([l, h, w])  # 初始为wlh, 交换lhw
-        rots = np.array([-yaw_lidar])
+        yaw = -yaw_lidar - np.pi / 2
+        yaw = limit_period(yaw, period=np.pi * 2)
+        rots = np.array([yaw])
 
         # dims = np.array([l, h, w])
         # rots = np.array([yaw_lidar])
