@@ -173,88 +173,6 @@ def get_cam_instances(images, metainfo, root_path):
     for cam_idx in range(4):
         cam_instances['CAM%d' % cam_idx] = []
 
-    # cam_labels_path = os.path.join(root_path, 'label/camera', images[defalut_cam]['img_path'].replace('.jpg', '.json'))
-    # label_infos = load(cam_labels_path)
-    # if label_infos == []:
-    #     return cam_instances
-    # for label_info in label_infos:
-    #     cam_instance = {}
-    #     cam_instance['bbox'] = [label_info['2d_box']['xmin'], label_info['2d_box']['ymin'], label_info['2d_box']['xmax'], label_info['2d_box']['ymax']]
-    #     if label_info['type'] in ['Truck', 'Van', 'Bus']:
-    #         label_info['type'] == 'Car'
-
-    #     if label_info['type'] in metainfo['classes']:
-    #         cam_instance['bbox_label'] = metainfo['classes'].index(label_info['type'])
-    #         cam_instance['bbox_label_3d'] = cam_instance['bbox_label']
-    #     else:
-    #         cam_instance['bbox_label'] = -1
-    #         cam_instance['bbox_label_3d'] = -1
-    #         continue
-
-    #     h, w, l, x, y, z, yaw_lidar = get_label(label_info)
-    #     z = z - h / 2
-    #     bottom_center = [x, y, z]
-    #     obj_size = [l, w, h]
-
-    #     bottom_center_in_cam = images[defalut_cam]['r_velo2cam'] * np.matrix(bottom_center).T + images[defalut_cam]['t_velo2cam']
-    #     alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, images[defalut_cam]['r_velo2cam'], images[defalut_cam]['t_velo2cam'])
-    #     [cam_x, cam_y, cam_z, _] = convert_point(np.array([x, y, z, 1]).T, images[defalut_cam]['tr_velo_to_cam'])
-
-    #     cam_instance['bbox_3d'] = [cam_x, cam_y, cam_z, l, w, h, yaw]
-    #     cam_instance['velocity'] = -1
-
-    #     loc = np.array([cam_x, cam_y, cam_z])
-    #     dims = np.array([l, w, h])
-
-    #     dst = np.array([0.5, 0.5, 0.5])
-    #     src = np.array([0.5, 1.0, 0.5])
-
-    #     center_3d = loc + dims * (dst - src)
-    #     center_2d = points_cam2img(center_3d.reshape([1, 3]), images[defalut_cam]['cam2img'], with_depth=True)
-    #     center_2d = center_2d.squeeze().tolist()
-
-    #     cam_instance['center_2d'] = center_2d[:2]
-    #     cam_instance['depth'] = center_2d[2]
-
-    #     # loc_center = loc + dims * (dst - src)
-    #     # gt_bbox_3d = np.concatenate([loc_center, dims, [yaw]]).astype(np.float32)
-    #     # corners_3d = box_np_ops.center_to_corner_box3d(gt_bbox_3d[:, :3], gt_bbox_3d[:, 3:6], gt_bbox_3d[:, 6], (0.5, 0.5, 0.5), axis=1)
-    #     # corners_3d = corners_3d[0].T  # (1, 8, 3) -> (3, 8)
-    #     # in_front = np.argwhere(corners_3d[2, :] > 0).flatten()
-    #     # corners_3d = corners_3d[:, in_front]
-
-    #     # # Project 3d box to 2d.
-    #     # camera_intrinsic = data_info['images']["CAM%d"]['cam2img']
-    #     # corner_coords = view_points(corners_3d, camera_intrinsic, True).T[:, :2].tolist()
-
-    #     # # Keep only corners that fall within the image.
-    #     # final_coords = post_process_coords(corner_coords, imsize=(data_info['images'][defalut_cam]['width'], data_info['images'][defalut_cam]['height']))
-
-    #     # # Skip if the convex hull of the re-projected corners
-    #     # # does not intersect the image canvas.
-    #     # if final_coords is None:
-    #     #     continue
-    #     # else:
-    #     #     min_x, min_y, max_x, max_y = final_coords
-
-    #     # # Generate dictionary record to be included in the .json file.
-    #     # cam_instance['bbox'] = [min_x, min_y, max_x, max_y]
-    #     # cam_instance['bbox_3d_isvalid'] = True
-
-    #     # # If mono3d=True, add 3D annotations in camera coordinates
-    #     # # use bottom center to represent the bbox_3d
-    #     # cam_instance['bbox_3d'] = np.concatenate([loc, dims, yaw], axis=1).astype(np.float32).squeeze().tolist()
-    #     # cam_instance['velocity'] = -1  # no velocity in KITTI
-
-    #     # center_3d = np.array(loc_center).reshape([1, 3])
-    #     # center_2d_with_depth = points_cam2img(
-    #     #     center_3d, camera_intrinsic, with_depth=True)
-    #     # center_2d_with_depth = center_2d_with_depth.squeeze().tolist()
-
-    #     # cam_instance['center_2d'] = center_2d_with_depth[:2]
-    #     # cam_instance['depth'] = center_2d_with_depth[2]
-
-    #     cam_instances[defalut_cam].append(cam_instance)
     return cam_instances
 
 
@@ -346,7 +264,7 @@ def get_instances(images, lidar_points, metainfo, root_path):
         dims = np.array([l, h, w])  # 初始为wlh, 交换lhw
         yaw = -yaw_lidar - np.pi / 2
         yaw = limit_period(yaw, period=np.pi * 2)
-        rots = np.array([yaw])
+        rots = np.array([-yaw])
 
         # dims = np.array([l, h, w])
         # rots = np.array([yaw_lidar])

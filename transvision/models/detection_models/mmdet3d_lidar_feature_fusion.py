@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_box_info(result):
-    for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
-        tmp = result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
-        tmp = -tmp - np.pi / 2
-        result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = tmp
+    # for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
+    #     tmp = -result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
+    #     # tmp = -tmp - np.pi / 2
+    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = tmp
 
     if len(result[0].pred_instances_3d.bboxes_3d.tensor) == 0:
         box_lidar = np.zeros((1, 8, 3))
@@ -148,8 +148,8 @@ class FeatureFusion(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
-        print(result[0].pred_instances_3d)
-        exit()
+        # print(result[0].pred_instances_3d)
+        # exit()
         box, box_ry, box_center, arrow_ends = get_box_info(result)
         # print(box)
 

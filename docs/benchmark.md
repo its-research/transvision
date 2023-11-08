@@ -26,13 +26,13 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 
 (work with mmdet3d==0.17.1)
 
-| origin | Car(AP@0.70) | fusion  | veh_only | inf_only | transvision | Car(AP@0.70) | fusion  | veh_only | inf_only |
-| :----: | :----------: | :-----: | :------: | :------: | :---------: | :----------: | :-----: | :------: | :------: |
-|        |     bev      | 34.4805 |          |          |             |     bev      | 40.5926 | 32.9987  |  1.2987  |
-|        |      3d      | 21.3489 |          |          |             |      3d      | 22.0547 | 21.1024  |  1.2987  |
-|        | Car(AP@0.50) | fusion  | veh_only | inf_only |             | Car(AP@0.50) | fusion  | veh_only | inf_only |
-|        |     bev      | 43.5100 |          |          |             |     bev      | 43.5164 | 35.0143  |  6.5574  |
-|        |      3d      | 41.1886 |          |          |             |      3d      | 40.8895 | 33.9840  |  4.5455  |
+| origin | Car(AP@0.70) | fusion  | veh_only | inf_only | transvision | Car(AP@0.70) |  fusion(ms/s)   | veh_only | inf_only |
+| :----: | :----------: | :-----: | :------: | :------: | :---------: | :----------: | :-------------: | :------: | :------: |
+|        |     bev      | 34.4805 |          |          |             |     bev      | 40.5926/34.1077 | 32.9987  |  1.2987  |
+|        |      3d      | 21.3489 |          |          |             |      3d      | 22.0547/22.4537 | 21.1024  |  1.2987  |
+|        | Car(AP@0.50) | fusion  | veh_only | inf_only |             | Car(AP@0.50) |     fusion      | veh_only | inf_only |
+|        |     bev      | 43.5100 |          |          |             |     bev      | 43.5164/42.5577 | 35.0143  |  6.5574  |
+|        |      3d      | 41.1886 |          |          |             |      3d      | 40.8895/34.3691 | 33.9840  |  4.5455  |
 
 work_dirs/ffnet-vic3d/basemodel/mmdet3d_0.17.1/20231024_131833.log
 
@@ -78,7 +78,16 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 bash scripts/lidar_feature_fusion.sh 0 ./
 ```
 
+0.17.0
+
 | Car | AP@0.30 | 0.50  | 0.70  |   AB(Byte)    |
 | :-: | :-----: | :---: | :---: | :-----------: |
 | bev |  65.70  | 62.95 | 53.45 | 1760.50 Bytes |
 | 3d  |  63.52  | 54.93 | 29.29 |               |
+
+1.2.0
+
+| Car | AP@0.30 | 0.50  | 0.70  |   AB(Byte)    |
+| :-: | :-----: | :---: | :---: | :-----------: |
+| bev |  61.94  | 59.96 | 52.21 | 1760.50 Bytes |
+| 3d  |  60.14  | 52.36 | 26.88 |               |
