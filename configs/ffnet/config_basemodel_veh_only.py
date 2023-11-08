@@ -2,7 +2,7 @@ dataset_type = 'V2XDataset'
 data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/ffnet/'
 data_info_train_path = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train.json'
 data_info_val_path = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_val_0.json'
-work_dir = './work_dirs/mmdet3d_0.17.1/ffnet-vic3d/basemodel//veh_only'
+work_dir = './work_dirs/mmdet3d_0.17.1/ffnet-vic3d/basemodel/veh_only'
 
 class_names = ['Car']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
@@ -56,7 +56,7 @@ file_client_args = dict(backend='disk')
 
 data = dict(
     samples_per_gpu=2,
-    workers_per_gpu=2,
+    workers_per_gpu=4,
     train=dict(
         type='RepeatDataset',
         times=2,
