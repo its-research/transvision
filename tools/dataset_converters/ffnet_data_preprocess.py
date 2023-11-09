@@ -197,7 +197,7 @@ if __name__ == '__main__':
     c_jsons = read_json(c_jsons_path)
     if not os.path.exists(dair_v2x_c_dst_root):
         os.makedirs(dair_v2x_c_dst_root)
-    os.system('cp -r %s/vehicle-side/calib %s/vehicle-side/' % dair_v2x_c_root, dair_v2x_c_dst_root)
+    os.system('cp -r %s/vehicle-side/calib %s/vehicle-side/' % (dair_v2x_c_root, dair_v2x_c_dst_root))
 
     for c_json in tqdm(c_jsons):
         inf_idx = c_json['infrastructure_image_path'].split('/')[-1].replace('.jpg', '')

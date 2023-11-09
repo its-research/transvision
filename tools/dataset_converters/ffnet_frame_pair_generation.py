@@ -120,10 +120,14 @@ def data_info_flow_val(data_infos, inf_idx_batch_mappings, async_k=1):
 
 parser = argparse.ArgumentParser('Preprocess the DAIR-V2X-C for FFNET.')
 parser.add_argument('--source-root', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure', help='Raw data root of DAIR-V2X-C.')
+parser.add_argument('--target-root', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/ffnet/', help='Target data root of DAIR-V2X-C.')
 
 if __name__ == '__main__':
     args = parser.parse_args()
     dair_v2x_c_root = args.source_root
+    dair_v2x_c_root_target = args.target_root
+    if not os.path.exists(dair_v2x_c_root_target):
+        os.makedirs(dair_v2x_c_root_target)
 
     inf_data_infos_path = os.path.join(dair_v2x_c_root, 'infrastructure-side/data_info.json')
     inf_data_infos = read_json(inf_data_infos_path)
@@ -138,10 +142,15 @@ if __name__ == '__main__':
     data_infos = read_json(data_infos_path)
     data_infos_train = split_datas(data_infos, split_jsons, split='train')
 
-    data_infos_train_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train.json'
+    data_infos_train_path = 'flow_data_info_train.json'
+    flow_data_jsons_dir = os.path.join(dair_v2x_c_root_target, 'flow_data_jsons')
+    if not os.path.exists(flow_data_jsons_dir):
+        os.makedirs(flow_data_jsons_dir)
+    data_infos_train_path = os.path.join(flow_data_jsons_dir, data_infos_train_path)
     write_json(data_infos_train_path, data_infos_train)
     data_infos_flow_train = data_info_flow_train(data_infos_train, inf_idx_batch_mappings)
-    data_infos_flow_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_train_2.json'
+    data_infos_flow_path = 'flow_data_info_train_2.json'
+    data_infos_flow_path = os.path.join(flow_data_jsons_dir, data_infos_flow_path)
     write_json(data_infos_flow_path, data_infos_flow_train)
 
     # Generate val part
@@ -152,5 +161,6 @@ if __name__ == '__main__':
     for async_k in range(0, 6):
         data_infos_flow_val = data_info_flow_val(data_infos_val, inf_idx_batch_mappings, async_k=async_k)
         print('The length of data_infos_flow_val is: ', async_k, len(data_infos_flow_val))
-        data_infos_flow_path = './data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_val_' + str(async_k) + '.json'
+        data_infos_flow_path = 'flow_data_info_val_' + str(async_k) + '.json'
+        data_infos_flow_path = os.path.join(flow_data_jsons_dir, data_infos_flow_path)
         write_json(data_infos_flow_path, data_infos_flow_val)

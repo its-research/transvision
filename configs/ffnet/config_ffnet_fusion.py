@@ -1,14 +1,14 @@
 dataset_type = 'V2XDataset'
-data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/'
+data_root = './data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/ffnet/'
 # flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'}
 # FlowPred: Use feature flow to compensate for the temporary asynchrony
 # OriginFeat: Do not introduce the simulated temporal asychrony
 # Async: Introduce the temporal asynchrony and do not use feature flow to compensate for the temporary asynchrony
-data_info_train_path = './data/flow_data_jsons/flow_data_info_train_2.json'
-data_info_val_path = './data/flow_data_jsons/flow_data_info_val_2.json'
+data_info_train_path = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/ffnet/flow_data_jsons/flow_data_info_train_2.json'
+data_info_val_path = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/ffnet/flow_data_jsons/flow_data_info_val_2.json'
 flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
-pretrained_basemodel = './work_dirs/ffnet-vic3d/pretrained-checkpoints/epoch_40.pth'
-work_dir = './work_dirs/ffnet-vic3d/basemodel/'
+pretrained_basemodel = 'models/ffnet_w_o_pred_0.17.1.pth'
+work_dir = work_dir = './work_dirs/mmdet3d_0.17.1/ffnet-vic3d/flow/fusion'
 
 class_names = ['Car']
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]

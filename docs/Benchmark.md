@@ -19,7 +19,7 @@ Example: evaluate `FFNET` on `DAIR-V2X-C` with 100ms latency:
 ```shell
 # bash scripts/lidar_feature_flow.sh [YOUR_CUDA_DEVICE] [YOUR_FFNET_WORKDIR] [DELAY_K]
 cd ${OpenDAIRV2X_root}/v2x
-bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
+bash scripts/lidar_feature_flow.sh 0 1 'FlowPred'
 ```
 
 ### config_basemodel
@@ -36,7 +36,7 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 
 ### config_ffnet
 
-bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
+bash scripts/lidar_feature_flow.sh 0 1 'FlowPred'
 
 | Car | AP@0.30 | 0.50  | 0.70  |   AB(Byte)    |
 | :-: | :-----: | :---: | :---: | :-----------: |
@@ -48,7 +48,7 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 #### ffnet.pth
 
 ```shell
-bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
+bash scripts/lidar_feature_flow.sh 0 1 'FlowPred'
 ```
 
 1501 frames
@@ -57,6 +57,15 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 | :-: | :-----: | :---: | :---: | :-----------: |
 | bev |  65.67  | 63.15 | 54.27 | 1681.18 Bytes |
 | 3d  |  63.55  | 55.48 | 31.54 |               |
+
+0.17.1 transvision
+
+car 3d IoU threshold 0.30, Average Precision = 62.87
+car 3d IoU threshold 0.50, Average Precision = 55.00
+car 3d IoU threshold 0.70, Average Precision = 29.74
+car bev IoU threshold 0.30, Average Precision = 64.82
+car bev IoU threshold 0.50, Average Precision = 62.67
+car bev IoU threshold 0.70, Average Precision = 53.86
 
 #### ffnet_without_prediction.pth
 
