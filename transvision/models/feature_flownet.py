@@ -1,12 +1,9 @@
 # Copyright (c) DAIR-V2X (AIR). All rights reserved.
 import copy
-import json
-import os
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-from mmdet3d.models.data_preprocessors.voxelize import VoxelizationByGridShape
 from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import Det3DDataSample
@@ -87,12 +84,6 @@ class ReduceInfTC(nn.Module):
         return x_1
 
 
-def read_json(path):
-    with open(path, 'r') as f:
-        my_json = json.load(f)
-        return my_json
-
-
 class PixelWeightedFusion(nn.Module):
 
     def __init__(self, channel):
@@ -107,7 +98,7 @@ class PixelWeightedFusion(nn.Module):
 
 class FlowGenerator(nn.Module):
 
-    def __init__(self, voxel_layer, voxel_encoder, middle_encoder, backbone, with_neck=False, neck=None):
+    def __init__(self, voxel_encoder, middle_encoder, backbone, with_neck=False, neck=None):
         super(FlowGenerator, self).__init__()
         backbone_flow = copy.deepcopy(backbone)
         backbone_flow['in_channels'] = backbone['in_channels'] * 2
@@ -115,22 +106,23 @@ class FlowGenerator(nn.Module):
         self.inf_with_neck = with_neck
         if neck is not None:
             self.inf_neck = MODELS.build(neck)
-        self.inf_voxel_layer = VoxelizationByGridShape(**voxel_layer)
         self.inf_voxel_encoder = MODELS.build(voxel_encoder)
         self.inf_middle_encoder = MODELS.build(middle_encoder)
         self.pre_encoder = ReduceInfTC(768)
         self.with_attention_mask = False
 
-    def forward(self, points_t_0, points_t_1):
-        voxels_t_0, num_points_t_0, coors_t_0 = self.inf_voxelize(points_t_0)
-        voxel_features_t_0 = self.inf_voxel_encoder(voxels_t_0, num_points_t_0, coors_t_0)
-        batch_size_t_0 = coors_t_0[-1, 0].item() + 1
-        feat_t_0 = self.inf_middle_encoder(voxel_features_t_0, coors_t_0, batch_size_t_0)
+    def forward(self, inf_voxel_t_0, inf_voxel_t_1):
+        voxel_features_t_0 = self.inf_voxel_encoder(
+            inf_voxel_t_0['voxels'],
+            inf_voxel_t_0['num_points'],
+            inf_voxel_t_0['coors'],
+        )
+        batch_size_t_0 = inf_voxel_t_0['coors'][-1, 0].item() + 1
+        feat_t_0 = self.inf_middle_encoder(voxel_features_t_0, inf_voxel_t_0['coors'], batch_size_t_0)
 
-        voxels_t_1, num_points_t_1, coors_t_1 = self.inf_voxelize(points_t_1)
-        voxel_features_t_1 = self.inf_voxel_encoder(voxels_t_1, num_points_t_1, coors_t_1)
-        batch_size_t_1 = coors_t_1[-1, 0].item() + 1
-        feat_t_1 = self.inf_middle_encoder(voxel_features_t_1, coors_t_1, batch_size_t_1)
+        voxel_features_t_1 = self.inf_voxel_encoder(inf_voxel_t_1['voxels'], inf_voxel_t_1['num_points'], inf_voxel_t_1['coors'])
+        batch_size_t_1 = inf_voxel_t_1['coors'][-1, 0].item() + 1
+        feat_t_1 = self.inf_middle_encoder(voxel_features_t_1, inf_voxel_t_1['coors'], batch_size_t_1)
 
         flow_pred = torch.cat([feat_t_0, feat_t_1], dim=1)
         flow_pred = self.inf_backbone(flow_pred)
@@ -144,36 +136,17 @@ class FlowGenerator(nn.Module):
             flow_pred[0] = self.pre_encoder(flow_pred[0])
         return flow_pred
 
-    @torch.no_grad()
-    def inf_voxelize(self, points):
-        """Apply hard voxelization to points."""
-        voxels, coors, num_points = [], [], []
-        for res in points:
-            res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
-            voxels.append(res_voxels)
-            coors.append(res_coors)
-            num_points.append(res_num_points)
-        voxels = torch.cat(voxels, dim=0)
-        num_points = torch.cat(num_points, dim=0)
-        coors_batch = []
-        for i, coor in enumerate(coors):
-            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-            coors_batch.append(coor_pad)
-        coors_batch = torch.cat(coors_batch, dim=0)
-        return voxels, num_points, coors_batch
-
 
 @MODELS.register_module()
 class FeatureFlowNet(SingleStage3DDetector):
     r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
-    def __init__(self, voxel_layer, voxel_encoder, middle_encoder, backbone, neck=None, bbox_head=None, train_cfg=None, test_cfg=None, init_cfg=None, pretrained=None):
-        super(FeatureFlowNet, self).__init__(backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, init_cfg=init_cfg)
-        self.voxel_layer = VoxelizationByGridShape(**voxel_layer)
+    def __init__(self, voxel_encoder, middle_encoder, backbone, neck=None, data_preprocessor=None, bbox_head=None, train_cfg=None, test_cfg=None, init_cfg=None, pretrained=None):
+        super(FeatureFlowNet, self).__init__(
+            backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, data_preprocessor=data_preprocessor, init_cfg=init_cfg)
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
 
-        self.inf_voxel_layer = VoxelizationByGridShape(**voxel_layer)
         self.inf_voxel_encoder = MODELS.build(voxel_encoder)
         self.inf_middle_encoder = MODELS.build(middle_encoder)
         self.inf_backbone = MODELS.build(backbone)
@@ -185,7 +158,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         self.fusion_training = False
         self.flow_training = True
         self.mse_loss = nn.MSELoss()
-        self.flownet = FlowGenerator(voxel_layer, voxel_encoder, middle_encoder, backbone, with_neck=self.with_neck, neck=neck)
+        self.flownet = FlowGenerator(voxel_encoder, middle_encoder, backbone, with_neck=self.with_neck, neck=neck)
         self.encoder = ReduceInfTC(768)
 
         try:
@@ -200,26 +173,29 @@ class FeatureFlowNet(SingleStage3DDetector):
             self.test_mode = test_cfg['test_mode']
         else:
             self.test_mode = 'FlowPred'
-        self.count = 0
         self.init_weights()
 
-    def extract_feat(self, points, img_metas=None, points_view='vehicle'):
+    def extract_feat(self, batch_inputs_dict: Dict[str, Tensor], points_view='vehicle'):
         """Extract features from points."""
         if points_view == 'vehicle':
-            voxels, num_points, coors = self.voxelize(points)
-            voxel_features = self.voxel_encoder(voxels, num_points, coors)
-            batch_size = coors[-1, 0].item() + 1
-            veh_x = self.middle_encoder(voxel_features, coors, batch_size)
+            voxel_dict = batch_inputs_dict['voxels']
+            voxel_features = self.voxel_encoder(voxel_dict['voxels'], voxel_dict['num_points'], voxel_dict['coors'])
+            batch_size = voxel_dict['coors'][-1, 0].item() + 1
+            veh_x = self.middle_encoder(voxel_features, voxel_dict['coors'], batch_size)
             veh_x = self.backbone(veh_x)
             if self.with_neck:
                 veh_x = self.neck(veh_x)
             return veh_x
 
-        elif points_view == 'infrastructure':
-            inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(points)
-            inf_voxel_features = self.inf_voxel_encoder(inf_voxels, inf_num_points, inf_coors)
-            inf_batch_size = inf_coors[-1, 0].item() + 1
-            inf_x = self.inf_middle_encoder(inf_voxel_features, inf_coors, inf_batch_size)
+        elif 'infrastructure' in points_view:
+            inf_voxel_dict = batch_inputs_dict[points_view + '_voxels']
+            inf_voxel_features = self.inf_voxel_encoder(
+                inf_voxel_dict['voxels'],
+                inf_voxel_dict['num_points'],
+                inf_voxel_dict['coors'],
+            )
+            inf_batch_size = inf_voxel_dict['coors'][-1, 0].item() + 1
+            inf_x = self.inf_middle_encoder(inf_voxel_features, inf_voxel_dict['coors'], inf_batch_size)
             inf_x = self.inf_backbone(inf_x)
             if self.with_neck:
                 inf_x = self.inf_neck(inf_x)
@@ -242,25 +218,17 @@ class FeatureFlowNet(SingleStage3DDetector):
         matrix[2, 2] = 1
         return matrix
 
-    def points_shuffle(self, points, max_points_num=20000):
-        import random
-
-        for ii in range(len(points)):
-            if len(points[ii]) > max_points_num:
-                points_idxs = [jj for jj in range(len(points[ii]))]
-                random.shuffle(points_idxs)
-                points[ii] = points[ii][points_idxs[:max_points_num]]
-        return points
-
     def feature_fusion(self, veh_x, inf_x, img_metas, mode='fusion'):
         wrap_feats_ii = []
+        point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
         for ii in range(len(veh_x[0])):
             inf_feature = inf_x[0][ii:ii + 1]
             veh_feature = veh_x[0][ii:ii + 1]
 
-            calib_inf2veh_rotation = img_metas[ii]['inf2veh']['rotation']
-            calib_inf2veh_translation = img_metas[ii]['inf2veh']['translation']
-            inf_pointcloud_range = self.inf_voxel_layer.point_cloud_range
+            calib_inf2veh_rotation = img_metas[ii]['calib']['lidar_i2v']['rotation']
+            calib_inf2veh_translation = img_metas[ii]['calib']['lidar_i2v']['translation']
+
+            inf_pointcloud_range = point_cloud_range
 
             theta_rot = (
                 torch.tensor([[calib_inf2veh_rotation[0][0], -calib_inf2veh_rotation[0][1], 0.0], [-calib_inf2veh_rotation[1][0], calib_inf2veh_rotation[1][1], 0.0],
@@ -290,44 +258,6 @@ class FeatureFlowNet(SingleStage3DDetector):
 
         return veh_cat_feats
 
-    @torch.no_grad()
-    # @force_fp32()
-    def voxelize(self, points):
-        """Apply hard voxelization to points."""
-        voxels, coors, num_points = [], [], []
-        for res in points:
-            res_voxels, res_coors, res_num_points = self.voxel_layer(res)
-            voxels.append(res_voxels)
-            coors.append(res_coors)
-            num_points.append(res_num_points)
-        voxels = torch.cat(voxels, dim=0)
-        num_points = torch.cat(num_points, dim=0)
-        coors_batch = []
-        for i, coor in enumerate(coors):
-            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-            coors_batch.append(coor_pad)
-        coors_batch = torch.cat(coors_batch, dim=0)
-        return voxels, num_points, coors_batch
-
-    @torch.no_grad()
-    # @force_fp32()
-    def inf_voxelize(self, points):
-        """Apply hard voxelization to points."""
-        voxels, coors, num_points = [], [], []
-        for res in points:
-            res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
-            voxels.append(res_voxels)
-            coors.append(res_coors)
-            num_points.append(res_num_points)
-        voxels = torch.cat(voxels, dim=0)
-        num_points = torch.cat(num_points, dim=0)
-        coors_batch = []
-        for i, coor in enumerate(coors):
-            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-            coors_batch.append(coor_pad)
-        coors_batch = torch.cat(coors_batch, dim=0)
-        return voxels, num_points, coors_batch
-
     def flownet_init(self):
         pretraind_checkpoint_path = self.pretraind_checkpoint_path
         flownet_pretrained = self.flownet_pretrained
@@ -354,83 +284,52 @@ class FeatureFlowNet(SingleStage3DDetector):
         self.load_state_dict(pretraind_checkpoint_modify, strict=False)
 
     def loss(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
-
-        batch_gt_instances_3d = []
-        batch_gt_instances_ignore = []
-        batch_input_metas = []
-        batch_gt_bboxes_3d = []
-        batch_gt_labels_3d = []
-        for data_sample in batch_data_samples:
-            batch_input_metas.append(data_sample.metainfo)
-            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
-            batch_gt_bboxes_3d.append(data_sample.gt_instances_3d.bboxes_3d)
-            batch_gt_labels_3d.append(data_sample.gt_instances_3d.labels_3d)
-            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
-
-        # https://github.com/open-mmlab/mmdetection3d/blob/v1.2.0/mmdet3d/models/dense_heads/base_3d_dense_head.py#L68
-
-        losses = self._forward_train(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas, batch_gt_bboxes_3d, batch_gt_labels_3d,
-                                     batch_gt_instances_3d, batch_gt_instances_ignore)
-
+        losses = self._forward_train(batch_inputs_dict, batch_data_samples)
         return losses
 
-    def _forward_train(self, points, infrastructure_points, img_metas, gt_bboxs_3d, gt_labels_3d, batch_gt_instances_3d, gt_bboxes_ignore=None):
-        """Training forward function."""
-        for ii in range(len(infrastructure_points)):
-            infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
-        if self.fusion_training:
-            feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
-            feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
-            feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
-            outs = self.bbox_head(feat_fused)
-            # loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-            # losses = self.bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+    def extract_feats(
+        self,
+        batch_inputs_dict: Dict[str, Optional[Tensor]],
+        batch_data_samples: List[Det3DDataSample],
+    ):
+        batch_input_metas = [item.metainfo for item in batch_data_samples]
+        feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
+        feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
+        feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas, mode=self.mode)
+        return feat_fused
 
-            loss_inputs = outs + (batch_gt_instances_3d, img_metas, gt_bboxes_ignore)
-            losses = self.bbox_head.loss_by_feat(*loss_inputs)
+    def _forward_train(
+        self,
+        batch_inputs_dict: Dict[str, Optional[Tensor]],
+        batch_data_samples: List[Det3DDataSample],
+    ):
+        """Training forward function."""
+        if self.fusion_training:
+            feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
+            outs = self.bbox_head(feat_fused)
+            return outs
 
         if self.flow_training:
-            inf_points_t_0 = []
-            inf_points_t_1 = []
-            inf_points_t_2 = []
             points_t_0_1 = []
             points_t_1_2 = []
+            img_metas = [item.metainfo for item in batch_data_samples]
 
-            for ii in range(len(points)):
-                inf_points_path_t_0 = os.path.join(self.data_root, img_metas[ii]['infrastructure_pointcloud_bin_path_t_0'])
-                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_0, dtype=np.float32))
-                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=points[0].device)
-                inf_points_t_0.append(tem_inf_points)
+            for ii in range(len(batch_inputs_dict['points'])):
+                points_t_0_1.append(img_metas[ii]['v2x_info']['infrastructure_t_0_1'])
+                points_t_1_2.append(img_metas[ii]['v2x_info']['infrastructure_t_1_2'])
 
-                inf_points_path_t_1 = os.path.join(self.data_root, img_metas[ii]['infrastructure_pointcloud_bin_path_t_1'])
-                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_1, dtype=np.float32))
-                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=points[0].device)
-                inf_points_t_1.append(tem_inf_points)
-
-                inf_points_path_t_2 = os.path.join(self.data_root, img_metas[ii]['infrastructure_pointcloud_bin_path_t_2'])
-                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_2, dtype=np.float32))
-                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=points[0].device)
-                inf_points_t_2.append(tem_inf_points)
-
-                points_t_0_1.append(img_metas[ii]['infrastructure_t_0_1'])
-                points_t_1_2.append(img_metas[ii]['infrastructure_t_1_2'])
-
-            for ii in range(len(inf_points_t_0)):
-                inf_points_t_0[ii][:, 3] = 255 * inf_points_t_0[ii][:, 3]
-                inf_points_t_1[ii][:, 3] = 255 * inf_points_t_1[ii][:, 3]
-                inf_points_t_2[ii][:, 3] = 255 * inf_points_t_2[ii][:, 3]
-            feat_inf_t_1 = self.extract_feat(inf_points_t_1, img_metas, points_view='infrastructure')
-            feat_inf_t_2 = self.extract_feat(inf_points_t_2, img_metas, points_view='infrastructure')
+            feat_inf_t_1 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t1')
+            feat_inf_t_2 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t2')
             for ii in range(len(feat_inf_t_1)):
                 feat_inf_t_1[ii] = feat_inf_t_1[ii].detach()
                 feat_inf_t_2[ii] = feat_inf_t_2[ii].detach()
 
             loss_type = 'similarity_loss'
             if loss_type == 'mse_loss':
-                flow_pred = self.flownet(inf_points_t_0, inf_points_t_1)
+                flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_voxels'], batch_inputs_dict['infrastructure_t1_voxels'])
                 feat_inf_apprs = []
                 for ii in range(len(flow_pred)):
-                    for bs in range(len(points)):
+                    for bs in range(len(batch_inputs_dict['points'])):
                         feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] + flow_pred[ii][bs] / points_t_0_1[bs] * points_t_1_2[bs]
                     feat_inf_apprs.append(feat_inf_t_1[ii])
 
@@ -446,10 +345,10 @@ class FeatureFlowNet(SingleStage3DDetector):
                         losses['mse_loss'] = losses['mse_loss'] + self.mse_loss(feat_inf_apprs[ii], feat_inf_t_2[ii])
 
             if loss_type == 'similarity_loss':
-                flow_pred = self.flownet(inf_points_t_0, inf_points_t_1)
+                flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_voxels'], batch_inputs_dict['infrastructure_t1_voxels'])
                 feat_inf_apprs = []
                 for ii in range(len(flow_pred)):
-                    for bs in range(len(points)):
+                    for bs in range(len(batch_inputs_dict['points'])):
                         # tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean()
                         tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean().detach()
                         feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] + flow_pred[ii][bs] / points_t_0_1[bs] * points_t_1_2[bs]
@@ -460,81 +359,46 @@ class FeatureFlowNet(SingleStage3DDetector):
                 similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_2[0], start_dim=1, end_dim=3), torch.flatten(feat_inf_apprs[0], start_dim=1, end_dim=3), dim=1)
                 # print("The similarity is: ", similarity, points_t_1_2)
 
-                label = torch.ones(len(points), requires_grad=False).cuda(device=points[0].device)
+                label = torch.ones(len(batch_inputs_dict['points']), requires_grad=False).cuda(device=batch_inputs_dict['points'][0].device)
                 if not self.fusion_training:
                     losses = {}
                 losses['similarity_loss'] = self.mse_loss(similarity, label)
 
         return losses
 
-    def simple_test(self, points, infrastructure_points, img_metas, batch_data_samples, imgs=None, rescale=False):
-        """Test function without augmentaiton."""
-        for ii in range(len(infrastructure_points)):
-            infrastructure_points[ii][:, 3] = 255 * infrastructure_points[ii][:, 3]
-        feat_veh = self.extract_feat(points, img_metas, points_view='vehicle')
-        feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
+    def simple_test(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample]):
+
+        feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
+        feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
 
         if self.test_mode not in ['FlowPred', 'OriginFeat', 'Async']:
             raise Exception('FlowNet Test Mode is Error: {}'.format(self.test_mode))
 
         if self.test_mode == 'OriginFeat':
-            feat_inf = self.extract_feat(infrastructure_points, img_metas, points_view='infrastructure')
+            feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
 
         if self.test_mode == 'Async':
-            inf_points_t_1 = []
 
-            for ii in range(len(points)):
-                inf_points_path_t_1 = os.path.join(self.data_root, img_metas[ii]['infrastructure_pointcloud_bin_path_t_1'])
-                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_1, dtype=np.float32))
-                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=points[0].device)
-                inf_points_t_1.append(tem_inf_points)
-            for ii in range(len(inf_points_t_1)):
-                inf_points_t_1[ii][:, 3] = 255 * inf_points_t_1[ii][:, 3]
-            feat_inf_t_1 = self.extract_feat(inf_points_t_1, img_metas, points_view='infrastructure')
-            # similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_1[0], start_dim=1, end_dim=3), torch.flatten(feat_inf[0], start_dim=1, end_dim=3), dim=1)
-            # print("The similarity is: ", similarity)
-
+            feat_inf_t_1 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t1')
             feat_inf = feat_inf_t_1
 
         if self.test_mode == 'FlowPred':
-            inf_points_t_0 = []
-            inf_points_t_1 = []
-            inf_points_t_2 = []
             points_t_0_1 = []
             points_t_1_2 = []
-            if not os.path.exists('./result'):
-                os.mkdir('./result')
-            for ii in range(len(points)):
-                inf_points_path_t_0 = os.path.join(self.data_root, img_metas[ii]['infrastructure_pointcloud_bin_path_t_0'])
-                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_0, dtype=np.float32))
-                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=points[0].device)
-                inf_points_t_0.append(tem_inf_points)
 
-                inf_points_path_t_1 = os.path.join(self.data_root, img_metas[ii]['infrastructure_pointcloud_bin_path_t_1'])
-                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_1, dtype=np.float32))
-                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=points[0].device)
-                inf_points_t_1.append(tem_inf_points)
+            batch_input_metas = [item.metainfo for item in batch_data_samples]
 
-                inf_points_path_t_2 = os.path.join(self.data_root, img_metas[ii]['infrastructure_pointcloud_bin_path_t_2'])
-                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_2, dtype=np.float32))
-                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=points[0].device)
-                inf_points_t_2.append(tem_inf_points)
+            for ii in range(len(batch_inputs_dict['points'])):
+                points_t_0_1.append(batch_input_metas[ii]['v2x_info']['infrastructure_t_0_1'])
+                points_t_1_2.append(batch_input_metas[ii]['v2x_info']['infrastructure_t_1_2'])
 
-                points_t_0_1.append(img_metas[ii]['infrastructure_t_0_1'])
-                points_t_1_2.append(img_metas[ii]['infrastructure_t_1_2'])
-
-            for ii in range(len(inf_points_t_0)):
-                inf_points_t_0[ii][:, 3] = 255 * inf_points_t_0[ii][:, 3]
-                inf_points_t_1[ii][:, 3] = 255 * inf_points_t_1[ii][:, 3]
-                inf_points_t_2[ii][:, 3] = 255 * inf_points_t_2[ii][:, 3]
-
-            feat_inf_t_1 = self.extract_feat(inf_points_t_1, img_metas, points_view='infrastructure')
+            feat_inf_t_1 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t1')
             # feat_inf_t_2 = self.extract_feat(inf_points_t_2, img_metas, points_view='infrastructure')
-            feat_inf_temp = self.extract_feat(inf_points_t_2, img_metas, points_view='infrastructure')
-            flow_pred = self.flownet(inf_points_t_0, inf_points_t_1)
+            feat_inf_temp = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t2')
+            flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_voxels'], batch_inputs_dict['infrastructure_t1_voxels'])
             feat_inf_apprs = []
             for ii in range(len(flow_pred)):
-                for bs in range(len(points)):
+                for bs in range(len(batch_inputs_dict['points'])):
                     tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean()
                     feat_inf_temp[ii][bs] = feat_inf_t_1[ii][bs] + flow_pred[ii][bs] / points_t_0_1[bs] * points_t_1_2[bs]
                     tem_feat_inf_t_1_after_max = feat_inf_temp[ii][bs].mean().detach()
@@ -545,11 +409,12 @@ class FeatureFlowNet(SingleStage3DDetector):
             # print("The similarity is: ", similarity, points_t_1_2)
 
             feat_inf = feat_inf_apprs
-        feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
+
+        feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas)
 
         # outs = self.bbox_head(feat_fused)
         # bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
-        bbox_list = self.bbox_head.predict(feat_fused, batch_data_samples, rescale=rescale)
+        bbox_list = self.bbox_head.predict(feat_fused, batch_data_samples)
 
         # bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
         return bbox_list
@@ -570,16 +435,7 @@ class FeatureFlowNet(SingleStage3DDetector):
 
     def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
 
-        batch_input_metas = [item.metainfo for item in batch_data_samples]
-        batch_gt_instances_3d = []
-        batch_gt_instances_ignore = []
-        batch_input_metas = []
-        for data_sample in batch_data_samples:
-            batch_input_metas.append(data_sample.metainfo)
-            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
-            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
-
-        bbox_results = self.simple_test(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas, batch_data_samples)
+        bbox_results = self.simple_test(batch_inputs_dict, batch_data_samples)
         res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
 
         return res
@@ -587,47 +443,3 @@ class FeatureFlowNet(SingleStage3DDetector):
     def aug_test(self):
         """Test function with augmentaiton."""
         return None
-
-    '''
-        import cv2
-        hot_map_feat_cat = np.zeros((288, 288))+255
-        #flow_pred feat_inf_t_1  feat_inf_t_2
-        self.count+=1
-        hot_map_feat_flow=np.zeros((288,288))
-        for ii in range(flow_pred[0].shape[1]):
-                hot_map_feat_flow = hot_map_feat_flow + torch.abs(flow_pred[0][0, ii]).cpu().detach().numpy()
-        hot_map_feat_pred=np.zeros((288,288))
-        for ii in range(feat_inf_apprs[0].shape[1]):
-                hot_map_feat_pred = hot_map_feat_pred + torch.abs(feat_inf_apprs[0][0, ii]).cpu().detach().numpy()
-        hot_map_feat_t1=np.zeros((288,288))
-        for ii in range(feat_inf_t_1[0].shape[1]):
-                hot_map_feat_t1 = hot_map_feat_t1 + torch.abs(feat_inf_t_1[0][0, ii]).cpu().detach().numpy()
-        hot_map_feat_t2=np.zeros((288,288))
-        for ii in range(feat_inf_t_2[0].shape[1]):
-                hot_map_feat_t2 = hot_map_feat_t2 + torch.abs(feat_inf_t_2[0][0, ii]).cpu().detach().numpy()
-        hot_map_feat_veh=np.zeros((288,288))
-        for ii in range(feat_veh[0].shape[1]):
-                hot_map_feat_veh = hot_map_feat_veh + torch.abs(feat_veh[0][0, ii]).cpu().detach().numpy()
-
-        cv2.imwrite('./result/flow_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_flow*10)
-        cv2.imwrite('./result/pred_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_pred*10)
-        cv2.imwrite('./result/t2_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_t2*10)
-        cv2.imwrite('./result/t1_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_t1*10)
-
-        hot_map_feat_fused=np.zeros((288,288))
-        for ii in range(feat_fused[0].shape[1]):
-                hot_map_feat_fused = hot_map_feat_fused + torch.abs(feat_fused[0][0, ii]).cpu().detach().numpy()
-        cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_veh*10)
-        cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-hot_map_feat_fused*10)
-        # cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-feat_veh[0][0,79].cpu().detach().numpy()*7000)
-        # cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-feat_fused[0][0,79].cpu().detach().numpy()*7000)
-
-        # cv2.imwrite('./result/flow_'+str(self.count)+'.png', hot_map_feat_cat-flow_pred[0][0,79].cpu().detach().numpy()*7000)
-        # cv2.imwrite('./result/pred_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_apprs[0][0,79].cpu().detach().numpy()*7000)
-        # cv2.imwrite('./result/t2_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_t_2[0][0,79].cpu().detach().numpy()*10000)
-        # cv2.imwrite('./result/t1_'+str(self.count)+'.png', hot_map_feat_cat-feat_inf_t_1[0][0,79].cpu().detach().numpy()*7000)
-
-        # feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
-        # cv2.imwrite('./result/veh_'+str(self.count)+'.png', hot_map_feat_cat-feat_veh[0][0,79].cpu().detach().numpy()*7000)
-        # cv2.imwrite('./result/fusion_'+str(self.count)+'.png', hot_map_feat_cat-feat_fused[0][0,79].cpu().detach().numpy()*7000)
-        '''

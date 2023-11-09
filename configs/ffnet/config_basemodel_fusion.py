@@ -2,8 +2,8 @@ _base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py
 
 dataset_type = 'V2XDatasetV2'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
-data_info_train_path = 'dair_infos_train.pkl'
-data_info_val_path = 'dair_infos_val.pkl'
+data_info_train_path = 'dair_infos_base_model_train.pkl'
+data_info_val_path = 'dair_infos_base_model_val.pkl'
 work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/fusion'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]

@@ -1,12 +1,11 @@
-FFNet_workdir=$2
-export PYTHONPATH=$PYTHONPATH:${FFNet_workdir}
+export PYTHONPATH=$PYTHONPATH
 
-DELAY_K=$3
-DATA=${FFNet_workdir}'/data/DAIR-V2X/cooperative-vehicle-infrastructure'
-VAL_DATA_PATH=${FFNet_workdir}'/data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_val_'${DELAY_K}'.json'
+DELAY_K=$2
+DATA='./data/DAIR-V2X/cooperative-vehicle-infrastructure'
+VAL_DATA_PATH='./data/DAIR-V2X/cooperative-vehicle-infrastructure/flow_data_jsons/flow_data_info_val_'${DELAY_K}'.json'
 OUTPUT="./cache/vic-feature-flow"
-VEHICLE_MODEL_PATH=${FFNet_workdir}'/configs/ffnet/epoch_10.pth'
-VEHICLE_CONFIG_NAME=${FFNet_workdir}'/configs/ffnet/config_ffnet_3cls.py'
+VEHICLE_MODEL_PATH='models/ffnet_flow.1.2.0.pth'
+VEHICLE_CONFIG_NAME='./configs/ffnet/config_ffnet_3cls.py'
 
 CUDA_VISIBLE_DEVICES=$1
 
@@ -14,7 +13,7 @@ python transvision/eval.py \
   --input $DATA \
   --output $OUTPUT \
   --model feature_flow \
-  --test-mode $4 \
+  --test-mode $3 \
   --dataset vic-sync \
   --val-data-path $VAL_DATA_PATH \
   --veh-config-path $VEHICLE_CONFIG_NAME \

@@ -106,8 +106,15 @@ class LoadPointsFromFile_w_sensor_view(BaseTransform):
         """
         if self.sensor_view == 'infrastructure':
             pts_file_path = results['lidar_points']['inf_lidar_path']
-        else:
+        elif self.sensor_view == 'vehicle':
             pts_file_path = results['lidar_points']['lidar_path']
+        elif self.sensor_view == 'infrastructure_t0':
+            pts_file_path = results['v2x_info']['infrastructure_pointcloud_bin_path_t_0']
+        elif self.sensor_view == 'infrastructure_t1':
+            pts_file_path = results['v2x_info']['infrastructure_pointcloud_bin_path_t_1']
+        elif self.sensor_view == 'infrastructure_t2':
+            pts_file_path = results['v2x_info']['infrastructure_pointcloud_bin_path_t_2']
+
         points = self._load_points(pts_file_path)
         points = points.reshape(-1, self.load_dim)
         points = points[:, self.use_dim]
@@ -139,10 +146,11 @@ class LoadPointsFromFile_w_sensor_view(BaseTransform):
 
         points_class = get_points_type(self.coord_type)
         points = points_class(points, points_dim=points.shape[-1], attribute_dims=attribute_dims)
-        if self.sensor_view == 'infrastructure':
-            results[self.sensor_view + '_points'] = points
-        else:
+
+        if self.sensor_view == 'vehicle':
             results['points'] = points
+        else:
+            results[self.sensor_view + '_points'] = points
 
         return results
 

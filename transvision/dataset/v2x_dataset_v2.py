@@ -95,6 +95,22 @@ class V2XDatasetV2(Det3DDataset):
                     self.data_prefix.get('pts', ''),
                     info['lidar_points']['inf_lidar_path'])
 
+            if info['v2x_info'] is None:
+                print(info)
+
+            info['v2x_info']['infrastructure_pointcloud_bin_path_t_0'] = \
+                osp.join(
+                    self.data_prefix.get('pts', ''),
+                    info['v2x_info']['infrastructure_pointcloud_bin_path_t_0'])
+            info['v2x_info']['infrastructure_pointcloud_bin_path_t_1'] = \
+                osp.join(
+                    self.data_prefix.get('pts', ''),
+                    info['v2x_info']['infrastructure_pointcloud_bin_path_t_1'])
+            info['v2x_info']['infrastructure_pointcloud_bin_path_t_2'] = \
+                osp.join(
+                    self.data_prefix.get('pts', ''),
+                    info['v2x_info']['infrastructure_pointcloud_bin_path_t_2'])
+
             info['num_pts_feats'] = info['lidar_points']['num_pts_feats']
             info['lidar_path'] = info['lidar_points']['lidar_path']
             info['inf_lidar_path'] = info['lidar_points']['inf_lidar_path']

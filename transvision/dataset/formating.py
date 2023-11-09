@@ -12,7 +12,7 @@ from mmengine.structures import InstanceData
 
 @TRANSFORMS.register_module()
 class Pack3DDetDAIRInputs(BaseTransform):
-    INPUTS_KEYS = ['points', 'img', 'infrastructure_points']
+    INPUTS_KEYS = ['points', 'img', 'infrastructure_points', 'infrastructure_t0_points', 'infrastructure_t1_points', 'infrastructure_t2_points']
     INSTANCEDATA_3D_KEYS = ['gt_bboxes_3d', 'gt_labels_3d', 'attr_labels', 'depths', 'centers_2d']
     INSTANCEDATA_2D_KEYS = ['gt_bboxes', 'gt_bboxes_labels']
 
@@ -95,6 +95,18 @@ class Pack3DDetDAIRInputs(BaseTransform):
         if 'infrastructure_points' in results:
             if isinstance(results['infrastructure_points'], BasePoints):
                 results['infrastructure_points'] = results['infrastructure_points'].tensor
+
+        if 'infrastructure_t0_points' in results:
+            if isinstance(results['infrastructure_t0_points'], BasePoints):
+                results['infrastructure_t0_points'] = results['infrastructure_t0_points'].tensor
+
+        if 'infrastructure_t1_points' in results:
+            if isinstance(results['infrastructure_t1_points'], BasePoints):
+                results['infrastructure_t1_points'] = results['infrastructure_t1_points'].tensor
+
+        if 'infrastructure_t2_points' in results:
+            if isinstance(results['infrastructure_t2_points'], BasePoints):
+                results['infrastructure_t2_points'] = results['infrastructure_t2_points'].tensor
 
         if 'img' in results:
             if isinstance(results['img'], list):

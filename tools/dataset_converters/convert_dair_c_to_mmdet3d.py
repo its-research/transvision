@@ -99,19 +99,6 @@ def trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2wo
 
 def get_calib_info(ori_info, root_path):
     calib = {}
-    # inf_idx = ori_info['infrastructure_image_path'].split('/')[-1].replace('.jpg', '')
-    # inf_lidar2world_path = os.path.join(root_path, 'infrastructure-side/calib/virtuallidar_to_world/' + inf_idx + '.json')
-    # veh_idx = ori_info['vehicle_image_path'].split('/')[-1].replace('.jpg', '')
-    # veh_lidar2novatel_path = os.path.join(root_path, 'vehicle-side/calib/lidar_to_novatel/' + veh_idx + '.json')
-    # veh_novatel2world_path = os.path.join(root_path, 'vehicle-side/calib/novatel_to_world/' + veh_idx + '.json')
-    # system_error_offset = ori_info['system_error_offset']
-    # if system_error_offset == '':
-    #     system_error_offset = None
-    # calib_lidar_i2v_r, calib_lidar_i2v_t = trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2world_path, system_error_offset)
-    # # print('calib_lidar_i2v: ', calib_lidar_i2v_r, calib_lidar_i2v_t)
-    # calib_lidar_i2v = {}
-    # calib_lidar_i2v['rotation'] = calib_lidar_i2v_r.tolist()
-    # calib_lidar_i2v['translation'] = calib_lidar_i2v_t.tolist()
 
     veh_idx = ori_info['vehicle_image_path'].split('/')[-1].replace('.jpg', '')
     calib_lidar_i2v_path = os.path.join(root_path, 'cooperative/calib/lidar_i2v/' + veh_idx + '.json')
@@ -119,6 +106,17 @@ def get_calib_info(ori_info, root_path):
 
     calib['lidar_i2v'] = calib_lidar_i2v
     return calib
+
+
+def get_v2x_info(ori_info, root_path, info_file):
+    veh_idx = ori_info['vehicle_image_path'].split('/')[-1].replace('.jpg', '')
+    info_path = os.path.join(root_path, 'flow_data_jsons', info_file)
+    info = load(info_path)
+
+    data_list = info['data_list']
+    for data in data_list:
+        if data['vehicle_idx'] == veh_idx:
+            return data
 
 
 def get_images_info(ori_info, defalut_cam, root_path, veh_idx, inf_idx, sensor_view='vehicle'):
@@ -391,9 +389,20 @@ if __name__ == '__main__':
             data_info['calib'] = calib
 
             data_infos['data_list'].append(data_info)
+
+            v2x_info_train_file = 'flow_data_info_train_2.json'
+            v2x_info_val_file = 'flow_data_info_val_2.json'
             if frame_id in split_list['train']:
+                v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
+                if v2x_info is None:
+                    continue
+                data_info['v2x_info'] = v2x_info
                 data_infos_train['data_list'].append(data_info)
             else:
+                v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_val_file)
+                if v2x_info is None:
+                    continue
+                data_info['v2x_info'] = v2x_info
                 data_infos_val['data_list'].append(data_info)
 
     dump(data_infos, dair_infos_trainval_path)
