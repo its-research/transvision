@@ -40,7 +40,7 @@ test_pipeline = [
         transforms=[
             dict(type='GlobalRotScaleTrans', rot_range=[0, 0], scale_ratio_range=[1., 1.], translation_std=[0, 0, 0]),
             dict(type='RandomFlip3D'),
-            # dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+            dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range)
         ]),
     dict(
         type='Pack3DDetDAIRInputs',

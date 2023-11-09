@@ -264,7 +264,7 @@ def get_instances(images, lidar_points, metainfo, root_path):
         dims = np.array([l, h, w])  # 初始为wlh, 交换lhw
         yaw = -yaw_lidar - np.pi / 2
         yaw = limit_period(yaw, period=np.pi * 2)
-        rots = np.array([-yaw])
+        rots = np.array([yaw])
 
         # dims = np.array([l, h, w])
         # rots = np.array([yaw_lidar])

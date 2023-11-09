@@ -157,21 +157,24 @@ class FeatureFusion(BaseModel):
         # TODO add remaining filter
         if len(result[0].pred_instances_3d.bboxes_3d.tensor) != 0:
             for i in range(box.shape[0]):
-                # if filt(box[i]):
-                #     remain.append(i)
-                remain.append(i)
+                if filt(box[i]):
+                    remain.append(i)
+                # remain.append(i)
+        # print(remain)
         if len(remain) >= 1:
             box = box[remain]
             box_center = box_center[remain]
             arrow_ends = arrow_ends[remain]
-            result[0].pred_instances_3d.scores_3d = result[0].pred_instances_3d.scores_3d.cpu().numpy()[remain]
-            result[0].pred_instances_3d.labels_3d = result[0].pred_instances_3d.labels_3d.cpu().numpy()[remain]
+            # result[0].pred_instances_3d.scores_3d = result[0].pred_instances_3d.scores_3d.cpu().numpy()[remain]
+            # result[0].pred_instances_3d.labels_3d = result[0].pred_instances_3d.labels_3d.cpu().numpy()[remain]
+            scores_3d = result[0].pred_instances_3d.scores_3d.cpu().numpy()[remain]
+            labels_3d = result[0].pred_instances_3d.labels_3d.cpu().numpy()[remain]
         else:
             box = np.zeros((1, 8, 3))
             box_center = np.zeros((1, 1, 3))
             arrow_ends = np.zeros((1, 1, 3))
-            result[0].pred_instances_3d.labels_3d = np.zeros((1))
-            result[0].pred_instances_3d.scores_3d = np.zeros((1))
+            scores_3d = np.zeros((1))
+            labels_3d = np.zeros((1))
         # Save results
         pred = gen_pred_dict(
             id,
@@ -179,8 +182,8 @@ class FeatureFusion(BaseModel):
             box,
             np.concatenate([box_center, arrow_ends], axis=1),
             np.array(1),
-            result[0].pred_instances_3d.scores_3d.tolist(),
-            result[0].pred_instances_3d.labels_3d.tolist(),
+            scores_3d.tolist(),
+            labels_3d.tolist(),
         )
         # if self.args.save_point_cloud:
         #     # points = trans(frame.point_cloud(format="array"))
