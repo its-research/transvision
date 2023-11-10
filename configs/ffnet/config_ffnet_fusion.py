@@ -25,8 +25,6 @@ l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 output_shape = [h, l]
 
-z_center_car = -2.66
-
 file_client_args = dict(backend='disk')
 
 train_pipeline = [
@@ -237,7 +235,7 @@ test_evaluator = val_evaluator
 vis_backends = [dict(type='LocalVisBackend')]
 visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 
-lr = 0.0018
+lr = 0.001
 epoch_num = 10
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
@@ -247,5 +245,5 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.4, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=2)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
 find_unused_parameters = True

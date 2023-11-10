@@ -4,7 +4,7 @@ l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 
 z_center_car = -2.66
-z_center_car = -1.78
+# z_center_car = -1.78
 
 model = dict(
     type='V2XVoxelNet',

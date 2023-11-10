@@ -173,7 +173,8 @@ class FeatureFlowNet(SingleStage3DDetector):
             self.test_mode = test_cfg['test_mode']
         else:
             self.test_mode = 'FlowPred'
-        self.init_weights()
+        if self.pretraind_checkpoint_path != '':
+            self.flownet_init()
 
     def extract_feat(self, batch_inputs_dict: Dict[str, Tensor], points_view='vehicle'):
         """Extract features from points."""

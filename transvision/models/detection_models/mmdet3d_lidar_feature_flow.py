@@ -26,8 +26,8 @@ def get_box_info(result):
         box_lidar = np.zeros((1, 8, 3))
         box_ry = np.zeros(1)
     else:
-        box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.numpy()
-        box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].numpy()
+        box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.cpu().numpy()
+        box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].cpu().numpy()
     box_centers_lidar = box_lidar.mean(axis=1)
     arrow_ends_lidar = get_arrow_end(box_centers_lidar, box_ry)
     return box_lidar, box_ry, box_centers_lidar, arrow_ends_lidar
@@ -100,16 +100,6 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     data.append(data_)
     collate_data = pseudo_collate(data)
 
-    # collate_data['data_samples'][0].set_metainfo(dict(inf2veh=dict(rotation=rotation, translation=translation)))
-    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_1=vic_frame['infrastructure_idx_t_1']))
-    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_1=vic_frame['infrastructure_pointcloud_bin_path_t_1']))
-    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_0=vic_frame['infrastructure_idx_t_0']))
-    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_0=vic_frame['infrastructure_pointcloud_bin_path_t_0']))
-    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_t_0_1=vic_frame['infrastructure_t_0_1']))
-    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_2=vic_frame['infrastructure_idx_t_2']))
-    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_2=vic_frame['infrastructure_pointcloud_bin_path_t_2']))
-    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_t_1_2=vic_frame['infrastructure_t_1_2']))
-
     with torch.no_grad():
         result = model.test_step(collate_data)
 
@@ -157,8 +147,8 @@ class FeatureFlow(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation, vic_frame)
-        print(result[0].pred_instances_3d)
-        exit()
+        # print(result[0].pred_instances_3d)
+        # exit()
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
         remain = []
@@ -170,14 +160,14 @@ class FeatureFlow(BaseModel):
             box = box[remain]
             box_center = box_center[remain]
             arrow_ends = arrow_ends[remain]
-            result[0].pred_instances_3d.scores_3d = result[0].pred_instances_3d.scores_3d.numpy()[remain]
-            result[0].pred_instances_3d.labels_3d = result[0].pred_instances_3d.labels_3d.numpy()[remain]
+            scores_3d = result[0].pred_instances_3d.scores_3d.cpu().numpy()[remain]
+            labels_3d = result[0].pred_instances_3d.labels_3d.cpu().numpy()[remain]
         else:
             box = np.zeros((1, 8, 3))
             box_center = np.zeros((1, 1, 3))
             arrow_ends = np.zeros((1, 1, 3))
-            result[0].pred_instances_3d.labels_3d = np.zeros((1))
-            result[0].pred_instances_3d.scores_3d = np.zeros((1))
+            scores_3d = np.zeros((1))
+            labels_3d = np.zeros((1))
         # Save results
         pred = gen_pred_dict(
             id,
@@ -185,8 +175,8 @@ class FeatureFlow(BaseModel):
             box,
             np.concatenate([box_center, arrow_ends], axis=1),
             np.array(1),
-            result[0].pred_instances_3d.scores_3d.tolist(),
-            result[0].pred_instances_3d.labels_3d.tolist(),
+            scores_3d.tolist(),
+            labels_3d.tolist(),
         )
 
         for ii in range(len(pred['labels_3d'])):

@@ -137,7 +137,7 @@ class FeatureFusion(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
-        print(result[0].pred_instances_3d)
+        # print(result[0].pred_instances_3d)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
         # print(box)
 

@@ -30,7 +30,7 @@ def eval_vic(args, dataset, model, evaluator):
             filt,
             None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
         )
-        print(veh_id)
+        # print(veh_id)
         # print('pred', pred)
         # print('label', label)
         # exit()

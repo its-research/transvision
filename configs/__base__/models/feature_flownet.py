@@ -4,9 +4,9 @@ l = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
 h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 flownet_test_mode = 'FlowPred'  # {'FlowPred', 'OriginFeat', 'Async'}
 data_root = ('./')
-pretrained_basemodel = 'models/ffnet_basemodel.1.2.0.pth'
+pretrained_basemodel = 'models/ffnet_basemodel_1.2.0.pth'
 z_center_car = -2.66
-z_center_car = -1.78
+# z_center_car = -1.78
 model = dict(
     type='FeatureFlowNet',
     data_preprocessor=dict(
@@ -42,6 +42,7 @@ model = dict(
         loss_bbox=dict(type='mmdet.SmoothL1Loss', beta=0.1111111111111111, loss_weight=2.0),
         loss_dir=dict(type='mmdet.CrossEntropyLoss', use_sigmoid=False, loss_weight=0.2),
     ),
+    init_cfg=dict(type='Pretrained', checkpoint=pretrained_basemodel),
     train_cfg=dict(
         assigner=[
             dict(type='Max3DIoUAssigner', iou_calculator=dict(type='mmdet3d.BboxOverlapsNearest3D'), pos_iou_thr=0.6, neg_iou_thr=0.45, min_pos_iou=0.45, ignore_iof_thr=-1),
