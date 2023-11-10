@@ -1,13 +1,13 @@
 # Copyright (c) DAIR-V2X (AIR). All rights reserved.
 import copy
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import Det3DDataSample
-from mmdet3d.structures.det3d_data_sample import OptSampleList
+# from mmdet3d.structures.det3d_data_sample import OptSampleList
 # from mmcv.runner import force_fp32
 from torch import Tensor
 from torch import nn as nn
@@ -162,11 +162,11 @@ class FeatureFlowNet(SingleStage3DDetector):
         self.encoder = ReduceInfTC(768)
 
         try:
-            self.data_root = train_cfg['data_root']
+            self.data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet'
             self.pretraind_checkpoint_path = train_cfg['pretrained_model']
         except:
             pass
-            self.data_root = test_cfg['data_root']
+            self.data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet'
             self.pretraind_checkpoint_path = test_cfg['pretrained_model']
         self.flownet_pretrained = False
         if 'test_mode' in test_cfg.keys():
@@ -411,30 +411,11 @@ class FeatureFlowNet(SingleStage3DDetector):
             feat_inf = feat_inf_apprs
 
         feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas)
-
-        # outs = self.bbox_head(feat_fused)
-        # bbox_list = self.bbox_head.get_bboxes(*outs, img_metas, rescale=rescale)
         bbox_list = self.bbox_head.predict(feat_fused, batch_data_samples)
 
-        # bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
         return bbox_list
 
-    def _forward(self, batch_inputs_dict: dict, data_samples: OptSampleList = None, **kwargs) -> Tuple[List[torch.Tensor]]:
-
-        batch_input_metas = [item.metainfo for item in data_samples]
-        batch_gt_instances_3d = []
-        batch_gt_instances_ignore = []
-        batch_input_metas = []
-        for data_sample in data_samples:
-            batch_input_metas.append(data_sample.metainfo)
-            batch_gt_instances_3d.append(data_sample.gt_instances_3d)
-            batch_gt_instances_ignore.append(data_sample.get('ignored_instances', None))
-
-        bbox_results = self.simple_test(batch_inputs_dict['points'], batch_inputs_dict['infrastructure_points'], batch_input_metas, data_samples)
-        return bbox_results
-
     def predict(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample], **kwargs) -> List[Det3DDataSample]:
-
         bbox_results = self.simple_test(batch_inputs_dict, batch_data_samples)
         res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
 

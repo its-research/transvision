@@ -9,8 +9,7 @@ data_root = ('data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_tra
 # FlowPred: Use feature flow to compensate for the temporary asynchrony
 # OriginFeat: Do not introduce the simulated temporal asychrony
 # Async: Introduce the temporal asynchrony and do not use feature flow to compensate for the temporary asynchrony
-# data_info_train_path = 'flow_data_jsons/flow_data_info_train_2.json'
-# data_info_val_path = 'flow_data_jsons/flow_data_info_val_2.json'
+
 data_info_train_path = 'dair_infos_train.pkl'
 data_info_val_path = 'dair_infos_val.pkl'
 

@@ -95,17 +95,6 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     data.append(data_)
     collate_data = pseudo_collate(data)
 
-    # a = dict(rotation=rotation, translation=translation)
-    # if next(model.parameters()).is_cuda:
-    #     # scatter to specified GPU
-    #     # data = scatter(data, [device.index])[0]
-    #     print(data)
-    #     data['img_metas'][0][0]['inf2veh'] = a
-    # else:
-    #     # this is a workaround to avoid the bug of MMDataParallel
-    #     data['img_metas'] = data['img_metas'][0].data
-    #     data['points'] = data['points'][0].data
-
     # forward the model
     with torch.no_grad():
         results = model.test_step(collate_data)
@@ -148,8 +137,7 @@ class FeatureFusion(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation)
-        # print(result[0].pred_instances_3d)
-        # exit()
+        print(result[0].pred_instances_3d)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
         # print(box)
 

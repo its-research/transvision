@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_box_info(result):
-    for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
-        temp = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].clone()
-        result[0].pred_instances_3d.bboxes_3d.tensor[i][4] = result[0].pred_instances_3d.bboxes_3d.tensor[i][3]
-        result[0].pred_instances_3d.bboxes_3d.tensor[i][3] = temp
-        result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
+    # for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
+    #     temp = result[0].pred_instances_3d.bboxes_3d.tensor[i][4].clone()
+    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][4] = result[0].pred_instances_3d.bboxes_3d.tensor[i][3]
+    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][3] = temp
+    #     result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
     if len(result[0].pred_instances_3d.bboxes_3d.tensor) == 0:
         box_lidar = np.zeros((1, 8, 3))
         box_ry = np.zeros(1)
@@ -64,12 +64,24 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     test_pipeline = deepcopy(cfg.test_dataloader.dataset.pipeline)
     test_pipeline = Compose(test_pipeline)
     box_type_3d, box_mode_3d = get_box_type(cfg.test_dataloader.dataset.box_type_3d)
+    v2x_info = {}
+    data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet'
+
+    v2x_info['infrastructure_idx_t_1'] = vic_frame['infrastructure_idx_t_1']
+    v2x_info['infrastructure_pointcloud_bin_path_t_1'] = os.path.join(data_root, vic_frame['infrastructure_pointcloud_bin_path_t_1'])
+    v2x_info['infrastructure_idx_t_0'] = vic_frame['infrastructure_idx_t_0']
+    v2x_info['infrastructure_pointcloud_bin_path_t_0'] = os.path.join(data_root, vic_frame['infrastructure_pointcloud_bin_path_t_0'])
+    v2x_info['infrastructure_t_0_1'] = vic_frame['infrastructure_t_0_1']
+    v2x_info['infrastructure_idx_t_2'] = vic_frame['infrastructure_idx_t_2']
+    v2x_info['infrastructure_pointcloud_bin_path_t_2'] = os.path.join(data_root, vic_frame['infrastructure_pointcloud_bin_path_t_2'])
+    v2x_info['infrastructure_t_1_2'] = vic_frame['infrastructure_t_1_2']
 
     data_ = dict(
-        vehicle_pts_filename=veh_bin,
-        infrastructure_pts_filename=inf_bin,
+        lidar_points=dict(lidar_path=veh_bin, inf_lidar_path=inf_bin),
         box_type_3d=box_type_3d,
         box_mode_3d=box_mode_3d,
+        calib=dict(lidar_i2v=dict(rotation=rotation, translation=translation)),
+        v2x_info=v2x_info,
         ann_info=dict(axis_align_matrix=np.eye(4)),
         sweeps=[],
         timestamp=[0],
@@ -88,15 +100,15 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     data.append(data_)
     collate_data = pseudo_collate(data)
 
-    collate_data['data_samples'][0].set_metainfo(dict(inf2veh=dict(rotation=rotation, translation=translation)))
-    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_1=vic_frame['infrastructure_idx_t_1']))
-    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_1=vic_frame['infrastructure_pointcloud_bin_path_t_1']))
-    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_0=vic_frame['infrastructure_idx_t_0']))
-    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_0=vic_frame['infrastructure_pointcloud_bin_path_t_0']))
-    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_t_0_1=vic_frame['infrastructure_t_0_1']))
-    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_2=vic_frame['infrastructure_idx_t_2']))
-    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_2=vic_frame['infrastructure_pointcloud_bin_path_t_2']))
-    collate_data['data_samples'][0].set_metainfo(dict(infrastructure_t_1_2=vic_frame['infrastructure_t_1_2']))
+    # collate_data['data_samples'][0].set_metainfo(dict(inf2veh=dict(rotation=rotation, translation=translation)))
+    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_1=vic_frame['infrastructure_idx_t_1']))
+    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_1=vic_frame['infrastructure_pointcloud_bin_path_t_1']))
+    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_0=vic_frame['infrastructure_idx_t_0']))
+    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_0=vic_frame['infrastructure_pointcloud_bin_path_t_0']))
+    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_t_0_1=vic_frame['infrastructure_t_0_1']))
+    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_idx_t_2=vic_frame['infrastructure_idx_t_2']))
+    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_pointcloud_bin_path_t_2=vic_frame['infrastructure_pointcloud_bin_path_t_2']))
+    # collate_data['data_samples'][0].set_metainfo(dict(infrastructure_t_1_2=vic_frame['infrastructure_t_1_2']))
 
     with torch.no_grad():
         result = model.test_step(collate_data)
@@ -145,6 +157,8 @@ class FeatureFlow(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation, vic_frame)
+        print(result[0].pred_instances_3d)
+        exit()
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
         remain = []
