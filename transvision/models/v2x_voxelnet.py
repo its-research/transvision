@@ -6,12 +6,12 @@ from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import Det3DDataSample
 from mmdet3d.utils import ConfigType, OptConfigType, OptMultiConfig
-# from mmcv.runner import force_fp32
 from torch import Tensor
 from torch import nn as nn
 from torch.nn import functional as F
 
-# from transvision.v2x_utils.visual import save_feature_map
+from transvision.models.voxel import Voxelization
+from transvision.v2x_utils.visual import save_feature_map
 
 
 class ReduceInfTC(nn.Module):
@@ -72,6 +72,7 @@ class V2XVoxelNet(SingleStage3DDetector):
 
     def __init__(
         self,
+        voxel_layer,
         voxel_encoder: ConfigType,
         middle_encoder: ConfigType,
         backbone: ConfigType,
@@ -92,10 +93,11 @@ class V2XVoxelNet(SingleStage3DDetector):
             data_preprocessor=data_preprocessor,
             init_cfg=init_cfg,
         )
-
+        self.voxel_layer = Voxelization(**voxel_layer)
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
 
+        self.inf_voxel_layer = Voxelization(**voxel_layer)
         self.inf_backbone = MODELS.build(backbone)
         if neck is not None:
             self.inf_neck = MODELS.build(neck)
@@ -125,25 +127,22 @@ class V2XVoxelNet(SingleStage3DDetector):
 
     def extract_feat(self, batch_inputs_dict: Dict[str, Tensor], points_view='vehicle') -> Union[Tuple[torch.Tensor], Dict[str, Tensor]]:
         """Extract features from points."""
+        """Extract features from points."""
         if points_view == 'vehicle':
-            voxel_dict = batch_inputs_dict['voxels']
-            voxel_features = self.voxel_encoder(voxel_dict['voxels'], voxel_dict['num_points'], voxel_dict['coors'])
-            batch_size = voxel_dict['coors'][-1, 0].item() + 1
-            veh_x = self.middle_encoder(voxel_features, voxel_dict['coors'], batch_size)
+            voxels, num_points, coors = self.voxelize(batch_inputs_dict['points'])
+            voxel_features = self.voxel_encoder(voxels, num_points, coors)
+            batch_size = coors[-1, 0].item() + 1
+            veh_x = self.middle_encoder(voxel_features, coors, batch_size)
             veh_x = self.backbone(veh_x)
             if self.with_neck:
                 veh_x = self.neck(veh_x)
             return veh_x
 
         elif points_view == 'infrastructure':
-            inf_voxel_dict = batch_inputs_dict['infrastructure_voxels']
-            inf_voxel_features = self.voxel_encoder(
-                inf_voxel_dict['voxels'],
-                inf_voxel_dict['num_points'],
-                inf_voxel_dict['coors'],
-            )
-            inf_batch_size = inf_voxel_dict['coors'][-1, 0].item() + 1
-            inf_x = self.inf_middle_encoder(inf_voxel_features, inf_voxel_dict['coors'], inf_batch_size)
+            inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(batch_inputs_dict['infrastructure_points'])
+            inf_voxel_features = self.inf_voxel_encoder(inf_voxels, inf_num_points, inf_coors)
+            inf_batch_size = inf_coors[-1, 0].item() + 1
+            inf_x = self.inf_middle_encoder(inf_voxel_features, inf_coors, inf_batch_size)
             inf_x = self.inf_backbone(inf_x)
             if self.with_neck:
                 inf_x = self.inf_neck(inf_x)
@@ -223,9 +222,9 @@ class V2XVoxelNet(SingleStage3DDetector):
             warp_feat_trans = F.grid_sample(inf_feature, grid_r_t, mode='bilinear', align_corners=False)
             wrap_feats_ii.append(warp_feat_trans)
             # if img_metas[ii]['sample_idx'] == 530:
-            # save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
-            # save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
-            # save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
+            save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
+            save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
+            save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
             # exit()
 
         wrap_feats = [torch.cat(wrap_feats_ii, dim=0)]
@@ -287,3 +286,39 @@ class V2XVoxelNet(SingleStage3DDetector):
         # exit()
 
         return res
+
+    @torch.no_grad()
+    def voxelize(self, points):
+        """Apply hard voxelization to points."""
+        voxels, coors, num_points = [], [], []
+        for res in points:
+            res_voxels, res_coors, res_num_points = self.voxel_layer(res)
+            voxels.append(res_voxels)
+            coors.append(res_coors)
+            num_points.append(res_num_points)
+        voxels = torch.cat(voxels, dim=0)
+        num_points = torch.cat(num_points, dim=0)
+        coors_batch = []
+        for i, coor in enumerate(coors):
+            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
+            coors_batch.append(coor_pad)
+        coors_batch = torch.cat(coors_batch, dim=0)
+        return voxels, num_points, coors_batch
+
+    @torch.no_grad()
+    def inf_voxelize(self, points):
+        """Apply hard voxelization to points."""
+        voxels, coors, num_points = [], [], []
+        for res in points:
+            res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
+            voxels.append(res_voxels)
+            coors.append(res_coors)
+            num_points.append(res_num_points)
+        voxels = torch.cat(voxels, dim=0)
+        num_points = torch.cat(num_points, dim=0)
+        coors_batch = []
+        for i, coor in enumerate(coors):
+            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
+            coors_batch.append(coor_pad)
+        coors_batch = torch.cat(coors_batch, dim=0)
+        return voxels, num_points, coors_batch
