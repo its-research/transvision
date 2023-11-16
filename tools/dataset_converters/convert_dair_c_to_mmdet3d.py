@@ -260,15 +260,12 @@ def get_instances(images, lidar_points, metainfo, root_path):
         loc = loc[:3]
 
         dims = np.array([l, h, w])  # 初始为wlh, 交换lhw
+        # yaw = -yaw_lidar - np.pi / 2
+        # yaw = -yaw_lidar
+        # yaw = yaw_lidar - np.pi / 2  # Wrong
         yaw = -yaw_lidar - np.pi / 2
         yaw = limit_period(yaw, period=np.pi * 2)
         rots = np.array([yaw])
-
-        # dims = np.array([l, h, w])
-        # rots = np.array([yaw_lidar])
-
-        # yaw = -yaw - np.pi / 2
-        # yaw = limit_period(yaw, period=np.pi * 2)
 
         gt_bboxes_3d = np.concatenate([loc, dims, rots]).tolist()  # camera coord
         instance['bbox_3d'] = gt_bboxes_3d
@@ -322,9 +319,16 @@ def get_instances(images, lidar_points, metainfo, root_path):
 
 if __name__ == '__main__':
     root_path = args.root_path
-    dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_trainval.pkl')
-    dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_train.pkl')
-    dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_val.pkl')
+
+    v2x_info_gen = True
+    if v2x_info_gen is False:
+        dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_trainval.pkl')
+        dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_train.pkl')
+        dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_val.pkl')
+    else:
+        dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_flow_trainval.pkl')
+        dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_flow_train.pkl')
+        dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_flow_val.pkl')
 
     split_list = get_split_list(args.split_file_path)
 
@@ -381,6 +385,7 @@ if __name__ == '__main__':
             frame_id = images[defalut_cam]['img_path'].split('/')[-1].replace('.jpg', '')
             sample_idx = int(frame_id)
 
+            data_info['img_path'] = images[defalut_cam]['img_path']
             data_info['sample_idx'] = sample_idx
             data_info['images'] = images
             data_info['lidar_points'] = lidar_points
@@ -390,19 +395,23 @@ if __name__ == '__main__':
 
             data_infos['data_list'].append(data_info)
 
-            v2x_info_train_file = 'flow_data_info_train_2.json'
-            v2x_info_val_file = 'flow_data_info_val_2.json'
+            if v2x_info_gen:
+                v2x_info_train_file = 'flow_data_info_train.json'
+                v2x_info_val_file = 'flow_data_info_val_0.json'
+
             if frame_id in split_list['train']:
-                v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
-                if v2x_info is None:
-                    continue
-                data_info['v2x_info'] = v2x_info
+                if v2x_info_gen:
+                    v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
+                    if v2x_info is None:
+                        continue
+                    data_info['v2x_info'] = v2x_info
                 data_infos_train['data_list'].append(data_info)
             else:
-                v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_val_file)
-                if v2x_info is None:
-                    continue
-                data_info['v2x_info'] = v2x_info
+                if v2x_info_gen:
+                    v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_val_file)
+                    if v2x_info is None:
+                        continue
+                    data_info['v2x_info'] = v2x_info
                 data_infos_val['data_list'].append(data_info)
 
     dump(data_infos, dair_infos_trainval_path)

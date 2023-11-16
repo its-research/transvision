@@ -95,7 +95,7 @@ class V2XDatasetV2(Det3DDataset):
                     self.data_prefix.get('pts', ''),
                     info['lidar_points']['inf_lidar_path'])
 
-            if info['v2x_info'] is not None:
+            if 'v2x_info' in info and info['v2x_info'] is not None:
                 info['v2x_info']['infrastructure_pointcloud_bin_path_t_0'] = \
                     osp.join(
                         self.data_prefix.get('pts', ''),
@@ -129,7 +129,7 @@ class V2XDatasetV2(Det3DDataset):
                         cam_prefix = self.data_prefix.get('img', '')
                     img_info['img_path'] = osp.join(cam_prefix, img_info['img_path'])
             if self.default_cam_key is not None:
-                info['img_path'] = info['images'][self.default_cam_key]['img_path']
+                info['img_path'] = osp.join(self.data_prefix.get('pts', ''), info['images'][self.default_cam_key]['img_path'])
                 if 'lidar2cam' in info['images'][self.default_cam_key]:
                     info['lidar2cam'] = np.array(info['images'][self.default_cam_key]['lidar2cam'])
                 if 'cam2img' in info['images'][self.default_cam_key]:
@@ -139,9 +139,10 @@ class V2XDatasetV2(Det3DDataset):
                 else:
                     info['lidar2img'] = info['cam2img'] @ info['lidar2cam']
 
-        if not self.test_mode:
-            # used in training
-            info['ann_info'] = self.parse_ann_info(info)
+        # if not self.test_mode:
+        #     # used in training
+        #     info['ann_info'] = self.parse_ann_info(info)
+        info['ann_info'] = self.parse_ann_info(info)
         if self.test_mode and self.load_eval_anns:
             info['eval_ann_info'] = self.parse_ann_info(info)
 
@@ -181,12 +182,7 @@ class V2XDatasetV2(Det3DDataset):
         # in kitti, lidar2cam = R0_rect @ Tr_velo_to_cam
         lidar2cam = np.array(info['images']['CAM2']['lidar2cam'])
         # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
-        # print(info['images'])
-        # print(ann_info['gt_bboxes_3d'])
-
         gt_bboxes_3d = CameraInstance3DBoxes(ann_info['gt_bboxes_3d']).convert_to(self.box_mode_3d, np.linalg.inv(lidar2cam))
         ann_info['gt_bboxes_3d'] = gt_bboxes_3d
-        # print(gt_bboxes_3d)
-        # exit()
 
         return ann_info

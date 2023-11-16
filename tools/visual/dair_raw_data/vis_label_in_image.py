@@ -43,7 +43,6 @@ def add_arguments(parser):
         type=str,
         default='data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side',
     )
-    parser.add_argument('--id', type=int, default=10)
     parser.add_argument('--output-file', type=str, default='./work_dirs/visual_in_images')
 
 

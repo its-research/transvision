@@ -211,6 +211,7 @@ class Pack3DDetDAIRInputs(BaseTransform):
         data_sample.set_metainfo(data_metas)
 
         inputs = {}
+
         for key in self.keys:
             if key in results:
                 if key in self.INPUTS_KEYS:
@@ -226,10 +227,9 @@ class Pack3DDetDAIRInputs(BaseTransform):
                     gt_pts_seg[self._remove_prefix(key)] = results[key]
                 else:
                     raise NotImplementedError(f'Please modified '
-                                              f'`Pack3DDetInputs` '
+                                              f'`Pack3DDetDAIRInputs` '
                                               f'to put {key} to '
                                               f'corresponding field')
-
         data_sample.gt_instances_3d = gt_instances_3d
         data_sample.gt_instances = gt_instances
         data_sample.gt_pts_seg = gt_pts_seg

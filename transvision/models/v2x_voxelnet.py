@@ -6,6 +6,7 @@ from mmdet3d.models.detectors.single_stage import SingleStage3DDetector
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import Det3DDataSample
 from mmdet3d.utils import ConfigType, OptConfigType, OptMultiConfig
+# from mmengine.visualization import Visualizer
 from torch import Tensor
 from torch import nn as nn
 from torch.nn import functional as F
@@ -221,11 +222,13 @@ class V2XVoxelNet(SingleStage3DDetector):
             )
             warp_feat_trans = F.grid_sample(inf_feature, grid_r_t, mode='bilinear', align_corners=False)
             wrap_feats_ii.append(warp_feat_trans)
-            # if img_metas[ii]['sample_idx'] == 530:
+
             save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
             save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
             save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
-            # exit()
+            # visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')]) # save_dir='temp_dir'
+            # drawn_img = visualizer.draw_featmap(feat, image, channel_reduction=None, topk=4, arrangement=(2, 2))
+            # visualizer.add_image('feat', drawn_img)
 
         wrap_feats = [torch.cat(wrap_feats_ii, dim=0)]
 
@@ -282,8 +285,6 @@ class V2XVoxelNet(SingleStage3DDetector):
         feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
         bbox_results = self.bbox_head.predict(feat_fused, batch_data_samples)
         res = self.add_pred_to_datasample(batch_data_samples, bbox_results)
-        # print(res)
-        # exit()
 
         return res
 
@@ -310,6 +311,7 @@ class V2XVoxelNet(SingleStage3DDetector):
         """Apply hard voxelization to points."""
         voxels, coors, num_points = [], [], []
         for res in points:
+            res = res.contiguous()  # fix for runtime error input must be contiguous
             res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
             voxels.append(res_voxels)
             coors.append(res_coors)

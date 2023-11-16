@@ -10,8 +10,8 @@ data_root = ('data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_tra
 # OriginFeat: Do not introduce the simulated temporal asychrony
 # Async: Introduce the temporal asynchrony and do not use feature flow to compensate for the temporary asynchrony
 
-data_info_train_path = 'dair_infos_train.pkl'
-data_info_val_path = 'dair_infos_val.pkl'
+data_info_train_path = 'dair_infos_flow_train.pkl'
+data_info_val_path = 'dair_infos_flow_val.pkl'
 
 work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/flow/fusion'
 
@@ -181,7 +181,7 @@ train_dataloader = dict(
             ann_file=data_info_train_path,
             data_prefix=dict(pts=''),
             pipeline=train_pipeline,
-            modality=dict(use_lidar=True, use_camera=False),
+            modality=input_modality,
             test_mode=False,
             metainfo=metainfo,
             pcd_limit_range=point_cloud_range,
@@ -201,7 +201,7 @@ val_dataloader = dict(
         ann_file=data_info_val_path,
         data_prefix=dict(pts=''),
         pipeline=test_pipeline,
-        modality=dict(use_lidar=True, use_camera=False),
+        modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         pcd_limit_range=point_cloud_range,
@@ -221,7 +221,7 @@ test_dataloader = dict(
         ann_file=data_info_val_path,
         data_prefix=dict(pts=''),
         pipeline=test_pipeline,
-        modality=dict(use_lidar=True, use_camera=False),
+        modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         pcd_limit_range=point_cloud_range,
