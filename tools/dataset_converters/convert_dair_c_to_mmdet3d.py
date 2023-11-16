@@ -319,7 +319,6 @@ def get_instances(images, lidar_points, metainfo, root_path):
 
 if __name__ == '__main__':
     root_path = args.root_path
-
     v2x_info_gen = True
     if v2x_info_gen is False:
         dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_trainval.pkl')

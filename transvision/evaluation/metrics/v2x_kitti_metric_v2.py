@@ -51,7 +51,7 @@ class V2XKittiMetricV2(BaseMetric):
     def __init__(self,
                  ann_file: str,
                  metric: Union[str, List[str]] = 'bbox',
-                 pcd_limit_range: List[float] = [0, -40, -3, 70.4, 40, 0.0],
+                 pcd_limit_range: List[float] = [0, -46.08, -3, 92.16, 46.08, 1],
                  prefix: Optional[str] = None,
                  pklfile_prefix: Optional[str] = None,
                  default_cam_key: str = 'CAM2',

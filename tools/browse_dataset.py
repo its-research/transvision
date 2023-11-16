@@ -66,8 +66,8 @@ def build_data_cfg(config_path, aug, cfg_options):
             if cfg.train_pipeline[i]['type'] == 'LoadAnnotations3D':
                 show_pipeline.insert(i, cfg.train_pipeline[i])
             # Collect data as well as labels
-            if cfg.train_pipeline[i]['type'] == 'Pack3DDetInputs':
-                if show_pipeline[-1]['type'] == 'Pack3DDetInputs':
+            if cfg.train_pipeline[i]['type'] == 'Pack3DDetDAIRInputs':
+                if show_pipeline[-1]['type'] == 'Pack3DDetDAIRInputs':
                     show_pipeline[-1] = cfg.train_pipeline[i]
                 else:
                     show_pipeline.append(cfg.train_pipeline[i])

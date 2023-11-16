@@ -30,7 +30,7 @@ class V2XDatasetV2(Det3DDataset):
                  box_type_3d: str = 'LiDAR',
                  filter_empty_gt: bool = True,
                  test_mode: bool = False,
-                 pcd_limit_range: List[float] = [0, -40, -3, 70.4, 40, 0.0],
+                 pcd_limit_range: List[float] = [0, -46.08, -3, 92.16, 46.08, 1],
                  **kwargs) -> None:
 
         self.pcd_limit_range = pcd_limit_range

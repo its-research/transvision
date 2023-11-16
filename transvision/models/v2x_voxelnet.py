@@ -226,9 +226,13 @@ class V2XVoxelNet(SingleStage3DDetector):
             save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
             save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
             save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
-            # visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')]) # save_dir='temp_dir'
-            # drawn_img = visualizer.draw_featmap(feat, image, channel_reduction=None, topk=4, arrangement=(2, 2))
-            # visualizer.add_image('feat', drawn_img)
+            # visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')])  # save_dir='temp_dir'
+            # drawn_img = visualizer.draw_featmap(inf_feature, None, channel_reduction=None, topk=4, arrangement=(2, 2))
+            # visualizer.add_image('inf_feature_origin', drawn_img)
+            # drawn_img = visualizer.draw_featmap(warp_feat_trans, None, channel_reduction=None, topk=4, arrangement=(2, 2))
+            # visualizer.add_image('inf_feature_warp', drawn_img)
+            # drawn_img = visualizer.draw_featmap(veh_feature, None, channel_reduction=None, topk=4, arrangement=(2, 2))
+            # visualizer.add_image('veh_feature', drawn_img)
 
         wrap_feats = [torch.cat(wrap_feats_ii, dim=0)]
 
