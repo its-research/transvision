@@ -3,6 +3,7 @@ import logging
 import os.path as osp
 
 import numpy as np
+from tabulate import tabulate
 from tqdm import tqdm
 
 from transvision.config import add_arguments
@@ -15,34 +16,50 @@ from transvision.v2x_utils import Evaluator, range2box
 logger = logging.getLogger(__name__)
 
 
-def eval_vic(args, dataset, model, evaluator):
+def eval_vic(args, dataset, model, evaluator, pipe):
     idx = -1
     for VICFrame, label, filt in tqdm(dataset):
         idx += 1
 
         try:
-            veh_id = dataset.data[idx][0]['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', '')
+            veh_id = (dataset.data[idx][0]['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', ''))
         except Exception:
-            veh_id = VICFrame['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', '')
+            veh_id = (VICFrame['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', ''))
 
         pred = model(
             VICFrame,
             filt,
             None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
         )
-        # print(veh_id)
-        # print('pred', pred)
-        # print('label', label)
-        # exit()
+
         evaluator.add_frame(pred, label)
         pipe.flush()
         pred['label'] = label['boxes_3d']
         pred['veh_id'] = veh_id
         save_pkl(pred, osp.join(args.output, 'result', pred['veh_id'] + '.pkl'))
 
-    evaluator.print_ap('3d')
-    evaluator.print_ap('bev')
+    results_3d = evaluator.print_ap('3d')
+    results_bev = evaluator.print_ap('bev')
     print('Average Communication Cost = %.2lf Bytes' % (pipe.average_bytes()))
+
+    table = []
+    line = ['3d']
+    results = {}
+    for key in results_3d:
+        line.append(results_3d[key])
+        results[key] = results_3d[key]
+    line.append(pipe.average_bytes())
+    table.append(line)
+    line = ['bev']
+    for key in results_bev:
+        line.append(results_bev[key])
+        results[key] = results_bev[key]
+    line.append(pipe.average_bytes())
+    table.append(line)
+    headers = ['Car', 'AP@0.30', '0.50', '0.70', 'AB(Byte)']
+    print(tabulate(table, headers, tablefmt='pipe'))
+
+    return results
 
 
 def eval_single(args, dataset, model, evaluator):
@@ -52,7 +69,10 @@ def eval_single(args, dataset, model, evaluator):
             evaluator.add_frame(pred, label['camera'])
         elif args.sensortype == 'lidar':
             evaluator.add_frame(pred, label['lidar'])
-        save_pkl({'boxes_3d': label['lidar']['boxes_3d']}, osp.join(args.output, 'result', frame.id['camera'] + '.pkl'))
+        save_pkl(
+            {'boxes_3d': label['lidar']['boxes_3d']},
+            osp.join(args.output, 'result', frame.id['camera'] + '.pkl'),
+        )
 
     evaluator.print_ap('3d')
     evaluator.print_ap('bev')
@@ -81,7 +101,14 @@ if __name__ == '__main__':
     extended_range = range2box(np.array(args.extended_range))
     logger.info('loading dataset')
 
-    dataset = SUPPROTED_DATASETS[args.dataset](args.input, args, split=args.split, sensortype=args.sensortype, extended_range=extended_range, val_data_path=args.val_data_path)
+    dataset = SUPPROTED_DATASETS[args.dataset](
+        args.input,
+        args,
+        split=args.split,
+        sensortype=args.sensortype,
+        extended_range=extended_range,
+        val_data_path=args.val_data_path,
+    )
 
     logger.info('loading evaluator')
     evaluator = Evaluator(args.pred_classes)
@@ -97,4 +124,4 @@ if __name__ == '__main__':
         if args.model == 'feature_flow':
             model.model.data_root = args.input
             model.model.test_mode = args.test_mode
-        eval_vic(args, dataset, model, evaluator)
+        eval_vic(args, dataset, model, evaluator, pipe)

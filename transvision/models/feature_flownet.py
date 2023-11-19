@@ -13,6 +13,8 @@ from torch import Tensor
 from torch import nn as nn
 from torch.nn import functional as F
 
+from transvision.models.voxel import Voxelization
+
 
 def QuantFunc(input, b_n=4):
     alpha = torch.abs(input).max()
@@ -98,7 +100,7 @@ class PixelWeightedFusion(nn.Module):
 
 class FlowGenerator(nn.Module):
 
-    def __init__(self, voxel_encoder, middle_encoder, backbone, with_neck=False, neck=None):
+    def __init__(self, voxel_layer, voxel_encoder, middle_encoder, backbone, with_neck=False, neck=None):
         super(FlowGenerator, self).__init__()
         backbone_flow = copy.deepcopy(backbone)
         backbone_flow['in_channels'] = backbone['in_channels'] * 2
@@ -106,23 +108,22 @@ class FlowGenerator(nn.Module):
         self.inf_with_neck = with_neck
         if neck is not None:
             self.inf_neck = MODELS.build(neck)
+        self.inf_voxel_layer = Voxelization(**voxel_layer)
         self.inf_voxel_encoder = MODELS.build(voxel_encoder)
         self.inf_middle_encoder = MODELS.build(middle_encoder)
         self.pre_encoder = ReduceInfTC(768)
         self.with_attention_mask = False
 
-    def forward(self, inf_voxel_t_0, inf_voxel_t_1):
-        voxel_features_t_0 = self.inf_voxel_encoder(
-            inf_voxel_t_0['voxels'],
-            inf_voxel_t_0['num_points'],
-            inf_voxel_t_0['coors'],
-        )
-        batch_size_t_0 = inf_voxel_t_0['coors'][-1, 0].item() + 1
-        feat_t_0 = self.inf_middle_encoder(voxel_features_t_0, inf_voxel_t_0['coors'], batch_size_t_0)
+    def forward(self, points_t_0, points_t_1):
+        voxels_t_0, num_points_t_0, coors_t_0 = self.inf_voxelize(points_t_0)
+        voxel_features_t_0 = self.inf_voxel_encoder(voxels_t_0, num_points_t_0, coors_t_0)
+        batch_size_t_0 = coors_t_0[-1, 0].item() + 1
+        feat_t_0 = self.inf_middle_encoder(voxel_features_t_0, coors_t_0, batch_size_t_0)
 
-        voxel_features_t_1 = self.inf_voxel_encoder(inf_voxel_t_1['voxels'], inf_voxel_t_1['num_points'], inf_voxel_t_1['coors'])
-        batch_size_t_1 = inf_voxel_t_1['coors'][-1, 0].item() + 1
-        feat_t_1 = self.inf_middle_encoder(voxel_features_t_1, inf_voxel_t_1['coors'], batch_size_t_1)
+        voxels_t_1, num_points_t_1, coors_t_1 = self.inf_voxelize(points_t_1)
+        voxel_features_t_1 = self.inf_voxel_encoder(voxels_t_1, num_points_t_1, coors_t_1)
+        batch_size_t_1 = coors_t_1[-1, 0].item() + 1
+        feat_t_1 = self.inf_middle_encoder(voxel_features_t_1, coors_t_1, batch_size_t_1)
 
         flow_pred = torch.cat([feat_t_0, feat_t_1], dim=1)
         flow_pred = self.inf_backbone(flow_pred)
@@ -136,17 +137,49 @@ class FlowGenerator(nn.Module):
             flow_pred[0] = self.pre_encoder(flow_pred[0])
         return flow_pred
 
+    @torch.no_grad()
+    def inf_voxelize(self, points):
+        """Apply hard voxelization to points."""
+        voxels, coors, num_points = [], [], []
+        for res in points:
+            res = res.contiguous()
+            res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
+            voxels.append(res_voxels)
+            coors.append(res_coors)
+            num_points.append(res_num_points)
+        voxels = torch.cat(voxels, dim=0)
+        num_points = torch.cat(num_points, dim=0)
+        coors_batch = []
+        for i, coor in enumerate(coors):
+            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
+            coors_batch.append(coor_pad)
+        coors_batch = torch.cat(coors_batch, dim=0)
+        return voxels, num_points, coors_batch
+
 
 @MODELS.register_module()
 class FeatureFlowNet(SingleStage3DDetector):
     r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
-    def __init__(self, voxel_encoder, middle_encoder, backbone, neck=None, data_preprocessor=None, bbox_head=None, train_cfg=None, test_cfg=None, init_cfg=None, pretrained=None):
+    def __init__(self,
+                 voxel_layer,
+                 voxel_encoder,
+                 middle_encoder,
+                 backbone,
+                 neck=None,
+                 data_preprocessor=None,
+                 bbox_head=None,
+                 train_cfg=None,
+                 test_cfg=None,
+                 init_cfg=None,
+                 pretrained=None):
         super(FeatureFlowNet, self).__init__(
             backbone=backbone, neck=neck, bbox_head=bbox_head, train_cfg=train_cfg, test_cfg=test_cfg, data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+        self.voxel_layer = Voxelization(**voxel_layer)
         self.voxel_encoder = MODELS.build(voxel_encoder)
         self.middle_encoder = MODELS.build(middle_encoder)
 
+        self.inf_voxel_layer = Voxelization(**voxel_layer)
         self.inf_voxel_encoder = MODELS.build(voxel_encoder)
         self.inf_middle_encoder = MODELS.build(middle_encoder)
         self.inf_backbone = MODELS.build(backbone)
@@ -158,7 +191,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         self.fusion_training = False
         self.flow_training = True
         self.mse_loss = nn.MSELoss()
-        self.flownet = FlowGenerator(voxel_encoder, middle_encoder, backbone, with_neck=self.with_neck, neck=neck)
+        self.flownet = FlowGenerator(voxel_layer, voxel_encoder, middle_encoder, backbone, with_neck=self.with_neck, neck=neck)
         self.encoder = ReduceInfTC(768)
 
         try:
@@ -179,24 +212,20 @@ class FeatureFlowNet(SingleStage3DDetector):
     def extract_feat(self, batch_inputs_dict: Dict[str, Tensor], points_view='vehicle'):
         """Extract features from points."""
         if points_view == 'vehicle':
-            voxel_dict = batch_inputs_dict['voxels']
-            voxel_features = self.voxel_encoder(voxel_dict['voxels'], voxel_dict['num_points'], voxel_dict['coors'])
-            batch_size = voxel_dict['coors'][-1, 0].item() + 1
-            veh_x = self.middle_encoder(voxel_features, voxel_dict['coors'], batch_size)
+            voxels, num_points, coors = self.voxelize(batch_inputs_dict['points'])
+            voxel_features = self.voxel_encoder(voxels, num_points, coors)
+            batch_size = coors[-1, 0].item() + 1
+            veh_x = self.middle_encoder(voxel_features, coors, batch_size)
             veh_x = self.backbone(veh_x)
             if self.with_neck:
                 veh_x = self.neck(veh_x)
             return veh_x
 
         elif 'infrastructure' in points_view:
-            inf_voxel_dict = batch_inputs_dict[points_view + '_voxels']
-            inf_voxel_features = self.inf_voxel_encoder(
-                inf_voxel_dict['voxels'],
-                inf_voxel_dict['num_points'],
-                inf_voxel_dict['coors'],
-            )
-            inf_batch_size = inf_voxel_dict['coors'][-1, 0].item() + 1
-            inf_x = self.inf_middle_encoder(inf_voxel_features, inf_voxel_dict['coors'], inf_batch_size)
+            inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(batch_inputs_dict['infrastructure_points'])
+            inf_voxel_features = self.inf_voxel_encoder(inf_voxels, inf_num_points, inf_coors)
+            inf_batch_size = inf_coors[-1, 0].item() + 1
+            inf_x = self.inf_middle_encoder(inf_voxel_features, inf_coors, inf_batch_size)
             inf_x = self.inf_backbone(inf_x)
             if self.with_neck:
                 inf_x = self.inf_neck(inf_x)
@@ -327,7 +356,7 @@ class FeatureFlowNet(SingleStage3DDetector):
 
             loss_type = 'similarity_loss'
             if loss_type == 'mse_loss':
-                flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_voxels'], batch_inputs_dict['infrastructure_t1_voxels'])
+                flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_points'], batch_inputs_dict['infrastructure_t1_points'])
                 feat_inf_apprs = []
                 for ii in range(len(flow_pred)):
                     for bs in range(len(batch_inputs_dict['points'])):
@@ -346,7 +375,7 @@ class FeatureFlowNet(SingleStage3DDetector):
                         losses['mse_loss'] = losses['mse_loss'] + self.mse_loss(feat_inf_apprs[ii], feat_inf_t_2[ii])
 
             if loss_type == 'similarity_loss':
-                flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_voxels'], batch_inputs_dict['infrastructure_t1_voxels'])
+                flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_points'], batch_inputs_dict['infrastructure_t1_points'])
                 feat_inf_apprs = []
                 for ii in range(len(flow_pred)):
                     for bs in range(len(batch_inputs_dict['points'])):
@@ -396,7 +425,7 @@ class FeatureFlowNet(SingleStage3DDetector):
             feat_inf_t_1 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t1')
             # feat_inf_t_2 = self.extract_feat(inf_points_t_2, img_metas, points_view='infrastructure')
             feat_inf_temp = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t2')
-            flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_voxels'], batch_inputs_dict['infrastructure_t1_voxels'])
+            flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_points'], batch_inputs_dict['infrastructure_t1_points'])
             feat_inf_apprs = []
             for ii in range(len(flow_pred)):
                 for bs in range(len(batch_inputs_dict['points'])):
@@ -425,3 +454,40 @@ class FeatureFlowNet(SingleStage3DDetector):
     def aug_test(self):
         """Test function with augmentaiton."""
         return None
+
+    @torch.no_grad()
+    def voxelize(self, points):
+        """Apply hard voxelization to points."""
+        voxels, coors, num_points = [], [], []
+        for res in points:
+            res_voxels, res_coors, res_num_points = self.voxel_layer(res)
+            voxels.append(res_voxels)
+            coors.append(res_coors)
+            num_points.append(res_num_points)
+        voxels = torch.cat(voxels, dim=0)
+        num_points = torch.cat(num_points, dim=0)
+        coors_batch = []
+        for i, coor in enumerate(coors):
+            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
+            coors_batch.append(coor_pad)
+        coors_batch = torch.cat(coors_batch, dim=0)
+        return voxels, num_points, coors_batch
+
+    @torch.no_grad()
+    def inf_voxelize(self, points):
+        """Apply hard voxelization to points."""
+        voxels, coors, num_points = [], [], []
+        for res in points:
+            res = res.contiguous()  # fix for runtime error input must be contiguous
+            res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
+            voxels.append(res_voxels)
+            coors.append(res_coors)
+            num_points.append(res_num_points)
+        voxels = torch.cat(voxels, dim=0)
+        num_points = torch.cat(num_points, dim=0)
+        coors_batch = []
+        for i, coor in enumerate(coors):
+            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
+            coors_batch.append(coor_pad)
+        coors_batch = torch.cat(coors_batch, dim=0)
+        return voxels, num_points, coors_batch

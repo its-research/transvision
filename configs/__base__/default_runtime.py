@@ -4,9 +4,9 @@ default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=10),
     param_scheduler=dict(type='ParamSchedulerHook'),
-    checkpoint=dict(type='CheckpointHook', interval=2, max_keep_ckpts=2),
+    checkpoint=dict(type='CheckpointHook', interval=1, max_keep_ckpts=40),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='Det3DVisualizationHook', draw=True, draw_gt=True, draw_pred=True))
+    visualization=dict(type='Det3DVisualizationHook', draw=False, draw_gt=False, draw_pred=False))
 
 env_cfg = dict(
     cudnn_benchmark=False,

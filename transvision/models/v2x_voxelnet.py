@@ -12,7 +12,8 @@ from torch import nn as nn
 from torch.nn import functional as F
 
 from transvision.models.voxel import Voxelization
-from transvision.v2x_utils.visual import save_feature_map
+
+# from transvision.v2x_utils.visual import save_feature_map
 
 
 class ReduceInfTC(nn.Module):
@@ -223,9 +224,9 @@ class V2XVoxelNet(SingleStage3DDetector):
             warp_feat_trans = F.grid_sample(inf_feature, grid_r_t, mode='bilinear', align_corners=False)
             wrap_feats_ii.append(warp_feat_trans)
 
-            save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
-            save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
-            save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
+            # save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_b.png'.format(ii), inf_feature)
+            # save_feature_map('work_dirs/inf_feature_map_1.2.0/inf_feature_map_{}_a.png'.format(ii), warp_feat_trans)
+            # save_feature_map('work_dirs/inf_feature_map_1.2.0/veh_feature_map_{}.png'.format(ii), veh_feature)
             # visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')])  # save_dir='temp_dir'
             # drawn_img = visualizer.draw_featmap(inf_feature, None, channel_reduction=None, topk=4, arrangement=(2, 2))
             # visualizer.add_image('inf_feature_origin', drawn_img)

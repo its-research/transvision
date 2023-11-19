@@ -4,7 +4,7 @@ _base_ = [
     '../__base__/models/feature_flownet.py',
 ]
 dataset_type = 'V2XDatasetV2'
-data_root = ('data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/')
+data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
 # flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'}
 # FlowPred: Use feature flow to compensate for the temporary asynchrony
 # OriginFeat: Do not introduce the simulated temporal asychrony
@@ -229,14 +229,28 @@ test_dataloader = dict(
     ),
 )
 
-val_evaluator = dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args)
+val_evaluator = [
+    dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args),
+    dict(
+        type='DAIRV2XMetric',
+        ann_file=data_root + data_info_val_path,
+        veh_config_path='configs/ffnet/config_ffnet_fusion.py',
+        work_dir=work_dir,
+        split_data_path='data/split_datas/cooperative-split-data.json',
+        model='feature_flow',
+        input='data/DAIR-V2X/cooperative-vehicle-infrastructure',
+        test_mode='FlowPred',
+        val_data_path='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/flow_data_jsons/flow_data_info_val_1.json',
+        pcd_limit_range=point_cloud_range,
+        backend_args=backend_args)
+]
 test_evaluator = val_evaluator
 
 vis_backends = [dict(type='LocalVisBackend')]
 visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 
-lr = 0.001
-epoch_num = 20
+lr = 0.0006
+epoch_num = 10
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
 param_scheduler = [

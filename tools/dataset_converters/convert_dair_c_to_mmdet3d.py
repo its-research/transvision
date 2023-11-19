@@ -395,8 +395,8 @@ if __name__ == '__main__':
             data_infos['data_list'].append(data_info)
 
             if v2x_info_gen:
-                v2x_info_train_file = 'flow_data_info_train.json'
-                v2x_info_val_file = 'flow_data_info_val_0.json'
+                v2x_info_train_file = 'flow_data_info_train_2.json'
+                v2x_info_val_file = 'flow_data_info_val_2.json'
 
             if frame_id in split_list['train']:
                 if v2x_info_gen:

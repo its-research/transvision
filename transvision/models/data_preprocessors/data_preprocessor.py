@@ -183,32 +183,32 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
             #     voxel_dict = self.voxelize(inputs['infrastructure_points'], data_samples)
             #     batch_inputs['infrastructure_voxels'] = voxel_dict
 
-        # if 'infrastructure_t0_points' in inputs:
-        #     for ii in range(len(inputs['infrastructure_t0_points'])):
-        #         inputs['infrastructure_t0_points'][ii][:, 3] = 255 * inputs['infrastructure_t0_points'][ii][:, 3]
-        #     batch_inputs['infrastructure_t0_points'] = inputs['infrastructure_t0_points']
+        if 'infrastructure_t0_points' in inputs:
+            for ii in range(len(inputs['infrastructure_t0_points'])):
+                inputs['infrastructure_t0_points'][ii][:, 3] = 255 * inputs['infrastructure_t0_points'][ii][:, 3]
+            batch_inputs['infrastructure_t0_points'] = inputs['infrastructure_t0_points']
 
-        #     if self.voxel:
-        #         voxel_dict = self.voxelize(inputs['infrastructure_t0_points'], data_samples)
-        #         batch_inputs['infrastructure_t0_voxels'] = voxel_dict
+            # if self.voxel:
+            #     voxel_dict = self.voxelize(inputs['infrastructure_t0_points'], data_samples)
+            #     batch_inputs['infrastructure_t0_voxels'] = voxel_dict
 
-        # if 'infrastructure_t1_points' in inputs:
-        #     for ii in range(len(inputs['infrastructure_t1_points'])):
-        #         inputs['infrastructure_t1_points'][ii][:, 3] = 255 * inputs['infrastructure_t1_points'][ii][:, 3]
-        #     batch_inputs['infrastructure_t1_points'] = inputs['infrastructure_t1_points']
+        if 'infrastructure_t1_points' in inputs:
+            for ii in range(len(inputs['infrastructure_t1_points'])):
+                inputs['infrastructure_t1_points'][ii][:, 3] = 255 * inputs['infrastructure_t1_points'][ii][:, 3]
+            batch_inputs['infrastructure_t1_points'] = inputs['infrastructure_t1_points']
 
-        #     if self.voxel:
-        #         voxel_dict = self.voxelize(inputs['infrastructure_t1_points'], data_samples)
-        #         batch_inputs['infrastructure_t1_voxels'] = voxel_dict
+            # if self.voxel:
+            #     voxel_dict = self.voxelize(inputs['infrastructure_t1_points'], data_samples)
+            #     batch_inputs['infrastructure_t1_voxels'] = voxel_dict
 
-        # if 'infrastructure_t2_points' in inputs:
-        #     for ii in range(len(inputs['infrastructure_t2_points'])):
-        #         inputs['infrastructure_t2_points'][ii][:, 3] = 255 * inputs['infrastructure_t2_points'][ii][:, 3]
-        #     batch_inputs['infrastructure_t2_points'] = inputs['infrastructure_t2_points']
+        if 'infrastructure_t2_points' in inputs:
+            for ii in range(len(inputs['infrastructure_t2_points'])):
+                inputs['infrastructure_t2_points'][ii][:, 3] = 255 * inputs['infrastructure_t2_points'][ii][:, 3]
+            batch_inputs['infrastructure_t2_points'] = inputs['infrastructure_t2_points']
 
-        #     if self.voxel:
-        #         voxel_dict = self.voxelize(inputs['infrastructure_t2_points'], data_samples)
-        #         batch_inputs['infrastructure_t2_voxels'] = voxel_dict
+            # if self.voxel:
+            #     voxel_dict = self.voxelize(inputs['infrastructure_t2_points'], data_samples)
+            #     batch_inputs['infrastructure_t2_voxels'] = voxel_dict
 
         if 'imgs' in inputs:
             imgs = inputs['imgs']
