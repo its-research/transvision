@@ -460,6 +460,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         """Apply hard voxelization to points."""
         voxels, coors, num_points = [], [], []
         for res in points:
+            res = res.contiguous()
             res_voxels, res_coors, res_num_points = self.voxel_layer(res)
             voxels.append(res_voxels)
             coors.append(res_coors)
