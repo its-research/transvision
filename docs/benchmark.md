@@ -19,7 +19,7 @@ Example: evaluate `FFNET` on `DAIR-V2X-C` with 100ms latency:
 ```shell
 # bash scripts/lidar_feature_flow.sh [YOUR_CUDA_DEVICE] [YOUR_FFNET_WORKDIR] [DELAY_K]
 cd ${OpenDAIRV2X_root}/v2x
-bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
+bash scripts/lidar_feature_flow.sh 0 1 'FlowPred'
 ```
 
 ### config_basemodel
@@ -60,7 +60,7 @@ bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
 #### ffnet.pth
 
 ```shell
-bash scripts/lidar_feature_flow.sh 0 ./ 1 'FlowPred'
+bash scripts/lidar_feature_flow.sh 0 1 'FlowPred'
 ```
 
 1501 frames
@@ -87,7 +87,7 @@ bash scripts/lidar_feature_fusion.sh 0 ./
 
 1.2.0 our best model
 
-| Car | AP@0.30 | 0.50  | 0.70  | AB(Byte) |
-| :-: | :-----: | :---: | :---: | :------: |
-| bev |  64.59  | 62.35 | 53.94 | 1695.16  |
-| 3d  |  62.64  | 54.88 | 29.91 |          |
+| Car | AP@0.30 |  0.50   |  0.70   | AB(Byte) |
+| :-- | :-----: | :-----: | :-----: | :------: |
+| bev | 66.1538 | 63.6624 | 54.3148 | 1746.78  |
+| 3d  | 64.1446 | 55.9369 | 29.9052 | 1746.78  |

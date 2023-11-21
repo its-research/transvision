@@ -222,7 +222,7 @@ class FeatureFlowNet(SingleStage3DDetector):
             return veh_x
 
         elif 'infrastructure' in points_view:
-            inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(batch_inputs_dict['infrastructure_points'])
+            inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(batch_inputs_dict[points_view + '_points'])
             inf_voxel_features = self.inf_voxel_encoder(inf_voxels, inf_num_points, inf_coors)
             inf_batch_size = inf_coors[-1, 0].item() + 1
             inf_x = self.inf_middle_encoder(inf_voxel_features, inf_coors, inf_batch_size)

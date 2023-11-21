@@ -176,7 +176,6 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
         if 'infrastructure_points' in inputs:
             for ii in range(len(inputs['infrastructure_points'])):
                 inputs['infrastructure_points'][ii][:, 3] = 255 * inputs['infrastructure_points'][ii][:, 3]
-            # input['infrastructure_points'] = inputs['infrastructure_points'].contiguous()
             batch_inputs['infrastructure_points'] = inputs['infrastructure_points']
 
             # if self.voxel:

@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 def get_box_info(result):
     # for i in range(len(result[0].pred_instances_3d.bboxes_3d)):
     #     tmp = -result[0].pred_instances_3d.bboxes_3d.tensor[i][6]
-    #     # tmp = -tmp - np.pi / 2
     #     result[0].pred_instances_3d.bboxes_3d.tensor[i][6] = tmp
 
     if len(result[0].pred_instances_3d.bboxes_3d.tensor) == 0:
