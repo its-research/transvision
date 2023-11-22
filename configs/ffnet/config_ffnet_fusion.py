@@ -4,14 +4,14 @@ _base_ = [
     '../__base__/models/feature_flownet.py',
 ]
 dataset_type = 'V2XDatasetV2'
-data_root = ('data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/')
+data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
 # flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'}
 # FlowPred: Use feature flow to compensate for the temporary asynchrony
 # OriginFeat: Do not introduce the simulated temporal asychrony
 # Async: Introduce the temporal asynchrony and do not use feature flow to compensate for the temporary asynchrony
 
-data_info_train_path = 'dair_infos_train.pkl'
-data_info_val_path = 'dair_infos_val.pkl'
+data_info_train_path = 'dair_infos_flow_train.pkl'
+data_info_val_path = 'dair_infos_flow_val.pkl'
 
 work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/flow/fusion'
 
@@ -181,7 +181,7 @@ train_dataloader = dict(
             ann_file=data_info_train_path,
             data_prefix=dict(pts=''),
             pipeline=train_pipeline,
-            modality=dict(use_lidar=True, use_camera=False),
+            modality=input_modality,
             test_mode=False,
             metainfo=metainfo,
             pcd_limit_range=point_cloud_range,
@@ -201,7 +201,7 @@ val_dataloader = dict(
         ann_file=data_info_val_path,
         data_prefix=dict(pts=''),
         pipeline=test_pipeline,
-        modality=dict(use_lidar=True, use_camera=False),
+        modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         pcd_limit_range=point_cloud_range,
@@ -221,7 +221,7 @@ test_dataloader = dict(
         ann_file=data_info_val_path,
         data_prefix=dict(pts=''),
         pipeline=test_pipeline,
-        modality=dict(use_lidar=True, use_camera=False),
+        modality=input_modality,
         test_mode=True,
         metainfo=metainfo,
         pcd_limit_range=point_cloud_range,
@@ -229,14 +229,25 @@ test_dataloader = dict(
     ),
 )
 
-val_evaluator = dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args)
+val_evaluator = [
+    dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args),
+    dict(
+        type='DAIRV2XMetric',
+        ann_file=data_root + data_info_val_path,
+        veh_config_path='configs/ffnet/config_ffnet_fusion.py',
+        work_dir=work_dir,
+        split_data_path='data/split_datas/cooperative-split-data.json',
+        model='feature_flow',
+        input='data/DAIR-V2X/cooperative-vehicle-infrastructure',
+        test_mode='FlowPred',
+        val_data_path='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/flow_data_jsons/flow_data_info_val_1.json',
+        pcd_limit_range=point_cloud_range,
+        backend_args=backend_args)
+]
 test_evaluator = val_evaluator
 
-vis_backends = [dict(type='LocalVisBackend')]
-visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
-
-lr = 0.001
-epoch_num = 20
+lr = 0.008
+epoch_num = 10
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
 param_scheduler = [
@@ -245,5 +256,5 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.4, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=5)
 find_unused_parameters = True

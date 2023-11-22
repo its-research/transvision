@@ -2,10 +2,10 @@ import argparse
 import os
 
 import numpy as np
-from gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_cam_K, get_velo2cam
+# from gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_cam_K, get_velo2cam
 # from gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points
 from gen_kitti.label_lidarcoord_to_cameracoord import get_label
-from kitti_data_utils import _extend_matrix
+# from kitti_data_utils import _extend_matrix
 from mmdet3d.structures.bbox_3d.utils import limit_period
 # from mmdet3d.structures import points_cam2img
 from mmdet3d.structures.ops import box_np_ops
@@ -138,30 +138,49 @@ def get_images_info(ori_info, defalut_cam, root_path, veh_idx, inf_idx, sensor_v
     calib_v_lidar2cam_filename = os.path.join(root_path, 'vehicle-side/calib/lidar_to_camera', veh_idx + '.json')
     calib_v_cam_intrinsic_filename = os.path.join(root_path, 'vehicle-side/calib/camera_intrinsic/', veh_idx + '.json')
 
-    cam_D, cam_K = get_cam_D_and_cam_K(calib_v_cam_intrinsic_filename)
-    t_velo2cam, r_velo2cam = get_velo2cam(calib_v_lidar2cam_filename)
-
-    t_velo2cam = np.array(t_velo2cam).reshape(3, 1)
-    r_velo2cam = np.array(r_velo2cam).reshape(3, 3)
-    P2, Tr_velo_to_cam = convert_calib_v2x_to_kitti(cam_D, cam_K, t_velo2cam, r_velo2cam)
-    P2 = _extend_matrix(np.array(P2).reshape(3, 4))
-    Tr_velo_to_cam = _extend_matrix(np.array(Tr_velo_to_cam).reshape(3, 4))
-
-    R0_rect = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
-    rect_4x4[3, 3] = 1.
-    rect_4x4[:3, :3] = R0_rect
-    R0_rect = rect_4x4
-    R0_rect = R0_rect
+    # from ffnet
+    calib_v_lidar2cam = load(calib_v_lidar2cam_filename)
+    calib_v_cam_intrinsic = load(calib_v_cam_intrinsic_filename)
+    rect = np.identity(4)
+    Trv2c = np.identity(4)
+    Trv2c[0:3, 0:3] = calib_v_lidar2cam['rotation']
+    Trv2c[0:3, 3] = [calib_v_lidar2cam['translation'][0][0], calib_v_lidar2cam['translation'][1][0], calib_v_lidar2cam['translation'][2][0]]
+    P2 = np.identity(4)
+    P2[0:3, 0:3] = np.array(calib_v_cam_intrinsic['cam_K']).reshape(3, 3)
 
     images[defalut_cam]['cam2img'] = P2.tolist()
-    images[defalut_cam]['tr_velo_to_cam'] = Tr_velo_to_cam.astype(np.float32).tolist()
-    images[defalut_cam]['t_velo2cam'] = t_velo2cam.tolist()
-    images[defalut_cam]['r_velo2cam'] = r_velo2cam.tolist()
-    images['R0_rect'] = R0_rect.tolist()
-    lidar2cam = R0_rect.astype(np.float32) @ Tr_velo_to_cam.astype(np.float32)
+    images[defalut_cam]['tr_velo_to_cam'] = Trv2c.astype(np.float32).tolist()
+
+    images['R0_rect'] = rect.tolist()
+    lidar2cam = rect.astype(np.float32) @ Trv2c.astype(np.float32)
     images[defalut_cam]['lidar2cam'] = lidar2cam.tolist()
     images[defalut_cam]['lidar2img'] = (P2 @ lidar2cam).tolist()
+    # from ffnet end
+
+    # cam_D, cam_K = get_cam_D_and_cam_K(calib_v_cam_intrinsic_filename)
+    # t_velo2cam, r_velo2cam = get_velo2cam(calib_v_lidar2cam_filename)
+
+    # t_velo2cam = np.array(t_velo2cam).reshape(3, 1)
+    # r_velo2cam = np.array(r_velo2cam).reshape(3, 3)
+    # P2, Tr_velo_to_cam = convert_calib_v2x_to_kitti(cam_D, cam_K, t_velo2cam, r_velo2cam)
+    # P2 = _extend_matrix(np.array(P2).reshape(3, 4))
+    # Tr_velo_to_cam = _extend_matrix(np.array(Tr_velo_to_cam).reshape(3, 4))
+
+    # R0_rect = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    # rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
+    # rect_4x4[3, 3] = 1.
+    # rect_4x4[:3, :3] = R0_rect
+    # R0_rect = rect_4x4
+    # R0_rect = R0_rect
+
+    # images[defalut_cam]['cam2img'] = P2.tolist()
+    # images[defalut_cam]['tr_velo_to_cam'] = Tr_velo_to_cam.astype(np.float32).tolist()
+    # images[defalut_cam]['t_velo2cam'] = t_velo2cam.tolist()
+    # images[defalut_cam]['r_velo2cam'] = r_velo2cam.tolist()
+    # images['R0_rect'] = R0_rect.tolist()
+    # lidar2cam = R0_rect.astype(np.float32) @ Tr_velo_to_cam.astype(np.float32)
+    # images[defalut_cam]['lidar2cam'] = lidar2cam.tolist()
+    # images[defalut_cam]['lidar2img'] = (P2 @ lidar2cam).tolist()
 
     return images
 
@@ -260,15 +279,12 @@ def get_instances(images, lidar_points, metainfo, root_path):
         loc = loc[:3]
 
         dims = np.array([l, h, w])  # 初始为wlh, 交换lhw
+        # yaw = -yaw_lidar - np.pi / 2
+        # yaw = -yaw_lidar
+        # yaw = yaw_lidar - np.pi / 2  # Wrong
         yaw = -yaw_lidar - np.pi / 2
         yaw = limit_period(yaw, period=np.pi * 2)
         rots = np.array([yaw])
-
-        # dims = np.array([l, h, w])
-        # rots = np.array([yaw_lidar])
-
-        # yaw = -yaw - np.pi / 2
-        # yaw = limit_period(yaw, period=np.pi * 2)
 
         gt_bboxes_3d = np.concatenate([loc, dims, rots]).tolist()  # camera coord
         instance['bbox_3d'] = gt_bboxes_3d
@@ -322,9 +338,15 @@ def get_instances(images, lidar_points, metainfo, root_path):
 
 if __name__ == '__main__':
     root_path = args.root_path
-    dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_trainval.pkl')
-    dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_train.pkl')
-    dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_val.pkl')
+    v2x_info_gen = True
+    if v2x_info_gen is False:
+        dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_trainval.pkl')
+        dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_train.pkl')
+        dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_val.pkl')
+    else:
+        dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_flow_trainval.pkl')
+        dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_flow_train.pkl')
+        dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_flow_val.pkl')
 
     split_list = get_split_list(args.split_file_path)
 
@@ -381,6 +403,7 @@ if __name__ == '__main__':
             frame_id = images[defalut_cam]['img_path'].split('/')[-1].replace('.jpg', '')
             sample_idx = int(frame_id)
 
+            data_info['img_path'] = images[defalut_cam]['img_path']
             data_info['sample_idx'] = sample_idx
             data_info['images'] = images
             data_info['lidar_points'] = lidar_points
@@ -390,8 +413,13 @@ if __name__ == '__main__':
 
             data_infos['data_list'].append(data_info)
 
-            v2x_info_train_file = 'flow_data_info_train_2.json'
-            v2x_info_val_file = 'flow_data_info_val_2.json'
+            if v2x_info_gen:
+                v2x_info_train_file = 'flow_data_info_train_2.json'
+                v2x_info_val_file = 'flow_data_info_val_2.json'
+            else:
+                v2x_info_train_file = 'flow_data_info_train.json'
+                v2x_info_val_file = 'flow_data_info_val_0.json'
+
             if frame_id in split_list['train']:
                 v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
                 if v2x_info is None:

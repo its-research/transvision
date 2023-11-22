@@ -8,6 +8,7 @@ z_center_car = -2.66
 
 model = dict(
     type='V2XVoxelNet',
+    voxel_layer=dict(max_num_points=100, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=(40000, 40000)),
     mode='fusion',  # veh_only, inf_only, fusion
     data_preprocessor=dict(
         type='Det3DDataDAIRPreprocessor',

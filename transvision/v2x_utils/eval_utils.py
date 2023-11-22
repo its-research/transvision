@@ -273,7 +273,10 @@ class Evaluator(object):
                 # logger.debug("iou: {}, tp: {}, all_pred: {}".format(iou, num_tp, len(pred["labels_3d"])))
 
     def print_ap(self, view, type='micro'):
+        results = {}
         for pred_class in self.pred_classes:
             for iou in iou_threshold_dict[pred_class]:
                 ap = compute_ap(self.all_preds[view][pred_class][iou], self.gt_num[pred_class][iou])
-                print('%s %s IoU threshold %.2lf, Average Precision = %.2lf' % (pred_class, view, iou, ap * 100))
+                # print('%s %s IoU threshold %.2lf, Average Precision = %.2lf' % (pred_class, view, iou, ap * 100))
+                results['%s_%s_%.1lf' % (pred_class, view, iou)] = ap * 100
+        return results

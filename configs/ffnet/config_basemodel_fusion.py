@@ -2,13 +2,13 @@ _base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py
 
 dataset_type = 'V2XDatasetV2'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
-data_info_train_path = 'dair_infos_base_model_train.pkl'
-data_info_val_path = 'dair_infos_base_model_val.pkl'
+data_info_train_path = 'dair_infos_train.pkl'
+data_info_val_path = 'dair_infos_val.pkl'
 work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/fusion'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
-input_modality = dict(use_lidar=True, use_camera=False)
+input_modality = dict(use_lidar=True, use_camera=True)
 class_names = ['Car']
 metainfo = dict(classes=class_names)
 backend_args = None
@@ -25,13 +25,14 @@ train_pipeline = [
         # fmt:off
         meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
                    'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
-                   'calib'),
+                   'calib', 'img_path'),
         # fmt:on
     )
 ]
 test_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+    # dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(
         type='MultiScaleFlipAug3D',
         img_scale=(576, 576),  # (1333, 800)
@@ -44,11 +45,11 @@ test_pipeline = [
         ]),
     dict(
         type='Pack3DDetDAIRInputs',
-        keys=['points', 'infrastructure_points'],
+        keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
         # fmt:off
         meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
                    'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
-                   'calib'),
+                   'calib', 'img_path'),
         # fmt:on
     )
 ]
@@ -58,13 +59,14 @@ test_pipeline = [
 eval_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
+    # dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(
         type='Pack3DDetDAIRInputs',
         keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
         # fmt:off
         meta_keys=('filename', 'ori_shape', 'img_shape', 'lidar2img', 'depth2img', 'cam2img', 'pad_shape', 'scale_factor', 'flip', 'pcd_horizontal_flip', 'pcd_vertical_flip',
                    'box_mode_3d', 'box_type_3d', 'img_norm_cfg', 'pcd_trans', 'sample_idx', 'pcd_scale_factor', 'pcd_rotation', 'pts_filename', 'transformation_3d_flow', 'inf2veh',
-                   'calib'),
+                   'calib', 'img_path'),
         # fmt:on
     )
 ]
@@ -125,15 +127,26 @@ test_dataloader = dict(
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
-val_evaluator = dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args)
+val_evaluator = [
+    dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args),
+    dict(
+        type='DAIRV2XMetric',
+        ann_file=data_root + data_info_val_path,
+        veh_config_path='configs/ffnet/config_basemodel_fusion.py',
+        work_dir=work_dir,
+        split_data_path='data/split_datas/cooperative-split-data.json',
+        model='feature_fusion',
+        input='data/DAIR-V2X/cooperative-vehicle-infrastructure',
+        test_mode=None,
+        val_data_path=None,
+        pcd_limit_range=point_cloud_range,
+        backend_args=backend_args)
+]
 test_evaluator = val_evaluator
-
-vis_backends = [dict(type='LocalVisBackend')]
-visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.0018
+lr = 0.001
 epoch_num = 40
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
@@ -144,5 +157,5 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=2)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=5)
 find_unused_parameters = True
