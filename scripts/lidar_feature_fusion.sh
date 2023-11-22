@@ -2,7 +2,7 @@ DATA='data/DAIR-V2X/cooperative-vehicle-infrastructure/'
 SPLIT=val
 SPLIT_DATA_PATH="./data/split_datas/cooperative-split-data.json"
 OUTPUT="./cache/vic-feature-fusion-baseline"
-VEHICLE_MODEL_PATH='work_dirs/mmdet3d_0.17.1/ffnet-vic3d/basemodel/fusion/epoch_40.pth'
+VEHICLE_MODEL_PATH='models/ffnet_without_prediction.pth'
 VEHICLE_CONFIG_NAME='./configs/ffnet/config_basemodel_fusion.py'
 CUDA_VISIBLE_DEVICES=$1 \
 

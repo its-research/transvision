@@ -4,8 +4,8 @@ DELAY_K=$2
 DATA='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/ffnet'
 VAL_DATA_PATH='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_0.17.1_training/ffnet/flow_data_jsons/flow_data_info_val_'${DELAY_K}'.json'
 OUTPUT="./cache/vic-feature-flow"
-VEHICLE_MODEL_PATH='./models/ffnet_flow.0.17.1.pth '
-VEHICLE_CONFIG_NAME='./configs/ffnet/config_ffnet_fusion.py'
+VEHICLE_MODEL_PATH='./models/ffnet.pth'
+VEHICLE_CONFIG_NAME='./configs/ffnet/config_ffnet_fusion_3cls.py'
 
 CUDA_VISIBLE_DEVICES=$1
 

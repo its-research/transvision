@@ -118,7 +118,7 @@ class FlowGenerator(nn.Module):
         self.inf_voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
         self.inf_middle_encoder = builder.build_middle_encoder(middle_encoder)
         self.pre_encoder = ReduceInfTC(768)
-        self.with_attention_mask = False
+        self.with_attention_mask = True
 
     def forward(self, points_t_0, points_t_1):
         voxels_t_0, num_points_t_0, coors_t_0 = self.inf_voxelize(points_t_0)
