@@ -4,7 +4,7 @@ dataset_type = 'V2XDatasetV2'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
 data_info_train_path = 'dair_infos_train.pkl'
 data_info_val_path = 'dair_infos_val.pkl'
-work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/fusion/lr=0.0006/e=80/'
+work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/fusion/lr=0.0008/'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
@@ -146,8 +146,8 @@ test_evaluator = val_evaluator
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.0006
-epoch_num = 80
+lr = 0.0008
+epoch_num = 40
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
 param_scheduler = [
@@ -157,5 +157,5 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=5)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=40)
 find_unused_parameters = True

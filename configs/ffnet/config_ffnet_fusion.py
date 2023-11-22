@@ -246,7 +246,7 @@ val_evaluator = [
 ]
 test_evaluator = val_evaluator
 
-lr = 0.001
+lr = 0.008
 epoch_num = 10
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
