@@ -1,15 +1,15 @@
-_base_ = ['../__base__/default_runtime.py', '../__base__/models/v2x_voxelnet.py']
+_base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py', '../__base__/models/v2x_voxelnet_3cls.py']
 
 dataset_type = 'V2XDatasetV2'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
 data_info_train_path = 'dair_infos_train.pkl'
 data_info_val_path = 'dair_infos_val.pkl'
-work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/fusion/sgd/'
+work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/fusion/lr=0.0008_3cls/'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
 input_modality = dict(use_lidar=True, use_camera=True)
-class_names = ['Car']
+class_names = ['Pedestrian', 'Cyclist', 'Car']
 metainfo = dict(classes=class_names)
 backend_args = None
 
@@ -146,16 +146,16 @@ test_evaluator = val_evaluator
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.08
+lr = 0.0008
 epoch_num = 40
-optim_wrapper = dict(type='AmpOptimWrapper', loss_scale='dynamic', optimizer=dict(type='SGD', lr=lr, weight_decay=0.0001, momentum=0.9, nesterov=True))
+optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
 param_scheduler = [
-    dict(type='LinearLR', start_factor=0.008, by_epoch=False, begin=0, end=500),
-    dict(type='CosineAnnealingLR', begin=0, T_max=epoch_num, by_epoch=True, eta_min=8e-4, convert_to_iter_based=True)
+    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.4, eta_min=lr * 10, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.6, eta_min=lr * 1e-4, begin=epoch_num * 0.4, end=epoch_num * 1, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.4, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
-val_cfg = dict()
-test_cfg = dict()
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=40)
 find_unused_parameters = True
