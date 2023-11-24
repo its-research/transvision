@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def eval_vic(args, dataset, model, evaluator, pipe):
     idx = -1
-    for VICFrame, label, filt in tqdm(dataset):
+    for VICFrame, label, filt, bbox_3d_lwhr in tqdm(dataset):
         idx += 1
 
         try:
@@ -31,8 +31,8 @@ def eval_vic(args, dataset, model, evaluator, pipe):
             filt,
             None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
         )
-        # print(pred, label)
-        # exit()
+        print(pred, label, bbox_3d_lwhr)
+        exit()
 
         evaluator.add_frame(pred, label)
         pipe.flush()

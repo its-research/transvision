@@ -4,6 +4,7 @@ import os.path as osp
 from transvision.v2x_utils import Filter, RectFilter, id_to_str
 from .base_dataset import DAIRV2XDataset, build_path_to_info, get_annos
 from .dataset_utils import InfFrame, Label, VehFrame, VICFrame, load_json
+from .dataset_utils.label import get_label_lidar_rotation
 
 logger = logging.getLogger(__name__)
 
@@ -178,12 +179,18 @@ class VICDataset(DAIRV2XDataset):
             label_v = Label(osp.join(path, elem['cooperative_label_path']), filt_world)
 
             label_v['boxes_3d'] = trans_1(label_v['boxes_3d'])
+
+            world_8_points = label_v['boxes_3d']
+            bbox3d_lwhr = []
+            for world_8_point, lwh in zip(world_8_points, label_v['lwhs']):
+                xs = ((world_8_point[0][0] + world_8_point[2][0]) / 2)
+                ys = ((world_8_point[0][1] + world_8_point[2][1]) / 2)
+                zs = ((world_8_point[0][2] + world_8_point[4][2]) / 2)
+                rs = (get_label_lidar_rotation(world_8_point))
+                bbox3d_lwhr.append([xs, ys, zs, lwh[0], lwh[1], lwh[2], rs])
+
             filt = RectFilter(extended_range[0])
-            tup = (
-                vic_frame,
-                label_v,
-                filt,
-            )
+            tup = (vic_frame, label_v, filt, bbox3d_lwhr)
             self.data.append(tup)
 
     def query_veh_segment(self, frame, sensortype='lidar', previous_only=False):
