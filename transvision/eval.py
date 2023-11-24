@@ -31,6 +31,8 @@ def eval_vic(args, dataset, model, evaluator, pipe):
             filt,
             None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
         )
+        # print(pred, label)
+        # exit()
 
         evaluator.add_frame(pred, label)
         pipe.flush()
