@@ -1,4 +1,5 @@
 import argparse
+import copy
 import os
 
 import numpy as np
@@ -114,9 +115,12 @@ def get_v2x_info(ori_info, root_path, info_file):
     info = load(info_path)
 
     data_list = info['data_list']
+    datas = []
     for data in data_list:
         if data['vehicle_idx'] == veh_idx:
-            return data
+            datas.append(data)
+
+    return datas
 
 
 def get_images_info(ori_info, defalut_cam, root_path, veh_idx, inf_idx, sensor_view='vehicle'):
@@ -367,6 +371,8 @@ if __name__ == '__main__':
     ori_dair_infos_train = load(os.path.join(root_path, args.dataset, 'data_info.json'))
     defalut_cam = 'CAM2'
 
+    flow_sample_idx = 0
+
     for ori_info in tqdm(ori_dair_infos_train):
         data_info = {
             'sample_idx': 0,
@@ -411,27 +417,38 @@ if __name__ == '__main__':
             data_info['instances'] = instances
             data_info['calib'] = calib
 
-            data_infos['data_list'].append(data_info)
-
             if v2x_info_gen:
                 v2x_info_train_file = 'flow_data_info_train_2.json'
                 v2x_info_val_file = 'flow_data_info_val_2.json'
             else:
+                data_infos['data_list'].append(data_info)
                 v2x_info_train_file = 'flow_data_info_train.json'
                 v2x_info_val_file = 'flow_data_info_val_0.json'
 
             if frame_id in split_list['train']:
-                v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
-                if v2x_info is None:
+                v2x_infos = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
+                if v2x_infos is None:
                     continue
-                data_info['v2x_info'] = v2x_info
-                data_infos_train['data_list'].append(data_info)
+                for v2x_info in v2x_infos:
+                    data_info_new = copy.deepcopy(data_info)
+                    data_info_new['sample_idx'] = flow_sample_idx
+                    data_info_new['v2x_info'] = v2x_info
+                    data_infos_train['data_list'].append(data_info_new)
+                    flow_sample_idx = flow_sample_idx + 1
+                    if not v2x_info_gen:
+                        data_infos['data_list'].append(data_info_new)
             else:
-                v2x_info = get_v2x_info(ori_info, args.dst_root_path, v2x_info_val_file)
-                if v2x_info is None:
+                v2x_infos = get_v2x_info(ori_info, args.dst_root_path, v2x_info_val_file)
+                if v2x_infos is None:
                     continue
-                data_info['v2x_info'] = v2x_info
-                data_infos_val['data_list'].append(data_info)
+                for v2x_info in v2x_infos:
+                    data_info_new = copy.deepcopy(data_info)
+                    data_info_new['sample_idx'] = flow_sample_idx
+                    flow_sample_idx = flow_sample_idx + 1
+                    data_info_new['v2x_info'] = v2x_info
+                    data_infos_val['data_list'].append(data_info_new)
+                    if not v2x_info_gen:
+                        data_infos['data_list'].append(data_info_new)
 
     dump(data_infos, dair_infos_trainval_path)
     dump(data_infos_train, dair_infos_train_path)

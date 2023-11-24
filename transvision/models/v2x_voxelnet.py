@@ -129,7 +129,6 @@ class V2XVoxelNet(SingleStage3DDetector):
 
     def extract_feat(self, batch_inputs_dict: Dict[str, Tensor], points_view='vehicle') -> Union[Tuple[torch.Tensor], Dict[str, Tensor]]:
         """Extract features from points."""
-        """Extract features from points."""
         if points_view == 'vehicle':
             voxels, num_points, coors = self.voxelize(batch_inputs_dict['points'])
             voxel_features = self.voxel_encoder(voxels, num_points, coors)

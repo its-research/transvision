@@ -63,7 +63,7 @@ class V2XDatasetV2(Det3DDataset):
             all path has been converted to absolute path.
         """
         if self.modality['use_lidar']:
-            if 'plane' in info:
+            if 'plane' in info and info['plane'] is not None:
                 # convert ground plane to velodyne coordinates
                 plane = np.array(info['plane'])
                 lidar2cam = np.array(info['images']['CAM2']['lidar2cam'], dtype=np.float32)

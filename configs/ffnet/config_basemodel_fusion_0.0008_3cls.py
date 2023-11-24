@@ -146,7 +146,7 @@ test_evaluator = val_evaluator
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.0008
+lr = 0.00128
 epoch_num = 40
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 

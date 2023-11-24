@@ -146,16 +146,16 @@ test_evaluator = val_evaluator
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.08
+lr = 0.01
 epoch_num = 40
 optim_wrapper = dict(type='AmpOptimWrapper', loss_scale='dynamic', optimizer=dict(type='SGD', lr=lr, weight_decay=0.0001, momentum=0.9, nesterov=True))
 
 param_scheduler = [
-    dict(type='LinearLR', start_factor=0.008, by_epoch=False, begin=0, end=500),
-    dict(type='CosineAnnealingLR', begin=0, T_max=epoch_num, by_epoch=True, eta_min=8e-4, convert_to_iter_based=True)
+    dict(type='LinearLR', start_factor=lr * 1e-3, by_epoch=False, begin=0, end=500),
+    dict(type='CosineAnnealingLR', begin=0, T_max=epoch_num, by_epoch=True, eta_min=lr * 1e-4, convert_to_iter_based=True)
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=40)
 val_cfg = dict()
 test_cfg = dict()
 find_unused_parameters = True

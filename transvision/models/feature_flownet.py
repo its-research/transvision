@@ -1,5 +1,6 @@
 # Copyright (c) DAIR-V2X (AIR). All rights reserved.
 import copy
+import os
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -9,8 +10,7 @@ from mmdet3d.registry import MODELS
 from mmdet3d.structures import Det3DDataSample
 # from mmdet3d.structures.det3d_data_sample import OptSampleList
 # from mmcv.runner import force_fp32
-from torch import Tensor
-from torch import nn as nn
+from torch import Tensor, nn
 from torch.nn import functional as F
 
 from transvision.models.voxel import Voxelization
@@ -206,13 +206,14 @@ class FeatureFlowNet(SingleStage3DDetector):
             self.test_mode = test_cfg['test_mode']
         else:
             self.test_mode = 'FlowPred'
+        self.init_weights()
         if self.pretraind_checkpoint_path != '':
             self.flownet_init()
 
-    def extract_feat(self, batch_inputs_dict: Dict[str, Tensor], points_view='vehicle'):
+    def extract_feat(self, points: Dict[str, Tensor], points_view='vehicle'):
         """Extract features from points."""
         if points_view == 'vehicle':
-            voxels, num_points, coors = self.voxelize(batch_inputs_dict['points'])
+            voxels, num_points, coors = self.voxelize(points)
             voxel_features = self.voxel_encoder(voxels, num_points, coors)
             batch_size = coors[-1, 0].item() + 1
             veh_x = self.middle_encoder(voxel_features, coors, batch_size)
@@ -222,7 +223,7 @@ class FeatureFlowNet(SingleStage3DDetector):
             return veh_x
 
         elif 'infrastructure' in points_view:
-            inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(batch_inputs_dict[points_view + '_points'])
+            inf_voxels, inf_num_points, inf_coors = self.inf_voxelize(points)
             inf_voxel_features = self.inf_voxel_encoder(inf_voxels, inf_num_points, inf_coors)
             inf_batch_size = inf_coors[-1, 0].item() + 1
             inf_x = self.inf_middle_encoder(inf_voxel_features, inf_coors, inf_batch_size)
@@ -338,68 +339,70 @@ class FeatureFlowNet(SingleStage3DDetector):
             feat_fused = self.extract_feats(batch_inputs_dict, batch_data_samples)
             outs = self.bbox_head(feat_fused)
             return outs
+        img_metas = [item.metainfo for item in batch_data_samples]
 
         if self.flow_training:
             points_t_0_1 = []
             points_t_1_2 = []
-            img_metas = [item.metainfo for item in batch_data_samples]
+            inf_points_t_0 = []
+            inf_points_t_1 = []
+            inf_points_t_2 = []
 
             for ii in range(len(batch_inputs_dict['points'])):
+                inf_points_path_t_0 = os.path.join(img_metas[ii]['v2x_info']['infrastructure_pointcloud_bin_path_t_0'])
+                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_0, dtype=np.float32))
+                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=batch_inputs_dict['points'][0].device)
+                inf_points_t_0.append(tem_inf_points)
+
+                inf_points_path_t_1 = os.path.join(img_metas[ii]['v2x_info']['infrastructure_pointcloud_bin_path_t_1'])
+                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_1, dtype=np.float32))
+                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=batch_inputs_dict['points'][0].device)
+                inf_points_t_1.append(tem_inf_points)
+
+                inf_points_path_t_2 = os.path.join(img_metas[ii]['v2x_info']['infrastructure_pointcloud_bin_path_t_2'])
+                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_2, dtype=np.float32))
+                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=batch_inputs_dict['points'][0].device)
+                inf_points_t_2.append(tem_inf_points)
+
                 points_t_0_1.append(img_metas[ii]['v2x_info']['infrastructure_t_0_1'])
                 points_t_1_2.append(img_metas[ii]['v2x_info']['infrastructure_t_1_2'])
 
-            feat_inf_t_1 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t1')
-            feat_inf_t_2 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t2')
+            for ii in range(len(inf_points_t_0)):
+                inf_points_t_0[ii][:, 3] = 255 * inf_points_t_0[ii][:, 3]
+                inf_points_t_1[ii][:, 3] = 255 * inf_points_t_1[ii][:, 3]
+                inf_points_t_2[ii][:, 3] = 255 * inf_points_t_2[ii][:, 3]
+
+            feat_inf_t_1 = self.extract_feat(inf_points_t_1, points_view='infrastructure')
+            feat_inf_t_2 = self.extract_feat(inf_points_t_2, points_view='infrastructure')
             for ii in range(len(feat_inf_t_1)):
                 feat_inf_t_1[ii] = feat_inf_t_1[ii].detach()
                 feat_inf_t_2[ii] = feat_inf_t_2[ii].detach()
 
-            loss_type = 'similarity_loss'
-            if loss_type == 'mse_loss':
-                flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_points'], batch_inputs_dict['infrastructure_t1_points'])
-                feat_inf_apprs = []
-                for ii in range(len(flow_pred)):
-                    for bs in range(len(batch_inputs_dict['points'])):
-                        feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] + flow_pred[ii][bs] / points_t_0_1[bs] * points_t_1_2[bs]
-                    feat_inf_apprs.append(feat_inf_t_1[ii])
+            flow_pred = self.flownet(inf_points_t_0, inf_points_t_1)
+            feat_inf_apprs = []
+            for ii in range(len(flow_pred)):
+                for bs in range(len(batch_inputs_dict['points'])):
+                    # tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean()
+                    tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean().detach()
+                    feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] + flow_pred[ii][bs] / points_t_0_1[bs] * points_t_1_2[bs]
+                    tem_feat_inf_t_1_after_max = feat_inf_t_1[ii][bs].mean().detach()
+                    feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] / tem_feat_inf_t_1_after_max * tem_feat_inf_t_1_before_max
+                feat_inf_apprs.append(feat_inf_t_1[ii])
 
-                similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_2[0], start_dim=1, end_dim=3), torch.flatten(feat_inf_apprs[0], start_dim=1, end_dim=3), dim=1)
-                # print("The similarity is: ", similarity, points_t_1_2)
+            similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_2[0], start_dim=1, end_dim=3), torch.flatten(feat_inf_apprs[0], start_dim=1, end_dim=3), dim=1)
+            # print("The similarity is: ", similarity, points_t_1_2)
 
-                for ii in range(len(feat_inf_apprs)):
-                    if ii == 0:
-                        if not self.fusion_training:
-                            losses = {}
-                        losses['mse_loss'] = self.mse_loss(feat_inf_apprs[ii], feat_inf_t_2[ii])
-                    else:
-                        losses['mse_loss'] = losses['mse_loss'] + self.mse_loss(feat_inf_apprs[ii], feat_inf_t_2[ii])
-
-            if loss_type == 'similarity_loss':
-                flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_points'], batch_inputs_dict['infrastructure_t1_points'])
-                feat_inf_apprs = []
-                for ii in range(len(flow_pred)):
-                    for bs in range(len(batch_inputs_dict['points'])):
-                        # tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean()
-                        tem_feat_inf_t_1_before_max = feat_inf_t_1[ii][bs].mean().detach()
-                        feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] + flow_pred[ii][bs] / points_t_0_1[bs] * points_t_1_2[bs]
-                        tem_feat_inf_t_1_after_max = feat_inf_t_1[ii][bs].mean().detach()
-                        feat_inf_t_1[ii][bs] = feat_inf_t_1[ii][bs] / tem_feat_inf_t_1_after_max * tem_feat_inf_t_1_before_max
-                    feat_inf_apprs.append(feat_inf_t_1[ii])
-
-                similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_2[0], start_dim=1, end_dim=3), torch.flatten(feat_inf_apprs[0], start_dim=1, end_dim=3), dim=1)
-                # print("The similarity is: ", similarity, points_t_1_2)
-
-                label = torch.ones(len(batch_inputs_dict['points']), requires_grad=False).cuda(device=batch_inputs_dict['points'][0].device)
-                if not self.fusion_training:
-                    losses = {}
-                losses['similarity_loss'] = self.mse_loss(similarity, label)
+            label = torch.ones(len(batch_inputs_dict['points']), requires_grad=False).cuda(device=batch_inputs_dict['points'][0].device)
+            if not self.fusion_training:
+                losses = {}
+            losses['similarity_loss'] = self.mse_loss(similarity, label)
 
         return losses
 
     def simple_test(self, batch_inputs_dict: Dict[str, Optional[Tensor]], batch_data_samples: List[Det3DDataSample]):
 
-        feat_veh = self.extract_feat(batch_inputs_dict, points_view='vehicle')
-        feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
+        feat_veh = self.extract_feat(batch_inputs_dict['points'], points_view='vehicle')
+        # feat_inf = self.extract_feat(batch_inputs_dict, points_view='infrastructure')
 
         if self.test_mode not in ['FlowPred', 'OriginFeat', 'Async']:
             raise Exception('FlowNet Test Mode is Error: {}'.format(self.test_mode))
@@ -412,20 +415,43 @@ class FeatureFlowNet(SingleStage3DDetector):
             feat_inf_t_1 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t1')
             feat_inf = feat_inf_t_1
 
+        img_metas = [item.metainfo for item in batch_data_samples]
+
         if self.test_mode == 'FlowPred':
             points_t_0_1 = []
             points_t_1_2 = []
-
-            batch_input_metas = [item.metainfo for item in batch_data_samples]
+            inf_points_t_0 = []
+            inf_points_t_1 = []
+            inf_points_t_2 = []
 
             for ii in range(len(batch_inputs_dict['points'])):
-                points_t_0_1.append(batch_input_metas[ii]['v2x_info']['infrastructure_t_0_1'])
-                points_t_1_2.append(batch_input_metas[ii]['v2x_info']['infrastructure_t_1_2'])
+                inf_points_path_t_0 = os.path.join(img_metas[ii]['v2x_info']['infrastructure_pointcloud_bin_path_t_0'])
+                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_0, dtype=np.float32))
+                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=batch_inputs_dict['points'][0].device)
+                inf_points_t_0.append(tem_inf_points)
 
-            feat_inf_t_1 = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t1')
+                inf_points_path_t_1 = os.path.join(img_metas[ii]['v2x_info']['infrastructure_pointcloud_bin_path_t_1'])
+                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_1, dtype=np.float32))
+                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=batch_inputs_dict['points'][0].device)
+                inf_points_t_1.append(tem_inf_points)
+
+                inf_points_path_t_2 = os.path.join(img_metas[ii]['v2x_info']['infrastructure_pointcloud_bin_path_t_2'])
+                tem_inf_points = torch.from_numpy(np.fromfile(inf_points_path_t_2, dtype=np.float32))
+                tem_inf_points = torch.reshape(tem_inf_points, (-1, 4)).cuda(device=batch_inputs_dict['points'][0].device)
+                inf_points_t_2.append(tem_inf_points)
+
+                points_t_0_1.append(img_metas[ii]['v2x_info']['infrastructure_t_0_1'])
+                points_t_1_2.append(img_metas[ii]['v2x_info']['infrastructure_t_1_2'])
+
+            for ii in range(len(inf_points_t_0)):
+                inf_points_t_0[ii][:, 3] = 255 * inf_points_t_0[ii][:, 3]
+                inf_points_t_1[ii][:, 3] = 255 * inf_points_t_1[ii][:, 3]
+                inf_points_t_2[ii][:, 3] = 255 * inf_points_t_2[ii][:, 3]
+
+            feat_inf_t_1 = self.extract_feat(inf_points_t_1, points_view='infrastructure')
             # feat_inf_t_2 = self.extract_feat(inf_points_t_2, img_metas, points_view='infrastructure')
-            feat_inf_temp = self.extract_feat(batch_inputs_dict, points_view='infrastructure_t2')
-            flow_pred = self.flownet(batch_inputs_dict['infrastructure_t0_points'], batch_inputs_dict['infrastructure_t1_points'])
+            feat_inf_temp = self.extract_feat(inf_points_t_2, points_view='infrastructure')
+            flow_pred = self.flownet(inf_points_t_0, inf_points_t_1)
             feat_inf_apprs = []
             for ii in range(len(flow_pred)):
                 for bs in range(len(batch_inputs_dict['points'])):
@@ -435,12 +461,12 @@ class FeatureFlowNet(SingleStage3DDetector):
                     feat_inf_temp[ii][bs] = feat_inf_temp[ii][bs] / tem_feat_inf_t_1_after_max * tem_feat_inf_t_1_before_max
                 feat_inf_apprs.append(feat_inf_temp[ii])
 
-            # similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_2[0], start_dim=1, end_dim=3), torch.flatten(feat_inf_apprs[0], start_dim=1, end_dim=3), dim=1)
-            # print("The similarity is: ", similarity, points_t_1_2)
+            # similarity = torch.cosine_similarity(torch.flatten(feat_inf_t_2[0], start_dim=1, end_dim=3),
+            #                                      torch.flatten(feat_inf_apprs[0], start_dim=1, end_dim=3), dim=1)
 
             feat_inf = feat_inf_apprs
 
-        feat_fused = self.feature_fusion(feat_veh, feat_inf, batch_input_metas)
+        feat_fused = self.feature_fusion(feat_veh, feat_inf, img_metas)
         bbox_list = self.bbox_head.predict(feat_fused, batch_data_samples)
 
         return bbox_list
@@ -479,7 +505,7 @@ class FeatureFlowNet(SingleStage3DDetector):
         """Apply hard voxelization to points."""
         voxels, coors, num_points = [], [], []
         for res in points:
-            res = res.contiguous()  # fix for runtime error input must be contiguous
+            res = res.contiguous()
             res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
             voxels.append(res_voxels)
             coors.append(res_coors)
