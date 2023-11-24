@@ -152,6 +152,7 @@ class FeatureFlow(BaseModel):
         rotation, translation = trans.get_rot_trans()
         result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation, vic_frame)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
+        # print(result[0])
 
         remain = []
         if len(result[0]['boxes_3d'].tensor) != 0:
