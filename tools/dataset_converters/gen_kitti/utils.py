@@ -17,26 +17,26 @@ def mkdir_p(path):
 
 
 def read_json(path):
-    with open(path, "r") as f:
+    with open(path, 'r') as f:
         my_json = json.load(f)
         return my_json
 
 
 def write_json(path_json, new_dict):
-    with open(path_json, "w") as f:
+    with open(path_json, 'w') as f:
         json.dump(new_dict, f)
 
 
 def write_txt(path, file):
-    with open(path, "w") as f:
+    with open(path, 'w') as f:
         f.write(file)
 
 
-def get_files_path(path_my_dir, extention=".json"):
+def get_files_path(path_my_dir, extension='.json'):
     path_list = []
-    for dirpath, _, filenames in os.walk(path_my_dir):
+    for dirpath, _dirnames, filenames in os.walk(path_my_dir):
         for filename in filenames:
-            if os.path.splitext(filename)[1] == extention:
+            if os.path.splitext(filename)[1] == extension:
                 path_list.append(os.path.join(dirpath, filename))
     return path_list
 
@@ -44,10 +44,10 @@ def get_files_path(path_my_dir, extention=".json"):
 def pcd2bin(pcd_file_path, bin_file_path):
     pc = pypcd.PointCloud.from_path(pcd_file_path)
 
-    np_x = (np.array(pc.pc_data["x"], dtype=np.float32)).astype(np.float32)
-    np_y = (np.array(pc.pc_data["y"], dtype=np.float32)).astype(np.float32)
-    np_z = (np.array(pc.pc_data["z"], dtype=np.float32)).astype(np.float32)
-    np_i = (np.array(pc.pc_data["intensity"], dtype=np.float32)).astype(np.float32) / 255
+    np_x = (np.array(pc.pc_data['x'], dtype=np.float32)).astype(np.float32)
+    np_y = (np.array(pc.pc_data['y'], dtype=np.float32)).astype(np.float32)
+    np_z = (np.array(pc.pc_data['z'], dtype=np.float32)).astype(np.float32)
+    np_i = (np.array(pc.pc_data['intensity'], dtype=np.float32)).astype(np.float32) / 255
 
     points_32 = np.transpose(np.vstack((np_x, np_y, np_z, np_i)))
     points_32.tofile(bin_file_path)

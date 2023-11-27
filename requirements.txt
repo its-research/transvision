@@ -1,7 +1,9 @@
-isort
 black
 black[jupyter]
+bottleneck
 flake8
 flake8-bugbear
 flake8-comprehensions
+isort
+pyarrow
 uarray

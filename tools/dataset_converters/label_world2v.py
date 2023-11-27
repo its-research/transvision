@@ -3,56 +3,15 @@ import math
 import os
 
 import numpy as np
-from gen_kitti.utils import mkdir_p, read_json, write_json
 from tqdm import tqdm
 
-"""
-            virtuallidar2world
-inf lidar ------------------------> world coordinate <===== label_world
-              补充   relative error      ^
-                                         |
-                                         |
-                                         |
-                                         |
-                                         | novatel2world
-                                         |
-                                         |
-                                         |
-                                         |
-                 lidar2novatel           |
-veh lidar --------------------------> novatel
-
-"""
-
-
-"""
-   (x0y0z0, x0y0z1, x0y1z1, x0y1z0, x1y0z0, x1y0z1, x1y1z1, x1y1z0)
-
-   ..code - block:: none
-
-
-                        front z
-                             /
-                            /
-              (x0, y0, z1) + -----------  + (x1, y0, z1)
-                          /|            / |
-                         / |           /  |
-           (x0, y0, z0) + ----------- +   + (x1, y1, z1)
-                        |  /      .   |  /
-                        | / oriign    | /
-           (x0, y1, z0) + ----------- + -------> x right
-                        |             (x1, y1, z0)
-                        |
-                        v
-                   down y
-
-   """
+from tools.dataset_converters.gen_kitti.utils import mkdir_p, read_json, write_json
 
 
 def get_3d_location(data_label_world):
-    x = data_label_world["3d_location"]["x"]
-    y = data_label_world["3d_location"]["y"]
-    z = data_label_world["3d_location"]["z"]
+    x = data_label_world['3d_location']['x']
+    y = data_label_world['3d_location']['y']
+    z = data_label_world['3d_location']['z']
     point = np.array([x, y, z]).reshape(3, 1)
     return point
 
@@ -65,7 +24,7 @@ def write_3d_location(point):
 
 
 def get_world_8_points(data_label_world):
-    world_8_points = data_label_world["world_8_points"]
+    world_8_points = data_label_world['world_8_points']
     points = []
     for i in range(8):
         point = np.array(world_8_points[i]).reshape(3, 1)
@@ -83,22 +42,22 @@ def write_world_8_points(points):
 
 def get_novatel2world(path_novatel2world):
     novatel2world = read_json(path_novatel2world)
-    rotation = novatel2world["rotation"]
-    translation = novatel2world["translation"]
+    rotation = novatel2world['rotation']
+    translation = novatel2world['translation']
     return rotation, translation
 
 
 def get_lidar2novatel(path_lidar2novatel):
     lidar2novatel = read_json(path_lidar2novatel)
-    rotation = lidar2novatel["transform"]["rotation"]
-    translation = lidar2novatel["transform"]["translation"]
+    rotation = lidar2novatel['transform']['rotation']
+    translation = lidar2novatel['transform']['translation']
     return rotation, translation
 
 
 def get_data(data_info, path_pcd):
     for data in data_info:
         name1 = os.path.split(path_pcd)[-1]
-        name2 = os.path.split(data["pointcloud_path"])[-1]
+        name2 = os.path.split(data['pointcloud_path'])[-1]
         if name1 == name2:
             return data
 
@@ -153,15 +112,15 @@ def label_world2v(path_cooperative_label, path_novatel2world, path_lidar2novatel
             my_world_8_points.append(point)
         new_world_8_points = write_world_8_points(my_world_8_points)
 
-        length = label_world[i]["3d_dimensions"]["l"]
-        w = label_world[i]["3d_dimensions"]["w"]
+        length = label_world[i]['3d_dimensions']['l']
+        w = label_world[i]['3d_dimensions']['w']
         rotation = get_rotation(new_world_8_points, new_3d_point, length, w)
 
-        label_world[i]["3d_location"]["x"] = new_3d_point[0]
-        label_world[i]["3d_location"]["y"] = new_3d_point[1]
-        label_world[i]["3d_location"]["z"] = new_3d_point[2]
-        label_world[i]["rotation"] = rotation
-        label_world[i]["world_8_points"] = new_world_8_points
+        label_world[i]['3d_location']['x'] = new_3d_point[0]
+        label_world[i]['3d_location']['y'] = new_3d_point[1]
+        label_world[i]['3d_location']['z'] = new_3d_point[2]
+        label_world[i]['rotation'] = rotation
+        label_world[i]['world_8_points'] = new_world_8_points
 
         new_label.append(label_world[i])
     return new_label
@@ -184,39 +143,39 @@ def gen_new_label(path_cooperative_label, path_novatel2world, path_lidar2novatel
 
 def get_label2v(path_c, path_dest):
     mkdir_p(path_dest)
-    path_c_data_info = os.path.join(path_c, "cooperative/data_info.json")
-    path_v_data_info = os.path.join(path_c, "vehicle-side/data_info.json")
+    path_c_data_info = os.path.join(path_c, 'cooperative/data_info.json')
+    path_v_data_info = os.path.join(path_c, 'vehicle-side/data_info.json')
     c_data_info = read_json(path_c_data_info)
     v_data_info = read_json(path_v_data_info)
 
     for data in tqdm(c_data_info):
-        path_pcd_v = os.path.join(path_c, data["vehicle_pointcloud_path"])
-        path_cooperative_label = os.path.join(path_c, data["cooperative_label_path"])
+        path_pcd_v = os.path.join(path_c, data['vehicle_pointcloud_path'])
+        path_cooperative_label = os.path.join(path_c, data['cooperative_label_path'])
 
         v_data = get_data(v_data_info, path_pcd_v)
-        path_novatel2world = os.path.join(path_c, "vehicle-side", v_data["calib_novatel_to_world_path"])
-        path_lidar2novatel = os.path.join(path_c, "vehicle-side", v_data["calib_lidar_to_novatel_path"])
+        path_novatel2world = os.path.join(path_c, 'vehicle-side', v_data['calib_novatel_to_world_path'])
+        path_lidar2novatel = os.path.join(path_c, 'vehicle-side', v_data['calib_lidar_to_novatel_path'])
 
         name = os.path.split(path_cooperative_label)[-1]
         path_save = os.path.join(path_dest, name)
         gen_new_label(path_cooperative_label, path_novatel2world, path_lidar2novatel, path_save)
 
 
-parser = argparse.ArgumentParser("Generate label from world coordinate to vehicle lidar coordinate.")
+parser = argparse.ArgumentParser('Generate label from world coordinate to vehicle lidar coordinate.')
 parser.add_argument(
-    "--source-root",
+    '--source-root',
     type=str,
-    default="./data/cooperative-vehicle-infrastructure",
-    help="Raw data root about DAIR-V2X-C.",
+    default='./data/cooperative-vehicle-infrastructure',
+    help='Raw data root about DAIR-V2X-C.',
 )
 parser.add_argument(
-    "--target-root",
+    '--target-root',
     type=str,
-    default="./label_new",
-    help="The label root where the label is in vehicle lidar coordinate system.",
+    default='./label_new',
+    help='The label root where the label is in vehicle lidar coordinate system.',
 )
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     args = parser.parse_args()
     source_root = args.source_root
     target_label_root = args.target_root

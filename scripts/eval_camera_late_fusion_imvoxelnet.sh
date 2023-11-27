@@ -7,11 +7,11 @@ mkdir -p $OUTPUT/inf/camera
 mkdir -p $OUTPUT/veh/camera
 
 INFRA_MODEL_PATH="./configs/vic3d/late-fusion-image/imvoxelnet"
-INFRA_CONFIG_NAME="imvoxelnet_dair_c_i_3d_car.py"
+INFRA_CONFIG_NAME="trainval_config_i.py"
 INFRA_MODEL_NAME="../../../../models/vic3d_latefusion_inf_imvoxelnet_973cefc0b2c14fee1b8775aa996ac779.pth"
 
 VEHICLE_MODEL_PATH="./configs/vic3d/late-fusion-image/imvoxelnet"
-VEHICLE_CONFIG_NAME="imvoxelnet_dair_c_v_3d_car.py"
+VEHICLE_CONFIG_NAME="trainval_config_v.py"
 VEHICLE_MODEL_NAME="../../../../models/vic3d_latefusion_veh_imvoxelnet_9d0ad4d4930c41d62839d45c06f86326.pth"
 
 SPLIT_DATA_PATH="./data/split_datas/cooperative-split-data.json"

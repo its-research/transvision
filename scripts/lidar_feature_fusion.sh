@@ -1,13 +1,12 @@
-FFNet_workdir='/home/yuhaibao/FFNet-VIC3D'
-DATA=${FFNet_workdir}'/data/dair-v2x/DAIR-V2X/cooperative-vehicle-infrastructure'
+DATA='data/DAIR-V2X/cooperative-vehicle-infrastructure'
 SPLIT=val
-SPLIT_DATA_PATH="../data/split_datas/cooperative-split-data.json"
-OUTPUT="../cache/vic-feature-fusion-baseline"
-VEHICLE_MODEL_PATH=${FFNet_workdir}'/ffnet_work_dir/work_dir_baseline-V1/ffnet_without_prediction.pth'
-VEHICLE_CONFIG_NAME=${FFNet_workdir}'/ffnet_work_dir/config_basemodel.py'
+SPLIT_DATA_PATH="data/split_datas/cooperative-split-data.json"
+OUTPUT="cache/vic-feature-fusion-baseline"
+VEHICLE_MODEL_PATH='work_dirs/mmdet3d_1.3.0/ffnet-vic3d/basemodel/fusion/lr=0.0036/epoch_30.pth'
+VEHICLE_CONFIG_NAME='configs/ffnet/config_basemodel_fusion.py'
 CUDA_VISIBLE_DEVICES=$1 \
 
-python eval.py \
+python transvision/eval.py \
   --input $DATA \
   --output $OUTPUT \
   --model feature_fusion \
@@ -19,4 +18,4 @@ python eval.py \
   --device $CUDA_VISIBLE_DEVICES \
   --pred-class car \
   --sensortype lidar \
-  --extended-range 0 -39.68 -3 100 39.68 1 
+  --extended-range 0 -39.68 -3 100 39.68 1

@@ -152,5 +152,9 @@ cython_debug/
 /work_dirs/
 /models/
 /cache/
-nohup.out
+nohup.out*
 transvision/utils/box_overlaps.c
+/FFNet-VIC3D
+/DAIR-V2X
+/ffnet_work_dir/
+training_list.sh

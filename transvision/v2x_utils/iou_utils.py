@@ -59,8 +59,8 @@ def poly_area(x, y):
 
 def convex_hull_intersection(p1, p2):
     """Compute area of two convex hull's intersection area.
-    p1,p2 are a list of (x,y) tuples of hull vertices.
-    return a list of (x,y) for the intersection and its volume
+
+    p1,p2 are a list of (x,y) tuples of hull vertices. return a list of (x,y) for the intersection and its volume
     """
     inter_p = polygon_clip(p1, p2)
     if inter_p is not None:
@@ -72,9 +72,9 @@ def convex_hull_intersection(p1, p2):
 
 def box3d_vol(corners, debug=False):
     """corners: (8,3) no assumption on axis direction"""
-    a = np.sqrt(np.sum((corners[0, :] - corners[1, :]) ** 2))
-    b = np.sqrt(np.sum((corners[1, :] - corners[2, :]) ** 2))
-    c = np.sqrt(np.sum((corners[0, :] - corners[4, :]) ** 2))
+    a = np.sqrt(np.sum((corners[0, :] - corners[1, :])**2))
+    b = np.sqrt(np.sum((corners[1, :] - corners[2, :])**2))
+    c = np.sqrt(np.sum((corners[0, :] - corners[4, :])**2))
     return a * b * c
 
 
@@ -105,11 +105,11 @@ def box3d_iou(corners1, corners2, debug=False):
     inter, inter_area = convex_hull_intersection(rect1, rect2)
     iou_2d = inter_area / (area1 + area2 - inter_area)
     if debug:
-        print("area=", inter_area, "iou=", iou_2d)
+        print('area=', inter_area, 'iou=', iou_2d)
     zmax = min(corners1[4, 2], corners2[4, 2])
     zmin = max(corners1[0, 2], corners2[0, 2])
     if debug:
-        print("zmax=", zmax, "zmin=", zmin)
+        print('zmax=', zmax, 'zmin=', zmin)
 
     inter_vol = inter_area * max(0.0, zmax - zmin)
 
