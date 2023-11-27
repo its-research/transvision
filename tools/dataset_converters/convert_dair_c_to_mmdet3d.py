@@ -3,12 +3,8 @@ import copy
 import os
 
 import numpy as np
-# from gen_kitti.gen_calib2kitti import convert_calib_v2x_to_kitti, get_cam_D_and_cam_K, get_velo2cam
-# from gen_kitti.label_lidarcoord_to_cameracoord import convert_point, get_camera_3d_8points
 from gen_kitti.label_lidarcoord_to_cameracoord import get_label
-# from kitti_data_utils import _extend_matrix
 from mmdet3d.structures.bbox_3d.utils import limit_period
-# from mmdet3d.structures import points_cam2img
 from mmdet3d.structures.ops import box_np_ops
 from mmengine.fileio import dump, load
 from skimage import io
@@ -20,6 +16,8 @@ parser.add_argument('--dataset', type=str, default='cooperative')
 parser.add_argument('--root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/', help='specify the root path of dataset')
 parser.add_argument('--dst-root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet', help='specify the root path of dataset')
 parser.add_argument('--split_file_path', type=str, default='data/split_datas/cooperative-split-data.json', help='specify the split file')
+parser.add_argument('--v2x-info-gen', type=bool, default=True, help='specify the root path of dataset')
+
 args = parser.parse_args()
 
 
@@ -41,61 +39,6 @@ def get_metainfo():
     metainfo['classes'] = ['Pedestrian', 'Cyclist', 'Car']
     metainfo['categories'] = {'Pedestrian': 0, 'Cyclist': 1, 'Car': 2}
     return metainfo
-
-
-def get_calibs(calib_path):
-    calib = load(calib_path)
-    if 'transform' in calib.keys():
-        calib = calib['transform']
-    rotation = calib['rotation']
-    translation = calib['translation']
-    return rotation, translation
-
-
-def rev_matrix(rotation, translation):
-    rotation = np.matrix(rotation)
-    rev_R = rotation.I
-    rev_R = np.array(rev_R)
-    rev_T = -np.dot(rev_R, translation)
-    return rev_R, rev_T
-
-
-def inverse_matrix(R):
-    R = np.matrix(R)
-    rev_R = R.I
-    rev_R = np.array(rev_R)
-    return rev_R
-
-
-def mul_matrix(rotation_1, translation_1, rotation_2, translation_2):
-    rotation_1 = np.matrix(rotation_1)
-    translation_1 = np.matrix(translation_1)
-    rotation_2 = np.matrix(rotation_2)
-    translation_2 = np.matrix(translation_2)
-
-    rotation = rotation_2 * rotation_1
-    translation = rotation_2 * translation_1 + translation_2
-    rotation = np.array(rotation)
-    translation = np.array(translation)
-
-    return rotation, translation
-
-
-def trans_lidar_i2v(inf_lidar2world_path, veh_lidar2novatel_path, veh_novatel2world_path, system_error_offset=None):
-    inf_lidar2world_r, inf_lidar2world_t = get_calibs(inf_lidar2world_path)
-    if system_error_offset is not None:
-        inf_lidar2world_t[0][0] = inf_lidar2world_t[0][0] + system_error_offset['delta_x']
-        inf_lidar2world_t[1][0] = inf_lidar2world_t[1][0] + system_error_offset['delta_y']
-
-    veh_novatel2world_r, veh_novatel2world_t = get_calibs(veh_novatel2world_path)
-    veh_world2novatel_r, veh_world2novatel_t = rev_matrix(veh_novatel2world_r, veh_novatel2world_t)
-    inf_lidar2novatel_r, inf_lidar2novatel_t = mul_matrix(inf_lidar2world_r, inf_lidar2world_t, veh_world2novatel_r, veh_world2novatel_t)
-
-    veh_lidar2novatel_r, veh_lidar2novatel_t = get_calibs(veh_lidar2novatel_path)
-    veh_novatel2lidar_r, veh_novatel2lidar_t = rev_matrix(veh_lidar2novatel_r, veh_lidar2novatel_t)
-    inf_lidar2lidar_r, inf_lidar2lidar_t = mul_matrix(inf_lidar2novatel_r, inf_lidar2novatel_t, veh_novatel2lidar_r, veh_novatel2lidar_t)
-
-    return inf_lidar2lidar_r, inf_lidar2lidar_t
 
 
 def get_calib_info(ori_info, root_path):
@@ -246,8 +189,8 @@ def get_instances(images, lidar_points, metainfo, root_path):
 
         instance['bbox'] = [label_info['2d_box']['xmin'], label_info['2d_box']['ymin'], label_info['2d_box']['xmax'], label_info['2d_box']['ymax']]
         #
-        # if label_info['type'] in ['truck', 'van', 'bus', 'car']:
-        if label_info['type'] in ['car']:
+        # if label_info['type'] in ['car']:
+        if label_info['type'] in ['truck', 'van', 'bus', 'car']:
             label_info['type'] = 'Car'
 
         if label_info['type'] in metainfo['classes']:
@@ -264,28 +207,12 @@ def get_instances(images, lidar_points, metainfo, root_path):
         if w == 0.0 or h == 0.0 or l == 0.0:
             continue
         z = z - h / 2
-        # bottom_center = [x, y, z]
-        # obj_size = [l, h, w]  # [l, w, h]
-
-        # bottom_center_in_cam = images[defalut_cam]['r_velo2cam'] * np.matrix(bottom_center).T + images[defalut_cam]['t_velo2cam']
-        # alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, images[defalut_cam]['r_velo2cam'], images[defalut_cam]['t_velo2cam'])
-        # [cam_x, cam_y, cam_z, _] = convert_point(np.array([x, y, z, 1]).T, np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32))
-
-        # dst = np.array([0.5, 0.5, 0.5])
-        # src = np.array([0.5, 1.0, 0.5])
-
-        # loc = np.array([cam_x, cam_y, cam_z])
-        # dims = np.array([w, h, l])
-        # rots = np.array([-yaw_lidar])
 
         extended_xyz = np.array([x, y, z, 1])
         loc = extended_xyz @ np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32).T
         loc = loc[:3]
 
         dims = np.array([l, h, w])  # 初始为wlh, 交换lhw
-        # yaw = -yaw_lidar - np.pi / 2
-        # yaw = -yaw_lidar
-        # yaw = yaw_lidar - np.pi / 2  # Wrong
         yaw = -yaw_lidar - np.pi / 2
         yaw = limit_period(yaw, period=np.pi * 2)
         rots = np.array([yaw])
@@ -293,6 +220,13 @@ def get_instances(images, lidar_points, metainfo, root_path):
         gt_bboxes_3d = np.concatenate([loc, dims, rots]).tolist()  # camera coord
         instance['bbox_3d'] = gt_bboxes_3d
 
+        # bottom_center = [x, y, z]
+        # obj_size = [l, h, w]  # [l, w, h]
+        # bottom_center_in_cam = images[defalut_cam]['r_velo2cam'] * np.matrix(bottom_center).T + images[defalut_cam]['t_velo2cam']
+        # alpha, yaw = get_camera_3d_8points(obj_size, yaw_lidar, bottom_center, bottom_center_in_cam, images[defalut_cam]['r_velo2cam'], images[defalut_cam]['t_velo2cam'])
+        # [cam_x, cam_y, cam_z, _] = convert_point(np.array([x, y, z, 1]).T, np.array(images[defalut_cam]['tr_velo_to_cam']).astype(np.float32))
+        # dst = np.array([0.5, 0.5, 0.5])
+        # src = np.array([0.5, 1.0, 0.5])
         # center_3d = loc + dims * (dst - src)
         # center_2d = points_cam2img(center_3d.reshape([1, 3]), images[defalut_cam]['cam2img'], with_depth=True)
         # center_2d = center_2d.squeeze().tolist()
@@ -342,15 +276,19 @@ def get_instances(images, lidar_points, metainfo, root_path):
 
 if __name__ == '__main__':
     root_path = args.root_path
-    v2x_info_gen = True
+    v2x_info_gen = args.v2x_info_gen
     if v2x_info_gen is False:
         dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_trainval.pkl')
         dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_train.pkl')
         dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_val.pkl')
+        v2x_info_train_file = 'flow_data_info_train.json'
+        v2x_info_val_file = 'flow_data_info_val_0.json'
     else:
         dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_flow_trainval.pkl')
         dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_flow_train.pkl')
         dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_flow_val.pkl')
+        v2x_info_train_file = 'flow_data_info_train_2.json'
+        v2x_info_val_file = 'flow_data_info_val_2.json'
 
     split_list = get_split_list(args.split_file_path)
 
@@ -417,13 +355,8 @@ if __name__ == '__main__':
             data_info['instances'] = instances
             data_info['calib'] = calib
 
-            if v2x_info_gen:
-                v2x_info_train_file = 'flow_data_info_train_2.json'
-                v2x_info_val_file = 'flow_data_info_val_2.json'
-            else:
+            if v2x_info_gen is False:
                 data_infos['data_list'].append(data_info)
-                v2x_info_train_file = 'flow_data_info_train.json'
-                v2x_info_val_file = 'flow_data_info_val_0.json'
 
             if frame_id in split_list['train']:
                 v2x_infos = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
