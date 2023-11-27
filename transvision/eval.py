@@ -31,8 +31,15 @@ def eval_vic(args, dataset, model, evaluator, pipe):
             filt,
             None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
         )
-        print(pred, label, bbox_3d_lwhr)
-        exit()
+        # print(veh_id)
+        # print(bbox_3d_lwhr)
+        # perm_pred = [0, 4, 7, 3, 1, 5, 6, 2]
+        # perm_pred = [3, 0, 4, 7, 2, 1, 5, 6]
+        # perm_label = [3, 2, 1, 0, 7, 6, 5, 4]
+        # for p, l in zip(pred['boxes_3d'], label['boxes_3d']):
+        #     print(p[perm_pred], l[perm_label])
+        #     print('=====================')
+        # exit()
 
         evaluator.add_frame(pred, label)
         pipe.flush()
