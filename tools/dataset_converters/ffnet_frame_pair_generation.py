@@ -124,7 +124,7 @@ def data_info_flow_val(data_infos, inf_idx_batch_mappings, async_k=1):
 
 parser = argparse.ArgumentParser('Preprocess the DAIR-V2X-C for FFNET.')
 parser.add_argument('--source-root', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure', help='Raw data root of DAIR-V2X-C.')
-parser.add_argument('--target-root', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/', help='Target data root of DAIR-V2X-C.')
+parser.add_argument('--target-root', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/', help='Target data root of DAIR-V2X-C.')
 
 if __name__ == '__main__':
     args = parser.parse_args()

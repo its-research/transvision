@@ -1,6 +1,6 @@
 _base_ = ['../../../__base__/default_runtime.py']
 dataset_type = 'KittiDataset'
-data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/'
+data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/'
 class_names = ['Car']
 # point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
@@ -20,7 +20,7 @@ ann_file_val = 'kitti_infos_val.pkl'
 metainfo = dict(classes=class_names)
 input_modality = dict(use_lidar=True, use_camera=False)
 
-work_dir = './work_dirs/mmdet3d_1.2.0/early_fusion'
+work_dir = './work_dirs/mmdet3d_1.3.0/early_fusion'
 
 model = dict(
     type='VoxelNet',

@@ -1,10 +1,10 @@
 _base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py', '../__base__/models/v2x_voxelnet.py']
 
 dataset_type = 'V2XDatasetV2'
-data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
+data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/'
 data_info_train_path = 'dair_infos_train.pkl'
 data_info_val_path = 'dair_infos_val.pkl'
-work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/basemodel/fusion'
+work_dir = './work_dirs/mmdet3d_1.3.0/ffnet-vic3d/basemodel/fusion'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 

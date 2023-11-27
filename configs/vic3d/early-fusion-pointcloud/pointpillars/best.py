@@ -3,15 +3,15 @@ backend_args = None
 class_names = [
     'Car',
 ]
-data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/'
+data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/'
 dataset_type = 'KittiDataset'
 db_sampler = dict(
     backend_args=None,
     classes=[
         'Car',
     ],
-    data_root='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/',
-    info_path='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/kitti_dbinfos_train.pkl',
+    data_root='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/',
+    info_path='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/kitti_dbinfos_train.pkl',
     points_loader=dict(backend_args=None, coord_type='LIDAR', load_dim=4, type='LoadPointsFromFile', use_dim=4),
     prepare=dict(filter_by_difficulty=[
         -1,
@@ -182,7 +182,7 @@ test_dataloader = dict(
         backend_args=None,
         box_type_3d='LiDAR',
         data_prefix=dict(pts='training/velodyne_reduced'),
-        data_root='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/',
+        data_root='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/',
         metainfo=dict(classes=[
             'Car',
         ]),
@@ -230,7 +230,7 @@ test_dataloader = dict(
     persistent_workers=True,
     sampler=dict(shuffle=False, type='DefaultSampler'))
 test_evaluator = dict(
-    ann_file='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/kitti_infos_val.pkl', backend_args=None, metric='bbox', type='KittiMetric')
+    ann_file='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/kitti_infos_val.pkl', backend_args=None, metric='bbox', type='KittiMetric')
 test_pipeline = [
     dict(backend_args=None, coord_type='LIDAR', load_dim=4, type='LoadPointsFromFile', use_dim=4),
     dict(
@@ -276,7 +276,7 @@ train_dataloader = dict(
             backend_args=None,
             box_type_3d='LiDAR',
             data_prefix=dict(pts='training/velodyne_reduced'),
-            data_root='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/',
+            data_root='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/',
             metainfo=dict(classes=[
                 'Car',
             ]),
@@ -364,7 +364,7 @@ val_dataloader = dict(
         backend_args=None,
         box_type_3d='LiDAR',
         data_prefix=dict(pts='training/velodyne_reduced'),
-        data_root='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/',
+        data_root='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/',
         metainfo=dict(classes=[
             'Car',
         ]),
@@ -412,7 +412,7 @@ val_dataloader = dict(
     persistent_workers=True,
     sampler=dict(shuffle=False, type='DefaultSampler'))
 val_evaluator = dict(
-    ann_file='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/early-fusion/kitti_infos_val.pkl', backend_args=None, metric='bbox', type='KittiMetric')
+    ann_file='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/early-fusion/kitti_infos_val.pkl', backend_args=None, metric='bbox', type='KittiMetric')
 vis_backends = [
     dict(type='LocalVisBackend'),
 ]
@@ -425,7 +425,7 @@ voxel_size = [
     0.16,
     4,
 ]
-work_dir = './work_dirs/ffnet-vic3d/basemodel/mmdet3d_1.2.0'
+work_dir = './work_dirs/ffnet-vic3d/basemodel/mmdet3d_1.3.0'
 z_center_car = -2.66
 z_center_cyclist = -0.6
 z_center_pedestrian = -0.6

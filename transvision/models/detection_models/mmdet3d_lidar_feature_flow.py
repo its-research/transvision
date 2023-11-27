@@ -64,7 +64,7 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     test_pipeline = Compose(test_pipeline)
     box_type_3d, box_mode_3d = get_box_type(cfg.test_dataloader.dataset.box_type_3d)
     v2x_info = {}
-    data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet'
+    data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet'
 
     v2x_info['infrastructure_idx_t_1'] = vic_frame['infrastructure_idx_t_1']
     v2x_info['infrastructure_pointcloud_bin_path_t_1'] = os.path.join(data_root, vic_frame['infrastructure_pointcloud_bin_path_t_1'])

@@ -14,7 +14,7 @@ from update_infos_to_v2 import get_empty_instance
 parser = argparse.ArgumentParser(description='Data converter arg parser')
 parser.add_argument('--dataset', type=str, default='cooperative')
 parser.add_argument('--root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/', help='specify the root path of dataset')
-parser.add_argument('--dst-root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet', help='specify the root path of dataset')
+parser.add_argument('--dst-root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet', help='specify the root path of dataset')
 parser.add_argument('--split_file_path', type=str, default='data/split_datas/cooperative-split-data.json', help='specify the split file')
 parser.add_argument('--v2x-info-gen', type=bool, default=True, help='specify the root path of dataset')
 
@@ -190,6 +190,7 @@ def get_instances(images, lidar_points, metainfo, root_path):
         instance['bbox'] = [label_info['2d_box']['xmin'], label_info['2d_box']['ymin'], label_info['2d_box']['xmax'], label_info['2d_box']['ymax']]
         #
         # if label_info['type'] in ['car']:
+
         if label_info['type'] in ['truck', 'van', 'bus', 'car']:
             label_info['type'] = 'Car'
 
@@ -198,6 +199,7 @@ def get_instances(images, lidar_points, metainfo, root_path):
             instance['bbox_label_3d'] = instance['bbox_label']
             instance['attr_label'] = instance['bbox_label']
         else:
+            print(label_info['type'])
             instance['bbox_label'] = -1
             instance['bbox_label_3d'] = -1
             instance['attr_label'] = -1

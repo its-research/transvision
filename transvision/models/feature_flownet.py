@@ -195,11 +195,11 @@ class FeatureFlowNet(SingleStage3DDetector):
         self.encoder = ReduceInfTC(768)
 
         try:
-            self.data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet'
+            self.data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet'
             self.pretraind_checkpoint_path = train_cfg['pretrained_model']
         except:
             pass
-            self.data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet'
+            self.data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet'
             self.pretraind_checkpoint_path = test_cfg['pretrained_model']
         self.flownet_pretrained = False
         if 'test_mode' in test_cfg.keys():

@@ -4,7 +4,7 @@ _base_ = [
     '../__base__/models/feature_flownet.py',
 ]
 dataset_type = 'V2XDatasetV2'
-data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/'
+data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/'
 # flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'}
 # FlowPred: Use feature flow to compensate for the temporary asynchrony
 # OriginFeat: Do not introduce the simulated temporal asychrony
@@ -13,7 +13,7 @@ data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_trai
 data_info_train_path = 'dair_infos_flow_train.pkl'
 data_info_val_path = 'dair_infos_flow_val.pkl'
 
-work_dir = './work_dirs/mmdet3d_1.2.0/ffnet-vic3d/flow/fusion'
+work_dir = './work_dirs/mmdet3d_1.3.0/ffnet-vic3d/flow/fusion'
 
 input_modality = dict(use_lidar=True, use_camera=True)
 class_names = ['Car']
@@ -236,7 +236,7 @@ val_evaluator = [
         model='feature_flow',
         input='data/DAIR-V2X/cooperative-vehicle-infrastructure',
         test_mode='FlowPred',
-        val_data_path='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.2.0_training/ffnet/flow_data_jsons/flow_data_info_val_1.json',
+        val_data_path='data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/flow_data_jsons/flow_data_info_val_1.json',
         pcd_limit_range=point_cloud_range,
         backend_args=backend_args)
 ]
