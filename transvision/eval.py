@@ -36,9 +36,12 @@ def eval_vic(args, dataset, model, evaluator, pipe):
         # perm_pred = [0, 4, 7, 3, 1, 5, 6, 2]
         # perm_pred = [3, 0, 4, 7, 2, 1, 5, 6]
         # perm_label = [3, 2, 1, 0, 7, 6, 5, 4]
+
+        # pred['boxes_3d'][:, :, 2] -= 0.8
         # for p, l in zip(pred['boxes_3d'], label['boxes_3d']):
         #     print(p[perm_pred], l[perm_label])
         #     print('=====================')
+
         # exit()
 
         evaluator.add_frame(pred, label)
