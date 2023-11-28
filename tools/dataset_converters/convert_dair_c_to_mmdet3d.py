@@ -16,7 +16,7 @@ parser.add_argument('--dataset', type=str, default='cooperative')
 parser.add_argument('--root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/', help='specify the root path of dataset')
 parser.add_argument('--dst-root-path', type=str, default='./data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet', help='specify the root path of dataset')
 parser.add_argument('--split_file_path', type=str, default='data/split_datas/cooperative-split-data.json', help='specify the split file')
-parser.add_argument('--v2x-info-gen', type=bool, default=True, help='specify the root path of dataset')
+parser.add_argument('--v2x-info-gen', type=int, default=0, help='specify the root path of dataset')
 
 args = parser.parse_args()
 
@@ -28,6 +28,9 @@ def get_split_list(split_path):
     split_list['train'] = ori_list['cooperative_split']['train']
     split_list['val'] = ori_list['cooperative_split']['val']
     split_list['trainval'] = split_list['train'] + split_list['val']
+    print('trainval num: ', len(split_list['trainval']))
+    print('train num: ', len(split_list['train']))
+    print('val num: ', len(split_list['val']))
     return split_list
 
 
@@ -188,9 +191,7 @@ def get_instances(images, lidar_points, metainfo, root_path):
         instance = get_empty_instance()
 
         instance['bbox'] = [label_info['2d_box']['xmin'], label_info['2d_box']['ymin'], label_info['2d_box']['xmax'], label_info['2d_box']['ymax']]
-        #
         # if label_info['type'] in ['car']:
-
         if label_info['type'] in ['truck', 'van', 'bus', 'car']:
             label_info['type'] = 'Car'
 
@@ -199,7 +200,6 @@ def get_instances(images, lidar_points, metainfo, root_path):
             instance['bbox_label_3d'] = instance['bbox_label']
             instance['attr_label'] = instance['bbox_label']
         else:
-            print(label_info['type'])
             instance['bbox_label'] = -1
             instance['bbox_label_3d'] = -1
             instance['attr_label'] = -1
@@ -279,7 +279,8 @@ def get_instances(images, lidar_points, metainfo, root_path):
 if __name__ == '__main__':
     root_path = args.root_path
     v2x_info_gen = args.v2x_info_gen
-    if v2x_info_gen is False:
+    print(v2x_info_gen)
+    if v2x_info_gen == 0:
         dair_infos_trainval_path = os.path.join(args.dst_root_path, 'dair_infos_trainval.pkl')
         dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_train.pkl')
         dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_val.pkl')
@@ -290,7 +291,7 @@ if __name__ == '__main__':
         dair_infos_train_path = os.path.join(args.dst_root_path, 'dair_infos_flow_train.pkl')
         dair_infos_val_path = os.path.join(args.dst_root_path, 'dair_infos_flow_val.pkl')
         v2x_info_train_file = 'flow_data_info_train_2.json'
-        v2x_info_val_file = 'flow_data_info_val_2.json'
+        v2x_info_val_file = 'flow_data_info_val_1.json'
 
     split_list = get_split_list(args.split_file_path)
 
@@ -308,10 +309,12 @@ if __name__ == '__main__':
     data_infos_val['metainfo'] = metainfo
     data_infos_val['data_list'] = []
 
-    ori_dair_infos_train = load(os.path.join(root_path, args.dataset, 'data_info.json'))
+    ori_dair_infos_train = load(os.path.join(root_path, args.dataset, 'data_info_new.json'))
     defalut_cam = 'CAM2'
 
     flow_sample_idx = 0
+    flow_sample_train_idx = 0
+    flow_sample_val_idx = 0
 
     for ori_info in tqdm(ori_dair_infos_train):
         data_info = {
@@ -324,7 +327,8 @@ if __name__ == '__main__':
             'inf_images': {},
             'inf_lidar_points': {},
             'instances': {},
-            'cam_instances': {}
+            'cam_instances': {},
+            'v2x_info': None,
         }
         data_info['veh_sample_idx'] = ori_info['vehicle_image_path'].split('/')[-1].replace('.jpg', '')
         data_info['inf_sample_idx'] = ori_info['infrastructure_image_path'].split('/')[-1].replace('.jpg', '')
@@ -357,34 +361,51 @@ if __name__ == '__main__':
             data_info['instances'] = instances
             data_info['calib'] = calib
 
-            if v2x_info_gen is False:
+            if v2x_info_gen == 0:
+                data_info['sample_idx'] = flow_sample_idx
                 data_infos['data_list'].append(data_info)
-
-            if frame_id in split_list['train']:
-                v2x_infos = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
-                if v2x_infos is None:
-                    continue
-                for v2x_info in v2x_infos:
+                flow_sample_dx = flow_sample_idx + 1
+                if frame_id in split_list['train']:
                     data_info_new = copy.deepcopy(data_info)
-                    data_info_new['sample_idx'] = flow_sample_idx
-                    data_info_new['v2x_info'] = v2x_info
+                    data_info_new['sample_idx'] = flow_sample_train_idx
                     data_infos_train['data_list'].append(data_info_new)
-                    flow_sample_idx = flow_sample_idx + 1
-                    if not v2x_info_gen:
-                        data_infos['data_list'].append(data_info_new)
-            else:
-                v2x_infos = get_v2x_info(ori_info, args.dst_root_path, v2x_info_val_file)
-                if v2x_infos is None:
-                    continue
-                for v2x_info in v2x_infos:
+                    flow_sample_train_idx = flow_sample_train_idx + 1
+                else:
                     data_info_new = copy.deepcopy(data_info)
-                    data_info_new['sample_idx'] = flow_sample_idx
-                    flow_sample_idx = flow_sample_idx + 1
-                    data_info_new['v2x_info'] = v2x_info
+                    data_info_new['sample_idx'] = flow_sample_val_idx
                     data_infos_val['data_list'].append(data_info_new)
-                    if not v2x_info_gen:
-                        data_infos['data_list'].append(data_info_new)
+                    flow_sample_val_idx = flow_sample_val_idx + 1
+            else:
+                if frame_id in split_list['train']:
+                    v2x_infos = get_v2x_info(ori_info, args.dst_root_path, v2x_info_train_file)
+                    for v2x_info in v2x_infos:
+                        data_info_new = copy.deepcopy(data_info)
+                        data_info_new['sample_idx'] = flow_sample_train_idx
+                        data_info_new['v2x_info'] = v2x_info
+                        data_infos_train['data_list'].append(data_info_new)
+                        flow_sample_train_idx = flow_sample_train_idx + 1
+
+                        data_info_new_all = copy.deepcopy(data_info_new)
+                        data_info_new_all['sample_idx'] = flow_sample_idx
+                        data_infos['data_list'].append(data_info_new_all)
+                        flow_sample_dx = flow_sample_idx + 1
+                else:
+                    v2x_infos = get_v2x_info(ori_info, args.dst_root_path, v2x_info_val_file)
+                    for v2x_info in v2x_infos:
+                        data_info_new = copy.deepcopy(data_info)
+                        data_info_new['sample_idx'] = flow_sample_val_idx
+                        flow_sample_val_idx = flow_sample_val_idx + 1
+                        data_info_new['v2x_info'] = v2x_info
+                        data_infos_val['data_list'].append(data_info_new)
+
+                        data_info_new_all = copy.deepcopy(data_info_new)
+                        data_info_new_all['sample_idx'] = flow_sample_idx
+                        data_infos['data_list'].append(data_info_new_all)
+                        flow_sample_dx = flow_sample_idx + 1
+        else:
+            print('empty instances: ', images[defalut_cam]['img_path'])
 
     dump(data_infos, dair_infos_trainval_path)
     dump(data_infos_train, dair_infos_train_path)
     dump(data_infos_val, dair_infos_val_path)
+    print(flow_sample_idx, flow_sample_train_idx, flow_sample_val_idx)

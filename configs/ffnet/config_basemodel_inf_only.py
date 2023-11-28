@@ -1,6 +1,6 @@
 _base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py']
 
-dataset_type = 'V2XDatasetV2'
+dataset_type = 'V2XDataset'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/'
 data_info_train_path = 'dair_infos_train.pkl'
 data_info_val_path = 'dair_infos_val.pkl'

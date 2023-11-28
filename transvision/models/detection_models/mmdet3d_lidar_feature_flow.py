@@ -6,8 +6,9 @@ from os import path as osp
 
 import numpy as np
 import torch
-from mmdet3d.structures import get_box_type
+from mmdet3d.structures import CameraInstance3DBoxes, get_box_type
 from mmengine.dataset import Compose, pseudo_collate
+from mmengine.fileio import load
 
 from transvision.models.base_model import BaseModel
 from transvision.models.model_utils import init_model
@@ -48,7 +49,7 @@ def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
     return save_dict
 
 
-def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, translation, vic_frame):
+def inference_detector_feature_fusion(model, data_list, veh_bin, inf_bin, rotation, translation, vic_frame):
     """Inference point cloud with the detector.
 
     Args:
@@ -75,22 +76,22 @@ def inference_detector_feature_fusion(model, veh_bin, inf_bin, rotation, transla
     v2x_info['infrastructure_pointcloud_bin_path_t_2'] = os.path.join(data_root, vic_frame['infrastructure_pointcloud_bin_path_t_2'])
     v2x_info['infrastructure_t_1_2'] = vic_frame['infrastructure_t_1_2']
 
+    instances = data_list['instances']
+    gt_bboxes_3d = []
+    gt_labels_3d = []
+    gt_bboxes_3d = np.array([item['bbox_3d'] for item in instances]).astype(np.float32)
+    gt_labels_3d = np.array([item['bbox_label_3d'] for item in instances]).astype(np.int64)
+
+    lidar2cam = np.array(data_list['images']['CAM2']['lidar2cam'])
+    gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(box_mode_3d, np.linalg.inv(lidar2cam))
+
     data_ = dict(
         lidar_points=dict(lidar_path=veh_bin, inf_lidar_path=inf_bin),
         box_type_3d=box_type_3d,
         box_mode_3d=box_mode_3d,
         calib=dict(lidar_i2v=dict(rotation=rotation, translation=translation)),
         v2x_info=v2x_info,
-        ann_info=dict(axis_align_matrix=np.eye(4)),
-        sweeps=[],
-        timestamp=[0],
-        img_fields=[],
-        bbox3d_fields=[],
-        pts_mask_fields=[],
-        pts_seg_fields=[],
-        bbox_fields=[],
-        mask_fields=[],
-        seg_fields=[],
+        ann_info=dict(gt_bboxes_3d=gt_bboxes_3d, gt_labels_3d=gt_labels_3d),
     )
 
     data_ = test_pipeline(data_)
@@ -139,13 +140,17 @@ class FeatureFlow(BaseModel):
         mkdir(osp.join(args.output, 'veh', 'camera'))
         mkdir(osp.join(args.output, 'result'))
 
-    def forward(self, vic_frame, filt, prev_inf_frame_func=None, *args):
+    def forward(self, vic_frame, filt, idx, prev_inf_frame_func=None, *args):
         tmp_veh = vic_frame.veh_frame.point_cloud(data_format='file')
         tmp_inf = vic_frame.inf_frame.point_cloud(data_format='file')
 
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
-        result, _ = inference_detector_feature_fusion(self.model, tmp_veh, tmp_inf, rotation, translation, vic_frame)
+        ann_root_path = self.model.cfg.test_dataloader.dataset.data_root
+        ann_file = self.model.cfg.test_dataloader.dataset.ann_file
+        self.data_list = load(os.path.join(ann_root_path, ann_file))['data_list']
+
+        result, _ = inference_detector_feature_fusion(self.model, self.data_list[idx], tmp_veh, tmp_inf, rotation, translation, vic_frame)
         # print(result[0].pred_instances_3d)
         # exit()
         box, box_ry, box_center, arrow_ends = get_box_info(result)

@@ -3,7 +3,7 @@ _base_ = [
     '../__base__/default_runtime.py',
     '../__base__/models/feature_flownet.py',
 ]
-dataset_type = 'V2XDatasetV2'
+dataset_type = 'V2XDataset'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/'
 # flownet_test_mode: {'FlowPred', 'OriginFeat', 'Async'}
 # FlowPred: Use feature flow to compensate for the temporary asynchrony
@@ -121,7 +121,7 @@ test_pipeline = [
         use_dim=4,
         sensor_view='infrastructure_t2',
     ),
-    # dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
+    dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(
         type='Pack3DDetDAIRInputs',
         keys=['points', 'infrastructure_points', 'infrastructure_t0_points', 'infrastructure_t1_points', 'infrastructure_t2_points', 'gt_bboxes_3d', 'gt_labels_3d'],

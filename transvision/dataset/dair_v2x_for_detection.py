@@ -215,10 +215,12 @@ class VICDataset(DAIRV2XDataset):
             raise Exception
 
         frame_pairs_split = []
+
         for frame_pair in frame_pairs:
             veh_frame_idx = frame_pair['vehicle_image_path'].split('/')[-1].replace('.jpg', '')
             if veh_frame_idx in split_data:
                 frame_pairs_split.append(frame_pair)
+
         return frame_pairs_split
 
     def __getitem__(self, index):
