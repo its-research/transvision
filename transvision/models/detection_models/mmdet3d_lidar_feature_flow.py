@@ -131,6 +131,10 @@ class FeatureFlow(BaseModel):
             device=self.args.device,
         )
         # self.model.flownet_init()
+        ann_root_path = self.model.cfg.test_dataloader.dataset.data_root
+        ann_file = self.model.cfg.test_dataloader.dataset.ann_file
+        self.data_list = load(os.path.join(ann_root_path, ann_file))['data_list']
+
         mkdir(args.output)
         mkdir(osp.join(args.output, 'inf'))
         mkdir(osp.join(args.output, 'veh'))
@@ -146,13 +150,8 @@ class FeatureFlow(BaseModel):
 
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
-        ann_root_path = self.model.cfg.test_dataloader.dataset.data_root
-        ann_file = self.model.cfg.test_dataloader.dataset.ann_file
-        self.data_list = load(os.path.join(ann_root_path, ann_file))['data_list']
 
         result, _ = inference_detector_feature_fusion(self.model, self.data_list[idx], tmp_veh, tmp_inf, rotation, translation, vic_frame)
-        # print(result[0].pred_instances_3d)
-        # exit()
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
         remain = []

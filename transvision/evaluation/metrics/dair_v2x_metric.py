@@ -110,6 +110,7 @@ class DAIRV2XMetric(BaseMetric):
             Dict[str, float]: The computed metrics. The keys are the names of
             the metrics, and the values are corresponding results.
         """
+        # TODO: current inference is not compatible with mmdet3d
         parser = argparse.ArgumentParser(conflict_handler='resolve')
         add_arguments(parser)
         args, _ = parser.parse_known_args()

@@ -226,7 +226,13 @@ test_dataloader = dict(
 )
 
 val_evaluator = [
-    dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pklfile_prefix='results', pcd_limit_range=point_cloud_range, backend_args=backend_args),
+    dict(
+        type='KittiMetric',
+        ann_file=data_root + data_info_val_path,
+        metric='bbox',
+        pklfile_prefix='work_dirs/results',
+        pcd_limit_range=point_cloud_range,
+        backend_args=backend_args),
     dict(
         type='DAIRV2XMetric',
         ann_file=data_root + data_info_val_path,
