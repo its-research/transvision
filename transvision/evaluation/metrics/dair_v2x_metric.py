@@ -126,6 +126,7 @@ class DAIRV2XMetric(BaseMetric):
         args.model = self.model
         args.input = self.input
         args.test_mode = self.test_mode
+        args.output = './cache'
 
         evaluator = Evaluator(args.pred_classes)
         extended_range = range2box(np.array([0, -39.68, -3, 100, 39.68, 1]))
