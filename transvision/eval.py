@@ -70,7 +70,7 @@ def eval_vic(args, dataset, model, evaluator, pipe):
     line.append(pipe.average_bytes())
     table.append(line)
     headers = ['Car', 'AP@0.30', '0.50', '0.70', 'AB(Byte)']
-    print(tabulate(table, headers, tablefmt='pipe'))
+    print(tabulate(table, headers, tablefmt='pipe', floatfmt='.2f'))
 
     return results
 
