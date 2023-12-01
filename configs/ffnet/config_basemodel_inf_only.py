@@ -60,5 +60,5 @@ model = dict(
         pos_weight=-1,
         debug=False),
     test_cfg=dict(use_rotate_nms=False, nms_across_levels=False, nms_thr=0.01, score_thr=0.2, min_bbox_size=0, nms_pre=1000, max_num=300))
-
+find_unused_parameters = True
 load_from = None
