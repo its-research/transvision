@@ -11,8 +11,9 @@ from mmdet3d.models.dense_heads.centerpoint_head import SeparateHead
 from mmdet3d.models.layers import nms_bev
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import xywhr2xyxyr
-from mmdet.models.task_modules import AssignResult, PseudoSampler, build_assigner, build_bbox_coder, build_sampler
+from mmdet.models.task_modules import AssignResult, PseudoSampler
 from mmdet.models.utils import multi_apply
+from mmdet.registry import TASK_UTILS
 from mmengine.structures import InstanceData
 from torch import nn
 
@@ -89,7 +90,7 @@ class TransFusionHead(nn.Module):
         self.loss_bbox = MODELS.build(loss_bbox)
         self.loss_heatmap = MODELS.build(loss_heatmap)
 
-        self.bbox_coder = build_bbox_coder(bbox_coder)
+        self.bbox_coder = TASK_UTILS.build(bbox_coder)
         self.sampling = False
 
         # a shared convolution
@@ -182,13 +183,13 @@ class TransFusionHead(nn.Module):
             return
 
         if self.sampling:
-            self.bbox_sampler = build_sampler(self.train_cfg.sampler)
+            self.bbox_sampler = TASK_UTILS.build(self.train_cfg.sampler)
         else:
             self.bbox_sampler = PseudoSampler()
         if isinstance(self.train_cfg.assigner, dict):
-            self.bbox_assigner = build_assigner(self.train_cfg.assigner)
+            self.bbox_assigner = TASK_UTILS.build(self.train_cfg.assigner)
         elif isinstance(self.train_cfg.assigner, list):
-            self.bbox_assigner = [build_assigner(res) for res in self.train_cfg.assigner]
+            self.bbox_assigner = [TASK_UTILS.build(res) for res in self.train_cfg.assigner]
 
     def forward_single(self, inputs, metas):
         """Forward function for CenterPoint.

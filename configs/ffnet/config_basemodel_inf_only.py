@@ -9,7 +9,7 @@ h = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
 z_center_car = -2.66
 
 model = dict(
-    __delete__=True,
+    _delete_=True,
     type='V2XVoxelNet',
     mode='inf_only',  # veh_only, inf_only, fusion
     voxel_layer=dict(max_num_points=100, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=(40000, 40000)),

@@ -11,12 +11,23 @@ class_names = ['Car']
 metainfo = dict(classes=class_names)
 backend_args = None
 
-point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]  # [-75.2, -75.2, -4, 75.2, 75.2, 2]
-voxel_size = [0.16, 0.16, 4]
+# 对于基于体素化的检测器如SECOND, PointPillars 及 CenterPoint, 点云范围(point cloud range)和体素大小(voxel size)应该根据您的数据集做调整。
+# 理论上, `voxel_size` 和 `point_cloud_range` 的设置是相关联的。设置较小的 `voxel_size` 将增加体素数以及相应的内存消耗。
+# 此外, 需要注意以下问题：
+# 如果将 `point_cloud_range` 和 `voxel_size` 分别设置成 `[0, -40, -3, 70.4, 40, 1]` 和 `[0.05, 0.05, 0.1]`,
+# 那么中间特征图的形状应该为 `[(1-(-3))/0.1+1, (40-(-40))/0.05, (70.4-0)/0.05]=[41, 1600, 1408]`
+# 更改 `point_cloud_range` 时, 请记得依据 `voxel_size` 更改 `middle_encoder` 里中间特征图的形状。
+# 关于 `anchor_range` 的设置, 一般需要根据数据集做调整。需要注意的是, `z` 值需要根据点云的位置做相应调整,
+# 具体请参考此 [issue](https://github.com/open-mmlab/mmdetection3d/issues/986)。
+# 关于 `anchor_size` 的设置, 通常需要计算整个训练集中目标的长、宽、高的平均值作为 `anchor_size`, 以获得最好的结果。
+
+point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
+# voxel_size = [0.16, 0.16, 4]
+voxel_size = [0.08, 0.08, 0.1]
+
 out_size_factor = 8
-grid_size = [1440, 1440, 41]
-sparse_shape = [1440, 1440, 41]
-pc_range = [0, -46.08],  # [-75.2, -75.2]
+sparse_shape = [1152, 1152, 41]
+pc_range = [0, -46.08]
 
 model = dict(
     type='BEVFusion',
@@ -28,7 +39,7 @@ model = dict(
     pts_middle_encoder=dict(
         type='BEVFusionSparseEncoder',
         in_channels=4,
-        sparse_shape=[1440, 1440, 41],  # [41, 1600, 1408]
+        sparse_shape=sparse_shape,
         order=('conv', 'norm', 'act'),
         norm_cfg=dict(type='BN1d', eps=0.001, momentum=0.01),
         encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128, 128)),
@@ -52,7 +63,7 @@ model = dict(
         use_conv_for_no_stride=True),
     bbox_head=dict(
         type='TransFusionHead',
-        num_proposals=200,
+        num_proposals=300,
         auxiliary=True,
         in_channels=512,
         hidden_channel=128,
@@ -76,7 +87,7 @@ model = dict(
         train_cfg=dict(
             dataset='Kitti',
             point_cloud_range=point_cloud_range,
-            grid_size=[1440, 1440, 41],  # [1600, 1408, 40], [1504, 1504, 40]
+            grid_size=[1152, 1152, 41],
             voxel_size=voxel_size,
             out_size_factor=8,
             gaussian_overlap=0.1,
@@ -89,12 +100,12 @@ model = dict(
                 cls_cost=dict(type='mmdet.FocalLossCost', gamma=2.0, alpha=0.25, weight=0.15),
                 reg_cost=dict(type='BBoxBEVL1Cost', weight=0.25),
                 iou_cost=dict(type='IoU3DCost', weight=0.25))),
-        test_cfg=dict(dataset='Kitti', grid_size=[1440, 1440, 41], out_size_factor=8, voxel_size=voxel_size, pc_range=[0, -46.08], nms_type=None),
+        test_cfg=dict(dataset='Kitti', grid_size=[1152, 1152, 41], out_size_factor=8, voxel_size=voxel_size, pc_range=[0, -46.08], nms_type=None),
         common_heads=dict(center=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2]),
         bbox_coder=dict(
             type='TransFusionBBoxCoder',
-            pc_range=[0, -46.08],  # [-75.2, -75.2]
-            post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],  # [0, -46.08, -3, 92.16, 46.08, 1][-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
+            pc_range=[0, -46.08],  # pc_range=point_cloud_range[:2],
+            post_center_range=[0, -50, -5, 100, 50, 3],
             score_threshold=0.0,
             out_size_factor=8,
             voxel_size=voxel_size,
@@ -133,8 +144,8 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=4,
-    num_workers=4,
+    batch_size=8,
+    num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
@@ -175,10 +186,10 @@ val_evaluator = [
     # dict(
     #     type='DAIRV2XMetric',
     #     ann_file=data_root + data_info_val_path,
-    #     veh_config_path='configs/ffnet/config_basemodel_fusion.py',
+    #     veh_config_path='configs/coformer/coformer.py',
     #     work_dir=work_dir,
     #     split_data_path='data/split_datas/cooperative-split-data.json',
-    #     model='feature_fusion',
+    #     model='coformer',
     #     input='data/DAIR-V2X/cooperative-vehicle-infrastructure',
     #     test_mode=None,
     #     val_data_path=None,
@@ -187,31 +198,6 @@ val_evaluator = [
 ]
 test_evaluator = val_evaluator
 
-# vis_backends = [dict(type='LocalVisBackend')]
-# visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
-
-# learning rate
-lr = 0.0001
-epoch_num = 20
-param_scheduler = [
-    dict(type='CosineAnnealingLR', T_max=8, eta_min=lr * 10, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingLR', T_max=12, eta_min=lr * 1e-4, begin=8, end=epoch_num, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingMomentum', T_max=8, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingMomentum', T_max=12, eta_min=1, begin=8, end=epoch_num, by_epoch=True, convert_to_iter_based=True)
-]
-
-# runtime settings
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
-val_cfg = dict()
-test_cfg = dict()
-
-optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
-
-# Default setting for scaling LR automatically
-#   - `enable` means enable scaling LR automatically
-#       or not by default.
-#   - `base_batch_size` = (8 GPUs) x (4 samples per GPU).
-auto_scale_lr = dict(enable=False, base_batch_size=32)
 log_processor = dict(window_size=50)
 
 default_hooks = dict(logger=dict(type='LoggerHook', interval=50), checkpoint=dict(type='CheckpointHook', interval=5))

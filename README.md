@@ -4,6 +4,13 @@
 
 ## CoFormerNet
 
+### Results
+
+| Car | AP@0.30 | 0.50  | 0.70  | AB(Byte) |
+| :-- | :-----: | :---: | :---: | :------: |
+| 3d  |  63.95  | 49.58 | 17.40 |          |
+| bev |  67.72  | 58.96 | 43.27 |          |
+
 ## Reference
 
 - [mmdetection3d](https://github.com/open-mmlab/mmdetection3d/tree/v1.3.0)

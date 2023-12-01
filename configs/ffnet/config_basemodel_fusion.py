@@ -145,18 +145,4 @@ val_evaluator = [
 ]
 test_evaluator = val_evaluator
 
-# In practice PointPillars also uses a different schedule
-# optimizer
-lr = 0.0008
-epoch_num = 40
-optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
-
-param_scheduler = [
-    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.4, eta_min=lr * 10, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.6, eta_min=lr * 1e-4, begin=epoch_num * 0.4, end=epoch_num * 1, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.4, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
-]
-
-train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=2)
 load_from = 'work_dirs/mmdet3d_1.3.0/ffnet-vic3d/basemodel/fusion/lr=0.0036/epoch_30.pth'
