@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE
 from mmcv.cnn.bricks.transformer import TransformerLayerSequence, build_attention
-from mmcv.runner import auto_fp16, force_fp32
+# from mmcv.runner import auto_fp16, force_fp32
 from mmcv.utils import TORCH_VERSION, digit_version, ext_loader
 
 from .custom_base_transformer_layer import MyCustomBaseTransformerLayer
@@ -74,7 +74,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
             return ref_2d
 
     # This function must use fp32!!!
-    @force_fp32(apply_to=('reference_points', 'img_metas'))
+    # @force_fp32(apply_to=('reference_points', 'img_metas'))
     def point_sampling(self, reference_points, pc_range, img_metas):
         # NOTE: close tf32 here.
         allow_tf32 = torch.backends.cuda.matmul.allow_tf32
@@ -132,7 +132,7 @@ class BEVFormerEncoder(TransformerLayerSequence):
 
         return reference_points_cam, bev_mask
 
-    @auto_fp16()
+    # @auto_fp16()
     def forward(self,
                 bev_query,
                 key,

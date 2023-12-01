@@ -1,23 +1,16 @@
-# ---------------------------------------------
-# Copyright (c) OpenMMLab. All rights reserved.
-# ---------------------------------------------
-#  Modified by Zhiqi Li
-# ---------------------------------------------
+from mmdet3d.registry import MODELS
 
-from mmcv.runner import auto_fp16
-from mmdet.models import DETECTORS
-
-from transvision.bevformer.bevformer.detectors.bevformer import BEVFormer
+from transvision.models.detectors.bevformer import BEVFormer
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class BEVFormer_fp16(BEVFormer):
     """The default version BEVFormer currently can not support FP16.
 
     We provide this version to resolve this issue.
     """
 
-    @auto_fp16(apply_to=('img', 'prev_bev', 'points'))
+    # @auto_fp16(apply_to=('img', 'prev_bev', 'points'))
     def forward_train(
         self,
         points=None,

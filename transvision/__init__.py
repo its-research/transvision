@@ -1,3 +1,4 @@
+from transvision.bevfusion import *
 from transvision.dataset.formating import Pack3DDetDAIRInputs
 from transvision.dataset.loading import LoadPointsFromFile_w_sensor_view
 from transvision.dataset.v2x_dataset import V2XDataset

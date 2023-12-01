@@ -144,7 +144,7 @@ class TransFusionHead(nn.Module):
         self.init_weights()
         self._init_assigner_sampler()
 
-        # Position Embedding for Cross-Attention, which is re-used during training # noqa: E501
+        # Position Embedding for Cross-Attention, which is re-used during training
         x_size = self.test_cfg['grid_size'][0] // self.test_cfg['out_size_factor']
         y_size = self.test_cfg['grid_size'][1] // self.test_cfg['out_size_factor']
         self.bev_pos = self.create_2D_grid(x_size, y_size)
@@ -218,13 +218,13 @@ class TransFusionHead(nn.Module):
         # equals to nms radius = voxel_size * out_size_factor * kenel_size
         local_max_inner = F.max_pool2d(heatmap, kernel_size=self.nms_kernel_size, stride=1, padding=0)
         local_max[:, :, padding:(-padding), padding:(-padding)] = local_max_inner
-        # for Pedestrian & Traffic_cone in nuScenes
-        if self.test_cfg['dataset'] == 'nuScenes':
-            local_max[:, 8, ] = F.max_pool2d(heatmap[:, 8], kernel_size=1, stride=1, padding=0)
-            local_max[:, 9, ] = F.max_pool2d(heatmap[:, 9], kernel_size=1, stride=1, padding=0)
-        elif self.test_cfg['dataset'] == 'Waymo':  # for Pedestrian & Cyclist in Waymo
-            local_max[:, 1, ] = F.max_pool2d(heatmap[:, 1], kernel_size=1, stride=1, padding=0)
-            local_max[:, 2, ] = F.max_pool2d(heatmap[:, 2], kernel_size=1, stride=1, padding=0)
+        # # for Pedestrian & Traffic_cone in nuScenes
+        # if self.test_cfg['dataset'] == 'nuScenes':
+        #     local_max[:, 8, ] = F.max_pool2d(heatmap[:, 8], kernel_size=1, stride=1, padding=0)
+        #     local_max[:, 9, ] = F.max_pool2d(heatmap[:, 9], kernel_size=1, stride=1, padding=0)
+        # elif self.test_cfg['dataset'] == 'Waymo':  # for Pedestrian & Cyclist in Waymo
+        #     local_max[:, 1, ] = F.max_pool2d(heatmap[:, 1], kernel_size=1, stride=1, padding=0)
+        #     local_max[:, 2, ] = F.max_pool2d(heatmap[:, 2], kernel_size=1, stride=1, padding=0)
         heatmap = heatmap * (heatmap == local_max)
         heatmap = heatmap.view(batch_size, heatmap.shape[1], -1)
 
@@ -526,6 +526,7 @@ class TransFusionHead(nn.Module):
             vel = copy.deepcopy(preds_dict['vel'].detach())
         else:
             vel = None
+        vel = None
 
         boxes_dict = self.bbox_coder.decode(score, rot, dim, center, height, vel)  # decode the prediction to real world metric bbox
         bboxes_tensor = boxes_dict[0]['bboxes']
@@ -723,8 +724,7 @@ class TransFusionHead(nn.Module):
                 preds = torch.cat([layer_center, layer_height, layer_dim, layer_rot, layer_vel], dim=1).permute(0, 2, 1)  # [BS, num_proposals, code_size]
             code_weights = self.train_cfg.get('code_weights', None)
             layer_bbox_weights = bbox_weights[:, idx_layer * self.num_proposals:(idx_layer + 1) * self.num_proposals, :, ]
-            layer_reg_weights = layer_bbox_weights * layer_bbox_weights.new_tensor(  # noqa: E501
-                code_weights)
+            layer_reg_weights = layer_bbox_weights * layer_bbox_weights.new_tensor(code_weights)
             layer_bbox_targets = bbox_targets[:, idx_layer * self.num_proposals:(idx_layer + 1) * self.num_proposals, :, ]
             layer_loss_bbox = self.loss_bbox(preds, layer_bbox_targets, layer_reg_weights, avg_factor=max(num_pos, 1))
 

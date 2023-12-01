@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from mmcv.cnn import xavier_init
 from mmcv.cnn.bricks.transformer import build_transformer_layer_sequence
-from mmcv.runner import auto_fp16
+# from mmcv.runner import auto_fp16
 from mmcv.runner.base_module import BaseModule
 from mmdet.models.utils.builder import TRANSFORMER
 from torch.nn.init import normal_
@@ -96,7 +96,7 @@ class PerceptionTransformer(BaseModule):
         xavier_init(self.reference_points, distribution='uniform', bias=0.)
         xavier_init(self.can_bus_mlp, distribution='uniform', bias=0.)
 
-    @auto_fp16(apply_to=('mlvl_feats', 'bev_queries', 'prev_bev', 'bev_pos'))
+    # @auto_fp16(apply_to=('mlvl_feats', 'bev_queries', 'prev_bev', 'bev_pos'))
     def get_bev_features(self, mlvl_feats, bev_queries, bev_h, bev_w, grid_length=[0.512, 0.512], bev_pos=None, prev_bev=None, **kwargs):
         """obtain bev features."""
 
@@ -171,7 +171,7 @@ class PerceptionTransformer(BaseModule):
 
         return bev_embed
 
-    @auto_fp16(apply_to=('mlvl_feats', 'bev_queries', 'object_query_embed', 'prev_bev', 'bev_pos'))
+    # @auto_fp16(apply_to=('mlvl_feats', 'bev_queries', 'object_query_embed', 'prev_bev', 'bev_pos'))
     def forward(self,
                 mlvl_feats,
                 bev_queries,

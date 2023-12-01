@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from mmcv.runner import auto_fp16
+# # from mmcv.runner import auto_fp16
 from PIL import Image
 
 
@@ -86,7 +86,7 @@ class GridMask(nn.Module):
     def set_prob(self, epoch, max_epoch):
         self.prob = self.st_prob * epoch / max_epoch  # + 1.#0.5
 
-    @auto_fp16()
+    # # @auto_fp16()
     def forward(self, x):
         if np.random.rand() > self.prob or not self.training:
             return x

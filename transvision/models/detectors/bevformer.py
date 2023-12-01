@@ -7,15 +7,15 @@
 import copy
 
 import torch
-from mmcv.runner import auto_fp16
-from mmdet3d.core import bbox3d2result
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
-from mmdet.models import DETECTORS
+from mmdet3d.registry import MODELS
+# from mmengine.runner import auto_fp16
+from mmdet3d.structures.ops.transforms import bbox3d2result
 
-from transvision.bevformer.models.utils.grid_mask import GridMask
+from transvision.models.utils.grid_mask import GridMask
 
 
-@DETECTORS.register_module()
+@MODELS.register_module()
 class BEVFormer(MVXTwoStageDetector):
     """BEVFormer.
 
@@ -91,7 +91,7 @@ class BEVFormer(MVXTwoStageDetector):
                 img_feats_reshaped.append(img_feat.view(B, int(BN / B), C, H, W))
         return img_feats_reshaped
 
-    @auto_fp16(apply_to=('img'))
+    # # @auto_fp16(apply_to=('img'))
     def extract_feat(self, img, img_metas=None, len_queue=None):
         """Extract features from images and points."""
 
@@ -158,7 +158,7 @@ class BEVFormer(MVXTwoStageDetector):
             self.train()
             return prev_bev
 
-    @auto_fp16(apply_to=('img', 'points'))
+    # # @auto_fp16(apply_to=('img', 'points'))
     def forward_train(
         self,
         points=None,

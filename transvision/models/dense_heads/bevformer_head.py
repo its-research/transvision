@@ -3,7 +3,7 @@ import copy
 import torch
 import torch.nn as nn
 from mmcv.cnn import Linear, bias_init_with_prob
-from mmcv.runner import auto_fp16, force_fp32
+# from mmcv.runner import auto_fp16, force_fp32
 from mmcv.utils import TORCH_VERSION, digit_version
 from mmdet3d.core.bbox.coders import build_bbox_coder
 from mmdet.core import multi_apply, reduce_mean
@@ -99,7 +99,7 @@ class BEVFormerHead(DETRHead):
             for m in self.cls_branches:
                 nn.init.constant_(m[-1].bias, bias_init)
 
-    @auto_fp16(apply_to=('mlvl_feats'))
+    # @auto_fp16(apply_to=('mlvl_feats'))
     def forward(self, mlvl_feats, img_metas, prev_bev=None, only_bev=False):
         """Forward function.
 
@@ -340,7 +340,7 @@ class BEVFormerHead(DETRHead):
             loss_bbox = torch.nan_to_num(loss_bbox)
         return loss_cls, loss_bbox
 
-    @force_fp32(apply_to=('preds_dicts'))
+    # @force_fp32(apply_to=('preds_dicts'))
     def loss(self, gt_bboxes_list, gt_labels_list, preds_dicts, gt_bboxes_ignore=None, img_metas=None):
         """"Loss function.
         Args:
@@ -411,7 +411,7 @@ class BEVFormerHead(DETRHead):
             num_dec_layer += 1
         return loss_dict
 
-    @force_fp32(apply_to=('preds_dicts'))
+    # @force_fp32(apply_to=('preds_dicts'))
     def get_bboxes(self, preds_dicts, img_metas, rescale=False):
         """Generate bboxes from bbox head predictions.
 

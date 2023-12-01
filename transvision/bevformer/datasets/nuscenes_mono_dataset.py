@@ -8,10 +8,10 @@ import mmcv
 import numpy as np
 import pyquaternion
 import torch
-from mmdet3d.core import bbox3d2result, box3d_multiclass_nms, show_multi_modality_result, xywhr2xyxyr
 from mmdet3d.core.bbox import CameraInstance3DBoxes, get_box_type
 from mmdet3d.datasets.pipelines import Compose
 from mmdet3d.datasets.utils import extract_result_dict, get_loading_pipeline
+from mmdet3d.structures.ops.transforms import bbox3d2result, box3d_multiclass_nms, show_multi_modality_result, xywhr2xyxyr
 from mmdet.datasets import DATASETS, CocoDataset
 from nuscenes.utils.data_classes import Box as NuScenesBox
 
