@@ -367,6 +367,10 @@ class TransFusionHead(nn.Module):
                     dict(num_class=1, class_names=['Pedestrian'], indices=[1], radius=0.7),
                     dict(num_class=1, class_names=['Cyclist'], indices=[2], radius=0.7),
                 ]
+            elif self.test_cfg['dataset'] == 'Kitti':
+                self.tasks = [
+                    dict(num_class=1, class_names=['Car'], indices=[0], radius=0.7),
+                ]
 
             ret_layer = []
             for i in range(batch_size):

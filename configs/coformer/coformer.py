@@ -74,7 +74,7 @@ model = dict(
             norm_cfg=dict(type='LN'),
             pos_encoding_cfg=dict(input_channel=2, num_pos_feats=128)),
         train_cfg=dict(
-            dataset='kitti',
+            dataset='Kitti',
             point_cloud_range=point_cloud_range,
             grid_size=[1440, 1440, 41],  # [1600, 1408, 40], [1504, 1504, 40]
             voxel_size=voxel_size,
@@ -89,7 +89,7 @@ model = dict(
                 cls_cost=dict(type='mmdet.FocalLossCost', gamma=2.0, alpha=0.25, weight=0.15),
                 reg_cost=dict(type='BBoxBEVL1Cost', weight=0.25),
                 iou_cost=dict(type='IoU3DCost', weight=0.25))),
-        test_cfg=dict(dataset='kitti', grid_size=[1440, 1440, 41], out_size_factor=8, voxel_size=voxel_size, pc_range=[0, -46.08], nms_type=None),
+        test_cfg=dict(dataset='Kitti', grid_size=[1440, 1440, 41], out_size_factor=8, voxel_size=voxel_size, pc_range=[0, -46.08], nms_type=None),
         common_heads=dict(center=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2]),
         bbox_coder=dict(
             type='TransFusionBBoxCoder',
@@ -187,20 +187,21 @@ val_evaluator = [
 ]
 test_evaluator = val_evaluator
 
-vis_backends = [dict(type='LocalVisBackend')]
-visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
+# vis_backends = [dict(type='LocalVisBackend')]
+# visualizer = dict(type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 
 # learning rate
 lr = 0.0001
+epoch_num = 20
 param_scheduler = [
-    dict(type='CosineAnnealingLR', T_max=8, eta_min=lr * 10, begin=0, end=8, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingLR', T_max=12, eta_min=lr * 1e-4, begin=8, end=20, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingMomentum', T_max=8, eta_min=0.85 / 0.95, begin=0, end=8, by_epoch=True, convert_to_iter_based=True),
-    dict(type='CosineAnnealingMomentum', T_max=12, eta_min=1, begin=8, end=20, by_epoch=True, convert_to_iter_based=True)
+    dict(type='CosineAnnealingLR', T_max=8, eta_min=lr * 10, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingLR', T_max=12, eta_min=lr * 1e-4, begin=8, end=epoch_num, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingMomentum', T_max=8, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingMomentum', T_max=12, eta_min=1, begin=8, end=epoch_num, by_epoch=True, convert_to_iter_based=True)
 ]
 
 # runtime settings
-train_cfg = dict(by_epoch=True, max_epochs=20, val_interval=5)
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
 val_cfg = dict()
 test_cfg = dict()
 

@@ -14,4 +14,5 @@ SUPPROTED_MODELS = {
     'inf_only': InfOnly,
     'feature_fusion': FeatureFusion,
     'feature_flow': FeatureFlow,
+    'coformer': CoFormer,
 }
