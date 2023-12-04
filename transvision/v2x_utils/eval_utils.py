@@ -2,9 +2,8 @@ import logging
 from functools import cmp_to_key
 
 import numpy as np
+from config import superclass
 from scipy.spatial import ConvexHull
-
-from transvision.config import superclass
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +149,6 @@ left y<-------- + ----------- + (x0, y1, z0)
             (x0, y0, z0)
 """
 perm_pred = [0, 4, 7, 3, 1, 5, 6, 2]
-perm_pred = [3, 0, 4, 7, 2, 1, 5, 6]
 perm_label = [3, 2, 1, 0, 7, 6, 5, 4]
 
 
@@ -184,7 +182,6 @@ def compute_type(gt_annos, pred_annos, cla, iou_threshold, view):
     """
     gt_annos = build_label_list(gt_annos, filt=cla)
     pred_annos = build_label_list(pred_annos, filt=cla)
-
     pred_annos = sorted(pred_annos, key=cmp_to_key(cmp))
     result_pred_annos = []
     num_tp = 0
@@ -212,6 +209,7 @@ def compute_type(gt_annos, pred_annos, cla, iou_threshold, view):
                     iou, _ = box3d_iou(gt_anno['box'][perm_label], pred_anno['box'][perm_pred], debug=True)
             """
             if iou >= mx:
+
                 mx = iou
                 mx_pred = i
         if mx_pred is not None:
@@ -274,10 +272,7 @@ class Evaluator(object):
                 # logger.debug("iou: {}, tp: {}, all_pred: {}".format(iou, num_tp, len(pred["labels_3d"])))
 
     def print_ap(self, view, type='micro'):
-        results = {}
         for pred_class in self.pred_classes:
             for iou in iou_threshold_dict[pred_class]:
                 ap = compute_ap(self.all_preds[view][pred_class][iou], self.gt_num[pred_class][iou])
-                # print('%s %s IoU threshold %.2lf, Average Precision = %.2lf' % (pred_class, view, iou, ap * 100))
-                results['%s_%s_%.1lf' % (pred_class, view, iou)] = ap * 100
-        return results
+                print('%s %s IoU threshold %.2lf, Average Precision = %.2lf' % (pred_class, view, iou, ap * 100))

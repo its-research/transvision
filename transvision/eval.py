@@ -21,10 +21,13 @@ def eval_vic(args, dataset, model, evaluator, pipe):
     for VICFrame, label, filt, bbox_3d_lwhr in tqdm(dataset):
         idx += 1
 
-        try:
-            veh_id = (dataset.data[idx][0]['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', ''))
-        except Exception:
-            veh_id = (VICFrame['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', ''))
+        if 'spd' in args.dataset:
+            veh_id = VICFrame.vehicle_frame().get('frame_id')
+        else:
+            try:
+                veh_id = (dataset.data[idx][0]['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', ''))
+            except Exception:
+                veh_id = (VICFrame['vehicle_pointcloud_path'].split('/')[-1].replace('.pcd', ''))
 
         pred = model(
             VICFrame,

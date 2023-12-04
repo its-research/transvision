@@ -18,7 +18,7 @@ voxel_size = [0.16, 0.16, 0.1]
 out_size_factor = 8
 sparse_shape = [576, 576, 41]
 # grid_size = [576, 576, 41]
-grid_size = [576, 576, 40]
+grid_size = [576, 576, 41]  # TODO: why 40 or 41?
 pc_range = [0, -46.08]
 
 model = dict(
@@ -26,7 +26,7 @@ model = dict(
     data_preprocessor=dict(
         type='Det3DDataPreprocessor',
         pad_size_divisor=32,
-        voxelize_cfg=dict(max_num_points=100, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=[16000, 40000], voxelize_reduce=True)),
+        voxelize_cfg=dict(max_num_points=10, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=[16000, 40000], voxelize_reduce=True)),
     pts_voxel_encoder=dict(type='HardSimpleVFE', num_features=4),
     pts_middle_encoder=dict(
         type='BEVFusionSparseEncoder',

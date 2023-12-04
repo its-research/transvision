@@ -101,6 +101,7 @@ class TransFusionBBoxCoder(BaseBBoxCoder):
 
         if self.post_center_range is not None:
             self.post_center_range = torch.tensor(self.post_center_range, device=heatmap.device)
+            # self.post_center_range = self.post_center_range.clone().detach().requires_grad_(True)  # TODO: check if this is necessary
             mask = (final_box_preds[..., :3] >= self.post_center_range[:3]).all(2)
             mask &= (final_box_preds[..., :3] <= self.post_center_range[3:]).all(2)
 
