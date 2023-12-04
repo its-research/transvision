@@ -93,18 +93,18 @@ test_dataloader = val_dataloader
 
 val_evaluator = [
     dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=backend_args),
-    # dict(
-    #     type='DAIRV2XMetric',
-    #     ann_file=data_root + data_info_val_path,
-    #     veh_config_path='configs/coformer/coformer.py',
-    #     work_dir=work_dir,
-    #     split_data_path='data/split_datas/cooperative-split-data.json',
-    #     model='coformer',
-    #     input='data/DAIR-V2X/cooperative-vehicle-infrastructure',
-    #     test_mode=None,
-    #     val_data_path=None,
-    #     pcd_limit_range=point_cloud_range,
-    #     backend_args=backend_args)
+    dict(
+        type='DAIRV2XMetric',
+        ann_file=data_root + data_info_val_path,
+        veh_config_path='configs/coformer/coformer.py',
+        work_dir=work_dir,
+        split_data_path='data/split_datas/cooperative-split-data.json',
+        model='coformer',
+        input='data/DAIR-V2X/cooperative-vehicle-infrastructure',
+        test_mode=None,
+        val_data_path=None,
+        pcd_limit_range=point_cloud_range,
+        backend_args=backend_args)
 ]
 test_evaluator = val_evaluator
 

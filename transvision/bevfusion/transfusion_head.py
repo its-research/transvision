@@ -531,7 +531,6 @@ class TransFusionHead(nn.Module):
             vel = copy.deepcopy(preds_dict['vel'].detach())
         else:
             vel = None
-        vel = None
 
         boxes_dict = self.bbox_coder.decode(score, rot, dim, center, height, vel)  # decode the prediction to real world metric bbox
         bboxes_tensor = boxes_dict[0]['bboxes']
