@@ -8,38 +8,11 @@ import torch.nn as nn
 
 from transvision.dataset.dataset_utils import load_pkl, save_pkl
 from transvision.models.base_model import BaseModel
+from transvision.models.detection_models.utils import gen_pred_dict, get_box_info
 from transvision.models.model_utils import concatenate_pcd2bin, inference_detector, init_model, read_pcd
-from transvision.v2x_utils import get_arrow_end, mkdir
+from transvision.v2x_utils import mkdir
 
 logger = logging.getLogger(__name__)
-
-
-def get_box_info(result):
-    if len(result[0]['boxes_3d'].tensor) == 0:
-        box_lidar = np.zeros((1, 8, 3))
-        box_ry = np.zeros(1)
-    else:
-        box_lidar = result[0]['boxes_3d'].corners.numpy()
-        box_ry = result[0]['boxes_3d'].tensor[:, -1].numpy()
-    box_centers_lidar = box_lidar.mean(axis=1)
-    arrow_ends_lidar = get_arrow_end(box_centers_lidar, box_ry)
-    return box_lidar, box_ry, box_centers_lidar, arrow_ends_lidar
-
-
-def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
-    if len(label) == 0:
-        score = [-2333]
-        label = [-1]
-    save_dict = {
-        'info': id,
-        'timestamp': timestamp,
-        'boxes_3d': box.tolist(),
-        'arrows': arrow.tolist(),
-        'scores_3d': score,
-        'labels_3d': label,
-        'points': points.tolist(),
-    }
-    return save_dict
 
 
 class EarlyFusion(BaseModel):

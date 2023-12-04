@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 from copy import deepcopy
 from os import path as osp
 
@@ -11,42 +10,11 @@ from mmengine.dataset import Compose, pseudo_collate
 from mmengine.fileio import load
 
 from transvision.models.base_model import BaseModel
+from transvision.models.detection_models.utils import gen_pred_dict, get_box_info
 from transvision.models.model_utils import init_model
-from transvision.v2x_utils import get_arrow_end, mkdir
+from transvision.v2x_utils import mkdir
 
 logger = logging.getLogger(__name__)
-
-
-def get_box_info(result):
-    if len(result[0].pred_instances_3d.bboxes_3d.tensor) == 0:
-        box_lidar = np.zeros((1, 8, 3))
-        box_ry = np.zeros(1)
-    else:
-        box_lidar = result[0].pred_instances_3d.bboxes_3d.corners.cpu().numpy()
-        box_ry = result[0].pred_instances_3d.bboxes_3d.tensor[:, -1].cpu().numpy()
-
-    box_centers_lidar = box_lidar.mean(axis=1)
-    arrow_ends_lidar = get_arrow_end(box_centers_lidar, box_ry)
-
-    return box_lidar, box_ry, box_centers_lidar, arrow_ends_lidar
-
-
-def gen_pred_dict(id, timestamp, box, arrow, points, score, label):
-    if len(label) == 0:
-        score = [-2333]
-        label = [-1]
-
-    save_dict = {
-        'info': id,
-        'timestamp': timestamp,
-        'boxes_3d': box.tolist(),
-        'arrows': arrow.tolist(),
-        'scores_3d': score,
-        'labels_3d': label,
-        'points': points.tolist(),
-    }
-
-    return save_dict
 
 
 def inference_detector_feature_fusion(model, data_list, veh_bin, inf_bin, rotation, translation):
@@ -176,8 +144,3 @@ class CoFormer(BaseModel):
             'labels_3d': np.array(pred['labels_3d']),
             'scores_3d': np.array(pred['scores_3d']),
         }
-
-
-if __name__ == '__main__':
-    sys.path.append('..')
-    sys.path.extend([os.path.join(root, name) for root, dirs, _ in os.walk('../') for name in dirs])

@@ -23,10 +23,12 @@ backend_args = None
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 # voxel_size = [0.16, 0.16, 4]
-voxel_size = [0.08, 0.08, 0.1]
+# voxel_size = [0.08, 0.08, 0.1]
+voxel_size = [0.16, 0.16, 0.1]
 
 out_size_factor = 8
-sparse_shape = [1152, 1152, 41]
+sparse_shape = [576, 576, 41]
+grid_size = [576, 576, 41]
 pc_range = [0, -46.08]
 
 model = dict(
@@ -87,7 +89,7 @@ model = dict(
         train_cfg=dict(
             dataset='Kitti',
             point_cloud_range=point_cloud_range,
-            grid_size=[1152, 1152, 41],
+            grid_size=grid_size,
             voxel_size=voxel_size,
             out_size_factor=8,
             gaussian_overlap=0.1,
@@ -100,7 +102,7 @@ model = dict(
                 cls_cost=dict(type='mmdet.FocalLossCost', gamma=2.0, alpha=0.25, weight=0.15),
                 reg_cost=dict(type='BBoxBEVL1Cost', weight=0.25),
                 iou_cost=dict(type='IoU3DCost', weight=0.25))),
-        test_cfg=dict(dataset='Kitti', grid_size=[1152, 1152, 41], out_size_factor=8, voxel_size=voxel_size, pc_range=[0, -46.08], nms_type=None),
+        test_cfg=dict(dataset='Kitti', grid_size=grid_size, out_size_factor=8, voxel_size=voxel_size, pc_range=[0, -46.08], nms_type=None),
         common_heads=dict(center=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2]),
         bbox_coder=dict(
             type='TransFusionBBoxCoder',
@@ -114,9 +116,20 @@ model = dict(
         loss_heatmap=dict(type='mmdet.GaussianFocalLoss', reduction='mean', loss_weight=1.0),
         loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=0.25)))
 
+db_sampler = dict(
+    data_root=data_root,
+    info_path=data_root + 'kitti_dbinfos_train.pkl',
+    rate=1.0,
+    prepare=dict(filter_by_difficulty=[-1], filter_by_min_points=dict(Car=5)),
+    classes=class_names,
+    sample_groups=dict(Car=15),
+    points_loader=dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle', backend_args=backend_args),
+    backend_args=backend_args)
+
 train_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
+    # dict(type='ObjectSample', db_sampler=db_sampler),
     dict(type='GlobalRotScaleTrans', scale_ratio_range=[0.9, 1.1], rot_range=[-0.78539816, 0.78539816], translation_std=0.5),
     dict(type='BEVFusionRandomFlip3D'),
     dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
@@ -144,7 +157,7 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=8,
+    batch_size=4,
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -202,3 +215,4 @@ log_processor = dict(window_size=50)
 
 default_hooks = dict(logger=dict(type='LoggerHook', interval=50), checkpoint=dict(type='CheckpointHook', interval=5))
 custom_hooks = [dict(type='DisableObjectSampleHook', disable_after_epoch=15)]
+# load_from = 'work_dirs/mmdet3d_1.3.0/coformer/basemodel/epoch_40.pth'
