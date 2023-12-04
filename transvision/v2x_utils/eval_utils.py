@@ -2,8 +2,10 @@ import logging
 from functools import cmp_to_key
 
 import numpy as np
-from config import superclass
 from scipy.spatial import ConvexHull
+
+# from config import superclass
+from transvision.config import superclass
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +151,7 @@ left y<-------- + ----------- + (x0, y1, z0)
             (x0, y0, z0)
 """
 perm_pred = [0, 4, 7, 3, 1, 5, 6, 2]
+perm_pred = [3, 0, 4, 7, 2, 1, 5, 6]
 perm_label = [3, 2, 1, 0, 7, 6, 5, 4]
 
 

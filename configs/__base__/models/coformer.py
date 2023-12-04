@@ -22,7 +22,7 @@ grid_size = [576, 576, 41]  # TODO: why 40 or 41?
 pc_range = [0, -46.08]
 
 model = dict(
-    type='CoformerNet',
+    type='CoFormerNet',
     data_preprocessor=dict(
         type='Det3DDataPreprocessor',
         pad_size_divisor=32,
@@ -91,7 +91,7 @@ model = dict(
                 iou_calculator=dict(type='BboxOverlaps3D', coordinate='lidar'),
                 cls_cost=dict(type='mmdet.FocalLossCost', gamma=2.0, alpha=0.25, weight=0.15),
                 reg_cost=dict(type='BBoxBEVL1Cost', weight=0.25),
-                iou_cost=dict(type='IoU3DCost', weight=0.25))),
+                iou_cost=dict(type='IoU3DCost', weight=0.5))),
         test_cfg=dict(dataset='Kitti', grid_size=grid_size, out_size_factor=8, voxel_size=voxel_size, pc_range=[0, -46.08], nms_type=None),
         common_heads=dict(center=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2]),
         bbox_coder=dict(

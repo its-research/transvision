@@ -1,9 +1,9 @@
 import logging
 import os.path as osp
 
-from transvision.v2x_utils import Filter, RectFilter, get_label_lidar_rotation, id_to_str
+from transvision.v2x_utils import Filter, RectFilter, id_to_str
 from .base_dataset import DAIRV2XDataset, build_frame_to_info, build_path_to_info, get_annos
-from .dataset_utils import InfFrame, InfFrameSPD, Label, VehFrame, VehFrameSPD, VICFrame, VICFrameSPD, load_json
+from .dataset_utils import InfFrame, InfFrameSPD, Label, VehFrame, VehFrameSPD, VICFrame, VICFrameSPD, get_label_lidar_rotation, load_json
 
 logger = logging.getLogger(__name__)
 
