@@ -17,7 +17,7 @@ from transvision.v2x_utils import mkdir
 logger = logging.getLogger(__name__)
 
 
-def inference_detector_feature_fusion(model, data_list, veh_bin, inf_bin, rotation, translation):
+def inference_detector(model, data_list, veh_bin, inf_bin, rotation, translation):
     """Inference point cloud with the detector.
 
     Args:
@@ -27,8 +27,7 @@ def inference_detector_feature_fusion(model, data_list, veh_bin, inf_bin, rotati
         tuple: Predicted results and data from pipeline.
     """
     cfg = model.cfg
-    # device = next(model.parameters()).device  # model device
-    # build the data pipeline
+
     test_pipeline = deepcopy(cfg.test_dataloader.dataset.pipeline)
     test_pipeline = Compose(test_pipeline)
     box_type_3d, box_mode_3d = get_box_type(cfg.test_dataloader.dataset.box_type_3d)
@@ -102,7 +101,7 @@ class CoFormer(BaseModel):
         trans = vic_frame.transform('Infrastructure_lidar', 'Vehicle_lidar')
         rotation, translation = trans.get_rot_trans()
 
-        result, _ = inference_detector_feature_fusion(self.model, self.data_list[idx], tmp_veh, tmp_inf, rotation, translation)
+        result, _ = inference_detector(self.model, self.data_list[idx], tmp_veh, tmp_inf, rotation, translation)
         box, box_ry, box_center, arrow_ends = get_box_info(result)
 
         remain = []

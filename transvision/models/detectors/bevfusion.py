@@ -13,7 +13,7 @@ from mmengine.utils import is_list_of
 from torch import Tensor
 from torch.nn import functional as F
 
-from .ops import Voxelization
+from transvision.bevfusion.ops import Voxelization
 
 
 @MODELS.register_module()

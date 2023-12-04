@@ -32,18 +32,6 @@ def eval_vic(args, dataset, model, evaluator, pipe):
             idx,
             None if not hasattr(dataset, 'prev_inf_frame') else dataset.prev_inf_frame,
         )
-        # print(veh_id)
-        # print(bbox_3d_lwhr)
-        # perm_pred = [0, 4, 7, 3, 1, 5, 6, 2]
-        # perm_pred = [3, 0, 4, 7, 2, 1, 5, 6]
-        # perm_label = [3, 2, 1, 0, 7, 6, 5, 4]
-
-        # pred['boxes_3d'][:, :, 2] -= 0.8
-        # for p, l in zip(pred['boxes_3d'], label['boxes_3d']):
-        #     print(p[perm_pred], l[perm_label])
-        #     print('=====================')
-
-        # exit()
 
         evaluator.add_frame(pred, label)
         pipe.flush()
@@ -56,20 +44,20 @@ def eval_vic(args, dataset, model, evaluator, pipe):
     print('Average Communication Cost = %.2lf Bytes' % (pipe.average_bytes()))
 
     table = []
-    line = ['3d']
+    line = ['method']
     results = {}
     for key in results_3d:
         line.append(results_3d[key])
         results[key] = results_3d[key]
-    line.append(pipe.average_bytes())
-    table.append(line)
-    line = ['bev']
+    # line.append(pipe.average_bytes())
+    # table.append(line)
+    # line = ['bev']
     for key in results_bev:
         line.append(results_bev[key])
         results[key] = results_bev[key]
-    line.append(pipe.average_bytes())
+    # line.append(pipe.average_bytes())
     table.append(line)
-    headers = ['Car', 'AP@0.30', '0.50', '0.70', 'AB(Byte)']
+    headers = ['Car', '3DAP@0.30', '0.50', '0.70', 'BEVAP@0.30', '0.50', '0.70']
     print(tabulate(table, headers, tablefmt='pipe', floatfmt='.2f'))
 
     return results
