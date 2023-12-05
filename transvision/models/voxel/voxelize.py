@@ -107,7 +107,7 @@ class Voxelization(nn.Module):
         self.pcd_shape = [*input_feat_shape, 1]  # [::-1]
         # TODO: check the shape
         # Below is the origin shape
-        self.pcd_shape = [*input_feat_shape, 1][::-1]
+        # self.pcd_shape = [*input_feat_shape, 1][::-1]
 
     def forward(self, input):
         """

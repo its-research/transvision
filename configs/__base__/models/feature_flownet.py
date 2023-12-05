@@ -7,6 +7,7 @@ data_root = ('./')
 pretrained_basemodel = 'models/ffnet_basemodel_1.2.0.pth'
 z_center_car = -2.66
 # z_center_car = -1.78
+model_type = 'feature_flownet'
 model = dict(
     type='FeatureFlowNet',
     voxel_layer=dict(max_num_points=100, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=(40000, 40000)),

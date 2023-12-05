@@ -1,4 +1,4 @@
-_base_ = ['./config_basemodel_fusion.py']
+_base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py', '../__base__/models/v2x_voxelnet.py', '../__base__/datasets/dair-3d-car.py']
 
 work_dir = './work_dirs/mmdet3d_1.3.0/ffnet-vic3d/basemodel/veh_only'
 

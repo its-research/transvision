@@ -27,10 +27,10 @@ void dynamic_voxelize_kernel(const torch::TensorAccessor<T, 2> points,
         failed = true;
         break;
       }
-      # Below is bevfusion code
+      // Below is bevfusion code
       coor[j] = c;
-      # TODO: check if this is correct
-      # Below is the original code
+      // TODO: check if this is correct
+      // Below is the original code
       // coor[ndim_minus_1 - j] = c;
     }
 

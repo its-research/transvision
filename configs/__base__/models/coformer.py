@@ -20,7 +20,7 @@ sparse_shape = [576, 576, 41]
 # grid_size = [576, 576, 41]
 grid_size = [576, 576, 41]  # TODO: why 40 or 41?
 pc_range = [0, -46.08]
-
+model_type = 'coformer'
 model = dict(
     type='CoFormerNet',
     mode='fusion',  # veh_only, inf_only, fusion

@@ -4,6 +4,7 @@ work_dir = './work_dirs/mmdet3d_1.3.0/coformer/basemodel/veh_only'
 model = dict(mode='veh_only')  # veh_only, inf_only, fusion
 
 val_evaluator = [
+    dict(type='KittiMetric', ann_file={{_base_.data_root}} + {{_base_.data_info_val_path}}, metric='bbox', pcd_limit_range={{_base_.point_cloud_range}}, backend_args=None),
     dict(
         type='DAIRV2XMetric',
         ann_file={{_base_.data_root}} + {{_base_.data_info_val_path}},
