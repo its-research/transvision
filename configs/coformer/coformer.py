@@ -27,7 +27,7 @@ train_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
-    dict(type='ObjectSample', db_sampler=db_sampler),
+    dict(type='ObjectSample', db_sampler=db_sampler),  # TODO inf object sample
     dict(type='GlobalRotScaleTrans', scale_ratio_range=[0.9, 1.1], rot_range=[-0.78539816, 0.78539816], translation_std=0.5),
     dict(type='BEVFusionRandomFlip3D'),
     dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),

@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 from mmcv.cnn.bricks.transformer import build_positional_encoding
-from mmcv.runner import BaseModule, force_fp32
-from mmdet3d.models.builder import build_head
 from mmdet3d.models.dense_heads.free_anchor3d_head import FreeAnchor3DHead
+from mmdet3d.registry import MODELS
 from mmdet.models import HEADS
 from mmdet.models.utils import build_transformer
+from mmengine.model import BaseModule
 
 from transvision.bevformer.bevformer.modules import PerceptionTransformerBEVEncoder
 
@@ -35,7 +35,7 @@ class BEVHead(BaseModule):
         self.positional_encoding = build_positional_encoding(positional_encoding)
 
         pts_bbox_head_3d.update(kwargs)
-        self.pts_bbox_head_3d = build_head(pts_bbox_head_3d)
+        self.pts_bbox_head_3d = MODELS.build(pts_bbox_head_3d)
         self.real_w = self.pc_range[3] - self.pc_range[0]
         self.real_h = self.pc_range[4] - self.pc_range[1]
 
@@ -50,7 +50,7 @@ class BEVHead(BaseModule):
 
         self.bev_embedding = nn.Embedding(self.bev_h * self.bev_w, self.embed_dims)
 
-    @force_fp32(apply_to=('mlvl_feats', 'pred_bev'))
+    # @force_fp32(apply_to=('mlvl_feats', 'pred_bev'))
     def forward(self, mlvl_feats, img_metas, prev_bev=None, only_bev=False):
         bs, num_cam, _, _, _ = mlvl_feats[0].shape
         dtype = mlvl_feats[0].dtype
@@ -82,12 +82,12 @@ class BEVHead(BaseModule):
             ret['bev_embed'] = bev_embed
         return ret
 
-    @force_fp32(apply_to=('ret'))
+    # @force_fp32(apply_to=('ret'))
     def loss(self, gt_bboxes_list, gt_labels_list, ret, gt_bboxes_ignore=None, img_metas=None):
         assert gt_bboxes_ignore is None
         return self.pts_bbox_head_3d.loss(gt_bboxes_list, gt_labels_list, ret['pred'], gt_bboxes_ignore=gt_bboxes_ignore, img_metas=img_metas)
 
-    @force_fp32(apply_to=('ret'))
+    # @force_fp32(apply_to=('ret'))
     def get_bboxes(self, ret, img_metas, rescale=False):
         return self.pts_bbox_head_3d.get_bboxes(ret['pred'], img_metas)
 
@@ -95,13 +95,13 @@ class BEVHead(BaseModule):
 @HEADS.register_module()
 class FreeAnchor3DHeadV2(FreeAnchor3DHead):
 
-    @force_fp32(apply_to=('pred'))
+    # @force_fp32(apply_to=('pred'))
     def loss(self, gt_bboxes_list, gt_labels_list, pred, gt_bboxes_ignore=None, img_metas=None):
         cls_scores, bbox_preds, dir_cls_preds = pred
 
         return super().loss(cls_scores, bbox_preds, dir_cls_preds, gt_bboxes_list, gt_labels_list, img_metas, gt_bboxes_ignore)
 
-    @force_fp32(apply_to=('pred'))
+    # @force_fp32(apply_to=('pred'))
     def get_bboxes(self, pred, img_metas, rescale=False):
         cls_scores, bbox_preds, dir_cls_preds = pred
         return super().get_bboxes(cls_scores, bbox_preds, dir_cls_preds, img_metas, cfg=None, rescale=rescale)
