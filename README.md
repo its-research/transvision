@@ -6,17 +6,16 @@
 
 ### Results
 
-#### Veh-only
-
 | Car    | 3DAP@0.30 | 0.50  | 0.70  | BEVAP@0.30 | 0.50  | 0.70  |
 | :----- | :-------: | :---: | :---: | :--------: | :---: | :---: |
-| TF-L-V |   71.03   | 57.88 | 27.41 |   73.76    | 66.63 | 51.26 |
-| FF-B-V |   62.37   | 53.40 | 30.25 |   64.10    | 59.57 | 50.36 |
+| TF-L-V |   64.91   | 56.40 | 34.69 |   66.21    | 62.08 | 52.48 |
+| FF-B-V |   58.70   | 51.60 | 29.99 |   59.87    | 56.62 | 49.15 |
 | FFNet  |   63.55   | 55.48 | 31.54 |   65.67    | 63.15 | 54.27 |
 
+conf=0.2
 TF-L-V: Transfusion-L veh-only
-FF-B-V: FFNet Basemodel veh-only (conf=0.02)
-FF: FFNet
+FF-B-V: FFNet Basemodel veh-only
+FF: FFNet(Ours, latency: 100ms)
 
 ## Reference
 

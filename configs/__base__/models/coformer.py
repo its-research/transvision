@@ -98,7 +98,7 @@ model = dict(
             type='TransFusionBBoxCoder',
             pc_range=[0, -46.08],  # pc_range=point_cloud_range[:2],
             post_center_range=[0, -50, -5, 100, 50, 3],
-            score_threshold=0.02,
+            score_threshold=0.2,
             out_size_factor=8,
             voxel_size=voxel_size,
             code_size=8),

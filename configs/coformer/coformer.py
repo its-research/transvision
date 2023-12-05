@@ -58,20 +58,33 @@ train_dataloader = dict(
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
+    # dataset=dict(
+    #     type='CBGSDataset',
+    #     dataset=dict(
+    #         type=dataset_type,
+    #         data_root=data_root,
+    #         ann_file=data_info_train_path,
+    #         pipeline=train_pipeline,
+    #         metainfo=metainfo,
+    #         modality=input_modality,
+    #         test_mode=False,
+    #         data_prefix=dict(pts=''),
+    #         box_type_3d='LiDAR')))
     dataset=dict(
-        type='CBGSDataset',
+        type='RepeatDataset',
+        times=2,
         dataset=dict(
             type=dataset_type,
             data_root=data_root,
             ann_file=data_info_train_path,
+            data_prefix=dict(pts=''),
             pipeline=train_pipeline,
-            metainfo=metainfo,
             modality=input_modality,
             test_mode=False,
-            data_prefix=dict(pts=''),
-            # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
-            # and box_type_3d='Depth' in sunrgbd and scannet dataset.
-            box_type_3d='LiDAR')))
+            metainfo=metainfo,
+            pcd_limit_range=point_cloud_range,  # not sure
+            box_type_3d='LiDAR',
+            backend_args=backend_args)))
 val_dataloader = dict(
     batch_size=1,
     num_workers=4,
@@ -113,3 +126,18 @@ log_processor = dict(window_size=50)
 default_hooks = dict(logger=dict(type='LoggerHook', interval=50), checkpoint=dict(type='CheckpointHook', interval=5))
 custom_hooks = [dict(type='DisableObjectSampleHook', disable_after_epoch=15)]
 # load_from = 'work_dirs/mmdet3d_1.3.0/coformer/basemodel/epoch_40.pth'
+
+lr = 0.0001
+epoch_num = 80
+optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
+
+param_scheduler = [
+    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.4, eta_min=lr * 10, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingLR', T_max=epoch_num * 0.6, eta_min=lr * 1e-4, begin=epoch_num * 0.4, end=epoch_num * 1, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.4, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
+    dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
+]
+
+train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
+val_cfg = dict()
+test_cfg = dict()

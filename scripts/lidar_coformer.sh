@@ -2,7 +2,7 @@ DATA='data/DAIR-V2X/cooperative-vehicle-infrastructure'
 SPLIT=val
 SPLIT_DATA_PATH="data/split_datas/cooperative-split-data.json"
 OUTPUT="cache/vic-coformer-baseline"
-VEHICLE_MODEL_PATH='work_dirs/mmdet3d_1.3.0/coformer/basemodel/epoch_40.pth'
+VEHICLE_MODEL_PATH='work_dirs/mmdet3d_1.3.0/coformer/basemodel/epoch_80.pth'
 VEHICLE_CONFIG_NAME='configs/coformer/coformer.py'
 CUDA_VISIBLE_DEVICES=$1 \
 
