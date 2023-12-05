@@ -11,7 +11,7 @@ from mmdet.models import HEADS
 from mmdet.models.dense_heads import DETRHead
 from mmdet.models.utils.transformer import inverse_sigmoid
 
-from transvision.bevformer.core.bbox.util import normalize_bbox
+from transvision.core.bbox.util import normalize_bbox
 
 
 @HEADS.register_module()

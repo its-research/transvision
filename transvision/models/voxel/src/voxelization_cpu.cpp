@@ -27,7 +27,11 @@ void dynamic_voxelize_kernel(const torch::TensorAccessor<T, 2> points,
         failed = true;
         break;
       }
-      coor[ndim_minus_1 - j] = c;
+      # Below is bevfusion code
+      coor[j] = c;
+      # TODO: check if this is correct
+      # Below is the original code
+      // coor[ndim_minus_1 - j] = c;
     }
 
     for (int k = 0; k < NDim; ++k) {
@@ -110,7 +114,7 @@ int hard_voxelize_cpu(const at::Tensor& points, at::Tensor& voxels,
                       const std::vector<float> coors_range,
                       const int max_points, const int max_voxels,
                       const int NDim = 3) {
-  // current version tooks about 0.02s_0.03s for one frame on cpu
+  // current version took about 0.02s_0.03s for one frame on cpu
   // check device
   AT_ASSERTM(points.device().is_cpu(), "points must be a CPU tensor");
 

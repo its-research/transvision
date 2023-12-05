@@ -53,6 +53,12 @@ __global__ void dynamic_voxelize_kernel(
       coors_offset[1] = -1;
       coors_offset[2] = -1;
     } else {
+      # TODO: change the order of coors
+      # Below is bevfusion order
+      coors_offset[0] = c_x;
+      coors_offset[1] = c_y;
+      coors_offset[2] = c_z;
+      # Below is the order of coors in the original code
       coors_offset[0] = c_z;
       coors_offset[1] = c_y;
       coors_offset[2] = c_x;
@@ -234,7 +240,7 @@ int hard_voxelize_gpu(const at::Tensor& points, at::Tensor& voxels,
                       const std::vector<float> coors_range,
                       const int max_points, const int max_voxels,
                       const int NDim = 3) {
-  // current version tooks about 0.04s for one frame on cpu
+  // current version took about 0.04s for one frame on cpu
   // check device
   CHECK_INPUT(points);
 
@@ -305,7 +311,7 @@ int hard_voxelize_gpu(const at::Tensor& points, at::Tensor& voxels,
   cudaDeviceSynchronize();
   AT_CUDA_CHECK(cudaGetLastError());
 
-  // 3. determine voxel num and voxel's coor index
+  // 3. determined voxel num and voxel's coor index
   // make the logic in the CUDA device could accelerate about 10 times
   auto coor_to_voxelidx = -at::ones(
       {
@@ -486,7 +492,7 @@ void dynamic_voxelize_gpu(const at::Tensor& points, at::Tensor& coors,
                           const std::vector<float> voxel_size,
                           const std::vector<float> coors_range,
                           const int NDim = 3) {
-  // current version tooks about 0.04s for one frame on cpu
+  // current version took about 0.04s for one frame on cpu
   // check device
   CHECK_INPUT(points);
 

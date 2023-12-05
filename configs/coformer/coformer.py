@@ -25,6 +25,7 @@ db_sampler = dict(
 
 train_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
+    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
     dict(type='ObjectSample', db_sampler=db_sampler),
     dict(type='GlobalRotScaleTrans', scale_ratio_range=[0.9, 1.1], rot_range=[-0.78539816, 0.78539816], translation_std=0.5),
@@ -34,22 +35,23 @@ train_pipeline = [
     dict(type='PointShuffle'),
     dict(
         type='Pack3DDetDAIRInputs',
-        keys=['points', 'img', 'gt_bboxes_3d', 'gt_labels_3d', 'gt_bboxes', 'gt_labels'],
+        keys=['points', 'infrastructure_points', 'img', 'gt_bboxes_3d', 'gt_labels_3d', 'gt_bboxes', 'gt_labels'],
         meta_keys=[
             'cam2img', 'ori_cam2img', 'lidar2cam', 'lidar2img', 'cam2lidar', 'ori_lidar2img', 'img_aug_matrix', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path',
-            'transformation_3d_flow', 'pcd_rotation', 'pcd_scale_factor', 'pcd_trans', 'img_aug_matrix', 'lidar_aug_matrix'
+            'transformation_3d_flow', 'pcd_rotation', 'pcd_scale_factor', 'pcd_trans', 'img_aug_matrix', 'lidar_aug_matrix', 'inf2veh', 'calib', 'img_path'
         ])
 ]
 
 test_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
+    dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
     dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
     dict(
         type='Pack3DDetDAIRInputs',
-        keys=['img', 'points', 'gt_bboxes_3d', 'gt_labels_3d'],
+        keys=['img', 'points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
         meta_keys=[
             'cam2img', 'ori_cam2img', 'lidar2cam', 'lidar2img', 'cam2lidar', 'ori_lidar2img', 'img_aug_matrix', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path',
-            'num_pts_feats', 'num_views'
+            'num_pts_feats', 'num_views', 'inf2veh', 'calib', 'img_path'
         ])
 ]
 
@@ -58,18 +60,6 @@ train_dataloader = dict(
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
-    # dataset=dict(
-    #     type='CBGSDataset',
-    #     dataset=dict(
-    #         type=dataset_type,
-    #         data_root=data_root,
-    #         ann_file=data_info_train_path,
-    #         pipeline=train_pipeline,
-    #         metainfo=metainfo,
-    #         modality=input_modality,
-    #         test_mode=False,
-    #         data_prefix=dict(pts=''),
-    #         box_type_3d='LiDAR')))
     dataset=dict(
         type='RepeatDataset',
         times=2,
@@ -137,7 +127,7 @@ param_scheduler = [
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.4, eta_min=0.85 / 0.95, begin=0, end=epoch_num * 0.4, by_epoch=True, convert_to_iter_based=True),
     dict(type='CosineAnnealingMomentum', T_max=epoch_num * 0.6, eta_min=1, begin=epoch_num * 0.4, end=epoch_num * 1, convert_to_iter_based=True)
 ]
-
+find_unused_parameters = True
 train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
 val_cfg = dict()
 test_cfg = dict()

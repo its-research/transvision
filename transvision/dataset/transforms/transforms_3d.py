@@ -1,4 +1,3 @@
-# modify from https://github.com/mit-han-lab/bevfusion
 from typing import Any, Dict
 
 import numpy as np
@@ -6,7 +5,134 @@ import torch
 from mmcv.transforms import BaseTransform
 from mmdet3d.datasets import GlobalRotScaleTrans
 from mmdet3d.registry import TRANSFORMS
+from mmdet3d.structures.ops import box_np_ops
+from mmdet3d.structures.points import BasePoints
 from PIL import Image
+
+
+@TRANSFORMS.register_module()
+class DAIRObjectSample(BaseTransform):
+    """Sample GT objects to the data.
+
+    Required Keys:
+
+    - points
+    - ann_info
+    - gt_bboxes_3d
+    - gt_labels_3d
+    - img (optional)
+    - gt_bboxes (optional)
+
+    Modified Keys:
+
+    - points
+    - gt_bboxes_3d
+    - gt_labels_3d
+    - img (optional)
+    - gt_bboxes (optional)
+
+    Added Keys:
+
+    - plane (optional)
+
+    Args:
+        db_sampler (dict): Config dict of the database sampler.
+        sample_2d (bool): Whether to also paste 2D image patch to the images.
+            This should be true when applying multi-modality cut-and-paste.
+            Defaults to False.
+        use_ground_plane (bool): Whether to use ground plane to adjust the
+            3D labels. Defaults to False.
+    """
+
+    def __init__(self, db_sampler: dict, sample_2d: bool = False, use_ground_plane: bool = False) -> None:
+        self.sampler_cfg = db_sampler
+        self.sample_2d = sample_2d
+        if 'type' not in db_sampler.keys():
+            db_sampler['type'] = 'DataBaseSampler'
+        self.db_sampler = TRANSFORMS.build(db_sampler)
+        self.use_ground_plane = use_ground_plane
+        self.disabled = False
+
+    @staticmethod
+    def remove_points_in_boxes(points: BasePoints, boxes: np.ndarray) -> np.ndarray:
+        """Remove the points in the sampled bounding boxes.
+
+        Args:
+            points (:obj:`BasePoints`): Input point cloud array.
+            boxes (np.ndarray): Sampled ground truth boxes.
+
+        Returns:
+            np.ndarray: Points with those in the boxes removed.
+        """
+        masks = box_np_ops.points_in_rbbox(points.coord.numpy(), boxes)
+        points = points[np.logical_not(masks.any(-1))]
+        return points
+
+    def transform(self, input_dict: dict) -> dict:
+        """Transform function to sample ground truth objects to the data.
+
+        Args:
+            input_dict (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Results after object sampling augmentation,
+            'points', 'gt_bboxes_3d', 'gt_labels_3d' keys are updated
+            in the result dict.
+        """
+        if self.disabled:
+            return input_dict
+
+        gt_bboxes_3d = input_dict['gt_bboxes_3d']
+        gt_labels_3d = input_dict['gt_labels_3d']
+
+        if self.use_ground_plane:
+            ground_plane = input_dict.get('plane', None)
+            assert ground_plane is not None, '`use_ground_plane` is True ' \
+                                             'but find plane is None'
+        else:
+            ground_plane = None
+        # change to float for blending operation
+        points = input_dict['points']
+        if self.sample_2d:
+            img = input_dict['img']
+            gt_bboxes_2d = input_dict['gt_bboxes']
+            # Assume for now 3D & 2D bboxes are the same
+            sampled_dict = self.db_sampler.sample_all(gt_bboxes_3d.numpy(), gt_labels_3d, gt_bboxes_2d=gt_bboxes_2d, img=img)
+        else:
+            sampled_dict = self.db_sampler.sample_all(gt_bboxes_3d.numpy(), gt_labels_3d, img=None, ground_plane=ground_plane)
+
+        if sampled_dict is not None:
+            sampled_gt_bboxes_3d = sampled_dict['gt_bboxes_3d']
+            sampled_points = sampled_dict['points']
+            sampled_gt_labels = sampled_dict['gt_labels_3d']
+
+            gt_labels_3d = np.concatenate([gt_labels_3d, sampled_gt_labels], axis=0)
+            gt_bboxes_3d = gt_bboxes_3d.new_box(np.concatenate([gt_bboxes_3d.numpy(), sampled_gt_bboxes_3d]))
+
+            points = self.remove_points_in_boxes(points, sampled_gt_bboxes_3d)
+            # check the points dimension
+            points = points.cat([sampled_points, points])
+
+            if self.sample_2d:
+                sampled_gt_bboxes_2d = sampled_dict['gt_bboxes_2d']
+                gt_bboxes_2d = np.concatenate([gt_bboxes_2d, sampled_gt_bboxes_2d]).astype(np.float32)
+
+                input_dict['gt_bboxes'] = gt_bboxes_2d
+                input_dict['img'] = sampled_dict['img']
+
+        input_dict['gt_bboxes_3d'] = gt_bboxes_3d
+        input_dict['gt_labels_3d'] = gt_labels_3d.astype(np.int64)
+        input_dict['points'] = points
+
+        return input_dict
+
+    def __repr__(self) -> str:
+        """str: Return a string that describes the module."""
+        repr_str = self.__class__.__name__
+        repr_str += f'(db_sampler={self.db_sampler},'
+        repr_str += f' sample_2d={self.sample_2d},'
+        repr_str += f' use_ground_plane={self.use_ground_plane})'
+        return repr_str
 
 
 @TRANSFORMS.register_module()

@@ -1,6 +1,6 @@
 from .dair_v2x_for_detection import *
 from .dataset_utils import *
-from .loading import BEVLoadMultiViewImageFromFiles
+from .transforms.loading import BEVLoadMultiViewImageFromFiles
 
 SUPPROTED_DATASETS = {
     'dair-v2x-v': DAIRV2XV,

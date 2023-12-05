@@ -8,64 +8,11 @@ from mmdet3d.structures import Det3DDataSample
 from mmdet3d.utils import ConfigType, OptConfigType, OptMultiConfig
 # from mmengine.visualization import Visualizer
 from torch import Tensor
-from torch import nn as nn
 from torch.nn import functional as F
 
 from transvision.models.voxel import Voxelization
-
 # from transvision.v2x_utils.visual import save_feature_map
-
-
-class ReduceInfTC(nn.Module):
-
-    def __init__(self, channel):
-        super(ReduceInfTC, self).__init__()
-        self.conv1_2 = nn.Conv2d(channel // 2, channel // 4, kernel_size=3, stride=2, padding=0)
-        self.bn1_2 = nn.BatchNorm2d(channel // 4, track_running_stats=True)
-        self.conv1_3 = nn.Conv2d(channel // 4, channel // 8, kernel_size=3, stride=2, padding=0)
-        self.bn1_3 = nn.BatchNorm2d(channel // 8, track_running_stats=True)
-        self.conv1_4 = nn.Conv2d(channel // 8, channel // 64, kernel_size=3, stride=2, padding=1)
-        self.bn1_4 = nn.BatchNorm2d(channel // 64, track_running_stats=True)
-
-        self.deconv2_1 = nn.ConvTranspose2d(channel // 64, channel // 8, kernel_size=3, stride=2, padding=1)
-        self.bn2_1 = nn.BatchNorm2d(channel // 8, track_running_stats=True)
-        self.deconv2_2 = nn.ConvTranspose2d(channel // 8, channel // 4, kernel_size=3, stride=2, padding=0)
-        self.bn2_2 = nn.BatchNorm2d(channel // 4, track_running_stats=True)
-        self.deconv2_3 = nn.ConvTranspose2d(
-            channel // 4,
-            channel // 2,
-            kernel_size=3,
-            stride=2,
-            padding=0,
-            output_padding=1,
-        )
-        self.bn2_3 = nn.BatchNorm2d(channel // 2, track_running_stats=True)
-
-    def forward(self, x):
-        # outputsize = x.shape
-        # out = F.relu(self.bn1_1(self.conv1_1(x)))
-        out = F.relu(self.bn1_2(self.conv1_2(x)))
-        out = F.relu(self.bn1_3(self.conv1_3(out)))
-        out = F.relu(self.bn1_4(self.conv1_4(out)))
-
-        out = F.relu(self.bn2_1(self.deconv2_1(out)))
-        out = F.relu(self.bn2_2(self.deconv2_2(out)))
-        x_1 = F.relu(self.bn2_3(self.deconv2_3(out)))
-
-        # x_1 = F.relu(self.bn2_4(self.deconv2_4(out)))
-        return x_1
-
-
-class PixelWeightedFusion(nn.Module):
-
-    def __init__(self, channel):
-        super(PixelWeightedFusion, self).__init__()
-        self.conv1_1 = nn.Conv2d(channel * 2, channel, kernel_size=3, stride=1, padding=1)
-        self.bn1_1 = nn.BatchNorm2d(channel)
-
-    def forward(self, x):
-        x_1 = F.relu(self.bn1_1(self.conv1_1(x)))
-        return x_1
+from .utils import PixelWeightedFusion, ReduceInfTC
 
 
 @MODELS.register_module()

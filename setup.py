@@ -167,21 +167,10 @@ if __name__ == '__main__':
                 ]),
             make_cuda_ext(
                 name='bev_pool_ext',
-                module='transvision.bevfusion.ops.bev_pool',
+                module='transvision.moldes.bev_pool',
                 sources=[
                     'src/bev_pool.cpp',
                     'src/bev_pool_cuda.cu',
-                ],
-            ),
-            make_cuda_ext(
-                name='voxel_layer',
-                module='transvision.bevfusion.ops.voxel',
-                sources=[
-                    'src/voxelization.cpp',
-                    'src/scatter_points_cpu.cpp',
-                    'src/scatter_points_cuda.cu',
-                    'src/voxelization_cpu.cpp',
-                    'src/voxelization_cuda.cu',
                 ],
             ),
         ],

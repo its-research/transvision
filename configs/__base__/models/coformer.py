@@ -23,8 +23,9 @@ pc_range = [0, -46.08]
 
 model = dict(
     type='CoFormerNet',
+    mode='fusion',  # veh_only, inf_only, fusion
     data_preprocessor=dict(
-        type='Det3DDataPreprocessor',
+        type='Det3DDataDAIRPreprocessor',
         pad_size_divisor=32,
         voxelize_cfg=dict(max_num_points=10, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=[16000, 40000], voxelize_reduce=True)),
     pts_voxel_encoder=dict(type='HardSimpleVFE', num_features=4),
