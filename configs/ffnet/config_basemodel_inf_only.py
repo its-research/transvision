@@ -3,12 +3,14 @@ _base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py
 work_dir = './work_dirs/mmdet3d_1.3.0/ffnet-vic3d/basemodel/inf_only'
 
 model = dict(mode='inf_only')
+data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/'
+data_info_val_path = 'dair_infos_val.pkl'
 
 val_evaluator = [
-    dict(type='KittiMetric', ann_file={{_base_.data_root}} + {{_base_.data_info_val_path}}, metric='bbox', pcd_limit_range={{_base_.point_cloud_range}}, backend_args=None),
+    dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range={{_base_.point_cloud_range}}, backend_args=None),
     dict(
         type='DAIRV2XMetric',
-        ann_file={{_base_.data_root}} + {{_base_.data_info_val_path}},
+        ann_file=data_root + data_info_val_path,
         veh_config_path='configs/ffnet/config_basemodel_inf_only.py',
         work_dir=work_dir,
         split_data_path='data/split_datas/cooperative-split-data.json',

@@ -2,8 +2,8 @@ DATA='data/DAIR-V2X/cooperative-vehicle-infrastructure'
 SPLIT=val
 SPLIT_DATA_PATH="data/split_datas/cooperative-split-data.json"
 OUTPUT="cache/vic-coformer-baseline"
-VEHICLE_MODEL_PATH='work_dirs/mmdet3d_1.3.0/coformer/basemodel/epoch_80.pth'
-VEHICLE_CONFIG_NAME='configs/coformer/coformer.py'
+VEHICLE_MODEL_PATH='work_dirs/mmdet3d_1.3.0/coformer/basemodel/veh_only/epoch_10.pth'
+VEHICLE_CONFIG_NAME='configs/coformer/coformer_veh_only.py'
 CUDA_VISIBLE_DEVICES=$1 \
 
 python transvision/eval.py \
