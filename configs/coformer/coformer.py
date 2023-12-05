@@ -115,7 +115,6 @@ log_processor = dict(window_size=50)
 
 default_hooks = dict(logger=dict(type='LoggerHook', interval=50), checkpoint=dict(type='CheckpointHook', interval=5))
 custom_hooks = [dict(type='DisableObjectSampleHook', disable_after_epoch=15)]
-# load_from = 'work_dirs/mmdet3d_1.3.0/coformer/basemodel/epoch_40.pth'
 
 lr = 0.0001
 epoch_num = 80
