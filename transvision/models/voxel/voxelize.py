@@ -103,11 +103,7 @@ class Voxelization(nn.Module):
         self.grid_size = grid_size
         # the origin shape is as [x-len, y-len, z-len]
         # [w, h, d] -> [d, h, w] removed
-        # Below is the bevfusion code
-        self.pcd_shape = [*input_feat_shape, 1]  # [::-1]
-        # TODO: check the shape
-        # Below is the origin shape
-        # self.pcd_shape = [*input_feat_shape, 1][::-1]
+        self.pcd_shape = [*input_feat_shape, 1][::-1]
 
     def forward(self, input):
         """

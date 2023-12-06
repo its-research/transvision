@@ -53,15 +53,9 @@ __global__ void dynamic_voxelize_kernel(
       coors_offset[1] = -1;
       coors_offset[2] = -1;
     } else {
-      // TODO: change the order of coors
-      // Below is bevfusion order
-      coors_offset[0] = c_x;
+      coors_offset[0] = c_z;
       coors_offset[1] = c_y;
-      coors_offset[2] = c_z;
-      // Below is the order of coors in the original code
-      // coors_offset[0] = c_z;
-      // coors_offset[1] = c_y;
-      // coors_offset[2] = c_x;
+      coors_offset[2] = c_x;
     }
   }
 }
