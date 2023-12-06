@@ -4,7 +4,7 @@ data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_trai
 data_info_train_path = 'dair_infos_train.pkl'
 data_info_val_path = 'dair_infos_val.pkl'
 
-point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
+# point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 
 input_modality = dict(use_lidar=True, use_camera=True)
 class_names = ['Car']
@@ -15,8 +15,8 @@ train_pipeline = [
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='vehicle'),
     dict(type='LoadPointsFromFile_w_sensor_view', coord_type='LIDAR', load_dim=4, use_dim=4, sensor_view='infrastructure'),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
-    dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
-    dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
+    dict(type='PointsRangeFilter', point_cloud_range=[0, -46.08, -3, 92.16, 46.08, 1]),
+    dict(type='ObjectRangeFilter', point_cloud_range=[0, -46.08, -3, 92.16, 46.08, 1]),
     dict(
         type='Pack3DDetDAIRInputs',
         keys=['points', 'infrastructure_points', 'gt_bboxes_3d', 'gt_labels_3d'],
@@ -39,7 +39,7 @@ test_pipeline = [
         transforms=[
             dict(type='GlobalRotScaleTrans', rot_range=[0, 0], scale_ratio_range=[1., 1.], translation_std=[0, 0, 0]),
             dict(type='RandomFlip3D'),
-            dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range)
+            dict(type='PointsRangeFilter', point_cloud_range=[0, -46.08, -3, 92.16, 46.08, 1])
         ]),
     dict(
         type='Pack3DDetDAIRInputs',
@@ -86,7 +86,7 @@ train_dataloader = dict(
             modality=input_modality,
             test_mode=False,
             metainfo=metainfo,
-            pcd_limit_range=point_cloud_range,  # not sure
+            pcd_limit_range=[0, -46.08, -3, 92.16, 46.08, 1],  # not sure
             box_type_3d='LiDAR',
             backend_args=backend_args)))
 val_dataloader = dict(
@@ -103,7 +103,7 @@ val_dataloader = dict(
         pipeline=test_pipeline,
         modality=input_modality,
         test_mode=True,
-        pcd_limit_range=point_cloud_range,  # not sure
+        pcd_limit_range=[0, -46.08, -3, 92.16, 46.08, 1],  # not sure
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))
@@ -121,7 +121,7 @@ test_dataloader = dict(
         pipeline=test_pipeline,
         modality=input_modality,
         test_mode=True,
-        pcd_limit_range=point_cloud_range,  # not sure
+        pcd_limit_range=[0, -46.08, -3, 92.16, 46.08, 1],  # not sure
         metainfo=metainfo,
         box_type_3d='LiDAR',
         backend_args=backend_args))

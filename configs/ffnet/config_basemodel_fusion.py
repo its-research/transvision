@@ -3,9 +3,9 @@ _base_ = ['../__base__/schedules/cyclic-40e.py', '../__base__/default_runtime.py
 work_dir = './work_dirs/mmdet3d_1.3.0/ffnet-vic3d/basemodel/fusion'
 data_root = 'data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/'
 data_info_val_path = 'dair_infos_val.pkl'
-
+point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
 val_evaluator = [
-    dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range={{_base_.point_cloud_range}}, backend_args=None),
+    dict(type='KittiMetric', ann_file=data_root + data_info_val_path, metric='bbox', pcd_limit_range=point_cloud_range, backend_args=None),
     dict(
         type='DAIRV2XMetric',
         ann_file=data_root + data_info_val_path,
@@ -16,7 +16,7 @@ val_evaluator = [
         input='data/DAIR-V2X/cooperative-vehicle-infrastructure',
         test_mode=None,
         val_data_path=None,
-        pcd_limit_range={{_base_.point_cloud_range}},
+        pcd_limit_range=point_cloud_range,
         backend_args=None)
 ]
 test_evaluator = val_evaluator
