@@ -1,5 +1,18 @@
 # Data Preparation
 
+## Transvision Data
+
+```python
+python tools/dataset_converters/ffnet_preprocess.py
+cp -r data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/cooperative/label/lidar data/DAIR-V2X/cooperative-vehicle-infrastructure/cooperative/label/
+
+python tools/dataset_converters/convert_dair_c_to_mmdet3d.py --v2x-info-gen 0
+python tools/dataset_converters/convert_dair_c_to_mmdet3d.py --v2x-info-gen 1
+
+
+python tools/create_data.py kitti --root-path data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet --out-dir data/DAIR-V2X/cooperative-vehicle-infrastructure/mmdet3d_1.3.0_training/ffnet/  --extra-tag kitti --only-gt-database
+```
+
 ## FFNet flow data
 
 ### Data Structure

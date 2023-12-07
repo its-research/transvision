@@ -62,7 +62,7 @@ train_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type='RepeatDataset',
-        times=2,
+        times=4,
         dataset=dict(
             type=dataset_type,
             data_root=data_root,
@@ -130,3 +130,4 @@ find_unused_parameters = True
 train_cfg = dict(by_epoch=True, max_epochs=epoch_num, val_interval=10)
 val_cfg = dict()
 test_cfg = dict()
+# load_from = 'models/coformer_basemodel_fusion_1.3.0.pth'

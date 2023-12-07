@@ -63,7 +63,7 @@ namespace voxelization {
 std::vector<at::Tensor> dynamic_point_to_voxel_cpu(
     const at::Tensor& points, const at::Tensor& voxel_mapping,
     const std::vector<float> voxel_size, const std::vector<float> coors_range) {
-  // current version tooks about 0.02s_0.03s for one frame on cpu
+  // current version took about 0.02s_0.03s for one frame on cpu
   // check device
   AT_ASSERTM(points.device().is_cpu(), "points must be a CPU tensor");
 

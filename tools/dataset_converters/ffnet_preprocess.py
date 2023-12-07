@@ -3,11 +3,10 @@ import math
 import os
 
 import numpy as np
+from gen_kitti.utils import pcd2bin
 from mmengine import dump as mmengine_dump
 from mmengine import load as mmengine_load
 from tqdm import tqdm
-
-from tools.dataset_converters.gen_kitti.utils import pcd2bin
 
 
 def get_calibs(calib_path):

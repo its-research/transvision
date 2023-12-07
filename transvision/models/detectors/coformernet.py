@@ -329,7 +329,6 @@ class CoFormerNet(Base3DDetector):
         inf_pts_feature = self.extract_pts_feat(batch_inputs_dict, points_view='infrastructure')
         inf_x = self.inf_pts_backbone(inf_pts_feature)
         inf_x = self.inf_pts_neck(inf_x)
-
         inf_x[0] = self.encoder(inf_x[0])
 
         wrap_feats_ii = []
