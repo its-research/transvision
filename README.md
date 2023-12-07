@@ -6,21 +6,21 @@
 
 ### Results
 
-| Car         | 3DAP@0.30 | 0.50  | 0.70  | BEVAP@0.30 | 0.50  | 0.70  |
-| :---------- | :-------: | :---: | :---: | :--------: | :---: | :---: |
-| FFNet-B-V   |   58.70   | 51.60 | 29.99 |   59.87    | 56.62 | 49.15 |
-| FFNet-B-F   |   63.55   | 55.48 | 31.54 |   65.67    | 63.15 | 54.27 |
-| FFNet-100ms |   69.91   | 60.97 | 33.97 |   71.81    | 69.13 | 58.65 |
-| FFNet-200ms |   69.35   | 60.63 | 34.14 |   71.22    | 68.60 | 58.29 |
-| TF-L-V      |   64.91   | 56.40 | 34.69 |   66.21    | 62.08 | 52.48 |
-| CoFormerNet |           |       |       |            |       |       |
+| Car             | Latency |   0.50    |   0.70    |   0.50    |   0.70    |
+| :-------------- | :-----: | :-------: | :-------: | :-------: | :-------: |
+| FFNet-B-V       |   0ms   |   51.60   |   29.99   |   56.62   |   49.15   |
+| FFNet-B-F       |   0ms   |   55.48   |   31.54   |   63.15   |   54.27   |
+| FFNet           |   0ms   |   55.81   |   30.23   | __63.54__ |   54.16   |
+| FFNet           |  200ms  |   55.37   |   31.66   |   63.20   | __54.69__ |
+| FFNet(w/o pred) |  200ms  |   50.27   |   27.57   |   57.93   |   48.16   |
+| TF-L-V          |   0ms   |   56.40   |   34.69   |   62.08   |   52.48   |
+| TF-L-F          |   0ms   | __58.46__ | __37.28__ |   62.73   |   54.21   |
+| CoFormerNet     |   0ms   |           |           |           |           |
 
 conf=0.2
 
 - FF-B-V: FFNet Basemodel veh-only(our re-implementation)
 - FF-B-F: FFNet Basemodel fusion(our re-implementation)
-- FFNet-100ms: FFNet with latency: 100ms(our re-implementation)
-- FFNet-200ms: FFNet with latency: 200ms(our re-implementation)
 - TF-L-V: Transfusion-L veh-only
 
 ## Reference
