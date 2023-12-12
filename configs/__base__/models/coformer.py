@@ -11,24 +11,27 @@
 # For voxel based detectors such as SECOND, PV-RCNN and CenterPoint, the point cloud range and voxel size should follow:
 # Point cloud range along z-axis / voxel_size is 40
 # Point cloud range along x&y-axis / voxel_size is the multiple of 16.
+model_type = 'coformer'
 
 point_cloud_range = [0, -46.08, -3, 92.16, 46.08, 1]
-# voxel_size = [0.16, 0.16, 0.1]
-voxel_size = [0.08, 0.08, 0.1]
-
+voxel_size = [0.16, 0.16, 0.1]
 out_size_factor = 8
-shape = 1152
-sparse_shape = [shape, shape, 41]
-grid_size = [shape, shape, 41]  # TODO: why 40 or 41?
-pc_range = [0, -46.08]
-model_type = 'coformer'
+# voxel_size = [0.08, 0.08, 0.1]
+
+shape_x = int((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
+shape_y = int((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
+shape_z = int((point_cloud_range[5] - point_cloud_range[2]) / voxel_size[2])
+sparse_shape = [shape_x, shape_y, shape_z + 1]
+grid_size = [shape_x, shape_y, shape_z + 1]  # TODO: why not +1
+pc_range = point_cloud_range[:2]
+
 model = dict(
     type='CoFormerNet',
-    mode='fusion',  # veh_only, inf_only, fusion
+    mode='fusion+prebev',  # fusion+prebev, fusion
     data_preprocessor=dict(
         type='Det3DDataDAIRPreprocessor',
         pad_size_divisor=32,
-        voxelize_cfg=dict(max_num_points=100, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=[40000, 40000], voxelize_reduce=True)),
+        voxelize_cfg=dict(max_num_points=10, point_cloud_range=point_cloud_range, voxel_size=voxel_size, max_voxels=[16000, 40000], voxelize_reduce=True)),
     pts_voxel_encoder=dict(type='HardSimpleVFE', num_features=4),
     pts_middle_encoder=dict(
         type='BEVFusionSparseEncoder',
@@ -94,14 +97,14 @@ model = dict(
                 cls_cost=dict(type='mmdet.FocalLossCost', gamma=2.0, alpha=0.25, weight=0.15),
                 reg_cost=dict(type='BBoxBEVL1Cost', weight=0.25),
                 iou_cost=dict(type='IoU3DCost', weight=0.25))),
-        test_cfg=dict(dataset='Kitti', grid_size=grid_size, out_size_factor=8, voxel_size=voxel_size, pc_range=[0, -46.08], nms_type=None),
+        test_cfg=dict(dataset='Kitti', grid_size=grid_size, out_size_factor=8, voxel_size=voxel_size, pc_range=pc_range, nms_type=None),
         common_heads=dict(center=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2]),
         bbox_coder=dict(
             type='TransFusionBBoxCoder',
-            pc_range=[0, -46.08],  # pc_range=point_cloud_range[:2],
+            pc_range=pc_range,  # pc_range=point_cloud_range[:2],
             post_center_range=[0, -50, -5, 100, 50, 3],
             score_threshold=0.2,
-            out_size_factor=8,
+            out_size_factor=out_size_factor,
             voxel_size=voxel_size,
             code_size=8),
         loss_cls=dict(type='mmdet.FocalLoss', use_sigmoid=True, gamma=2.0, alpha=0.25, reduction='mean', loss_weight=1.0),

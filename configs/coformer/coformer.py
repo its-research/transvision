@@ -56,13 +56,13 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=4,
+    batch_size=16,
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type='RepeatDataset',
-        times=4,
+        times=2,
         dataset=dict(
             type=dataset_type,
             data_root=data_root,
@@ -117,7 +117,7 @@ default_hooks = dict(logger=dict(type='LoggerHook', interval=50), checkpoint=dic
 custom_hooks = [dict(type='DisableObjectSampleHook', disable_after_epoch=15)]
 
 lr = 0.0001
-epoch_num = 80
+epoch_num = 160
 optim_wrapper = dict(type='OptimWrapper', optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01), clip_grad=dict(max_norm=35, norm_type=2))
 
 param_scheduler = [

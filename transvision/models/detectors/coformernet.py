@@ -58,7 +58,7 @@ class CoFormerNet(Base3DDetector):
         self.pts_neck = MODELS.build(pts_neck)
         self.bbox_head = MODELS.build(bbox_head)
 
-        if self.mode == 'fusion':
+        if 'fusion' in self.mode:
             self.inf_pts_voxel_layer = Voxelization(**voxelize_cfg)
             self.inf_pts_voxel_encoder = MODELS.build(pts_voxel_encoder)
             self.inf_pts_middle_encoder = MODELS.build(pts_middle_encoder)
@@ -67,6 +67,7 @@ class CoFormerNet(Base3DDetector):
 
             self.fusion_weighted = PixelWeightedFusion(512)
             self.encoder = ReduceInfTC(1024)
+        self.pre_bev = None
 
         self.init_weights()
 
@@ -187,7 +188,7 @@ class CoFormerNet(Base3DDetector):
                 batch_size = coords[-1, 0] + 1
             x = self.pts_middle_encoder(feats, coords, batch_size)
             return x
-        elif points_view == 'infrastructure':
+        elif 'infrastructure' in points_view:
             points = batch_inputs_dict['infrastructure_points']
             with torch.autocast('cuda', enabled=False):
                 points = [point.float() for point in points]
@@ -314,6 +315,7 @@ class CoFormerNet(Base3DDetector):
             img_feature = self.extract_img_feat(imgs, deepcopy(points), lidar2image, camera_intrinsics, camera2lidar, img_aug_matrix, lidar_aug_matrix, batch_input_metas)
             features.append(img_feature)
         pts_feature = self.extract_pts_feat(batch_inputs_dict, points_view='vehicle')
+
         features.append(pts_feature)
         if self.fusion_layer is not None:
             veh_x = self.fusion_layer(features)
@@ -327,6 +329,9 @@ class CoFormerNet(Base3DDetector):
             return veh_x
 
         inf_pts_feature = self.extract_pts_feat(batch_inputs_dict, points_view='infrastructure')
+
+        if self.mode == 'fusion+prebev':
+            pass
         inf_x = self.inf_pts_backbone(inf_pts_feature)
         inf_x = self.inf_pts_neck(inf_x)
         inf_x[0] = self.encoder(inf_x[0])
