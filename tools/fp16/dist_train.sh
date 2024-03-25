@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 
-rm -rf ~/.cache/torch_extensions
-
 CONFIG=$1
 GPUS=$2
-PORT=${PORT:-28509}
+PORT=${PORT:-28508}
 
 PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
 python -m torch.distributed.launch --nproc_per_node=$GPUS --master_port=$PORT \
