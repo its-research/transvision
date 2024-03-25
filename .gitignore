@@ -159,3 +159,4 @@ transvision/utils/box_overlaps.c
 /ffnet_work_dir/
 training_list.sh
 /work_dirs
+/data/nuscenes
