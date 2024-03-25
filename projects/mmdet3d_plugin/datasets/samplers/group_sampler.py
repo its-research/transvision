@@ -1,4 +1,3 @@
-
 # Copyright (c) OpenMMLab. All rights reserved.
 import math
 
@@ -6,9 +5,8 @@ import numpy as np
 import torch
 from mmcv.runner import get_dist_info
 from torch.utils.data import Sampler
+
 from .sampler import SAMPLER
-import random
-from IPython import embed
 
 
 @SAMPLER.register_module()
@@ -30,12 +28,7 @@ class DistributedGroupSampler(Sampler):
             processes in the distributed group. Default: 0.
     """
 
-    def __init__(self,
-                 dataset,
-                 samples_per_gpu=1,
-                 num_replicas=None,
-                 rank=None,
-                 seed=0):
+    def __init__(self, dataset, samples_per_gpu=1, num_replicas=None, rank=None, seed=0):
         _rank, _num_replicas = get_dist_info()
         if num_replicas is None:
             num_replicas = _num_replicas
@@ -54,9 +47,7 @@ class DistributedGroupSampler(Sampler):
 
         self.num_samples = 0
         for i, j in enumerate(self.group_sizes):
-            self.num_samples += int(
-                math.ceil(self.group_sizes[i] * 1.0 / self.samples_per_gpu /
-                          self.num_replicas)) * self.samples_per_gpu
+            self.num_samples += int(math.ceil(self.group_sizes[i] * 1.0 / self.samples_per_gpu / self.num_replicas)) * self.samples_per_gpu
         self.total_size = self.num_samples * self.num_replicas
 
     def __iter__(self):
@@ -72,12 +63,8 @@ class DistributedGroupSampler(Sampler):
                 # add .numpy() to avoid bug when selecting indice in parrots.
                 # TODO: check whether torch.randperm() can be replaced by
                 # numpy.random.permutation().
-                indice = indice[list(
-                    torch.randperm(int(size), generator=g).numpy())].tolist()
-                extra = int(
-                    math.ceil(
-                        size * 1.0 / self.samples_per_gpu / self.num_replicas)
-                ) * self.samples_per_gpu * self.num_replicas - len(indice)
+                indice = indice[list(torch.randperm(int(size), generator=g).numpy())].tolist()
+                extra = int(math.ceil(size * 1.0 / self.samples_per_gpu / self.num_replicas)) * self.samples_per_gpu * self.num_replicas - len(indice)
                 # pad indice
                 tmp = indice.copy()
                 for _ in range(extra // size):
@@ -88,11 +75,7 @@ class DistributedGroupSampler(Sampler):
         assert len(indices) == self.total_size
 
         indices = [
-            indices[j] for i in list(
-                torch.randperm(
-                    len(indices) // self.samples_per_gpu, generator=g))
-            for j in range(i * self.samples_per_gpu, (i + 1) *
-                           self.samples_per_gpu)
+            indices[j] for i in list(torch.randperm(len(indices) // self.samples_per_gpu, generator=g)) for j in range(i * self.samples_per_gpu, (i + 1) * self.samples_per_gpu)
         ]
 
         # subsample
@@ -107,4 +90,3 @@ class DistributedGroupSampler(Sampler):
 
     def set_epoch(self, epoch):
         self.epoch = epoch
-

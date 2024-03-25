@@ -9,7 +9,6 @@
   <img alt="License: Apache2.0" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"/>
 </a>
 
-
 <img src="./figs/occupanc_1.gif" width="696px">
 
 </div>
@@ -65,14 +64,14 @@ Given images from multiple cameras, the goal is to predict the semantics and flo
 
 ### Rules for Occupancy and Flow Challenge
 
-* We allow using annotations provided in the nuScenes dataset. During inference, the input modality of the model should be camera only. 
-* No future frame is allowed during inference.
-* In order to check the compliance, we will ask the participants to provide technical reports to the challenge committee and the participant will be asked to provide a public talk about the method after winning the award.
-* Every submission provides method information. We encourage publishing code, but do not make it a requirement.
-* Each team can have at most one account on the evaluation server. Users that create multiple accounts to circumvent the rules will be excluded from the challenge.
-* Each team can submit at most three results during the challenge. 
-* Faulty submissions that return an error on HuggingFace do not count towards the submission limit.
-* Any attempt to circumvent these rules will result in a permanent ban of the team or company from the challenge.
+- We allow using annotations provided in the nuScenes dataset. During inference, the input modality of the model should be camera only.
+- No future frame is allowed during inference.
+- In order to check the compliance, we will ask the participants to provide technical reports to the challenge committee and the participant will be asked to provide a public talk about the method after winning the award.
+- Every submission provides method information. We encourage publishing code, but do not make it a requirement.
+- Each team can have at most one account on the evaluation server. Users that create multiple accounts to circumvent the rules will be excluded from the challenge.
+- Each team can submit at most three results during the challenge.
+- Faulty submissions that return an error on HuggingFace do not count towards the submission limit.
+- Any attempt to circumvent these rules will result in a permanent ban of the team or company from the challenge.
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
@@ -92,10 +91,10 @@ We apply the same procedure to the ground-truth occupancy to obtain the groud-tr
 
 A query ray is classified as a **true positive** (TP) if the class labels coincide **and** the L1 error between the ground-truth depth and the predicted depth is less than either a certain threshold (e.g. 2m).
 
-Let $C$ be he number of classes. 
+Let $C$ be he number of classes.
 
 $$
-mIoU=\frac{1}{C}\displaystyle \sum_{c=1}^{C}\frac{TP_c}{TP_c+FP_c+FN_c},
+mIoU=\\frac{1}{C}\\displaystyle \\sum\_{c=1}^{C}\\frac{TP_c}{TP_c+FP_c+FN_c},
 $$
 
 where $TP_c$ , $FP_c$ , and $FN_c$ correspond to the number of true positive, false positive, and false negative predictions for class $c_i$.
@@ -108,7 +107,7 @@ For more details about this metric, we will release a technical report within a 
 
 Here we measure velocity errors for a set of true positives (TP). We use a threshold of 2m distance.
 
-The absolute velocity error (AVE) is defined for 8 classes ('car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian') in m/s. 
+The absolute velocity error (AVE) is defined for 8 classes ('car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian') in m/s.
 
 ### Occupancy Score
 
@@ -123,33 +122,31 @@ OccScore = mIoU * 0.9 + max(1 - mAVE, 0.0) * 0.1
 ## Data
 
 ### Basic Information
+
 <div align="center">
-  
-| Type |  Info |
-| :----: | :----: |
-| train           | 28,130 |
-| val             | 6,019 |
-| test            | 6,008 |
-| cameras         | 6 |
-| voxel size      | 0.4m |
-| range           | [-40m, -40m, -1m, 40m, 40m, 5.4m]|
-| volume size     | [200, 200, 16]|
-| #classes        | 0 - 16 |
-  
+
+|    Type     |                Info                 |
+| :---------: | :---------------------------------: |
+|    train    |               28,130                |
+|     val     |                6,019                |
+|    test     |                6,008                |
+|   cameras   |                  6                  |
+| voxel size  |                0.4m                 |
+|    range    | \[-40m, -40m, -1m, 40m, 40m, 5.4m\] |
+| volume size |          \[200, 200, 16\]           |
+|  #classes   |               0 - 16                |
+
 </div>
 
 - The dataset contains 17 classes. Voxel semantics for each sample frame is given as `[semantics]` in the labels.npz. Occupancy flow is given as `[flow]`  in the labels.npz.
 
-
 ### Download
-
 
 1. Download the nuScenes dataset and put in into `data/nuscenes`
 
 2. Download our `openocc_v2.1.zip` and `infos.zip` from [OpenDataLab](https://opendatalab.com/OpenDriveLab/CVPR24-Occ-Flow-Challenge/tree/main) or [Google Drive](https://drive.google.com/drive/folders/1lpqjXZRKEvNHFhsxTf0MOE13AZ3q4bTq)
 
 3. Unzip them in `data/nuscenes`
-
 
 ### Hierarchy
 

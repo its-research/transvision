@@ -1,16 +1,15 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import tempfile
+
 import torch
 from mmcv import Config
 from mmcv.runner import load_state_dict
-
 from mmdet3d.models import build_detector
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description='MMDet3D upgrade model version(before v0.6.0) of VoteNet')
+    parser = argparse.ArgumentParser(description='MMDet3D upgrade model version(before v0.6.0) of VoteNet')
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument('--out', help='path of the output checkpoint file')
     args = parser.parse_args()
@@ -38,26 +37,20 @@ def parse_config(config_strings):
         config.model.backbone.pop('pool_mod')
 
     if 'sa_cfg' not in config.model.backbone:
-        config.model.backbone['sa_cfg'] = dict(
-            type='PointSAModule',
-            pool_mod='max',
-            use_xyz=True,
-            normalize_xyz=True)
+        config.model.backbone['sa_cfg'] = dict(type='PointSAModule', pool_mod='max', use_xyz=True, normalize_xyz=True)
 
     if 'type' not in config.model.bbox_head.vote_aggregation_cfg:
         config.model.bbox_head.vote_aggregation_cfg['type'] = 'PointSAModule'
 
     # Update bbox_head config
     if 'pred_layer_cfg' not in config.model.bbox_head:
-        config.model.bbox_head['pred_layer_cfg'] = dict(
-            in_channels=128, shared_conv_channels=(128, 128), bias=True)
+        config.model.bbox_head['pred_layer_cfg'] = dict(in_channels=128, shared_conv_channels=(128, 128), bias=True)
 
     if 'feat_channels' in config.model.bbox_head:
         config.model.bbox_head.pop('feat_channels')
 
     if 'vote_moudule_cfg' in config.model.bbox_head:
-        config.model.bbox_head['vote_module_cfg'] = config.model.bbox_head.pop(
-            'vote_moudule_cfg')
+        config.model.bbox_head['vote_module_cfg'] = config.model.bbox_head.pop('vote_moudule_cfg')
 
     if config.model.bbox_head.vote_aggregation_cfg.use_xyz:
         config.model.bbox_head.vote_aggregation_cfg.mlp_channels[0] -= 3
@@ -70,18 +63,14 @@ def parse_config(config_strings):
 def main():
     """Convert keys in checkpoints for VoteNet.
 
-    There can be some breaking changes during the development of mmdetection3d,
-    and this tool is used for upgrading checkpoints trained with old versions
-    (before v0.6.0) to the latest one.
+    There can be some breaking changes during the development of mmdetection3d, and this tool is used for upgrading checkpoints trained with old versions (before v0.6.0) to the
+    latest one.
     """
     args = parse_args()
     checkpoint = torch.load(args.checkpoint)
     cfg = parse_config(checkpoint['meta']['config'])
     # Build the model and load checkpoint
-    model = build_detector(
-        cfg.model,
-        train_cfg=cfg.get('train_cfg'),
-        test_cfg=cfg.get('test_cfg'))
+    model = build_detector(cfg.model, train_cfg=cfg.get('train_cfg'), test_cfg=cfg.get('test_cfg'))
     orig_ckpt = checkpoint['state_dict']
     converted_ckpt = orig_ckpt.copy()
 
@@ -92,25 +81,15 @@ def main():
     else:
         raise NotImplementedError
 
-    RENAME_PREFIX = {
-        'bbox_head.conv_pred.0': 'bbox_head.conv_pred.shared_convs.layer0',
-        'bbox_head.conv_pred.1': 'bbox_head.conv_pred.shared_convs.layer1'
-    }
+    RENAME_PREFIX = {'bbox_head.conv_pred.0': 'bbox_head.conv_pred.shared_convs.layer0', 'bbox_head.conv_pred.1': 'bbox_head.conv_pred.shared_convs.layer1'}
 
-    DEL_KEYS = [
-        'bbox_head.conv_pred.0.bn.num_batches_tracked',
-        'bbox_head.conv_pred.1.bn.num_batches_tracked'
-    ]
+    DEL_KEYS = ['bbox_head.conv_pred.0.bn.num_batches_tracked', 'bbox_head.conv_pred.1.bn.num_batches_tracked']
 
     EXTRACT_KEYS = {
-        'bbox_head.conv_pred.conv_cls.weight':
-        ('bbox_head.conv_pred.conv_out.weight', [(0, 2), (-NUM_CLASSES, -1)]),
-        'bbox_head.conv_pred.conv_cls.bias':
-        ('bbox_head.conv_pred.conv_out.bias', [(0, 2), (-NUM_CLASSES, -1)]),
-        'bbox_head.conv_pred.conv_reg.weight':
-        ('bbox_head.conv_pred.conv_out.weight', [(2, -NUM_CLASSES)]),
-        'bbox_head.conv_pred.conv_reg.bias':
-        ('bbox_head.conv_pred.conv_out.bias', [(2, -NUM_CLASSES)])
+        'bbox_head.conv_pred.conv_cls.weight': ('bbox_head.conv_pred.conv_out.weight', [(0, 2), (-NUM_CLASSES, -1)]),
+        'bbox_head.conv_pred.conv_cls.bias': ('bbox_head.conv_pred.conv_out.bias', [(0, 2), (-NUM_CLASSES, -1)]),
+        'bbox_head.conv_pred.conv_reg.weight': ('bbox_head.conv_pred.conv_out.weight', [(2, -NUM_CLASSES)]),
+        'bbox_head.conv_pred.conv_reg.bias': ('bbox_head.conv_pred.conv_out.bias', [(2, -NUM_CLASSES)])
     }
 
     # Delete some useless keys
@@ -122,8 +101,7 @@ def main():
     for old_key in converted_ckpt.keys():
         for rename_prefix in RENAME_PREFIX.keys():
             if rename_prefix in old_key:
-                new_key = old_key.replace(rename_prefix,
-                                          RENAME_PREFIX[rename_prefix])
+                new_key = old_key.replace(rename_prefix, RENAME_PREFIX[rename_prefix])
                 RENAME_KEYS[new_key] = old_key
     for new_key, old_key in RENAME_KEYS.items():
         converted_ckpt[new_key] = converted_ckpt.pop(old_key)

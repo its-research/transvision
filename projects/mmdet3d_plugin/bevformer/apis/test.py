@@ -4,26 +4,26 @@
 #  Modified by Xiaoyu Tian
 # ---------------------------------------------
 import os.path as osp
-import pickle
+# import pickle
 import shutil
 import tempfile
 import time
 
 import mmcv
-import torch
-import torch.distributed as dist
-from mmcv.image import tensor2imgs
-from mmcv.runner import get_dist_info
-
-from mmdet.core import encode_mask_results
-
-
-import mmcv
 import numpy as np
 import pycocotools.mask as mask_util
+import torch
+import torch.distributed as dist
+# from mmcv.image import tensor2imgs
+from mmcv.runner import get_dist_info
+
+# from mmdet.core import encode_mask_results
+
 
 def custom_encode_mask_results(mask_results):
-    """Encode bitmap mask to RLE code. Semantic Masks only
+    """Encode bitmap mask to RLE code.
+
+    Semantic Masks only
     Args:
         mask_results (list | tuple[list]): bitmap mask results.
             In mask scoring rcnn, mask_results is a tuple of (segm_results,
@@ -32,18 +32,16 @@ def custom_encode_mask_results(mask_results):
         list | tuple: RLE encoded mask.
     """
     cls_segms = mask_results
-    num_classes = len(cls_segms)
+    # num_classes = len(cls_segms)
     encoded_mask_results = []
     for i in range(len(cls_segms)):
-        encoded_mask_results.append(
-            mask_util.encode(
-                np.array(
-                    cls_segms[i][:, :, np.newaxis], order='F',
-                        dtype='uint8'))[0])  # encoded with RLE
+        encoded_mask_results.append(mask_util.encode(np.array(cls_segms[i][:, :, np.newaxis], order='F', dtype='uint8'))[0])  # encoded with RLE
     return [encoded_mask_results]
+
 
 def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
     """Test model with multiple gpus.
+
     This method tests model with multiple gpus and collects the results
     under two different modes: gpu and cpu modes. By setting 'gpu_collect=True'
     it encodes results to gpu tensors and use gpu communication for results
@@ -59,8 +57,8 @@ def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
         list: The prediction results.
     """
     model.eval()
-    bbox_results = []
-    mask_results = []
+    # bbox_results = []
+    # mask_results = []
     occ_results = []
     dataset = data_loader.dataset
     rank, world_size = get_dist_info()
@@ -70,13 +68,13 @@ def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
         prog_bar = mmcv.ProgressBar(len(dataset))
 
     time.sleep(2)  # This line can prevent deadlock problem in some cases.
-    have_mask = False
+    # have_mask = False
     for i, data in enumerate(data_loader):
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
             occ_results.append(result)
-            
-            #if isinstance(result[0], tuple):
+
+            # if isinstance(result[0], tuple):
             #    assert False, 'this code is for instance segmentation, which our code will not utilize.'
             #    result = [(bbox_results, encode_mask_results(mask_results))
             #              for bbox_results, mask_results in result]
@@ -92,15 +90,11 @@ def collect_results_cpu(result_part, size, tmpdir=None):
     if tmpdir is None:
         MAX_LEN = 512
         # 32 is whitespace
-        dir_tensor = torch.full((MAX_LEN, ),
-                                32,
-                                dtype=torch.uint8,
-                                device='cuda')
+        dir_tensor = torch.full((MAX_LEN, ), 32, dtype=torch.uint8, device='cuda')
         if rank == 0:
             mmcv.mkdir_or_exist('.dist_test')
             tmpdir = tempfile.mkdtemp(dir='.dist_test')
-            tmpdir = torch.tensor(
-                bytearray(tmpdir.encode()), dtype=torch.uint8, device='cuda')
+            tmpdir = torch.tensor(bytearray(tmpdir.encode()), dtype=torch.uint8, device='cuda')
             dir_tensor[:len(tmpdir)] = tmpdir
         dist.broadcast(dir_tensor, 0)
         tmpdir = dir_tensor.cpu().numpy().tobytes().decode().rstrip()
@@ -121,10 +115,10 @@ def collect_results_cpu(result_part, size, tmpdir=None):
         # sort the results
         ordered_results = []
         '''
-        bacause we change the sample of the evaluation stage to make sure that each gpu will handle continuous sample,
+        because we change the sample of the evaluation stage to make sure that each gpu will handle continuous sample,
         '''
-        #for res in zip(*part_list):
-        for res in part_list:  
+        # for res in zip(*part_list):
+        for res in part_list:
             ordered_results.extend(list(res))
         # the dataloader may pad some samples
         ordered_results = ordered_results[:size]
@@ -132,11 +126,8 @@ def collect_results_cpu(result_part, size, tmpdir=None):
         shutil.rmtree(tmpdir)
         return ordered_results
 
-def single_gpu_test(model,
-                    data_loader,
-                    show=False,
-                    out_dir=None,
-                    show_score_thr=0.3):
+
+def single_gpu_test(model, data_loader, show=False, out_dir=None, show_score_thr=0.3):
     """Test model with single gpu.
 
     This method tests model with single gpu and gives the 'show' option.

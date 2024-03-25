@@ -28,5 +28,4 @@ class LoadOccGTFromFile(object):
 
     def __repr__(self):
         """str: Return a string that describes the module."""
-        return "{} (data_root={}')".format(
-            self.__class__.__name__, self.data_root)
+        return "{} (data_root={}')".format(self.__class__.__name__, self.data_root)

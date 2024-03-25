@@ -8,35 +8,32 @@ import copy
 import warnings
 
 import torch
-import torch.nn as nn
-
-from mmcv import ConfigDict, deprecated_api_warning
-from mmcv.cnn import Linear, build_activation_layer, build_norm_layer
-from mmcv.runner.base_module import BaseModule, ModuleList, Sequential
-
-from mmcv.cnn.bricks.registry import (ATTENTION, FEEDFORWARD_NETWORK, POSITIONAL_ENCODING,
-                                      TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE)
+# import torch.nn as nn
+from mmcv import ConfigDict
+from mmcv.cnn import build_norm_layer
+from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER
+from mmcv.runner.base_module import BaseModule, ModuleList
 
 # Avoid BC-breaking of importing MultiScaleDeformableAttention from this file
 try:
     from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttention  # noqa F401
     warnings.warn(
-        ImportWarning(
-            '``MultiScaleDeformableAttention`` has been moved to '
-            '``mmcv.ops.multi_scale_deform_attn``, please change original path '  # noqa E501
-            '``from mmcv.cnn.bricks.transformer import MultiScaleDeformableAttention`` '  # noqa E501
-            'to ``from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttention`` '  # noqa E501
-        ))
+        ImportWarning('``MultiScaleDeformableAttention`` has been moved to '
+                      '``mmcv.ops.multi_scale_deform_attn``, please change original path '  # noqa E501
+                      '``from mmcv.cnn.bricks.transformer import MultiScaleDeformableAttention`` '  # noqa E501
+                      'to ``from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttention`` '  # noqa E501
+                      ))
 except ImportError:
     warnings.warn('Fail to import ``MultiScaleDeformableAttention`` from '
                   '``mmcv.ops.multi_scale_deform_attn``, '
                   'You should install ``mmcv-full`` if you need this module. ')
-from mmcv.cnn.bricks.transformer import build_feedforward_network, build_attention
+from mmcv.cnn.bricks.transformer import build_attention, build_feedforward_network
 
 
 @TRANSFORMER_LAYER.register_module()
 class MyCustomBaseTransformerLayer(BaseModule):
     """Base `TransformerLayer` for vision transformer.
+
     It can be built from `mmcv.ConfigDict` and support more flexible
     customization, for example, using any number of `FFN or LN ` and
     use different kinds of `attention` by specifying a list of `ConfigDict`
@@ -85,17 +82,13 @@ class MyCustomBaseTransformerLayer(BaseModule):
                  batch_first=True,
                  **kwargs):
 
-        deprecated_args = dict(
-            feedforward_channels='feedforward_channels',
-            ffn_dropout='ffn_drop',
-            ffn_num_fcs='num_fcs')
+        deprecated_args = dict(feedforward_channels='feedforward_channels', ffn_dropout='ffn_drop', ffn_num_fcs='num_fcs')
         for ori_name, new_name in deprecated_args.items():
             if ori_name in kwargs:
-                warnings.warn(
-                    f'The arguments `{ori_name}` in BaseTransformerLayer '
-                    f'has been deprecated, now you should set `{new_name}` '
-                    f'and other FFN related arguments '
-                    f'to a dict named `ffn_cfgs`. ')
+                warnings.warn(f'The arguments `{ori_name}` in BaseTransformerLayer '
+                              f'has been deprecated, now you should set `{new_name}` '
+                              f'and other FFN related arguments '
+                              f'to a dict named `ffn_cfgs`. ')
                 ffn_cfgs[new_name] = kwargs[ori_name]
 
         super(MyCustomBaseTransformerLayer, self).__init__(init_cfg)
@@ -109,8 +102,7 @@ class MyCustomBaseTransformerLayer(BaseModule):
             f'contains all four operation type ' \
             f"{['self_attn', 'norm', 'ffn', 'cross_attn']}"
 
-        num_attn = operation_order.count('self_attn') + operation_order.count(
-            'cross_attn')
+        num_attn = operation_order.count('self_attn') + operation_order.count('cross_attn')
         if isinstance(attn_cfgs, dict):
             attn_cfgs = [copy.deepcopy(attn_cfgs) for _ in range(num_attn)]
         else:
@@ -156,25 +148,16 @@ class MyCustomBaseTransformerLayer(BaseModule):
                 # print('ffn_cfgs ',ffn_cfgs[ffn_index]['embed_dims'] ,self.embed_dims)
                 assert ffn_cfgs[ffn_index]['embed_dims'] == self.embed_dims
 
-            self.ffns.append(
-                build_feedforward_network(ffn_cfgs[ffn_index]))
+            self.ffns.append(build_feedforward_network(ffn_cfgs[ffn_index]))
 
         self.norms = ModuleList()
         num_norms = operation_order.count('norm')
         for _ in range(num_norms):
             self.norms.append(build_norm_layer(norm_cfg, self.embed_dims)[1])
 
-    def forward(self,
-                query,
-                key=None,
-                value=None,
-                query_pos=None,
-                key_pos=None,
-                attn_masks=None,
-                query_key_padding_mask=None,
-                key_padding_mask=None,
-                **kwargs):
+    def forward(self, query, key=None, value=None, query_pos=None, key_pos=None, attn_masks=None, query_key_padding_mask=None, key_padding_mask=None, **kwargs):
         """Forward function for `TransformerDecoderLayer`.
+
         **kwargs contains some specific arguments of attentions.
         Args:
             query (Tensor): The input query with shape
@@ -209,9 +192,7 @@ class MyCustomBaseTransformerLayer(BaseModule):
         if attn_masks is None:
             attn_masks = [None for _ in range(self.num_attn)]
         elif isinstance(attn_masks, torch.Tensor):
-            attn_masks = [
-                copy.deepcopy(attn_masks) for _ in range(self.num_attn)
-            ]
+            attn_masks = [copy.deepcopy(attn_masks) for _ in range(self.num_attn)]
             warnings.warn(f'Use same attn_mask in all attentions in '
                           f'{self.__class__.__name__} ')
         else:
@@ -255,8 +236,7 @@ class MyCustomBaseTransformerLayer(BaseModule):
                 identity = query
 
             elif layer == 'ffn':
-                query = self.ffns[ffn_index](
-                    query, identity if self.pre_norm else None)
+                query = self.ffns[ffn_index](query, identity if self.pre_norm else None)
                 ffn_index += 1
 
         return query

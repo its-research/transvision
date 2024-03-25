@@ -1,18 +1,16 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
+
 import mmcv
 from mmcv import Config
-
 from mmdet3d.datasets import build_dataset
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description='MMDet3D visualize the results')
+    parser = argparse.ArgumentParser(description='MMDet3D visualize the results')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('--result', help='results file in pickle format')
-    parser.add_argument(
-        '--show-dir', help='directory where visualize results will be saved')
+    parser.add_argument('--show-dir', help='directory where visualize results will be saved')
     args = parser.parse_args()
 
     return args
@@ -40,9 +38,7 @@ def main():
         else:
             dataset.show(results, args.show_dir)  # use default pipeline
     else:
-        raise NotImplementedError(
-            'Show is not implemented for dataset {}!'.format(
-                type(dataset).__name__))
+        raise NotImplementedError('Show is not implemented for dataset {}!'.format(type(dataset).__name__))
 
 
 if __name__ == '__main__':

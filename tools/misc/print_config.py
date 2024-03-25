@@ -1,13 +1,13 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
+
 from mmcv import Config, DictAction
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Print the whole config')
     parser.add_argument('config', help='config file path')
-    parser.add_argument(
-        '--options', nargs='+', action=DictAction, help='arguments in dict')
+    parser.add_argument('--options', nargs='+', action=DictAction, help='arguments in dict')
     args = parser.parse_args()
 
     return args

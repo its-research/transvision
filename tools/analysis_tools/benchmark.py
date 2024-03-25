@@ -1,17 +1,20 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
+import sys
 import time
+
 import torch
 from mmcv import Config
 from mmcv.parallel import MMDataParallel
 from mmcv.runner import load_checkpoint, wrap_fp16_model
-import sys
-sys.path.append('.')
-from projects.mmdet3d_plugin.datasets.builder import build_dataloader
-from projects.mmdet3d_plugin.datasets import custom_build_dataset
 # from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_detector
-#from tools.misc.fuse_conv_bn import fuse_module
+
+from projects.mmdet3d_plugin.datasets import custom_build_dataset
+from projects.mmdet3d_plugin.datasets.builder import build_dataloader
+
+# from tools.misc.fuse_conv_bn import fuse_module
+sys.path.append('.')
 
 
 def parse_args():
@@ -19,12 +22,9 @@ def parse_args():
     parser.add_argument('config', help='test config file path')
     parser.add_argument('--checkpoint', default=None, help='checkpoint file')
     parser.add_argument('--samples', default=2000, help='samples to benchmark')
+    parser.add_argument('--log-interval', default=50, help='interval of logging')
     parser.add_argument(
-        '--log-interval', default=50, help='interval of logging')
-    parser.add_argument(
-        '--fuse-conv-bn',
-        action='store_true',
-        help='Whether to fuse conv and bn, this will slightly increase'
+        '--fuse-conv-bn', action='store_true', help='Whether to fuse conv and bn, this will slightly increase'
         'the inference speed')
     args = parser.parse_args()
     return args
@@ -44,12 +44,7 @@ def main():
     # TODO: support multiple images per gpu (only minor changes are needed)
     print(cfg.data.test)
     dataset = custom_build_dataset(cfg.data.test)
-    data_loader = build_dataloader(
-        dataset,
-        samples_per_gpu=1,
-        workers_per_gpu=cfg.data.workers_per_gpu,
-        dist=False,
-        shuffle=False)
+    data_loader = build_dataloader(dataset, samples_per_gpu=1, workers_per_gpu=cfg.data.workers_per_gpu, dist=False, shuffle=False)
 
     # build the model and load checkpoint
     cfg.model.train_cfg = None
@@ -59,7 +54,7 @@ def main():
         wrap_fp16_model(model)
     if args.checkpoint is not None:
         load_checkpoint(model, args.checkpoint, map_location='cpu')
-    #if args.fuse_conv_bn:
+    # if args.fuse_conv_bn:
     #    model = fuse_module(model)
 
     model = MMDataParallel(model, device_ids=[0])

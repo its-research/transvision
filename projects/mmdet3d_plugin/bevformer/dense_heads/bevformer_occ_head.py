@@ -4,34 +4,36 @@
 #  Modified by Xiaoyu Tian
 # ---------------------------------------------
 
-import copy
+# import copy
+
+# import cv2 as cv
+# import mmcv
+# import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from mmcv.cnn import Linear, bias_init_with_prob
-from mmcv.utils import TORCH_VERSION, digit_version
-
-from mmdet.core import (multi_apply, multi_apply, reduce_mean)
-from mmdet.models.utils.transformer import inverse_sigmoid
+# import torch.nn.functional as F
+# from mmcv.cnn import Linear, bias_init_with_prob
+from mmcv.cnn.bricks.transformer import build_positional_encoding
+from mmcv.runner import BaseModule, auto_fp16, force_fp32
+# from mmcv.utils import TORCH_VERSION, digit_version
+# from mmdet3d.core.bbox.coders import build_bbox_coder
+# from mmdet.core import multi_apply, reduce_mean
 from mmdet.models import HEADS
-from mmdet.models.dense_heads import DETRHead
-from mmdet3d.core.bbox.coders import build_bbox_coder
-from projects.mmdet3d_plugin.core.bbox.util import normalize_bbox
-from mmcv.cnn.bricks.transformer import build_positional_encoding
-from mmcv.runner import force_fp32, auto_fp16
-from projects.mmdet3d_plugin.models.utils.bricks import run_time
-import numpy as np
-import mmcv
-import cv2 as cv
-from projects.mmdet3d_plugin.models.utils.visual import save_tensor
-from mmcv.cnn.bricks.transformer import build_positional_encoding
-from mmdet.models.utils import build_transformer
 from mmdet.models.builder import build_loss
-from mmcv.runner import BaseModule, force_fp32
+# from mmdet.models.dense_heads import DETRHead
+from mmdet.models.utils import build_transformer
+
+# from mmdet.models.utils.transformer import inverse_sigmoid
+
+# from projects.mmdet3d_plugin.core.bbox.util import normalize_bbox
+# from projects.mmdet3d_plugin.models.utils.bricks import run_time
+# from projects.mmdet3d_plugin.models.utils.visual import save_tensor
+
 
 @HEADS.register_module()
 class BEVFormerOccHead(BaseModule):
     """Head of Detr3D.
+
     Args:
         with_box_refine (bool): Whether to refine the reference points
             in the decoder. Defaults to False.
@@ -62,14 +64,13 @@ class BEVFormerOccHead(BaseModule):
         self.bev_h = bev_h
         self.bev_w = bev_w
         self.fp16_enabled = False
-        self.num_classes=kwargs['num_classes']
-        self.use_mask=use_mask
+        self.num_classes = kwargs['num_classes']
+        self.use_mask = use_mask
 
         self.with_box_refine = with_box_refine
         self.as_two_stage = as_two_stage
         if self.as_two_stage:
             transformer['as_two_stage'] = self.as_two_stage
-
 
         self.pc_range = pc_range
         self.real_w = self.pc_range[3] - self.pc_range[0]
@@ -79,14 +80,12 @@ class BEVFormerOccHead(BaseModule):
 
         self.loss_occ = build_loss(loss_occ)
         self.loss_flow = build_loss(loss_flow)
-        self.positional_encoding = build_positional_encoding(
-            positional_encoding)
+        self.positional_encoding = build_positional_encoding(positional_encoding)
         self.transformer = build_transformer(transformer)
         self.embed_dims = self.transformer.embed_dims
 
         if not self.as_two_stage:
-            self.bev_embedding = nn.Embedding(
-                self.bev_h * self.bev_w, self.embed_dims)
+            self.bev_embedding = nn.Embedding(self.bev_h * self.bev_w, self.embed_dims)
 
     def init_weights(self):
         """Initialize weights of the DeformDETR head."""
@@ -99,11 +98,12 @@ class BEVFormerOccHead(BaseModule):
     @auto_fp16(apply_to=('mlvl_feats'))
     def forward(self, mlvl_feats, img_metas, prev_bev=None, only_bev=False, test=False):
         """Forward function.
+
         Args:
             mlvl_feats (tuple[Tensor]): Features from the upstream
                 network, each is a 5D-tensor with shape
                 (B, N, C, H, W).
-            prev_bev: previous bev featues
+            prev_bev: previous bev features
             only_bev: only compute BEV features with encoder.
         Returns:
             all_cls_scores (Tensor): Outputs from the classification head, \
@@ -118,8 +118,7 @@ class BEVFormerOccHead(BaseModule):
         object_query_embeds = None
         bev_queries = self.bev_embedding.weight.to(dtype)
 
-        bev_mask = torch.zeros((bs, self.bev_h, self.bev_w),
-                               device=bev_queries.device).to(dtype)
+        bev_mask = torch.zeros((bs, self.bev_h, self.bev_w), device=bev_queries.device).to(dtype)
         bev_pos = self.positional_encoding(bev_mask).to(dtype)
 
         if only_bev:  # only use encoder to obtain BEV features, TODO: refine the workaround
@@ -128,8 +127,7 @@ class BEVFormerOccHead(BaseModule):
                 bev_queries,
                 self.bev_h,
                 self.bev_w,
-                grid_length=(self.real_h / self.bev_h,
-                             self.real_w / self.bev_w),
+                grid_length=(self.real_h / self.bev_h, self.real_w / self.bev_w),
                 bev_pos=bev_pos,
                 img_metas=img_metas,
                 prev_bev=prev_bev,
@@ -141,56 +139,54 @@ class BEVFormerOccHead(BaseModule):
                 object_query_embeds,
                 self.bev_h,
                 self.bev_w,
-                grid_length=(self.real_h / self.bev_h,
-                             self.real_w / self.bev_w),
+                grid_length=(self.real_h / self.bev_h, self.real_w / self.bev_w),
                 bev_pos=bev_pos,
                 reg_branches=None,  # noqa:E501
                 cls_branches=None,
                 img_metas=img_metas,
-                prev_bev=prev_bev
-            )
+                prev_bev=prev_bev)
         bev_embed, occ_outs, flow_outs = outputs
 
-        outs = {
-            'bev_embed': bev_embed,
-            'occ':occ_outs,
-            'flow':flow_outs
-        }
+        outs = {'bev_embed': bev_embed, 'occ': occ_outs, 'flow': flow_outs}
 
         return outs
 
     @force_fp32(apply_to=('preds_dicts'))
-    def loss(self,
-             # gt_bboxes_list,
-             # gt_labels_list,
-             voxel_semantics,
-             voxel_flow,
-             mask_camera,
-             preds_dicts,
-             gt_bboxes_ignore=None,
-             img_metas=None):
+    def loss(
+            self,
+            # gt_bboxes_list,
+            # gt_labels_list,
+            voxel_semantics,
+            voxel_flow,
+            mask_camera,
+            preds_dicts,
+            gt_bboxes_ignore=None,
+            img_metas=None):
 
-        loss_dict=dict()
-        occ=preds_dicts['occ']
-        flow=preds_dicts['flow']
-        loss_occ, loss_flow = self.loss_single(voxel_semantics,voxel_flow,mask_camera,occ,flow)
-        loss_dict['loss_occ']=loss_occ
-        loss_dict['loss_flow']=loss_flow
+        loss_dict = dict()
+        occ = preds_dicts['occ']
+        flow = preds_dicts['flow']
+        loss_occ, loss_flow = self.loss_single(voxel_semantics, voxel_flow, mask_camera, occ, flow)
+        loss_dict['loss_occ'] = loss_occ
+        loss_dict['loss_flow'] = loss_flow
         return loss_dict
 
-    def loss_single(self,voxel_semantics,voxel_flow,mask_camera,occ,flow):
-        voxel_semantics=voxel_semantics.long()
+    def loss_single(self, voxel_semantics, voxel_flow, mask_camera, occ, flow):
+        voxel_semantics = voxel_semantics.long()
         if self.use_mask:
-            voxel_semantics=voxel_semantics.reshape(-1)
-            occ=occ.reshape(-1,self.num_classes)
-            mask_camera=mask_camera.reshape(-1)
-            num_total_samples=mask_camera.sum()
-            loss_occ=self.loss_occ(occ,voxel_semantics,mask_camera, avg_factor=num_total_samples)
+            voxel_semantics = voxel_semantics.reshape(-1)
+            occ = occ.reshape(-1, self.num_classes)
+            mask_camera = mask_camera.reshape(-1)
+            num_total_samples = mask_camera.sum()
+            loss_occ = self.loss_occ(occ, voxel_semantics, mask_camera, avg_factor=num_total_samples)
         else:
             voxel_semantics = voxel_semantics.reshape(-1)
             voxel_flow = voxel_flow.reshape(-1, 2)
             occ = occ.reshape(-1, self.num_classes)
-            loss_occ = self.loss_occ(occ, voxel_semantics,)
+            loss_occ = self.loss_occ(
+                occ,
+                voxel_semantics,
+            )
             flow = flow.reshape(-1, 2)
             loss_flow = self.loss_flow(flow, voxel_flow)
         return loss_occ, loss_flow
@@ -198,6 +194,7 @@ class BEVFormerOccHead(BaseModule):
     @force_fp32(apply_to=('preds'))
     def get_occ(self, preds_dicts, img_metas, rescale=False):
         """Generate bboxes from bbox head predictions.
+
         Args:
             predss : occ results.
             img_metas (list[dict]): Point cloud and image's meta info.
@@ -207,10 +204,10 @@ class BEVFormerOccHead(BaseModule):
         # return self.transformer.get_occ(
         #     preds_dicts, img_metas, rescale=rescale)
         # print(img_metas[0].keys())
-        occ_out=preds_dicts['occ']
-        occ_score=occ_out.softmax(-1)
-        occ_score=occ_score.argmax(-1)
-        
+        occ_out = preds_dicts['occ']
+        occ_score = occ_out.softmax(-1)
+        occ_score = occ_score.argmax(-1)
+
         flow_out = preds_dicts['flow']
 
         return occ_score, flow_out

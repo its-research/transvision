@@ -1,28 +1,29 @@
-import os
-import cv2
 import gzip
+import os
 import pickle
+
 import mmcv
-import torch
 import numpy as np
-from tqdm import tqdm
-from mmdet.datasets import DATASETS
+import torch
 from mmdet3d.datasets import NuScenesDataset
 from mmdet.datasets import DATASETS
-from nuscenes.eval.common.utils import quaternion_yaw, Quaternion
-from nuscenes.utils.geometry_utils import transform_matrix
-from .ray_metrics import main as ray_based_miou
-from .ray_metrics import process_one_sample, generate_lidar_rays
-from torch.utils.data import DataLoader
-from .nuscenes_ego_pose_loader import nuScenesDataset
+from nuscenes.eval.common.utils import Quaternion
 from nuscenes.nuscenes import NuScenes
+from nuscenes.utils.geometry_utils import transform_matrix
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from .nuscenes_ego_pose_loader import nuScenesDataset
+from .ray_metrics import generate_lidar_rays
+from .ray_metrics import main as ray_based_miou
+from .ray_metrics import process_one_sample
 
 
 @DATASETS.register_module()
 class NuSceneOcc(NuScenesDataset):
     r"""NuScenes Dataset.
 
-    This datset only add camera intrinsics and extrinsics to the results.
+    This dataset only add camera intrinsics and extrinsics to the results.
     """
 
     def __init__(self, *args, **kwargs):
@@ -46,7 +47,7 @@ class NuSceneOcc(NuScenesDataset):
         self.metadata = data['metadata']
         self.version = self.metadata['version']
         return data_infos
-    
+
     def get_data_info(self, index):
         """Get data info according to the given index.
 
@@ -67,7 +68,7 @@ class NuSceneOcc(NuScenesDataset):
                 - ann_info (dict): Annotation info.
         """
         info = self.data_infos[index]
-        # standard protocal modified from SECOND.Pytorch
+        # standard protocol modified from SECOND.Pytorch
         input_dict = dict(
             sample_idx=info['token'],
             pts_filename=info['lidar_path'],
@@ -80,8 +81,7 @@ class NuSceneOcc(NuScenesDataset):
             input_dict['occ_path'] = info['occ_path']
         lidar2ego_rotation = info['lidar2ego_rotation']
         lidar2ego_translation = info['lidar2ego_translation']
-        ego2lidar = transform_matrix(translation=lidar2ego_translation, rotation=Quaternion(lidar2ego_rotation),
-                                     inverse=True)
+        ego2lidar = transform_matrix(translation=lidar2ego_translation, rotation=Quaternion(lidar2ego_rotation), inverse=True)
         input_dict['ego2lidar'] = ego2lidar
         if self.modality['use_camera']:
             image_paths = []
@@ -92,8 +92,7 @@ class NuSceneOcc(NuScenesDataset):
                 image_paths.append(cam_info['data_path'])
                 # obtain lidar to image transformation matrix
                 lidar2cam_r = np.linalg.inv(cam_info['sensor2lidar_rotation'])
-                lidar2cam_t = cam_info[
-                                  'sensor2lidar_translation'] @ lidar2cam_r.T
+                lidar2cam_t = cam_info['sensor2lidar_translation'] @ lidar2cam_r.T
                 lidar2cam_rt = np.eye(4)
                 lidar2cam_rt[:3, :3] = lidar2cam_r.T
                 lidar2cam_rt[3, :3] = -lidar2cam_t
@@ -105,13 +104,12 @@ class NuSceneOcc(NuScenesDataset):
 
                 cam_intrinsics.append(viewpad)
                 lidar2cam_rts.append(lidar2cam_rt.T)
-            input_dict.update(
-                dict(
-                    img_filename=image_paths,
-                    lidar2img=lidar2img_rts,
-                    cam_intrinsic=cam_intrinsics,
-                    lidar2cam=lidar2cam_rts,
-                ))
+            input_dict.update(dict(
+                img_filename=image_paths,
+                lidar2img=lidar2img_rts,
+                cam_intrinsic=cam_intrinsics,
+                lidar2cam=lidar2cam_rts,
+            ))
 
         if not self.test_mode:
             annos = self.get_ann_info(index)
@@ -121,6 +119,7 @@ class NuSceneOcc(NuScenesDataset):
 
     def __getitem__(self, idx):
         """Get item from infos according to the given index.
+
         Returns:
             dict: Data dictionary of the corresponding index.
         """
@@ -142,11 +141,11 @@ class NuSceneOcc(NuScenesDataset):
 
         print('\nStarting Evaluation...')
 
-        data_loader_kwargs={
-            "pin_memory": False,
-            "shuffle": False,
-            "batch_size": 1,
-            "num_workers": 8,
+        data_loader_kwargs = {
+            'pin_memory': False,
+            'shuffle': False,
+            'batch_size': 1,
+            'num_workers': 8,
         }
 
         nusc = NuScenes('v1.0-trainval', 'data/nuscenes')
@@ -155,13 +154,13 @@ class NuSceneOcc(NuScenesDataset):
             nuScenesDataset(nusc, 'val'),
             **data_loader_kwargs,
         )
-        
+
         sample_tokens = [info['token'] for info in self.data_infos]
 
         for i, batch in tqdm(enumerate(data_loader), ncols=50):
             token = batch[0][0]
             output_origin = batch[1]
-            
+
             data_id = sample_tokens.index(token)
             info = self.data_infos[data_id]
 
@@ -174,7 +173,7 @@ class NuSceneOcc(NuScenesDataset):
             flow_gts.append(gt_flow)
             occ_preds.append(occ_results[data_id]['occ_results'].cpu().numpy())
             flow_preds.append(occ_results[data_id]['flow_results'].cpu().numpy())
-        
+
         ray_based_miou(occ_preds, occ_gts, flow_preds, flow_gts, lidar_origins)
 
     def format_results(self, occ_results, submission_prefix, **kwargs):
@@ -183,11 +182,11 @@ class NuSceneOcc(NuScenesDataset):
 
         result_dict = {}
 
-        data_loader_kwargs={
-            "pin_memory": False,
-            "shuffle": False,
-            "batch_size": 1,
-            "num_workers": 8,
+        data_loader_kwargs = {
+            'pin_memory': False,
+            'shuffle': False,
+            'batch_size': 1,
+            'num_workers': 8,
         }
 
         nusc = NuScenes('v1.0-test', 'data/nuscenes')
@@ -205,7 +204,7 @@ class NuSceneOcc(NuScenesDataset):
         for index, batch in tqdm(enumerate(data_loader), ncols=50):
             token = batch[0][0]
             output_origin = batch[1]
-            
+
             data_id = sample_tokens.index(token)
 
             occ_pred = occ_results[data_id]
@@ -221,20 +220,16 @@ class NuSceneOcc(NuScenesDataset):
             pcd_dist = pcd_pred[:, 1].astype(np.float16)
             pcd_flow = pcd_pred[:, 2:4].astype(np.float16)
 
-            sample_dict = {
-                'pcd_cls': pcd_cls,
-                'pcd_dist': pcd_dist,
-                'pcd_flow': pcd_flow
-            }
+            sample_dict = {'pcd_cls': pcd_cls, 'pcd_dist': pcd_dist, 'pcd_flow': pcd_flow}
             result_dict.update({token: sample_dict})
-            
+
         final_submission_dict = {
             'method': 'XXXXX (Your method name)',
             'team': 'XXXXX (Your team name)',
-            'authors': "XXXXX (Authors)",
-            'e-mail': "XXXXX (Your email)",
-            'institution / company': "XXXXXXXXXX (Your affiliation)",
-            'country / region': "XXXXXXX (Your country/region)",
+            'authors': 'XXXXX (Authors)',
+            'e-mail': 'XXXXX (Your email)',
+            'institution / company': 'XXXXXXXXXX (Your affiliation)',
+            'country / region': 'XXXXXXX (Your country/region)',
             'results': result_dict
         }
 

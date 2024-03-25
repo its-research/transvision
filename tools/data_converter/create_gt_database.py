@@ -1,16 +1,16 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import pickle
+from os import path as osp
+
 import mmcv
 import numpy as np
-import pickle
 from mmcv import track_iter_progress
 from mmcv.ops import roi_align
-from os import path as osp
-from pycocotools import mask as maskUtils
-from pycocotools.coco import COCO
-
 from mmdet3d.core.bbox import box_np_ops as box_np_ops
 from mmdet3d.datasets import build_dataset
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
+from pycocotools import mask as maskUtils
+from pycocotools.coco import COCO
 
 
 def _poly2mask(mask_ann, img_h, img_w):
@@ -60,8 +60,7 @@ def _parse_coco_ann_info(ann_info):
     else:
         gt_bboxes_ignore = np.zeros((0, 4), dtype=np.float32)
 
-    ann = dict(
-        bboxes=gt_bboxes, bboxes_ignore=gt_bboxes_ignore, masks=gt_masks_ann)
+    ann = dict(bboxes=gt_bboxes, bboxes_ignore=gt_bboxes_ignore, masks=gt_masks_ann)
 
     return ann
 
@@ -71,18 +70,13 @@ def crop_image_patch_v2(pos_proposals, pos_assigned_gt_inds, gt_masks):
     from torch.nn.modules.utils import _pair
     device = pos_proposals.device
     num_pos = pos_proposals.size(0)
-    fake_inds = (
-        torch.arange(num_pos,
-                     device=device).to(dtype=pos_proposals.dtype)[:, None])
+    fake_inds = (torch.arange(num_pos, device=device).to(dtype=pos_proposals.dtype)[:, None])
     rois = torch.cat([fake_inds, pos_proposals], dim=1)  # Nx5
     mask_size = _pair(28)
     rois = rois.to(device=device)
-    gt_masks_th = (
-        torch.from_numpy(gt_masks).to(device).index_select(
-            0, pos_assigned_gt_inds).to(dtype=rois.dtype))
+    gt_masks_th = (torch.from_numpy(gt_masks).to(device).index_select(0, pos_assigned_gt_inds).to(dtype=rois.dtype))
     # Use RoIAlign could apparently accelerate the training (~0.1s/iter)
-    targets = (
-        roi_align(gt_masks_th, rois, mask_size[::-1], 1.0, 0, True).squeeze(1))
+    targets = (roi_align(gt_masks_th, rois, mask_size[::-1], 1.0, 0, True).squeeze(1))
     return targets
 
 
@@ -142,8 +136,7 @@ def create_groundtruth_database(dataset_class_name,
             Default: False.
     """
     print(f'Create GT Database of {dataset_class_name}')
-    dataset_cfg = dict(
-        type=dataset_class_name, data_root=data_path, ann_file=info_path)
+    dataset_cfg = dict(type=dataset_class_name, data_root=data_path, ann_file=info_path)
     if dataset_class_name == 'KittiDataset':
         file_client_args = dict(backend='disk')
         dataset_cfg.update(
@@ -156,38 +149,17 @@ def create_groundtruth_database(dataset_class_name,
                 use_camera=with_mask,
             ),
             pipeline=[
-                dict(
-                    type='LoadPointsFromFile',
-                    coord_type='LIDAR',
-                    load_dim=4,
-                    use_dim=4,
-                    file_client_args=file_client_args),
-                dict(
-                    type='LoadAnnotations3D',
-                    with_bbox_3d=True,
-                    with_label_3d=True,
-                    file_client_args=file_client_args)
+                dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4, file_client_args=file_client_args),
+                dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, file_client_args=file_client_args)
             ])
 
     elif dataset_class_name == 'NuScenesDataset':
         dataset_cfg.update(
             use_valid_flag=True,
             pipeline=[
-                dict(
-                    type='LoadPointsFromFile',
-                    coord_type='LIDAR',
-                    load_dim=5,
-                    use_dim=5),
-                dict(
-                    type='LoadPointsFromMultiSweeps',
-                    sweeps_num=10,
-                    use_dim=[0, 1, 2, 3, 4],
-                    pad_empty_sweeps=True,
-                    remove_close=True),
-                dict(
-                    type='LoadAnnotations3D',
-                    with_bbox_3d=True,
-                    with_label_3d=True)
+                dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=5, use_dim=5),
+                dict(type='LoadPointsFromMultiSweeps', sweeps_num=10, use_dim=[0, 1, 2, 3, 4], pad_empty_sweeps=True, remove_close=True),
+                dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True)
             ])
 
     elif dataset_class_name == 'WaymoDataset':
@@ -202,17 +174,8 @@ def create_groundtruth_database(dataset_class_name,
                 use_camera=False,
             ),
             pipeline=[
-                dict(
-                    type='LoadPointsFromFile',
-                    coord_type='LIDAR',
-                    load_dim=6,
-                    use_dim=5,
-                    file_client_args=file_client_args),
-                dict(
-                    type='LoadAnnotations3D',
-                    with_bbox_3d=True,
-                    with_label_3d=True,
-                    file_client_args=file_client_args)
+                dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=6, use_dim=5, file_client_args=file_client_args),
+                dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, file_client_args=file_client_args)
             ])
 
     dataset = build_dataset(dataset_cfg)
@@ -220,8 +183,7 @@ def create_groundtruth_database(dataset_class_name,
     if database_save_path is None:
         database_save_path = osp.join(data_path, f'{info_prefix}_gt_database')
     if db_info_save_path is None:
-        db_info_save_path = osp.join(data_path,
-                                     f'{info_prefix}_dbinfos_train.pkl')
+        db_info_save_path = osp.join(data_path, f'{info_prefix}_dbinfos_train.pkl')
     mmcv.mkdir_or_exist(database_save_path)
     all_db_infos = dict()
     if with_mask:
@@ -266,9 +228,7 @@ def create_groundtruth_database(dataset_class_name,
             kins_raw_info = coco.loadAnns(kins_annIds)
             kins_ann_info = _parse_coco_ann_info(kins_raw_info)
             h, w = annos['img_shape'][:2]
-            gt_masks = [
-                _poly2mask(mask, h, w) for mask in kins_ann_info['masks']
-            ]
+            gt_masks = [_poly2mask(mask, h, w) for mask in kins_ann_info['masks']]
             # get mask inds based on iou mapping
             bbox_iou = bbox_overlaps(kins_ann_info['bboxes'], gt_boxes)
             mask_inds = bbox_iou.argmax(axis=0)
@@ -282,8 +242,7 @@ def create_groundtruth_database(dataset_class_name,
             # object_img_patches = crop_image_patch_v2(
             #     torch.Tensor(gt_boxes),
             #     torch.Tensor(mask_inds).long(), object_img_patches)
-            object_img_patches, object_masks = crop_image_patch(
-                gt_boxes, gt_masks, mask_inds, annos['img'])
+            object_img_patches, object_masks = crop_image_patch(gt_boxes, gt_masks, mask_inds, annos['img'])
 
         for i in range(num_obj):
             filename = f'{image_idx}_{names[i]}_{i}.bin'

@@ -4,22 +4,25 @@
 #  Modified by Xiaoyu Tian
 # ---------------------------------------------
 
+# import copy
+# import time
+
+# import mmdet3d
+# import numpy as np
 import torch
-from mmcv.runner import force_fp32, auto_fp16
-from mmdet.models import DETECTORS
-from mmdet3d.core import bbox3d2result
+from mmcv.runner import auto_fp16
+# from mmdet3d.core import bbox3d2result
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
+from mmdet.models import DETECTORS
+
+# from projects.mmdet3d_plugin.models.utils.bricks import run_time
 from projects.mmdet3d_plugin.models.utils.grid_mask import GridMask
-import time
-import copy
-import numpy as np
-import mmdet3d
-from projects.mmdet3d_plugin.models.utils.bricks import run_time
 
 
 @DETECTORS.register_module()
 class BEVFormerOcc(MVXTwoStageDetector):
     """BEVFormer.
+
     Args:
         video_test_mode (bool): Decide whether to use temporal information during inference.
     """
@@ -40,17 +43,11 @@ class BEVFormerOcc(MVXTwoStageDetector):
                  train_cfg=None,
                  test_cfg=None,
                  pretrained=None,
-                 video_test_mode=False
-                 ):
+                 video_test_mode=False):
 
-        super(BEVFormerOcc,
-              self).__init__(pts_voxel_layer, pts_voxel_encoder,
-                             pts_middle_encoder, pts_fusion_layer,
-                             img_backbone, pts_backbone, img_neck, pts_neck,
-                             pts_bbox_head, img_roi_head, img_rpn_head,
-                             train_cfg, test_cfg, pretrained)
-        self.grid_mask = GridMask(
-            True, True, rotate=1, offset=False, ratio=0.5, mode=1, prob=0.7)
+        super(BEVFormerOcc, self).__init__(pts_voxel_layer, pts_voxel_encoder, pts_middle_encoder, pts_fusion_layer, img_backbone, pts_backbone, img_neck, pts_neck, pts_bbox_head,
+                                           img_roi_head, img_rpn_head, train_cfg, test_cfg, pretrained)
+        self.grid_mask = GridMask(True, True, rotate=1, offset=False, ratio=0.5, mode=1, prob=0.7)
         self.use_grid_mask = use_grid_mask
         self.fp16_enabled = False
 
@@ -106,16 +103,7 @@ class BEVFormerOcc(MVXTwoStageDetector):
 
         return img_feats
 
-    def forward_pts_train(self,
-                          pts_feats,
-                          gt_bboxes_3d,
-                          gt_labels_3d,
-                          voxel_semantics,
-                          voxel_flow,
-                          mask_camera,
-                          img_metas,
-                          gt_bboxes_ignore=None,
-                          prev_bev=None):
+    def forward_pts_train(self, pts_feats, gt_bboxes_3d, gt_labels_3d, voxel_semantics, voxel_flow, mask_camera, img_metas, gt_bboxes_ignore=None, prev_bev=None):
         """Forward function'
         Args:
             pts_feats (list[torch.Tensor]): Features of point cloud branch
@@ -131,8 +119,7 @@ class BEVFormerOcc(MVXTwoStageDetector):
             dict: Losses of each branch.
         """
 
-        outs = self.pts_bbox_head(
-            pts_feats, img_metas, prev_bev)
+        outs = self.pts_bbox_head(pts_feats, img_metas, prev_bev)
         loss_inputs = [voxel_semantics, voxel_flow, mask_camera, outs]
         losses = self.pts_bbox_head.loss(*loss_inputs, img_metas=img_metas)
         return losses
@@ -144,12 +131,9 @@ class BEVFormerOcc(MVXTwoStageDetector):
     def forward(self, return_loss=True, **kwargs):
         """Calls either forward_train or forward_test depending on whether
         return_loss=True.
-        Note this setting will change the expected inputs. When
-        `return_loss=True`, img and img_metas are single-nested (i.e.
-        torch.Tensor and list[dict]), and when `resturn_loss=False`, img and
-        img_metas should be double nested (i.e.  list[torch.Tensor],
-        list[list[dict]]), with the outer list indicating test time
-        augmentations.
+
+        Note this setting will change the expected inputs. When `return_loss=True`, img and img_metas are single-nested (i.e. torch.Tensor and list[dict]), and when
+        `resturn_loss=False`, img and img_metas should be double nested (i.e.  list[torch.Tensor], list[list[dict]]), with the outer list indicating test time augmentations.
         """
         if return_loss:
             return self.forward_train(**kwargs)
@@ -157,7 +141,9 @@ class BEVFormerOcc(MVXTwoStageDetector):
             return self.forward_test(**kwargs)
 
     def obtain_history_bev(self, imgs_queue, img_metas_list):
-        """Obtain history BEV features iteratively. To save GPU memory, gradients are not calculated.
+        """Obtain history BEV features iteratively.
+
+        To save GPU memory, gradients are not calculated.
         """
         self.eval()
 
@@ -172,30 +158,31 @@ class BEVFormerOcc(MVXTwoStageDetector):
                     prev_bev = None
                 # img_feats = self.extract_feat(img=img, img_metas=img_metas)
                 img_feats = [each_scale[:, i] for each_scale in img_feats_list]
-                prev_bev = self.pts_bbox_head(
-                    img_feats, img_metas, prev_bev, only_bev=True)
+                prev_bev = self.pts_bbox_head(img_feats, img_metas, prev_bev, only_bev=True)
             self.train()
             return prev_bev
 
     @auto_fp16(apply_to=('img', 'points'))
-    def forward_train(self,
-                      points=None,
-                      img_metas=None,
-                      gt_bboxes_3d=None,
-                      gt_labels_3d=None,
-                      voxel_semantics=None,
-                      voxel_flow=None,
-                      mask_lidar=None,
-                      mask_camera=None,
-                      gt_labels=None,
-                      gt_bboxes=None,
-                      img=None,
-                      proposals=None,
-                      gt_bboxes_ignore=None,
-                      img_depth=None,
-                      img_mask=None,
-                      ):
+    def forward_train(
+        self,
+        points=None,
+        img_metas=None,
+        gt_bboxes_3d=None,
+        gt_labels_3d=None,
+        voxel_semantics=None,
+        voxel_flow=None,
+        mask_lidar=None,
+        mask_camera=None,
+        gt_labels=None,
+        gt_bboxes=None,
+        img=None,
+        proposals=None,
+        gt_bboxes_ignore=None,
+        img_depth=None,
+        img_mask=None,
+    ):
         """Forward training function.
+
         Args:
             points (list[torch.Tensor], optional): Points of each sample.
                 Defaults to None.
@@ -221,27 +208,18 @@ class BEVFormerOcc(MVXTwoStageDetector):
 
         img_feats = self.extract_feat(img=img, img_metas=img_metas)
         losses = dict()
-        losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d,
-                                            gt_labels_3d, voxel_semantics, voxel_flow, mask_camera, img_metas,
-                                            gt_bboxes_ignore, prev_bev=None)
+        losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d, gt_labels_3d, voxel_semantics, voxel_flow, mask_camera, img_metas, gt_bboxes_ignore, prev_bev=None)
 
         losses.update(losses_pts)
         return losses
 
-    def forward_test(self, img_metas,
-                     img=None,
-                     voxel_semantics=None,
-                     mask_lidar=None,
-                     mask_camera=None,
-                     **kwargs):
+    def forward_test(self, img_metas, img=None, voxel_semantics=None, mask_lidar=None, mask_camera=None, **kwargs):
         for var, name in [(img_metas, 'img_metas')]:
             if not isinstance(var, list):
-                raise TypeError('{} must be a list, but got {}'.format(
-                    name, type(var)))
+                raise TypeError('{} must be a list, but got {}'.format(name, type(var)))
         img = [img] if img is None else img
-        
-        new_prev_bev, occ_results, flow_results = self.simple_test(
-            img_metas[0], img[0], prev_bev=None, **kwargs)
+
+        new_prev_bev, occ_results, flow_results = self.simple_test(img_metas[0], img[0], prev_bev=None, **kwargs)
         # During inference, we save the BEV features and ego motion of each timestamp.
 
         return {
@@ -250,11 +228,10 @@ class BEVFormerOcc(MVXTwoStageDetector):
         }
 
     def simple_test_pts(self, x, img_metas, prev_bev=None, rescale=False):
-        """Test function"""
+        """Test function."""
         outs = self.pts_bbox_head(x, img_metas, prev_bev=prev_bev, test=True)
 
-        occ, flow = self.pts_bbox_head.get_occ(
-            outs, img_metas, rescale=rescale)
+        occ, flow = self.pts_bbox_head.get_occ(outs, img_metas, rescale=rescale)
 
         return outs['bev_embed'], occ, flow
 
@@ -263,8 +240,7 @@ class BEVFormerOcc(MVXTwoStageDetector):
         img_feats = self.extract_feat(img=img, img_metas=img_metas)
 
         # bbox_list = [dict() for i in range(len(img_metas))]
-        new_prev_bev, occ, flow = self.simple_test_pts(
-            img_feats, img_metas, prev_bev, rescale=rescale)
+        new_prev_bev, occ, flow = self.simple_test_pts(img_feats, img_metas, prev_bev, rescale=rescale)
         # for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
         #     result_dict['pts_bbox'] = pts_bbox
         return new_prev_bev, occ, flow

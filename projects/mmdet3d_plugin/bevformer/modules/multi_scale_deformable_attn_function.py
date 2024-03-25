@@ -5,19 +5,18 @@
 # ---------------------------------------------
 
 import torch
-from torch.cuda.amp import custom_bwd, custom_fwd
-from torch.autograd.function import Function, once_differentiable
 from mmcv.utils import ext_loader
-ext_module = ext_loader.load_ext(
-    '_ext', ['ms_deform_attn_backward', 'ms_deform_attn_forward'])
+from torch.autograd.function import Function, once_differentiable
+from torch.cuda.amp import custom_bwd, custom_fwd
+
+ext_module = ext_loader.load_ext('_ext', ['ms_deform_attn_backward', 'ms_deform_attn_forward'])
 
 
 class MultiScaleDeformableAttnFunction_fp16(Function):
 
     @staticmethod
     @custom_fwd(cast_inputs=torch.float16)
-    def forward(ctx, value, value_spatial_shapes, value_level_start_index,
-                sampling_locations, attention_weights, im2col_step):
+    def forward(ctx, value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step):
         """GPU version of multi-scale deformable attention.
 
         Args:
@@ -39,16 +38,8 @@ class MultiScaleDeformableAttnFunction_fp16(Function):
             Tensor: has shape (bs, num_queries, embed_dims)
         """
         ctx.im2col_step = im2col_step
-        output = ext_module.ms_deform_attn_forward(
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-            im2col_step=ctx.im2col_step)
-        ctx.save_for_backward(value, value_spatial_shapes,
-                              value_level_start_index, sampling_locations,
-                              attention_weights)
+        output = ext_module.ms_deform_attn_forward(value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step=ctx.im2col_step)
+        ctx.save_for_backward(value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights)
         return output
 
     @staticmethod
@@ -91,8 +82,7 @@ class MultiScaleDeformableAttnFunction_fp32(Function):
 
     @staticmethod
     @custom_fwd(cast_inputs=torch.float32)
-    def forward(ctx, value, value_spatial_shapes, value_level_start_index,
-                sampling_locations, attention_weights, im2col_step):
+    def forward(ctx, value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step):
         """GPU version of multi-scale deformable attention.
 
         Args:
@@ -115,16 +105,8 @@ class MultiScaleDeformableAttnFunction_fp32(Function):
         """
 
         ctx.im2col_step = im2col_step
-        output = ext_module.ms_deform_attn_forward(
-            value,
-            value_spatial_shapes,
-            value_level_start_index,
-            sampling_locations,
-            attention_weights,
-            im2col_step=ctx.im2col_step)
-        ctx.save_for_backward(value, value_spatial_shapes,
-                              value_level_start_index, sampling_locations,
-                              attention_weights)
+        output = ext_module.ms_deform_attn_forward(value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step=ctx.im2col_step)
+        ctx.save_for_backward(value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights)
         return output
 
     @staticmethod
