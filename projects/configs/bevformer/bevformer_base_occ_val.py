@@ -134,7 +134,7 @@ train_pipeline = [
 
 test_pipeline = [
     dict(type='LoadMultiViewImageFromFiles', to_float32=True),
-    # dict(type='LoadOccGTFromFile'),
+    dict(type='LoadOccGTFromFile'),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='PadMultiViewImage', size_divisor=32),
     dict(
@@ -165,7 +165,7 @@ data = dict(
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_test_occ.pkl',
+        ann_file=data_root + 'nuscenes_infos_val_occ.pkl',
         pipeline=test_pipeline,
         filter_empty_gt=False,
         classes=class_names,
@@ -174,7 +174,7 @@ data = dict(
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'nuscenes_infos_test_occ.pkl',
+        ann_file=data_root + 'nuscenes_infos_val_occ.pkl',
         pipeline=test_pipeline,
         filter_empty_gt=False,
         classes=class_names,

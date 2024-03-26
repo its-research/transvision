@@ -160,3 +160,5 @@ transvision/utils/box_overlaps.c
 training_list.sh
 /work_dirs
 /data/nuscenes
+/data/can_bus
+/occ_submission

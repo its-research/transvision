@@ -224,12 +224,12 @@ class NuSceneOcc(NuScenesDataset):
             result_dict.update({token: sample_dict})
 
         final_submission_dict = {
-            'method': 'XXXXX (Your method name)',
-            'team': 'XXXXX (Your team name)',
-            'authors': 'XXXXX (Authors)',
-            'e-mail': 'XXXXX (Your email)',
-            'institution / company': 'XXXXXXXXXX (Your affiliation)',
-            'country / region': 'XXXXXXX (Your country/region)',
+            'method': 'occnet',
+            'team': 'The16thRoute',
+            'authors': 'BinLi',
+            'e-mail': 'lbin@outlook.com',
+            'institution / company': 'SEU',
+            'country / region': 'China/Beijing',
             'results': result_dict
         }
 

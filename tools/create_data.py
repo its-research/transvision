@@ -119,25 +119,25 @@ if __name__ == '__main__':
             out_dir=args.out_dir,
             max_sweeps=args.max_sweeps)
     elif args.dataset == 'occ' and args.version != 'v1.0-mini':
-        train_version = f'{args.version}'
-        occ_nuscenes_data_prep(
-            root_path=args.root_path,
-            occ_path=args.occ_path,
-            can_bus_root_path=args.canbus,
-            info_prefix=args.extra_tag,
-            version=train_version,
-            dataset_name='NuScenesDataset',
-            out_dir=args.out_dir,
-            max_sweeps=args.max_sweeps)
-        # test_version = f'{args.version}-test'
-        # nuscenes_data_prep(
+        # train_version = f'{args.version}'
+        # occ_nuscenes_data_prep(
         #     root_path=args.root_path,
+        #     occ_path=args.occ_path,
         #     can_bus_root_path=args.canbus,
         #     info_prefix=args.extra_tag,
-        #     version=test_version,
+        #     version=train_version,
         #     dataset_name='NuScenesDataset',
         #     out_dir=args.out_dir,
         #     max_sweeps=args.max_sweeps)
+        test_version = f'{args.version}-test'
+        nuscenes_data_prep(
+            root_path=args.root_path,
+            can_bus_root_path=args.canbus,
+            info_prefix=args.extra_tag,
+            version=test_version,
+            dataset_name='NuScenesDataset',
+            out_dir=args.out_dir,
+            max_sweeps=args.max_sweeps)
     elif args.dataset == 'occ' and args.version == 'v1.0-mini':
         train_version = f'{args.version}'
         occ_nuscenes_data_prep(
