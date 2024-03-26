@@ -4,30 +4,13 @@
 #  Modified by Xiaoyu Tian
 # ---------------------------------------------
 
-# import copy
-
-# import cv2 as cv
-# import mmcv
-# import numpy as np
 import torch
 import torch.nn as nn
-# import torch.nn.functional as F
-# from mmcv.cnn import Linear, bias_init_with_prob
 from mmcv.cnn.bricks.transformer import build_positional_encoding
 from mmcv.runner import BaseModule, auto_fp16, force_fp32
-# from mmcv.utils import TORCH_VERSION, digit_version
-# from mmdet3d.core.bbox.coders import build_bbox_coder
-# from mmdet.core import multi_apply, reduce_mean
 from mmdet.models import HEADS
 from mmdet.models.builder import build_loss
-# from mmdet.models.dense_heads import DETRHead
 from mmdet.models.utils import build_transformer
-
-# from mmdet.models.utils.transformer import inverse_sigmoid
-
-# from projects.mmdet3d_plugin.core.bbox.util import normalize_bbox
-# from projects.mmdet3d_plugin.models.utils.bricks import run_time
-# from projects.mmdet3d_plugin.models.utils.visual import save_tensor
 
 
 @HEADS.register_module()

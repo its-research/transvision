@@ -25,8 +25,6 @@ from mmdet3d.utils import collect_env, get_root_logger
 from mmdet.apis import set_random_seed
 from mmseg import __version__ as mmseg_version
 
-# from mmdet3d.apis import train_model
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -91,6 +89,7 @@ def main():
     # import modules from plguin/xx, registry will be updated
     if hasattr(cfg, 'plugin'):
         if cfg.plugin:
+            import importlib
             if hasattr(cfg, 'plugin_dir'):
                 plugin_dir = cfg.plugin_dir
                 _module_dir = os.path.dirname(plugin_dir)
@@ -100,7 +99,7 @@ def main():
                 for m in _module_dir[1:]:
                     _module_path = _module_path + '.' + m
                 print(_module_path)
-                # plg_lib = importlib.import_module(_module_path)
+                importlib.import_module(_module_path)
             else:
                 # import dir is the dirpath for the config file
                 _module_dir = os.path.dirname(args.config)
@@ -109,7 +108,7 @@ def main():
                 for m in _module_dir[1:]:
                     _module_path = _module_path + '.' + m
                 print(_module_path)
-                # plg_lib = importlib.import_module(_module_path)
+                importlib.import_module(_module_path)
 
             from projects.mmdet3d_plugin.bevformer.apis.train import custom_train_model
     # set cudnn_benchmark

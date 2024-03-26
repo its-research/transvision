@@ -4,7 +4,6 @@
 #  Modified by Zhiqi Li
 # ---------------------------------------------
 
-# import copy
 import math
 import warnings
 

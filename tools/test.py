@@ -6,11 +6,9 @@
 import argparse
 import os
 import os.path as osp
-# import sys
 import time
 import warnings
 
-# import mmcv
 import torch
 from mmcv import Config, DictAction
 from mmcv.cnn import fuse_conv_bn
@@ -115,7 +113,7 @@ def main():
     # import modules from plguin/xx, registry will be updated
     if hasattr(cfg, 'plugin'):
         if cfg.plugin:
-            # import importlib
+            import importlib
             if hasattr(cfg, 'plugin_dir'):
                 plugin_dir = cfg.plugin_dir
                 _module_dir = os.path.dirname(plugin_dir)
@@ -125,7 +123,7 @@ def main():
                 for m in _module_dir[1:]:
                     _module_path = _module_path + '.' + m
                 print(_module_path)
-                # plg_lib = importlib.import_module(_module_path)
+                importlib.import_module(_module_path)
             else:
                 # import dir is the dirpath for the config file
                 _module_dir = os.path.dirname(args.config)
@@ -134,7 +132,7 @@ def main():
                 for m in _module_dir[1:]:
                     _module_path = _module_path + '.' + m
                 print(_module_path)
-                # plg_lib = importlib.import_module(_module_path)
+                importlib.import_module(_module_path)
 
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
@@ -216,7 +214,6 @@ def main():
         if args.out:
             print(f'\nwriting results to {args.out}')
             assert False
-            # mmcv.dump(outputs['bbox_results'], args.out)
         kwargs = {} if args.eval_options is None else args.eval_options
         kwargs['jsonfile_prefix'] = osp.join('test', args.config.split('/')[-1].split('.')[-2], time.ctime().replace(' ', '_').replace(':', '_'))
         if args.format_only:

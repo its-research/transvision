@@ -4,7 +4,6 @@
 #  Modified by Xiaoyu Tian
 # ---------------------------------------------
 import os.path as osp
-# import pickle
 import shutil
 import tempfile
 import time
@@ -14,10 +13,7 @@ import numpy as np
 import pycocotools.mask as mask_util
 import torch
 import torch.distributed as dist
-# from mmcv.image import tensor2imgs
 from mmcv.runner import get_dist_info
-
-# from mmdet.core import encode_mask_results
 
 
 def custom_encode_mask_results(mask_results):

@@ -8,7 +8,6 @@ import copy
 import warnings
 
 import torch
-# import torch.nn as nn
 from mmcv import ConfigDict
 from mmcv.cnn import build_norm_layer
 from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER

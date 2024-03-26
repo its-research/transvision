@@ -4,18 +4,11 @@
 #  Modified by Xiaoyu Tian
 # ---------------------------------------------
 
-# import copy
-# import time
-
-# import mmdet3d
-# import numpy as np
 import torch
 from mmcv.runner import auto_fp16
-# from mmdet3d.core import bbox3d2result
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
 from mmdet.models import DETECTORS
 
-# from projects.mmdet3d_plugin.models.utils.bricks import run_time
 from projects.mmdet3d_plugin.models.utils.grid_mask import GridMask
 
 
