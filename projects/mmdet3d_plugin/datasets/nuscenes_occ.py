@@ -12,7 +12,7 @@ from nuscenes.utils.geometry_utils import transform_matrix
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from ....tools.ray_iou.ego_pose_extractor import EgoPoseDataset
+from ..ray_iou.ego_pose_extractor import EgoPoseDataset
 from .ray_metrics import generate_lidar_rays
 from .ray_metrics import main as ray_based_miou
 from .ray_metrics import process_one_sample

@@ -207,7 +207,7 @@ trainset_lightwheel = dict(
     classes=class_names,
     modality=input_modality,
     test_mode=False,
-    use_valid_flag=True,
+    use_valid_flag=False,
     filter_empty_gt=False,
     # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
     # and box_type_3d='Depth' in sunrgbd and scannet dataset.
@@ -263,4 +263,4 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')
     ])
 
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=4)
