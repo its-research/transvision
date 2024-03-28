@@ -1,9 +1,10 @@
-import pickle
 import numpy as np
-from pyquaternion import Quaternion
 import torch
+from pyquaternion import Quaternion
 from torch.utils.data import Dataset
+
 np.set_printoptions(precision=3, suppress=True)
+
 
 def trans_matrix(T, R):
     tm = np.eye(4)
@@ -11,7 +12,9 @@ def trans_matrix(T, R):
     tm[:3, 3] = T
     return tm
 
+
 class EgoPoseDataset(Dataset):
+
     def __init__(self, data_infos, dataset_type=None):
         super(EgoPoseDataset, self).__init__()
 
@@ -21,11 +24,7 @@ class EgoPoseDataset(Dataset):
 
         if self.dataset_type == 'lightwheelocc':
             # lightwheelocc doesn't have lidar now, we use pseudo lidar2ego instead
-            self.pseudo_lidar2ego = np.array([
-                [ 0., 1., 0., 0.94 ],
-                [-1., 0., 0., 0.   ],
-                [ 0., 0., 1., 1.84 ],
-                [ 0., 0., 0., 1.   ]])
+            self.pseudo_lidar2ego = np.array([[0., 1., 0., 0.94], [-1., 0., 0., 0.], [0., 0., 1., 1.84], [0., 0., 0., 1.]])
 
         self.scene_frames = {}
         for info in data_infos:
@@ -51,12 +50,10 @@ class EgoPoseDataset(Dataset):
             return info['scene_token']
         else:
             raise ValueError('Invalid dataset type')
-        
+
     def get_ego_from_lidar(self, info):
         if self.dataset_type == 'openocc_v2':
-            ego_from_lidar = trans_matrix(
-                np.array(info['lidar2ego_translation']), 
-                Quaternion(info['lidar2ego_rotation']))
+            ego_from_lidar = trans_matrix(np.array(info['lidar2ego_translation']), Quaternion(info['lidar2ego_rotation']))
         elif self.dataset_type == 'lightwheelocc':
             # lightwheelocc doesn't have lidar2ego, use pseudo lidar2ego instead
             ego_from_lidar = self.pseudo_lidar2ego
@@ -64,13 +61,9 @@ class EgoPoseDataset(Dataset):
 
     def get_global_pose(self, info, inverse=False):
 
-        global_from_ego = trans_matrix(
-            np.array(info['ego2global_translation']), 
-            Quaternion(info['ego2global_rotation']))
+        global_from_ego = trans_matrix(np.array(info['ego2global_translation']), Quaternion(info['ego2global_rotation']))
         if self.dataset_type == 'openocc_v2':
-            ego_from_lidar = trans_matrix(
-                np.array(info['lidar2ego_translation']), 
-                Quaternion(info['lidar2ego_rotation']))
+            ego_from_lidar = trans_matrix(np.array(info['lidar2ego_translation']), Quaternion(info['lidar2ego_rotation']))
         elif self.dataset_type == 'lightwheelocc':
             # lightwheelocc doesn't have lidar2ego, use pseudo lidar2ego instead
             ego_from_lidar = self.pseudo_lidar2ego
@@ -110,7 +103,7 @@ class EgoPoseDataset(Dataset):
             # origin
             if np.abs(origin_tf[0]) < 39 and np.abs(origin_tf[1]) < 39:
                 output_origin_list.append(origin_tf)
-        
+
         # select 8 origins
         if len(output_origin_list) > 8:
             select_idx = np.round(np.linspace(0, len(output_origin_list) - 1, 8)).astype(np.int64)

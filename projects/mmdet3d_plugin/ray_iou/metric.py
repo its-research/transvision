@@ -1,19 +1,26 @@
+import argparse
+import gzip
+import pickle
+
 import numpy as np
 from tqdm import tqdm
-import pickle, gzip
-import argparse
+
 
 def calc_metrics(pred_cls_list, pred_dist_list, pred_flow_list, gt_cls_list, gt_dist_list, gt_flow_list):
     occ_class_names = [
-    'car', 'truck', 'trailer', 'bus', 'construction_vehicle',
-    'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone', 'barrier',
-    'driveable_surface', 'other_flat', 'sidewalk',
-    'terrain', 'manmade', 'vegetation', 'free'
+        'car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone', 'barrier', 'driveable_surface', 'other_flat', 'sidewalk',
+        'terrain', 'manmade', 'vegetation', 'free'
     ]
 
     flow_class_names = [
-        'car', 'truck', 'trailer', 'bus', 'construction_vehicle',
-        'bicycle', 'motorcycle', 'pedestrian',
+        'car',
+        'truck',
+        'trailer',
+        'bus',
+        'construction_vehicle',
+        'bicycle',
+        'motorcycle',
+        'pedestrian',
     ]
     thresholds = [1, 2, 4]
 
@@ -50,7 +57,7 @@ def calc_metrics(pred_cls_list, pred_dist_list, pred_flow_list, gt_cls_list, gt_
             # L1
             l1_error = np.abs(pred_dist - gt_dist)
             tp_dist_mask = (l1_error < threshold)
-            
+
             for i, cls in enumerate(occ_class_names):
                 cls_id = occ_class_names.index(cls)
                 cls_mask_pred = (pred_cls == cls_id)
@@ -71,7 +78,7 @@ def calc_metrics(pred_cls_list, pred_dist_list, pred_flow_list, gt_cls_list, gt_
                     flow_error = np.linalg.norm(gt_flow - pred_flow, axis=1)
                     ave[j][i] += np.sum(flow_error)
                     ave_count[j][i] += flow_error.shape[0]
-    
+
     iou_list = []
     for j, threshold in enumerate(thresholds):
         iou_list.append((tp_cnt[j] / (gt_cnt + pred_cnt - tp_cnt[j]))[:-1])
@@ -80,16 +87,17 @@ def calc_metrics(pred_cls_list, pred_dist_list, pred_flow_list, gt_cls_list, gt_
 
     return iou_list, ave_list
 
-def compute(args):
-    print("Evaluating...")
 
-    with gzip.open(args.pred, 'rb') as f:  
+def compute(args):
+    print('Evaluating...')
+
+    with gzip.open(args.pred, 'rb') as f:
         pred_file = pickle.load(f)
 
     with gzip.open(args.gt, 'rb') as f:
         openocc_test_file = pickle.load(f)
 
-    print("Start to evaluate on nuScenes OpenOcc...")
+    print('Start to evaluate on nuScenes OpenOcc...')
     pred_cls_list = []
     pred_dist_list = []
     pred_flow_list = []
@@ -123,28 +131,26 @@ def compute(args):
     occ_score = openocc_occ_score
 
     output = {
-        "RayIoU@1": np.nanmean(openocc_iou_list[0]),
-        "RayIoU@2": np.nanmean(openocc_iou_list[1]),
-        "RayIoU@4": np.nanmean(openocc_iou_list[2]),
-        "RayIoU": openocc_miou,
-        "mAVE": openocc_mave,
-        "final_Occ_Score": occ_score
+        'RayIoU@1': np.nanmean(openocc_iou_list[0]),
+        'RayIoU@2': np.nanmean(openocc_iou_list[1]),
+        'RayIoU@4': np.nanmean(openocc_iou_list[2]),
+        'RayIoU': openocc_miou,
+        'mAVE': openocc_mave,
+        'final_Occ_Score': occ_score
     }
 
-    evaluation = {
-        "public_score": output,
-        "private_score": output
-    }
+    evaluation = {'public_score': output, 'private_score': output}
 
     print(output)
 
     print('End of evaluation.')
     return evaluation
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pred", default='submission.gz')
-    parser.add_argument("--gt", default='nuscenes_infos_val_occ_pcd.gz')
+    parser.add_argument('--pred', default='submission.gz')
+    parser.add_argument('--gt', default='nuscenes_infos_val_occ_pcd.gz')
     args = parser.parse_args()
 
     compute(args)

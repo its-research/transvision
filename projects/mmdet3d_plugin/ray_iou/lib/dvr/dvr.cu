@@ -256,12 +256,12 @@ __global__ void render_forward_cuda_kernel(
 
         // the total number of voxels visited should not exceed this number
         assert(count <= MAX_D);
-        
+
         if (count > 0) {
             // compute the expected ray distance
             //double exp_d = 0.0;
             double exp_d = d[count-1];
-            
+
             const int3 &v_init = path[count-1];
             int x = v_init.x;
             int y = v_init.y;
@@ -274,11 +274,11 @@ __global__ void render_forward_cuda_kernel(
                 const double occ = sigma[n][ts][v.z][v.y][v.x];
                 if (occ > 0.5) {
                     exp_d = d[i];
-                    
+
                     x = v.x;
                     y = v.y;
                     z = v.z;
-                
+
                     break;
                 }
 
@@ -301,7 +301,7 @@ __global__ void render_forward_cuda_kernel(
             // write the rendered ray distance (max_d)
             pred_dist[n][c] = exp_d;
             gt_dist[n][c] = gt_d;
-          
+
             coord_index[n][c][0] = double(x);
             coord_index[n][c][1] = double(y);
             coord_index[n][c][2] = double(z);

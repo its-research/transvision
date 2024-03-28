@@ -121,7 +121,7 @@ class NuSceneOcc(NuScenesDataset):
             input_dict['ann_info'] = annos
 
         return input_dict
-    
+
     def get_ann_info(self, index):
         """Get annotation info according to the given index.
 
@@ -136,7 +136,7 @@ class NuSceneOcc(NuScenesDataset):
                 - gt_labels_3d (np.ndarray): Labels of ground truths.
                 - gt_names (list[str]): Class names of ground truths.
         """
-        info = self.data_infos[index]
+        # info = self.data_infos[index]
         # # filter out bbox containing no points
         # # if self.use_valid_flag:
         # #     mask = info['valid_flag']
@@ -165,10 +165,7 @@ class NuSceneOcc(NuScenesDataset):
         #     box_dim=gt_bboxes_3d.shape[-1],
         #     origin=(0.5, 0.5, 0.5)).convert_to(self.box_mode_3d)
 
-        anns_results = dict(
-            gt_bboxes_3d=None,
-            gt_labels_3d=None,
-            gt_names=None)
+        anns_results = dict(gt_bboxes_3d=None, gt_labels_3d=None, gt_names=None)
         return anns_results
 
     def __getitem__(self, idx):
