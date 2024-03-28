@@ -121,6 +121,55 @@ class NuSceneOcc(NuScenesDataset):
             input_dict['ann_info'] = annos
 
         return input_dict
+    
+    def get_ann_info(self, index):
+        """Get annotation info according to the given index.
+
+        Args:
+            index (int): Index of the annotation data to get.
+
+        Returns:
+            dict: Annotation information consists of the following keys:
+
+                - gt_bboxes_3d (:obj:`LiDARInstance3DBoxes`): \
+                    3D ground truth bboxes
+                - gt_labels_3d (np.ndarray): Labels of ground truths.
+                - gt_names (list[str]): Class names of ground truths.
+        """
+        info = self.data_infos[index]
+        # # filter out bbox containing no points
+        # # if self.use_valid_flag:
+        # #     mask = info['valid_flag']
+        # # else:
+        # #     mask = info['num_lidar_pts'] > 0
+        # gt_bboxes_3d = info['gt_boxes'][mask]
+        # gt_names_3d = info['gt_names'][mask]
+        # gt_labels_3d = []
+        # for cat in gt_names_3d:
+        #     if cat in self.CLASSES:
+        #         gt_labels_3d.append(self.CLASSES.index(cat))
+        #     else:
+        #         gt_labels_3d.append(-1)
+        # gt_labels_3d = np.array(gt_labels_3d)
+
+        # if self.with_velocity:
+        #     gt_velocity = info['gt_velocity'][mask]
+        #     nan_mask = np.isnan(gt_velocity[:, 0])
+        #     gt_velocity[nan_mask] = [0.0, 0.0]
+        #     gt_bboxes_3d = np.concatenate([gt_bboxes_3d, gt_velocity], axis=-1)
+
+        # # the nuscenes box center is [0.5, 0.5, 0.5], we change it to be
+        # # the same as KITTI (0.5, 0.5, 0)
+        # gt_bboxes_3d = LiDARInstance3DBoxes(
+        #     gt_bboxes_3d,
+        #     box_dim=gt_bboxes_3d.shape[-1],
+        #     origin=(0.5, 0.5, 0.5)).convert_to(self.box_mode_3d)
+
+        anns_results = dict(
+            gt_bboxes_3d=None,
+            gt_labels_3d=None,
+            gt_names=None)
+        return anns_results
 
     def __getitem__(self, idx):
         """Get item from infos according to the given index.
@@ -235,12 +284,12 @@ class NuSceneOcc(NuScenesDataset):
             result_dict.update({token: sample_dict})
 
         final_submission_dict = {
-            'method': 'XXXXX (Your method name)',
-            'team': 'XXXXX (Your team name)',
-            'authors': 'XXXXX (Authors)',
-            'e-mail': 'XXXXX (Your email)',
-            'institution / company': 'XXXXXXXXXX (Your affiliation)',
-            'country / region': 'XXXXXXX (Your country/region)',
+            'method': 'occ',
+            'team': 'The16thRoute',
+            'authors': 'Bin Li',
+            'e-mail': 'lbin@outlook.com',
+            'institution / company': 'SEU',
+            'country / region': 'China/Beijing',
             'results': result_dict
         }
 

@@ -134,7 +134,7 @@ train_pipeline = [
 
 test_pipeline = [
     dict(type='LoadMultiViewImageFromFiles', to_float32=True),
-    dict(type='LoadOccGTFromFile'),
+    # dict(type='LoadOccGTFromFile'),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='PadMultiViewImage', size_divisor=32),
     dict(

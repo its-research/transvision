@@ -150,9 +150,9 @@ train_pipeline = [
     dict(type='LoadMultiViewImageFromFiles', to_float32=True),
     dict(type='LoadOccGTFromFile'),
     dict(type='PhotoMetricDistortionMultiViewImage'),
-    dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
-    dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
-    dict(type='ObjectNameFilter', classes=class_names),
+    # dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
+    # dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
+    # dict(type='ObjectNameFilter', classes=class_names),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='PadMultiViewImage', size_divisor=32),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
@@ -207,7 +207,7 @@ trainset_lightwheel = dict(
     classes=class_names,
     modality=input_modality,
     test_mode=False,
-    use_valid_flag=False,
+    use_valid_flag=True,
     filter_empty_gt=False,
     # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
     # and box_type_3d='Depth' in sunrgbd and scannet dataset.
