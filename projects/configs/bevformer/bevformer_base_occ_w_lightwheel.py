@@ -176,6 +176,27 @@ trainset_lightwheel = dict(
     # and box_type_3d='Depth' in sunrgbd and scannet dataset.
     box_type_3d='LiDAR')
 
+testset_nusc = dict(
+    type=nusc_dataset_type,
+    data_root=nusc_data_root,
+    ann_file=nusc_data_root + 'nuscenes_infos_test_occ.pkl',
+    pipeline=test_pipeline,
+    classes=class_names,
+    modality=input_modality,
+    filter_empty_gt=False,
+    samples_per_gpu=1)
+
+testset_lightwheel = dict(
+    type=light_dataset_type,
+    data_root=light_data_root,
+    ann_file=light_data_root + 'lightwheel_occ_infos_test.pkl',
+    pipeline=test_pipeline,
+    classes=class_names,
+    modality=input_modality,
+    filter_empty_gt=False,
+    samples_per_gpu=1
+    )
+
 data = dict(
     samples_per_gpu=1,
     workers_per_gpu=4,
@@ -183,23 +204,26 @@ data = dict(
         type='ConcatDataset',
         datasets=[trainset_nusc, trainset_lightwheel],
     ),
-    val=dict(
-        type=nusc_dataset_type,
-        data_root=nusc_data_root,
-        ann_file=nusc_data_root + 'nuscenes_infos_val_occ.pkl',
-        pipeline=test_pipeline,
-        filter_empty_gt=False,
-        classes=class_names,
-        modality=input_modality,
-        samples_per_gpu=1),
-    test=dict(
-        type=nusc_dataset_type,
-        data_root=nusc_data_root,
-        ann_file=nusc_data_root + 'nuscenes_infos_val_occ.pkl',
-        pipeline=test_pipeline,
-        filter_empty_gt=False,
-        classes=class_names,
-        modality=input_modality),
+    val=dict(type='ConcatDataset',
+        datasets=[trainset_nusc, trainset_lightwheel],
+    ),
+    # val=dict(
+    #     type=nusc_dataset_type,
+    #     data_root=nusc_data_root,
+    #     ann_file=nusc_data_root + 'nuscenes_infos_val_occ.pkl',
+    #     pipeline=test_pipeline,
+    #     filter_empty_gt=False,
+    #     classes=class_names,
+    #     modality=input_modality,
+    #     samples_per_gpu=1),
+    # test=dict(
+    #     type=nusc_dataset_type,
+    #     data_root=nusc_data_root,
+    #     ann_file=nusc_data_root + 'nuscenes_infos_val_occ.pkl',
+    #     pipeline=test_pipeline,
+    #     filter_empty_gt=False,
+    #     classes=class_names,
+    #     modality=input_modality),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler'))
 optimizer = dict(
