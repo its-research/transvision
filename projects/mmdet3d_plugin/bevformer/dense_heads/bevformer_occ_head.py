@@ -11,6 +11,7 @@ from mmcv.runner import BaseModule, auto_fp16, force_fp32
 from mmdet.models import HEADS
 from mmdet.models.builder import build_loss
 from mmdet.models.utils import build_transformer
+import numpy as np
 
 
 @HEADS.register_module()
@@ -189,8 +190,9 @@ class BEVFormerOccHead(BaseModule):
         # print(img_metas[0].keys())
         occ_out = preds_dicts['occ']
         occ_score = occ_out.softmax(-1)
-        occ_score = occ_score.argmax(-1)
-
-        flow_out = preds_dicts['flow']
+        indices = np.where(occ_score.cpu() > 0.5)
+        # indices = torch.nonzero(occ_score > 0.5).squeeze()
+        occ_score = occ_score[indices].argmax(-1)
+        flow_out = preds_dicts[indices]['flow']
 
         return occ_score, flow_out

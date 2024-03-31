@@ -2,7 +2,7 @@ _base_ = ['../datasets/custom_nus-3d.py', '../_base_/default_runtime.py']
 #
 plugin = True
 plugin_dir = 'projects/mmdet3d_plugin/'
-
+dataset_type = 'NuSceneOcc'
 # If point cloud range is changed, the models should also change their point
 # cloud range accordingly
 point_cloud_range = [-40, -40, -1.0, 40, 40, 5.4]
@@ -130,7 +130,7 @@ train_pipeline = [
 
 test_pipeline = [
     dict(type='LoadMultiViewImageFromFiles', to_float32=True),
-    dict(type='LoadOccGTFromFile'),
+    # dict(type='LoadOccGTFromFile'),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='PadMultiViewImage', size_divisor=32),
     dict(
@@ -183,8 +183,7 @@ testset_nusc = dict(
     pipeline=test_pipeline,
     classes=class_names,
     modality=input_modality,
-    filter_empty_gt=False,
-    samples_per_gpu=1)
+    filter_empty_gt=False)
 
 testset_lightwheel = dict(
     type=light_dataset_type,
@@ -194,7 +193,6 @@ testset_lightwheel = dict(
     classes=class_names,
     modality=input_modality,
     filter_empty_gt=False,
-    samples_per_gpu=1
     )
 
 data = dict(
@@ -205,7 +203,10 @@ data = dict(
         datasets=[trainset_nusc, trainset_lightwheel],
     ),
     val=dict(type='ConcatDataset',
-        datasets=[trainset_nusc, trainset_lightwheel],
+        datasets=[testset_nusc, testset_lightwheel],
+    ),
+    test=dict(type='ConcatDataset',
+        datasets=[testset_nusc, testset_lightwheel],
     ),
     # val=dict(
     #     type=nusc_dataset_type,
