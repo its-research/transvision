@@ -193,7 +193,7 @@ testset_lightwheel = dict(
     classes=class_names,
     modality=input_modality,
     filter_empty_gt=False,
-    )
+)
 
 data = dict(
     samples_per_gpu=1,
@@ -202,29 +202,8 @@ data = dict(
         type='ConcatDataset',
         datasets=[trainset_nusc, trainset_lightwheel],
     ),
-    val=dict(type='ConcatDataset',
-        datasets=[testset_nusc, testset_lightwheel],
-    ),
-    test=dict(type='ConcatDataset',
-        datasets=[testset_nusc, testset_lightwheel],
-    ),
-    # val=dict(
-    #     type=nusc_dataset_type,
-    #     data_root=nusc_data_root,
-    #     ann_file=nusc_data_root + 'nuscenes_infos_val_occ.pkl',
-    #     pipeline=test_pipeline,
-    #     filter_empty_gt=False,
-    #     classes=class_names,
-    #     modality=input_modality,
-    #     samples_per_gpu=1),
-    # test=dict(
-    #     type=nusc_dataset_type,
-    #     data_root=nusc_data_root,
-    #     ann_file=nusc_data_root + 'nuscenes_infos_val_occ.pkl',
-    #     pipeline=test_pipeline,
-    #     filter_empty_gt=False,
-    #     classes=class_names,
-    #     modality=input_modality),
+    val=testset_lightwheel,
+    test=testset_lightwheel,
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler'))
 optimizer = dict(

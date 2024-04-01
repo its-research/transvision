@@ -244,10 +244,13 @@ class NuSceneOcc(NuScenesDataset):
             flow_pred = np.reshape(flow_pred, [200, 200, 16, 2])
 
             pcd_pred = process_one_sample(sem_pred, lidar_rays, output_origin, flow_pred)
+            # print(pcd_pred.shape)
 
             pcd_cls = pcd_pred[:, 0].astype(np.int8)
             pcd_dist = pcd_pred[:, 1].astype(np.float16)
             pcd_flow = pcd_pred[:, 2:4].astype(np.float16)
+            # print(pcd_cls.shape, pcd_dist.shape, pcd_flow.shape)
+            # exit()
 
             sample_dict = {'pcd_cls': pcd_cls, 'pcd_dist': pcd_dist, 'pcd_flow': pcd_flow}
             result_dict.update({token: sample_dict})

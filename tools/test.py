@@ -217,6 +217,8 @@ def main():
         kwargs = {} if args.eval_options is None else args.eval_options
         kwargs['jsonfile_prefix'] = osp.join('test', args.config.split('/')[-1].split('.')[-2], time.ctime().replace(' ', '_').replace(':', '_'))
         if args.format_only:
+            # torch.save(outputs, 'out.pkl')
+            # outputs = torch.load('out.pkl')
             dataset.format_results(outputs, **kwargs)
 
         if args.eval:

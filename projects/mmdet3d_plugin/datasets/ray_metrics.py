@@ -99,11 +99,14 @@ def generate_lidar_rays():
 def process_one_sample(sem_pred, lidar_rays, output_origin, flow_pred):
     # lidar origin in ego coordinate
     # lidar_origin = torch.tensor([[[0.9858, 0.0000, 1.8402]]])
+
     T = output_origin.shape[1]
+    # print(output_origin.shape)
     pred_pcds_t = []
 
     free_id = len(occ_class_names) - 1
     occ_pred = copy.deepcopy(sem_pred)
+
     occ_pred[sem_pred < free_id] = 1
     occ_pred[sem_pred == free_id] = 0
     occ_pred = torch.from_numpy(occ_pred).permute(2, 1, 0)
@@ -127,17 +130,24 @@ def process_one_sample(sem_pred, lidar_rays, output_origin, flow_pred):
                                                            [1, 16, 200, 200], 'test')
             pred_dist *= _voxel_size
 
-        pred_pcds = get_rendered_pcds(lidar_origin[0].cpu().numpy(), lidar_endpts[0].cpu().numpy(), lidar_tindex[0].cpu().numpy(), pred_dist[0].cpu().numpy())
+        # pred_pcds = get_rendered_pcds(lidar_origin[0].cpu().numpy(), lidar_endpts[0].cpu().numpy(), lidar_tindex[0].cpu().numpy(), pred_dist[0].cpu().numpy())
         coord_index = coord_index[0, :, :].int().cpu()  # [N, 3]
+        # print('1:', flow_pred.shape, sem_pred.shape,coord_index.shape)
+        # print(coord_index)
+        # exit()
 
         pred_flow = torch.from_numpy(flow_pred[coord_index[:, 0], coord_index[:, 1], coord_index[:, 2]])  # [N, 2]
         pred_label = torch.from_numpy(sem_pred[coord_index[:, 0], coord_index[:, 1], coord_index[:, 2]])[:, None]  # [N, 1]
         pred_dist = pred_dist[0, :, None].cpu()
         pred_pcds = torch.cat([pred_label.float(), pred_dist, pred_flow], dim=-1)
 
+        # print('3:', pred_dist.shape, pred_flow.shape, pred_label.shape, pred_pcds.shape)
+
         pred_pcds_t.append(pred_pcds)
 
     pred_pcds_t = torch.cat(pred_pcds_t, dim=0)
+    # print('4:', pred_pcds_t.shape)
+    # exit()
 
     return pred_pcds_t.numpy()
 
