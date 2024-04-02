@@ -9,6 +9,7 @@ import os.path as osp
 import time
 import warnings
 
+import mmcv
 import torch
 from mmcv import Config, DictAction
 from mmcv.cnn import fuse_conv_bn
@@ -213,11 +214,12 @@ def main():
     if rank == 0:
         if args.out:
             print(f'\nwriting results to {args.out}')
+            mmcv.dump(outputs, args.out)
             assert False
         kwargs = {} if args.eval_options is None else args.eval_options
         kwargs['jsonfile_prefix'] = osp.join('test', args.config.split('/')[-1].split('.')[-2], time.ctime().replace(' ', '_').replace(':', '_'))
         if args.format_only:
-            # torch.save(outputs, 'out.pkl')
+            torch.save(outputs, 'out.pkl')
             # outputs = torch.load('out.pkl')
             dataset.format_results(outputs, **kwargs)
 

@@ -196,17 +196,24 @@ def process_one_sample(sem_pred, lidar_rays, output_origin, flow_pred, return_xy
 def main(args):
     token2path = {}
 
-    data_infos = pickle.load(open(args.data_info, 'rb'))['infos']
-    for info in data_infos:
-        # get relative path
-        occ_path = info['occ_path'].split('nuscenes/')[-1]
-        token2path[info['token']] = os.path.join(args.data_root, occ_path)
+    if args.dataset_type == 'openocc_v2':
+        data_infos = pickle.load(open(args.data_info, 'rb'))['infos']
+        for info in data_infos:
+            # get relative path
+            occ_path = info['occ_path'].split('nuscenes/')[-1]
+            token2path[info['token']] = os.path.join(args.data_root, occ_path)
+
+    elif args.dataset_type == 'lightwheelocc':
+        # lightwheelocc is 10Hz, downsample to 1/5
+        data_infos = pickle.load(open(args.data_info, 'rb'))['infos'][::5]
+        for info in data_infos:
+            token2path[info['token']] = os.path.join(args.data_root, info['occ_path'])
 
     # generate lidar rays
     lidar_rays = generate_lidar_rays()
     lidar_rays = torch.from_numpy(lidar_rays)
 
-    ego_pose_dataset = EgoPoseDataset(data_infos, dataset_type='openocc_v2')
+    ego_pose_dataset = EgoPoseDataset(data_infos, dataset_type=args.dataset_type)
     data_loader_kwargs = {
         'pin_memory': False,
         'shuffle': False,
@@ -218,25 +225,10 @@ def main(args):
         ego_pose_dataset,
         **data_loader_kwargs,
     )
-
-    data_pkl_gt = {}
-    data_pkl_pred = {}
-
+    data_pkl = {}
     for batch in tqdm(data_loader, ncols=50):
         sample_token = batch[0][0]
         output_origin = batch[1].to(torch.float32)
-
-        pred_filepath = os.path.join(args.pred_root, sample_token + '.npz')
-        pred_data = np.load(pred_filepath, allow_pickle=True)
-        '''sem_pred = pred_data['semantics']
-        sem_pred = np.reshape(sem_pred, [200, 200, 16])
-        sem_pred = torch.from_numpy(sem_pred)
-        flow_pred = pred_data['flow']
-        flow_pred = np.reshape(flow_pred, [200, 200, 16, 2])'''
-        sem_pred = pred_data['pred']
-        sem_pred = np.reshape(sem_pred, [200, 200, 16])
-        sem_pred = torch.from_numpy(sem_pred)
-        flow_pred = np.zeros([200, 200, 16, 2], dtype=np.float32)
 
         gt_filepath = token2path[sample_token]
         gt_data = np.load(gt_filepath, allow_pickle=True)
@@ -247,57 +239,45 @@ def main(args):
         flow_gt = np.reshape(flow_gt, [200, 200, 16, 2])
 
         pcd_gt = process_one_sample(sem_gt, lidar_rays, output_origin, flow_gt, return_xyz=VIZ)
-        pcd_pred = process_one_sample(sem_pred, lidar_rays, output_origin, flow_pred, return_xyz=VIZ)
 
         if VIZ:
-            pcdimg = viz_pcd(pcd_pred[:, 4:], pcd_pred[:, 0])
+            pcdimg = viz_pcd(pcd_gt[:, 4:], pcd_gt[:, 0])
             os.makedirs('vis', exist_ok=True)
             cv2.imwrite('vis/%s_pcd.jpg' % sample_token, pcdimg[..., ::-1])
 
-        data_pkl_gt[sample_token] = {'pcd_cls': pcd_gt[:, 0].astype(np.uint8), 'pcd_dist': pcd_gt[:, 1].astype(np.float16), 'pcd_flow': pcd_gt[:, 2:4].astype(np.float16)}
+        pcd_cls = pcd_gt[:, 0].astype(np.uint8)
+        pcd_dist = pcd_gt[:, 1].astype(np.float16)
+        pcd_flow = pcd_gt[:, 2:4].astype(np.float16)
 
-        data_pkl_pred[sample_token] = {'pcd_cls': pcd_pred[:, 0].astype(np.uint8), 'pcd_dist': pcd_pred[:, 1].astype(np.float16), 'pcd_flow': pcd_pred[:, 2:4].astype(np.float16)}
+        data_dict = {'pcd_cls': pcd_cls, 'pcd_dist': pcd_dist, 'pcd_flow': pcd_flow}
+        data_pkl[sample_token] = data_dict
 
-    submission_pkl_gt = {
+    submission_pkl = {
         'method': 'GT',
         'team': 'OpenDriveLab',
         'authors': 'OpenDriveLab',
         'e-mail': 'contact@opendrivelab.com',
         'institution / company': 'OpenDriveLab',
         'country / region': 'China',
-        'results': data_pkl_gt
-    }
-
-    submission_pkl_pred = {
-        'method': 'My prediction',
-        'team': 'My team',
-        'authors': 'Me',
-        'e-mail': 'email',
-        'institution / company': 'Me',
-        'country / region': 'Earth',
-        'results': data_pkl_pred
+        'results': data_pkl
     }
 
     os.makedirs(args.output_dir, exist_ok=True)
-    output_path_gt = os.path.join(args.output_dir, os.path.basename(args.data_info).split('.')[0] + '_pcd.gz')
-    output_path_pred = os.path.join(args.output_dir, 'my_pred_pcd.gz')
+    output_path = os.path.join(args.output_dir, os.path.basename(args.data_info).split('.')[0] + '_pcd.gz')
     print('gzip and dumping the data...')
 
     start = time.time()
-    with gzip.GzipFile(output_path_gt, 'wb', compresslevel=9) as f:
-        pickle.dump(submission_pkl_gt, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    with gzip.GzipFile(output_path_pred, 'wb', compresslevel=9) as f:
-        pickle.dump(submission_pkl_pred, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with gzip.GzipFile(output_path, 'wb', compresslevel=9) as f:
+        pickle.dump(submission_pkl, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     print(f'done in {time.time() - start:.2f}s')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data-root', default='./data/nuscenes')
-    parser.add_argument('--data-info', default='./data/nuscenes/nuscenes_infos_val_occ.pkl')
-    parser.add_argument('--pred-root', default='./your_prediction')
+    parser.add_argument('--dataset-type', default='lightwheelocc', choices=['lightwheelocc', 'openocc_v2'])
+    parser.add_argument('--data-root', default='./data/lightwheelocc')
+    parser.add_argument('--data-info', default='./data/lightwheelocc/lightwheel_occ_infos_val.pkl')
     parser.add_argument('--output-dir', default='./work_dirs/')
     args = parser.parse_args()
 
