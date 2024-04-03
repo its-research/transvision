@@ -1,5 +1,5 @@
 _base_ = ['../datasets/custom_nus-3d.py', '../_base_/default_runtime.py']
-#
+
 plugin = True
 plugin_dir = 'projects/mmdet3d_plugin/'
 
@@ -53,12 +53,6 @@ model = dict(
         sync_cls_avg_factor=True,
         with_box_refine=True,
         as_two_stage=False,
-        # loss_occ=dict(
-        #     type='FocalLoss',
-        #     use_sigmoid=False,
-        #     gamma=2.0,
-        #     alpha=0.25,
-        #     loss_weight=10.0),
         use_mask=False,
         loss_occ=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
         loss_flow=dict(type='L1Loss', loss_weight=0.25),
