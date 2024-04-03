@@ -124,7 +124,7 @@ train_pipeline = [
     # dict(type='ObjectNameFilter', classes=class_names),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='PadMultiViewImage', size_divisor=32),
-    dict(type='DefaultFormatBundle3D', class_names=class_names),
+    dict(type='DefaultFormatBundle3D', class_names=occ_class_names),
     dict(type='CustomCollect3D', keys=['img', 'voxel_semantics', 'voxel_flow'])
 ]
 
@@ -138,7 +138,7 @@ test_pipeline = [
         img_scale=(1600, 900),
         pts_scale_ratio=1,
         flip=False,
-        transforms=[dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
+        transforms=[dict(type='DefaultFormatBundle3D', class_names=occ_class_names, with_label=False),
                     dict(type='CustomCollect3D', keys=['img'])])
 ]
 
@@ -153,7 +153,7 @@ trainset_nusc = dict(
     data_root=nusc_data_root,
     ann_file=nusc_data_root + 'nuscenes_infos_train_occ.pkl',
     pipeline=train_pipeline,
-    classes=class_names,
+    classes=occ_class_names,
     modality=input_modality,
     test_mode=False,
     use_valid_flag=True,
@@ -167,7 +167,7 @@ trainset_lightwheel = dict(
     data_root=light_data_root,
     ann_file=light_data_root + 'lightwheel_occ_infos_train.pkl',
     pipeline=train_pipeline,
-    classes=class_names,
+    classes=occ_class_names,
     modality=input_modality,
     test_mode=False,
     use_valid_flag=True,
@@ -181,7 +181,7 @@ testset_nusc = dict(
     data_root=nusc_data_root,
     ann_file=nusc_data_root + 'nuscenes_infos_test_occ.pkl',
     pipeline=test_pipeline,
-    classes=class_names,
+    classes=occ_class_names,
     modality=input_modality,
     filter_empty_gt=False)
 
@@ -190,7 +190,7 @@ valset_nusc = dict(
     data_root=nusc_data_root,
     ann_file=nusc_data_root + 'nuscenes_infos_val_occ.pkl',
     pipeline=test_pipeline,
-    classes=class_names,
+    classes=occ_class_names,
     modality=input_modality,
     filter_empty_gt=False)
 
@@ -199,7 +199,7 @@ testset_lightwheel = dict(
     data_root=light_data_root,
     ann_file=light_data_root + 'lightwheel_occ_infos_test.pkl',
     pipeline=test_pipeline,
-    classes=class_names,
+    classes=occ_class_names,
     modality=input_modality,
     filter_empty_gt=False,
 )

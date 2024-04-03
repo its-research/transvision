@@ -125,10 +125,10 @@ train_pipeline = [
     dict(type='PhotoMetricDistortionMultiViewImage'),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True, with_attr_label=False),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
-    dict(type='ObjectNameFilter', classes=class_names),
+    dict(type='ObjectNameFilter', classes=occ_class_names),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='PadMultiViewImage', size_divisor=32),
-    dict(type='DefaultFormatBundle3D', class_names=class_names),
+    dict(type='DefaultFormatBundle3D', class_names=occ_class_names),
     dict(type='CustomCollect3D', keys=['img', 'voxel_semantics', 'voxel_flow'])
 ]
 
@@ -142,7 +142,7 @@ test_pipeline = [
         img_scale=(1600, 900),
         pts_scale_ratio=1,
         flip=False,
-        transforms=[dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
+        transforms=[dict(type='DefaultFormatBundle3D', class_names=occ_class_names, with_label=False),
                     dict(type='CustomCollect3D', keys=['img'])])
 ]
 
@@ -154,7 +154,7 @@ data = dict(
         data_root=data_root,
         ann_file=data_root + 'nuscenes_infos_train_occ.pkl',
         pipeline=train_pipeline,
-        classes=class_names,
+        classes=occ_class_names,
         modality=input_modality,
         test_mode=False,
         use_valid_flag=True,
@@ -168,7 +168,7 @@ data = dict(
         ann_file=data_root + 'nuscenes_infos_test_occ.pkl',
         pipeline=test_pipeline,
         filter_empty_gt=False,
-        classes=class_names,
+        classes=occ_class_names,
         modality=input_modality,
         samples_per_gpu=1),
     test=dict(
@@ -177,7 +177,7 @@ data = dict(
         ann_file=data_root + 'nuscenes_infos_test_occ.pkl',
         pipeline=test_pipeline,
         filter_empty_gt=False,
-        classes=class_names,
+        classes=occ_class_names,
         modality=input_modality),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler'))
