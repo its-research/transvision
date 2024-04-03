@@ -222,5 +222,5 @@ runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
 load_from = None
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook'), dict(type='TensorboardLoggerHook')])
 
-checkpoint_config = dict(interval=4)
+checkpoint_config = dict(interval=1)
 load_from = 'epoch_24.pth'

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-rm -rf ~/.cache/torch_extensions
+# rm -rf ~/.cache/torch_extensions
 
 CONFIG=$1
 GPUS=$2
