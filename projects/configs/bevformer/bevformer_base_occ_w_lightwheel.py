@@ -211,8 +211,8 @@ data = dict(
         type='ConcatDataset',
         datasets=[trainset_nusc, trainset_lightwheel],
     ),
-    val=valset_nusc,
-    test=valset_nusc,
+    val=testset_lightwheel,
+    test=testset_lightwheel,
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler'))
 optimizer = dict(

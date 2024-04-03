@@ -209,7 +209,17 @@ class NuSceneOcc(NuScenesDataset):
         result_dict = {}
 
         if 'LightwheelOcc' in self.version:
-            ego_pose_dataset = EgoPoseDataset(self.data_infos, dataset_type='lightwheelocc')
+            # lightwheelocc is 10Hz, downsample to 1/5
+            if self.load_interval == 5:
+                data_infos = self.data_infos
+            elif self.load_interval == 1:
+                print('[WARNING] Please set `load_interval` to 5 in for LightwheelOcc test submission!')
+                print('[WARNING] Current format_results will continue!')
+                data_infos = self.data_infos[::5]
+            else:
+                raise ValueError('Please set `load_interval` to 5 in for LightwheelOcc test submission!')
+
+            ego_pose_dataset = EgoPoseDataset(data_infos, dataset_type='lightwheelocc')
         else:
             ego_pose_dataset = EgoPoseDataset(self.data_infos, dataset_type='openocc_v2')
 
@@ -244,13 +254,10 @@ class NuSceneOcc(NuScenesDataset):
             flow_pred = np.reshape(flow_pred, [200, 200, 16, 2])
 
             pcd_pred = process_one_sample(sem_pred, lidar_rays, output_origin, flow_pred)
-            # print(pcd_pred.shape)
 
             pcd_cls = pcd_pred[:, 0].astype(np.int8)
             pcd_dist = pcd_pred[:, 1].astype(np.float16)
             pcd_flow = pcd_pred[:, 2:4].astype(np.float16)
-            # print(pcd_cls.shape, pcd_dist.shape, pcd_flow.shape)
-            # exit()
 
             sample_dict = {'pcd_cls': pcd_cls, 'pcd_dist': pcd_dist, 'pcd_flow': pcd_flow}
             result_dict.update({token: sample_dict})
