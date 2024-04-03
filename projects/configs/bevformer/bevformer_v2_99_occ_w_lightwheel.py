@@ -5,4 +5,7 @@ model = dict(
     img_neck=dict(type='FPN', in_channels=[256, 512, 1024, 2048], out_channels=256, start_level=0, add_extra_convs='on_output', num_outs=4, relu_before_extra_convs=True),
 )
 
+total_epochs = 24
+runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
+
 load_from = 'dd3d_det_final.pth'

@@ -216,8 +216,8 @@ class BEVFormerOcc(MVXTwoStageDetector):
         # During inference, we save the BEV features and ego motion of each timestamp.
 
         return {
-            'occ_results': occ_results.cpu(),
-            'flow_results': flow_results.cpu(),
+            'occ_results': occ_results.byte().cpu(),
+            'flow_results': flow_results.half().cpu(),
         }
 
     def simple_test_pts(self, x, img_metas, prev_bev=None, rescale=False):

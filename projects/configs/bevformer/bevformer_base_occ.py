@@ -9,8 +9,6 @@ point_cloud_range = [-40, -40, -1.0, 40, 40, 5.4]
 voxel_size = [0.2, 0.2, 8]
 
 img_norm_cfg = dict(mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
-# For nuScenes we usually do 10-class detection
-class_names = ['car', 'truck', 'construction_vehicle', 'bus', 'trailer', 'barrier', 'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone']
 # For OpenOcc v2 we have 17 classes (including `free`)
 occ_class_names = [
     'car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone', 'barrier', 'driveable_surface', 'other_flat', 'sidewalk',

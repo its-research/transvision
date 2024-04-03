@@ -1,7 +1,7 @@
 # ---------------------------------------------
 # Copyright (c) OpenMMLab. All rights reserved.
 # ---------------------------------------------
-#  Modified by Xiaoyu Tian
+#  Modified by Haisong Liu
 # ---------------------------------------------
 import os.path as osp
 import shutil
@@ -58,7 +58,6 @@ def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
     occ_results = []
     dataset = data_loader.dataset
     rank, world_size = get_dist_info()
-    assert world_size == 1
 
     if rank == 0:
         prog_bar = mmcv.ProgressBar(len(dataset))
@@ -68,6 +67,7 @@ def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
     for i, data in enumerate(data_loader):
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **data)
+            batch_size = result['occ_results'].shape[0]
             occ_results.append(result)
 
             # if isinstance(result[0], tuple):
@@ -75,7 +75,14 @@ def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
             #    result = [(bbox_results, encode_mask_results(mask_results))
             #              for bbox_results, mask_results in result]
         if rank == 0:
-            prog_bar.update()
+            for _ in range(batch_size * world_size):
+                prog_bar.update()
+
+    # collect results from all ranks
+    if gpu_collect:
+        occ_results = collect_results_gpu(occ_results, len(dataset))
+    else:
+        occ_results = collect_results_cpu(occ_results, len(dataset), tmpdir)
 
     return occ_results
 
