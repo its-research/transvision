@@ -47,7 +47,7 @@ valset_nusc = dict(
 data = dict(
     samples_per_gpu=1,
     workers_per_gpu=4,
-    val=valset_nusc,
-    test=valset_nusc,
+    val=testset_nusc,
+    test=testset_nusc,
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler'))
