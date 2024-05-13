@@ -27,7 +27,7 @@ def limit_period(val: Union[np.ndarray, Tensor], offset: float = 0.5, period: fl
     return limited_val
 
 
-points = np.fromfile('./data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/velodyne/015372.bin', dtype=np.float32)
+points = np.fromfile('data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/velodyne/000016.bin', dtype=np.float32)
 points = points.reshape(-1, 4)
 visualizer = Det3DLocalVisualizer2(save_dir='./')
 # set point cloud in visualizer

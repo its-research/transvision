@@ -114,7 +114,10 @@ def label_world2v(path_cooperative_label, path_novatel2world, path_lidar2novatel
 
         length = label_world[i]['3d_dimensions']['l']
         w = label_world[i]['3d_dimensions']['w']
+        # w = label_world[i]['3d_dimensions']['l']
+        # length = label_world[i]['3d_dimensions']['w']
         rotation = get_rotation(new_world_8_points, new_3d_point, length, w)
+        # rotation = rotation - np.pi / 2
 
         label_world[i]['3d_location']['x'] = new_3d_point[0]
         label_world[i]['3d_location']['y'] = new_3d_point[1]
