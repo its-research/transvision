@@ -1,7 +1,6 @@
 import os.path as osp
 import numpy as np
 import mayavi.mlab as mlab
-import pickle
 import argparse
 import math
 from pypcd import pypcd
@@ -10,7 +9,14 @@ from vis_utils import id_to_str, load_pkl
 
 
 def draw_boxes3d(
-    boxes3d, fig, arrows=None, color=(1, 0, 0), line_width=2, draw_text=False, text_scale=(1, 1, 1), color_list=None
+    boxes3d,
+    fig,
+    arrows=None,
+    color=(1, 0, 0),
+    line_width=2,
+    draw_text=False,
+    text_scale=(1, 1, 1),
+    color_list=None,
 ):
     """
     boxes3d: numpy array (n,8,3) for XYZs of the box corners
@@ -38,7 +44,15 @@ def draw_boxes3d(
         if color_list is not None:
             color = color_list[n]
         if draw_text:
-            mlab.text3d(b[4, 0], b[4, 1], b[4, 2], "%d" % n, scale=text_scale, color=color, figure=fig)
+            mlab.text3d(
+                b[4, 0],
+                b[4, 1],
+                b[4, 2],
+                "%d" % n,
+                scale=text_scale,
+                color=color,
+                figure=fig,
+            )
         for k in range(0, 4):
             i, j = k, (k + 1) % 4
             mlab.plot3d(
@@ -97,7 +111,11 @@ def get_lidar_3d_8points(obj_size, yaw_lidar, center_lidar):
     center_lidar = [center_lidar[0], center_lidar[1], center_lidar[2]]
 
     lidar_r = np.matrix(
-        [[math.cos(yaw_lidar), -math.sin(yaw_lidar), 0], [math.sin(yaw_lidar), math.cos(yaw_lidar), 0], [0, 0, 1]]
+        [
+            [math.cos(yaw_lidar), -math.sin(yaw_lidar), 0],
+            [math.sin(yaw_lidar), math.cos(yaw_lidar), 0],
+            [0, 0, 1],
+        ]
     )
     l, w, h = obj_size
     center_lidar[2] = center_lidar[2] - h / 2
@@ -137,22 +155,31 @@ def read_label_bboxes(label_path):
     return boxes
 
 
-def plot_box_pcd(x, y, z, boxes):
-    vals = "height"
-    if vals == "height":
-        col = z
-    fig = mlab.figure(bgcolor=(0, 0, 0), size=(1024, 1024))
+def plot_box_pcd(x, y, z, x_inf, y_inf, z_inf, boxes, boxes_mis):
+
+    fig = mlab.figure(bgcolor=(1.0, 1.0, 1.0), size=(1024, 1024))
     mlab.points3d(
         x,
         y,
         z,
-        col,  # Values used for Color
+        z,  # Values used for Color
         mode="point",
         colormap="spectral",  # 'bone', 'copper', 'gnuplot'
-        color=(1.0, 1.0, 1.0),  # Used a fixed (r,g,b) instead
+        color=(0.0, 1.0, 0.0),  # Used a fixed (r,g,b) instead
+        figure=fig,
+    )
+    mlab.points3d(
+        x_inf,
+        y_inf,
+        z_inf,
+        z_inf,  # Values used for Color
+        mode="point",
+        colormap="spectral",  # 'bone', 'copper', 'gnuplot'
+        color=(0.0, 0.0, 1.0),  # Used a fixed (r,g,b) instead
         figure=fig,
     )
     draw_boxes3d(np.array(boxes), fig, arrows=None)
+    draw_boxes3d(np.array(boxes_mis), fig, arrows=None, color=(0,0,0))
 
     # mlab.axes(xlabel="x", ylabel="y", zlabel="z")
     mlab.show()
@@ -198,24 +225,45 @@ def plot_pred_single(args):
 
 def plot_label_pcd(args):
     pcd_path = args.pcd_path
-    x, y, z = read_pcd(pcd_path)
+    x, y, z = read_pcd(pcd_path)    
+    x_inf, y_inf, z_inf = read_pcd(args.inf_pcd_path)
+    
 
     label_path = args.label_path
     boxes = read_label_bboxes(label_path)
+    boxes_mis = read_label_bboxes(args.mis_label_path)
 
-    plot_box_pcd(x, y, z, boxes)
+    plot_box_pcd(x, y, z, x_inf, y_inf, z_inf, boxes, boxes_mis)
 
 
 def add_arguments(parser):
-    parser.add_argument("--task", type=str, default="pcd_label", choices=["fusion", "single", "pcd_label"])
+    parser.add_argument(
+        "--task",
+        type=str,
+        default="pcd_label",
+        choices=["fusion", "single", "pcd_label"],
+    )
     parser.add_argument("--path", type=str, default="./coop-mono_v50100")
     parser.add_argument("--id", type=int, default=0)
     # parser.add_argument("--pcd-path", type=str, default="data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/velodyne/lidar_i2v/006748.pcd", help="pcd path to visualize")
-    parser.add_argument("--pcd-path", type=str, default="data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/velodyne/000066.pcd", help="pcd path to visualize")
-    # parser.add_argument("--label-path", type=str, default="data/DAIR-V2X/cooperative-vehicle-infrastructure/cooperative/label/lidar/000066.json", help="label path to visualize")
+    parser.add_argument(
+        "--pcd-path",
+        type=str,
+        default="data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/velodyne/020183.pcd",
+        help="pcd path to visualize",
+    )
+    parser.add_argument("--label-path", type=str, default="/Users/libin/Desktop/020183.json", help="label path to visualize")
     # parser.add_argument("--label-path", type=str, default="data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/label/lidar/000066.json", help="label path to visualize")
-    parser.add_argument("--label-path", type=str, default="/Users/libin/Desktop/000066.json", help="label path to visualize")
+
+    parser.add_argument(
+        "--inf-pcd-path",
+        type=str,
+        default="data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/velodyne/lidar_i2v/004022.pcd",
+        help="pcd path to visualize",
+    )
+    parser.add_argument("--mis-label-path", type=str, default="/Users/libin/Desktop/201832.json", help="label path to visualize")
     
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

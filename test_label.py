@@ -1,37 +1,19 @@
-import os
 import json
 
-folder_path = '/Users/libin/Desktop/data/cooperative-vehicle-infrastructure/cooperative/label_world'  # Replace with the actual folder path
+a = [8,19,10,3,11,14,25,15,9,17,12,23,18,24]
 
-# Iterate over all files in the folder
-filenames =[]
-nums = []
-veh_path = '/Users/libin/Desktop/data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/label/lidar/'
+# Read the JSON file
+with open('/Users/libin/Desktop/020183.json', 'r') as file:
+    data = json.load(file)
 
-max_diff =0
-max_file = ''
-for filename in os.listdir(folder_path):
-    file_path = os.path.join(folder_path, filename)
-    
-    # Check if the file is a JSON file
-    if filename.endswith('.json'):
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            print(data)
-            
-            num_elements = len(data)
-            print(f"File: {filename}, Number of Elements: {num_elements}")
-            exit()
-            
-        veh_file_path = veh_path + filename
-        
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            veh_num_elements = len(data)
-            print(f"File: {filename}, Number of Elements: {num_elements}")
-            
-        diff = num_elements - veh_num_elements
-        if max_diff < diff:
-            max_diff = diff
-            max_file = filename
-print (max_diff, max_file)
+# Filter the elements based on indices in list 'a'
+filtered_data = [data[i] for i in a if i < len(data)]
+
+# Write the filtered elements to another file
+with open('/Users/libin/Desktop/201832.json', 'w') as file:
+    json.dump(filtered_data, file)
+
+# Update the original file with remaining elements
+remaining_data = [data[i] for i in range(len(data)) if i not in a]
+with open('/Users/libin/Desktop/020183.json', 'w') as file:
+    json.dump(remaining_data, file)
