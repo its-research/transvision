@@ -4,21 +4,18 @@
 #  Modified by Zhiqi Li
 # ---------------------------------------------
 import os.path as osp
-import random
 import time
 import warnings
 
-import numpy as np
 import torch
-import torch.distributed as dist
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
-from mmcv.runner import HOOKS, DistSamplerSeedHook, EpochBasedRunner, Fp16OptimizerHook, OptimizerHook, build_optimizer, build_runner, get_dist_info
+from mmcv.runner import HOOKS, DistSamplerSeedHook, EpochBasedRunner, Fp16OptimizerHook, OptimizerHook, build_optimizer, build_runner
 from mmcv.utils import build_from_cfg
 from mmdet3d.bevformer_plugin.core.evaluation.eval_hooks import CustomDistEvalHook
 from mmdet3d.bevformer_plugin.datasets import custom_build_dataset
 from mmdet3d.bevformer_plugin.datasets.builder import build_dataloader
 from mmdet.core import EvalHook
-from mmdet.datasets import build_dataset, replace_ImageToTensor
+from mmdet.datasets import replace_ImageToTensor
 from mmdet.utils import get_root_logger
 
 
@@ -28,7 +25,7 @@ def custom_train_detector(model, dataset, cfg, distributed=False, validate=False
     # prepare data loaders
 
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
-    #assert len(dataset)==1s
+    #  assert len(dataset)==1s
     if 'imgs_per_gpu' in cfg.data:
         logger.warning('"imgs_per_gpu" is deprecated in MMDet V2.0. '
                        'Please use "samples_per_gpu" instead')
@@ -100,9 +97,9 @@ def custom_train_detector(model, dataset, cfg, distributed=False, validate=False
     runner.register_training_hooks(cfg.lr_config, optimizer_config, cfg.checkpoint_config, cfg.log_config, cfg.get('momentum_config', None))
 
     # register profiler hook
-    #trace_config = dict(type='tb_trace', dir_name='work_dir')
-    #profiler_config = dict(on_trace_ready=trace_config)
-    #runner.register_profiler_hook(profiler_config)
+    # trace_config = dict(type='tb_trace', dir_name='work_dir')
+    # profiler_config = dict(on_trace_ready=trace_config)
+    # runner.register_profiler_hook(profiler_config)
 
     if distributed:
         if isinstance(runner, EpochBasedRunner):

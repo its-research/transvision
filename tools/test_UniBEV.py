@@ -5,8 +5,6 @@
 # ---------------------------------------------
 import argparse
 import os
-import os.path as osp
-import time
 import warnings
 
 import mmcv
@@ -117,7 +115,7 @@ def main():
                 for m in _module_dir[1:]:
                     _module_path = _module_path + '.' + m
                 print(_module_path)
-                plg_lib = importlib.import_module(_module_path)
+                plg_lib = importlib.import_module(_module_path)  # noqa F841
             else:
                 # import dir is the dirpath for the config file
                 _module_dir = os.path.dirname(args.config)
@@ -126,7 +124,7 @@ def main():
                 for m in _module_dir[1:]:
                     _module_path = _module_path + '.' + m
                 print(_module_path)
-                plg_lib = importlib.import_module(_module_path)
+                plg_lib = importlib.import_module(_module_path)  # noqa F841
 
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
@@ -194,7 +192,7 @@ def main():
         model.PALETTE = dataset.PALETTE
 
     if not distributed:
-        #assert False
+        # assert False
         model = MMDataParallel(model, device_ids=[0])
         outputs = single_gpu_test(model, data_loader, args.show, args.show_dir)
     else:

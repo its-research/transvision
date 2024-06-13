@@ -2,7 +2,7 @@ import os.path as osp
 
 from mmcv.fileio import FileClient
 from mmcv.runner.hooks.checkpoint import CheckpointHook
-from mmcv.runner.hooks.hook import HOOKS, Hook
+from mmcv.runner.hooks.hook import HOOKS
 
 
 @HOOKS.register_module()
@@ -56,7 +56,7 @@ class CheckpointLateStageHook(CheckpointHook):
         elif 0 < self.start and self.start <= 1:
             self.start_epoch = round(self.start * runner._max_epochs)
         else:
-            raise ValueError(f'Start epoch must be between 0 and the number of max epochs')
+            raise ValueError('Start epoch must be between 0 and the number of max epochs')
 
         runner.logger.info(f'The Late Stage Checkpoints will be saved from the epoch {self.start_epoch} '
                            f'to {self.out_dir} by {self.file_client.name}.')

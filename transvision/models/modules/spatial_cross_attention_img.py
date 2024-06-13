@@ -3,13 +3,12 @@ import warnings
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from mmcv.cnn import constant_init, xavier_init
-from mmcv.cnn.bricks.registry import ATTENTION, TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE
+from mmcv.cnn.bricks.registry import ATTENTION
 from mmcv.cnn.bricks.transformer import build_attention
 from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttnFunction, multi_scale_deformable_attn_pytorch
-from mmcv.runner import auto_fp16, force_fp32
-from mmcv.runner.base_module import BaseModule, ModuleList, Sequential
+from mmcv.runner import force_fp32
+from mmcv.runner.base_module import BaseModule
 from mmcv.utils import ext_loader
 
 ext_module = ext_loader.load_ext('_ext', ['ms_deform_attn_backward', 'ms_deform_attn_forward'])
@@ -364,7 +363,7 @@ class MSDeformableAttention3DImg(BaseModule):
 
         if reference_points.shape[-1] == 2:
             """For each BEV query, it owns `num_Z_anchors` in 3D space that
-            having different heights. After proejcting, each BEV query has
+            having different heights. After projecting, each BEV query has
             `num_Z_anchors` reference points in each 2D image. For each
             referent point, we sample `num_points` sampling points.
 

@@ -4,7 +4,6 @@
 #  Modified by Zhiqi Li
 # ---------------------------------------------
 import os.path as osp
-import pickle
 import shutil
 import tempfile
 import time
@@ -14,9 +13,7 @@ import numpy as np
 import pycocotools.mask as mask_util
 import torch
 import torch.distributed as dist
-from mmcv.image import tensor2imgs
 from mmcv.runner import get_dist_info
-from mmdet.core import encode_mask_results
 
 
 def custom_encode_mask_results(mask_results):
@@ -31,7 +28,7 @@ def custom_encode_mask_results(mask_results):
         list | tuple: RLE encoded mask.
     """
     cls_segms = mask_results
-    num_classes = len(cls_segms)
+    # num_classes = len(cls_segms)
     encoded_mask_results = []
     for i in range(len(cls_segms)):
         encoded_mask_results.append(mask_util.encode(np.array(cls_segms[i][:, :, np.newaxis], order='F', dtype='uint8'))[0])  # encoded with RLE
@@ -81,7 +78,7 @@ def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
                 batch_size = len(result)
                 bbox_results.extend(result)
 
-            #if isinstance(result[0], tuple):
+            # if isinstance(result[0], tuple):
             #    assert False, 'this code is for instance segmentation, which our code will not utilize.'
             #    result = [(bbox_results, encode_mask_results(mask_results))
             #              for bbox_results, mask_results in result]
@@ -141,9 +138,9 @@ def collect_results_cpu(result_part, size, tmpdir=None):
         # sort the results
         ordered_results = []
         '''
-        bacause we change the sample of the evaluation stage to make sure that each gpu will handle continuous sample,
+        because we change the sample of the evaluation stage to make sure that each gpu will handle continuous sample,
         '''
-        #for res in zip(*part_list):
+        # for res in zip(*part_list):
         for res in part_list:
             ordered_results.extend(list(res))
         # the dataloader may pad some samples

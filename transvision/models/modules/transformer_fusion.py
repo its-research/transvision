@@ -1,7 +1,5 @@
-import copy
 import os.path as osp
 
-import fontTools.ttLib
 import mmcv.utils.path
 import numpy as np
 import torch
@@ -10,11 +8,10 @@ import torch.nn.functional as F
 from mmcv.cnn import xavier_init
 from mmcv.cnn.bricks.transformer import build_transformer_layer_sequence
 from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttention
-from mmcv.runner import auto_fp16, force_fp32
+from mmcv.runner import auto_fp16
 from mmcv.runner.base_module import BaseModule
 from mmdet.models.utils.builder import TRANSFORMER
 from torch.nn.init import constant_, normal_
-from torchvision.transforms.functional import rotate
 
 from .decoder import CustomMSDeformableAttention
 from .spatial_cross_attention_img import MSDeformableAttention3DImg
@@ -185,7 +182,7 @@ class UniBEVTransformer(BaseModule):
             normal_(self.img_level_embeds)
             normal_(self.cams_embeds)
         if self.feature_norm == 'ChannelNormWeights':
-            if self.cna_constant_norm == True:
+            if self.cna_constant_norm is True:
                 constant_(self.pts_channel_weights, 0.5)
                 constant_(self.img_channel_weights, 0.5)
             else:
@@ -235,7 +232,7 @@ class UniBEVTransformer(BaseModule):
         return img_feat_flatten, img_spatial_shapes, img_level_start_index
 
     def _pre_process_pts_feats(self, mlvl_pts_feats, bev_queries):
-        ## process multi-level points features
+        # process multi-level points features
         pts_feat_flatten = []
         pts_spatial_shapes = []
 
@@ -508,7 +505,7 @@ class UniBEVTransformer(BaseModule):
         query_pos = query_pos.permute(1, 0, 2)
         fused_bev_embed = fused_bev_embed.permute(1, 0, 2)
 
-        ## Visualization of features
+        # Visualization of features
         if self.training is False and self.vis_output is not None:
             assert isinstance(self.vis_output, dict)
             outdir = self.vis_output['outdir']

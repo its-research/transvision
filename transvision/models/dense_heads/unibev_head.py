@@ -6,12 +6,8 @@
 
 import copy
 
-import cv2 as cv
-import mmcv
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from mmcv.cnn import Linear, bias_init_with_prob
 from mmcv.runner import auto_fp16, force_fp32
 from mmcv.utils import TORCH_VERSION, digit_version
@@ -350,7 +346,7 @@ class UniBEV_Head(DETRHead):
         cls_avg_factor = max(cls_avg_factor, 1)
         loss_cls = self.loss_cls(cls_scores, labels, label_weights, avg_factor=cls_avg_factor)
 
-        # Compute the average number of gt boxes accross all gpus, for
+        # Compute the average number of gt boxes across all gpus, for
         # normalization purposes
         num_total_pos = loss_cls.new_tensor([num_total_pos])
         num_total_pos = torch.clamp(reduce_mean(num_total_pos), min=1).item()

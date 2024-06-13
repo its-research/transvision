@@ -23,14 +23,14 @@ resume_from = None
 plugin = True
 plugin_dir = 'mmdet3d/unibev_plugin/'
 
-## nuscenes and pointpillars setting
+# nuscenes and pointpillars setting
 point_cloud_range = [-54, -54, -5, 54, 54, 3]
 voxel_size = [0.075, 0.075, 0.2]
 class_names = ['car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone', 'barrier']
 file_client_args = dict(backend='disk')
 input_modality = dict(use_lidar=True, use_camera=True, use_radar=False, use_map=False, use_external=False)
 
-### model settings
+# model settings
 img_scale = (1600, 900)
 _dim_ = 256
 _pos_dim_ = _dim_ // 2
@@ -65,8 +65,8 @@ train_pipeline = [
     dict(type='PointShuffle'),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='PadMultiViewImage', size_divisor=32),
-    dict(type='DefaultFormatBundle3DBEVFusion', class_names=class_names),  ## which DefaultFormat
-    dict(type='CustomCollect3D', keys=['points', 'img', 'gt_bboxes_3d', 'gt_labels_3d'])  ## which data collection
+    dict(type='DefaultFormatBundle3DBEVFusion', class_names=class_names),  # which DefaultFormat
+    dict(type='CustomCollect3D', keys=['points', 'img', 'gt_bboxes_3d', 'gt_labels_3d'])  # which data collection
 ]
 test_pipeline = [
     dict(

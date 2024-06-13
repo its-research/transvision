@@ -1,11 +1,9 @@
 import copy
 import warnings
 
-import cv2 as cv
-import mmcv
 import numpy as np
 import torch
-from mmcv.cnn.bricks.registry import ATTENTION, TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE
+from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE
 from mmcv.cnn.bricks.transformer import BaseTransformerLayer, TransformerLayerSequence
 from mmcv.runner import auto_fp16, force_fp32
 from mmcv.utils import TORCH_VERSION, digit_version, ext_loader
@@ -39,7 +37,7 @@ class ImgEncoder(TransformerLayerSequence):
 
         Args:
             H, W: spatial shape of bev.
-            Z: hight of pillar.
+            Z: height of pillar.
             D: sample D points uniformly from each pillar.
             device (obj:`device`): The device where
                 reference_points should be.
@@ -194,21 +192,21 @@ class ImgEncoder(TransformerLayerSequence):
 
         # (num_query, bs, embed_dims) -> (bs, num_query, embed_dims)
         bev_query = bev_query.permute(1, 0, 2)
-        ## new_properties_shiming
+        # new_properties_shiming
         if bev_pos is not None:
             bev_pos = bev_pos.permute(1, 0, 2)
         bs, len_bev, num_bev_level, _ = ref_2d.shape  # [2, 40000, 1, 2]
-        # ## debug:
+        # debug:
         # print('bev_queries shape:', bev_query.size())
-        # ##
+        #
         # if prev_bev is not None:
         #     prev_bev = prev_bev.permute(1, 0, 2)
-        #     # ## debug:
-        #     # print('previous bev_queries shape:', prev_bev.size())
-        #     # ##
+        #     debug:
+        #     print('previous bev_queries shape:', prev_bev.size())
+        #
         #     prev_bev = torch.stack(
         #         [prev_bev, bev_query], 1).reshape(bs*2, len_bev, -1)
-        #     # ## debug:
+        # debug:
         #     # print('stacked bev_queries shape:', prev_bev.size())
         #     # ##
         #     hybird_ref_2d = torch.stack([shift_ref_2d, ref_2d], 1).reshape(
@@ -292,7 +290,7 @@ class ImgLayer(BaseTransformerLayer):
             batch_first=batch_first,
             **kwargs)
         self.fp16_enabled = False
-        ## new_properties_shiming
+        # new_properties_shiming
         # assert len(operation_order) == 6
         # assert set(operation_order) == set(['self_attn', 'norm', 'cross_attn', 'ffn'])
 

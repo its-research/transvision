@@ -176,15 +176,15 @@ class RadarPoints(BasePoints):
         if bev_direction == 'horizontal':
             self.tensor[:, 1] = -self.tensor[:, 1]
             self.tensor[:, 4] = -self.tensor[:, 4]
-            #self.tensor[:, 5] = -self.tensor[:, 5]
-            #self.tensor[:, 7] = -self.tensor[:, 7]
-            #self.tensor[:, 9] = -self.tensor[:, 9]
+            # self.tensor[:, 5] = -self.tensor[:, 5]
+            # self.tensor[:, 7] = -self.tensor[:, 7]
+            # self.tensor[:, 9] = -self.tensor[:, 9]
         elif bev_direction == 'vertical':
             self.tensor[:, 0] = -self.tensor[:, 0]
             self.tensor[:, 3] = -self.tensor[:, 3]
-            #self.tensor[:, 4] = -self.tensor[:, 4]
-            #self.tensor[:, 6] = -self.tensor[:, 6]
-            #self.tensor[:, 8] = -self.tensor[:, 8]
+            # self.tensor[:, 4] = -self.tensor[:, 4]
+            # self.tensor[:, 6] = -self.tensor[:, 6]
+            # self.tensor[:, 8] = -self.tensor[:, 8]
 
     def scale(self, scale_factor):
         """Scale the points with horizontal and vertical scaling factors.
@@ -229,9 +229,9 @@ class RadarPoints(BasePoints):
         self.tensor[:, :3] = self.tensor[:, :3] @ rot_mat_T
 
         self.tensor[:, 3:5] = self.tensor[:, 3:5] @ rot_mat_T[:2, :2]
-        #self.tensor[:, 4:6] = self.tensor[:, 4:6] @ rot_mat_T[:2, :2]
-        #self.tensor[:, 6:8] = self.tensor[:, 6:8] @ rot_mat_T[:2, :2]
-        #self.tensor[:, 8:10] = self.tensor[:, 8:10] @ rot_mat_T[:2, :2]
+        # self.tensor[:, 4:6] = self.tensor[:, 4:6] @ rot_mat_T[:2, :2]
+        # self.tensor[:, 6:8] = self.tensor[:, 6:8] @ rot_mat_T[:2, :2]
+        # self.tensor[:, 8:10] = self.tensor[:, 8:10] @ rot_mat_T[:2, :2]
 
         return rot_mat_T
 

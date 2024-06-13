@@ -3,13 +3,12 @@ import warnings
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from mmcv.cnn import constant_init, xavier_init
-from mmcv.cnn.bricks.registry import ATTENTION, TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE
+from mmcv.cnn.bricks.registry import ATTENTION
 from mmcv.cnn.bricks.transformer import build_attention
 from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttnFunction, multi_scale_deformable_attn_pytorch
-from mmcv.runner import auto_fp16, force_fp32
-from mmcv.runner.base_module import BaseModule, ModuleList, Sequential
+from mmcv.runner import force_fp32
+from mmcv.runner.base_module import BaseModule
 from mmcv.utils import ext_loader
 
 ext_module = ext_loader.load_ext('_ext', ['ms_deform_attn_backward', 'ms_deform_attn_forward'])
@@ -91,14 +90,13 @@ class SpatialCrossAttentionPts(BaseModule):
 
         if residual is None:
             inp_residual = query
-            slots = torch.zeros_like(query)
+            # slots = torch.zeros_like(query)
         if query_pos is not None:
             query = query + query_pos
 
-        bs, num_query, _ = query.size()
+        bs, _, _ = query.size()
 
-        D = reference_points_lidar.size(0)
-        indexes = []
+        # D = reference_points_lidar.size(0)
 
         # ## debug
         # print('\nIn Spatial Cross Attention VoxelDETR')
@@ -316,13 +314,12 @@ class MSDeformableAttention3DPts(BaseModule):
             # change to (bs, num_query ,embed_dims)
             query = query.permute(1, 0, 2)
             value = value.permute(1, 0, 2)
-        ## debug
+        # debug
         # print('\nIn MSDeformableAttention3D of UniBEV:')
         # print(' query size:', query.size()) # (2, 40000, 512)
         # print(' value size:', value.size()) # (2, 40000, 512)
         # print(' reference_points size:', reference_points.size()) #(2, 40000, 4, 3) original: (bs*self.num_cams, max_len, D, 2)
 
-        ##
         bs, num_query, _ = query.shape
         bs, num_value, _ = value.shape
         assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == num_value
@@ -347,7 +344,7 @@ class MSDeformableAttention3DPts(BaseModule):
         # if reference_points.shape[-1] == 2:
         """
         For each BEV query, it owns `num_Z_anchors` in 3D space that having different heights.
-        After proejcting, each BEV query has `num_Z_anchors` reference points in each 2D image.
+        After projecting, each BEV query has `num_Z_anchors` reference points in each 2D image.
         For each referent point, we sample `num_points` sampling points.
         For `num_Z_anchors` reference points,  it has overall `num_points * num_Z_anchors` sampling points.
         """

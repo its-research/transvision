@@ -4,23 +4,17 @@
 #  Modified by Zhiqi Li
 # ---------------------------------------------
 
-import copy
 import math
 import warnings
 
-import cv2 as cv
-import mmcv
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from matplotlib import pyplot as plt
 from mmcv.cnn import constant_init, xavier_init
 from mmcv.cnn.bricks.registry import ATTENTION, TRANSFORMER_LAYER_SEQUENCE
 from mmcv.cnn.bricks.transformer import TransformerLayerSequence
 from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttnFunction, multi_scale_deformable_attn_pytorch
-from mmcv.runner.base_module import BaseModule, ModuleList, Sequential
-from mmcv.utils import ConfigDict, build_from_cfg, deprecated_api_warning, ext_loader, to_2tuple
+from mmcv.runner.base_module import BaseModule
+from mmcv.utils import deprecated_api_warning, ext_loader
 
 ext_module = ext_loader.load_ext('_ext', ['ms_deform_attn_backward', 'ms_deform_attn_forward'])
 

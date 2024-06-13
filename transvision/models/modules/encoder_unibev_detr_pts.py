@@ -1,11 +1,9 @@
 import copy
 import warnings
 
-import cv2 as cv
-import mmcv
 import numpy as np
 import torch
-from mmcv.cnn.bricks.registry import ATTENTION, TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE
+from mmcv.cnn.bricks.registry import TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE
 from mmcv.cnn.bricks.transformer import BaseTransformerLayer, TransformerLayerSequence
 from mmcv.runner import auto_fp16, force_fp32
 from mmcv.utils import TORCH_VERSION, digit_version, ext_loader
@@ -40,7 +38,7 @@ class PtsEncoder(TransformerLayerSequence):
 
         Args:
             H, W: spatial shape of bev.
-            Z: hight of pillar.
+            Z: height of pillar.
             D: sample D points uniformly from each pillar.
             device (obj:`device`): The device where
                 reference_points should be.
@@ -93,7 +91,7 @@ class PtsEncoder(TransformerLayerSequence):
         reference_points = reference_points.clone()  # [2, 4, 40000, 3]
 
         reference_points = reference_points.permute(1, 0, 2, 3)  # [4, 2, 40000, 3]
-        reference_points_lidar = reference_points[..., :2]  #[4, 2, 40000,2]
+        reference_points_lidar = reference_points[..., :2]  # [4, 2, 40000,2]
 
         bev_mask = ((reference_points_lidar[..., 1:2] > 0.0)
                     & (reference_points_lidar[..., 1:2] < 1.0)
@@ -140,13 +138,13 @@ class PtsEncoder(TransformerLayerSequence):
         # (num_query, bs, embed_dims) -> (bs, num_query, embed_dims)
         bev_query = bev_query.permute(1, 0, 2)
 
-        ## new_properties_shiming
+        # new_properties_shiming
         if bev_pos is not None:
             bev_pos = bev_pos.permute(1, 0, 2)
         bs, len_bev, num_bev_level, _ = ref_2d.shape  # [2, 40000, 1, 2]
-        # ## debug:
+        # debug:
         # print('bev_queries shape:', bev_query.size())
-        # ##
+        #
 
         # Bev queries in encoder: torch.Size([2, 40000, 256]) (bs, bev_h x bev_w, embed_dims)
         # Keys in encoder (feat flatten): torch.Size([6, 920, 2, 256]) (num_cam, h_img_feats x w_img_feats, bs, embed_dims)

@@ -1,15 +1,10 @@
-import copy
-import time
-
-import mmdet3d
-import numpy as np
 import torch
 from mmcv.ops import Voxelization
-from mmcv.runner import auto_fp16, force_fp32
+from mmcv.runner import force_fp32
 from mmdet3d.core import bbox3d2result
 from mmdet3d.models import builder
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
-from mmdet3d.unibev_plugin.models.utils.grid_mask import GridMask
+from mmdet3d.models.utils.grid_mask import GridMask
 from mmdet.models import DETECTORS
 from torch.nn import functional as F
 
@@ -258,11 +253,11 @@ class UniBEV(MVXTwoStageDetector):
         img_feats, lidar_feats, radar_feats = self.extract_feat(img=img, points=points, radar_points=radar, img_metas=img_metas)
 
         losses = dict()
-        if self.use_lidar == True and self.use_radar == False:
+        if self.use_lidar is True and self.use_radar is False:
             pts_feats = lidar_feats
-        elif self.use_lidar == False and self.use_radar == True:
+        elif self.use_lidar is False and self.use_radar is True:
             pts_feats = radar_feats
-        elif self.use_lidar == True and self.use_radar == True:
+        elif self.use_lidar is True and self.use_radar is True:
             raise ValueError('Unsupported Modality Mode: Cam: {}, Lidar:{}, Radar:{}'.format(self.use_camera, self.use_lidar, self.use_radar))
         else:
             pts_feats = None
@@ -299,11 +294,11 @@ class UniBEV(MVXTwoStageDetector):
 
         bbox_list = [dict() for i in range(len(img_metas))]
 
-        if self.use_lidar == True and self.use_radar == False:
+        if self.use_lidar is True and self.use_radar is False:
             pts_feats = lidar_feats
-        elif self.use_lidar == False and self.use_radar == True:
+        elif self.use_lidar is False and self.use_radar is True:
             pts_feats = radar_feats
-        elif self.use_lidar == True and self.use_radar == True:
+        elif self.use_lidar is True and self.use_radar is True:
             raise ValueError('Unsupported Modality Mode: Cam: {}, Lidar:{}, Radar:{}'.format(self.use_camera, self.use_lidar, self.use_radar))
         else:
             pts_feats = None
