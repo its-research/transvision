@@ -9,36 +9,34 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import xavier_init
 from mmcv.cnn.bricks.transformer import build_transformer_layer_sequence
+from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttention
+from mmcv.runner import auto_fp16, force_fp32
 from mmcv.runner.base_module import BaseModule
-
 from mmdet.models.utils.builder import TRANSFORMER
-from torch.nn.init import normal_, constant_
-
-from mmcv.runner.base_module import BaseModule
+from torch.nn.init import constant_, normal_
 from torchvision.transforms.functional import rotate
 
+from .decoder import CustomMSDeformableAttention
 from .spatial_cross_attention_img import MSDeformableAttention3DImg
 from .spatial_cross_attention_pts import MSDeformableAttention3DPts
-from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttention
-from .decoder import CustomMSDeformableAttention
-from mmcv.runner import force_fp32, auto_fp16
+
 
 class ModalityProjectionModule(BaseModule):
-    def __init__(self,
-                 embed_dims,
-                 with_norm = True,
-                 with_residual = True,
-                 ):
+
+    def __init__(
+        self,
+        embed_dims,
+        with_norm=True,
+        with_residual=True,
+    ):
         super().__init__()
-        layers = nn.ModuleList(
-           [ nn.Linear(embed_dims, embed_dims),
-            nn.ReLU(inplace=True)]
-        )
+        layers = nn.ModuleList([nn.Linear(embed_dims, embed_dims), nn.ReLU(inplace=True)])
         if with_norm:
             layers.append(nn.LayerNorm(embed_dims))
 
         self.net = nn.Sequential(*layers)
         self.with_residual = with_residual
+
     def forward(self, x):
         out = self.net(x)
         if self.with_residual:
@@ -46,9 +44,11 @@ class ModalityProjectionModule(BaseModule):
         else:
             return out
 
+
 @TRANSFORMER.register_module()
 class UniBEVTransformer(BaseModule):
     """Implements the UniBEV transformer, based on Detr3D transformer.
+
     Args:
         as_two_stage (bool): Generate query from encoder features.
             Default: False.
@@ -68,15 +68,15 @@ class UniBEVTransformer(BaseModule):
                  embed_dims=256,
                  use_cams_embeds=True,
                  fusion_method='linear',
-                 drop_modality = None,
-                 feature_norm = None,
-                 spatial_norm = None,
-                 use_modal_embeds = None,
-                 bev_h = 200,
-                 bev_w = 200,
-                 dual_queries = False,
-                 vis_output = None,
-                 cna_constant_init = None,
+                 drop_modality=None,
+                 feature_norm=None,
+                 spatial_norm=None,
+                 use_modal_embeds=None,
+                 bev_h=200,
+                 bev_w=200,
+                 dual_queries=False,
+                 vis_output=None,
+                 cna_constant_init=None,
                  **kwargs):
         super(UniBEVTransformer, self).__init__(**kwargs)
 
@@ -116,7 +116,7 @@ class UniBEVTransformer(BaseModule):
         self.two_stage_num_proposals = two_stage_num_proposals
         self.vis_output = vis_output
         self.init_layers()
-    
+
     @property
     def with_img_bev_encoder(self):
         """bool: Whether the img_bev_encoder exists."""
@@ -134,21 +134,13 @@ class UniBEVTransformer(BaseModule):
             self.pts_channel_weights = nn.Parameter(torch.Tensor(self.embed_dims))
             self.img_channel_weights = nn.Parameter(torch.Tensor(self.embed_dims))
         elif self.feature_norm == 'MLP_ChannelNormWeights':
-            self.channel_weights_proj = nn.Sequential(
-                nn.Linear(self.bev_h * self.bev_w * 2, 2),
-                nn.ReLU(inplace=True))
+            self.channel_weights_proj = nn.Sequential(nn.Linear(self.bev_h * self.bev_w * 2, 2), nn.ReLU(inplace=True))
         elif self.feature_norm == 'Leaky_ReLU_MLP_ChannelNormWeights':
-            self.channel_weights_proj = nn.Sequential(
-                nn.Linear(self.bev_h * self.bev_w * 2, 2),
-                nn.LeakyReLU(inplace=True))
+            self.channel_weights_proj = nn.Sequential(nn.Linear(self.bev_h * self.bev_w * 2, 2), nn.LeakyReLU(inplace=True))
         elif self.feature_norm == 'ELU_MLP_ChannelNormWeights':
-            self.channel_weights_proj = nn.Sequential(
-                nn.Linear(self.bev_h * self.bev_w * 2, 2),
-                nn.ELU(inplace=True))
+            self.channel_weights_proj = nn.Sequential(nn.Linear(self.bev_h * self.bev_w * 2, 2), nn.ELU(inplace=True))
         elif self.feature_norm == 'Sigmoid_MLP_ChannelNormWeights':
-            self.channel_weights_proj = nn.Sequential(
-                nn.Linear(self.bev_h * self.bev_w * 2, 2),
-                nn.Sigmoid())
+            self.channel_weights_proj = nn.Sequential(nn.Linear(self.bev_h * self.bev_w * 2, 2), nn.Sigmoid())
         elif self.feature_norm == 'ModalityProjection':
             assert self.fusion_method == 'cat'
             self.c_modal_proj = ModalityProjectionModule(self.embed_dims)
@@ -156,25 +148,19 @@ class UniBEVTransformer(BaseModule):
 
         if self.spatial_norm == 'SpatialNormWeights':
             self.spatial_norm_layer = nn.Softmax(dim=0)
-            self.pts_spatial_weights = nn.Parameter(torch.Tensor(self.bev_h*self.bev_w))
-            self.img_spatial_weights = nn.Parameter(torch.Tensor(self.bev_h*self.bev_w))
+            self.pts_spatial_weights = nn.Parameter(torch.Tensor(self.bev_h * self.bev_w))
+            self.img_spatial_weights = nn.Parameter(torch.Tensor(self.bev_h * self.bev_w))
 
         if self.with_img_bev_encoder:
-            self.img_level_embeds = nn.Parameter(torch.Tensor(
-                self.num_feature_levels, self.embed_dims))
-            self.cams_embeds = nn.Parameter(
-                torch.Tensor(self.num_cams, self.embed_dims))
+            self.img_level_embeds = nn.Parameter(torch.Tensor(self.num_feature_levels, self.embed_dims))
+            self.cams_embeds = nn.Parameter(torch.Tensor(self.num_cams, self.embed_dims))
 
         if self.with_pts_bev_encoder:
-            self.pts_level_embeds = nn.Parameter(torch.Tensor(
-                self.num_feature_levels, self.embed_dims))
+            self.pts_level_embeds = nn.Parameter(torch.Tensor(self.num_feature_levels, self.embed_dims))
 
         if self.use_modal_embeds == 'MLP':
             self.modal_embbeding_mlp = nn.Sequential(
-                nn.Linear(2, self.embed_dims // 2),
-                nn.ReLU(inplace=True),
-                nn.Linear(self.embed_dims // 2, self.embed_dims),
-                nn.ReLU(inplace=True))
+                nn.Linear(2, self.embed_dims // 2), nn.ReLU(inplace=True), nn.Linear(self.embed_dims // 2, self.embed_dims), nn.ReLU(inplace=True))
         elif self.use_modal_embeds == 'Fixed':
             self.modal_embbeding_C = nn.Parameter(torch.Tensor(self.embed_dims))
             self.modal_embbeding_L = nn.Parameter(torch.Tensor(self.embed_dims))
@@ -205,10 +191,7 @@ class UniBEVTransformer(BaseModule):
             else:
                 normal_(self.pts_channel_weights)
                 normal_(self.img_channel_weights)
-        if self.feature_norm in ('MLP_ChannelNormWeights',
-                                 'Leaky_ReLU_MLP_ChannelNormWeights',
-                                 'ELU_MLP_ChannelNormWeights',
-                                 'Sigmoid_MLP_ChannelNormWeights'):
+        if self.feature_norm in ('MLP_ChannelNormWeights', 'Leaky_ReLU_MLP_ChannelNormWeights', 'ELU_MLP_ChannelNormWeights', 'Sigmoid_MLP_ChannelNormWeights'):
             xavier_init(self.channel_weights_proj, distribution='uniform', bias=0)
         if self.feature_norm == 'ModalityProjection':
             xavier_init(self.c_modal_proj)
@@ -229,9 +212,7 @@ class UniBEVTransformer(BaseModule):
 
     @auto_fp16(apply_to=('mlvl_feats', 'bev_queries', 'prev_bev', 'bev_pos'))
     def _pre_process_img_feats(self, mlvl_img_feats, bev_queries):
-        """
-        preprocess img features
-        """
+        """preprocess img features."""
 
         img_feat_flatten = []
         img_spatial_shapes = []
@@ -241,14 +222,13 @@ class UniBEVTransformer(BaseModule):
             feat = feat.flatten(3).permute(1, 0, 3, 2)
             if self.use_cams_embeds:
                 feat = feat + self.cams_embeds[:, None, None, :].to(feat.dtype)
-            feat = feat + self.img_level_embeds[None,
-                                            None, lvl:lvl + 1, :].to(feat.dtype)
+            feat = feat + self.img_level_embeds[None, None, lvl:lvl + 1, :].to(feat.dtype)
             img_spatial_shapes.append(img_spatial_shape)
             img_feat_flatten.append(feat)
 
         img_feat_flatten = torch.cat(img_feat_flatten, 2)
         img_spatial_shapes = torch.as_tensor(img_spatial_shapes, dtype=torch.long, device=bev_queries.device)
-        img_level_start_index = torch.cat((img_spatial_shapes.new_zeros((1,)), img_spatial_shapes.prod(1).cumsum(0)[:-1]))
+        img_level_start_index = torch.cat((img_spatial_shapes.new_zeros((1, )), img_spatial_shapes.prod(1).cumsum(0)[:-1]))
 
         img_feat_flatten = img_feat_flatten.permute(0, 2, 1, 3)  # (num_cam, H*W, bs, embed_dims)
 
@@ -271,7 +251,7 @@ class UniBEVTransformer(BaseModule):
 
         pts_feat_flatten = torch.cat(pts_feat_flatten, 2)
         pts_spatial_shapes = torch.as_tensor(pts_spatial_shapes, dtype=torch.long, device=bev_queries.device)
-        pts_level_start_index = torch.cat((pts_spatial_shapes.new_zeros((1,)), pts_spatial_shapes.prod(1).cumsum(0)[:-1]))
+        pts_level_start_index = torch.cat((pts_spatial_shapes.new_zeros((1, )), pts_spatial_shapes.prod(1).cumsum(0)[:-1]))
 
         pts_feat_flatten = pts_feat_flatten.permute(1, 0, 2)  # (H*W, bs, embed_dims)
 
@@ -336,38 +316,29 @@ class UniBEVTransformer(BaseModule):
             img_bev_embed = img_bev_embed * img_norm_weights
             pts_bev_embed = pts_bev_embed * pts_norm_weights
             if self.vis_output:
-                vis_data = dict(
-                    feature_weights = feature_weights,
-                    channel_weights_norm = channel_weights_norm,
-                    img_norm_weights = img_norm_weights,
-                    pts_norm_weights = pts_norm_weights
-                )
-        elif self.feature_norm in ('MLP_ChannelNormWeights',
-                                   'Leaky_ReLU_MLP_ChannelNormWeights',
-                                   'ELU_MLP_ChannelNormWeights',
-                                   'Sigmoid_MLP_ChannelNormWeights'):
-            input_bev_feats = torch.cat([img_bev_embed, pts_bev_embed], dim=1).permute(0,2,1)
+                vis_data = dict(feature_weights=feature_weights, channel_weights_norm=channel_weights_norm, img_norm_weights=img_norm_weights, pts_norm_weights=pts_norm_weights)
+        elif self.feature_norm in ('MLP_ChannelNormWeights', 'Leaky_ReLU_MLP_ChannelNormWeights', 'ELU_MLP_ChannelNormWeights', 'Sigmoid_MLP_ChannelNormWeights'):
+            input_bev_feats = torch.cat([img_bev_embed, pts_bev_embed], dim=1).permute(0, 2, 1)
             multi_modal_channel_weights = self.channel_weights_proj(input_bev_feats)
 
-            if self.c_flag == 1 and self.l_flag ==1:
+            if self.c_flag == 1 and self.l_flag == 1:
                 multi_modal_channel_norm_weights = F.softmax(multi_modal_channel_weights, dim=-1)
-                img_norm_weights = multi_modal_channel_norm_weights[:,:,0]
-                pts_norm_weights = multi_modal_channel_norm_weights[:,:,1]
+                img_norm_weights = multi_modal_channel_norm_weights[:, :, 0]
+                pts_norm_weights = multi_modal_channel_norm_weights[:, :, 1]
 
             else:
-                img_norm_weights = F.softmax(multi_modal_channel_weights[:,:, :1], dim=-1).squeeze(-1)
-                pts_norm_weights = F.softmax(multi_modal_channel_weights[:,:, 1:], dim=-1).squeeze(-1)
+                img_norm_weights = F.softmax(multi_modal_channel_weights[:, :, :1], dim=-1).squeeze(-1)
+                pts_norm_weights = F.softmax(multi_modal_channel_weights[:, :, 1:], dim=-1).squeeze(-1)
 
             img_bev_embed = img_bev_embed * img_norm_weights[:, None, :]
             pts_bev_embed = pts_bev_embed * pts_norm_weights[:, None, :]
 
             if self.vis_output:
                 vis_data = dict(
-                    multi_modal_channel_weights = multi_modal_channel_weights,
-                    multi_modal_channel_norm_weights = multi_modal_channel_norm_weights,
-                    img_norm_weights = img_norm_weights,
-                    pts_norm_weights = pts_norm_weights
-                )
+                    multi_modal_channel_weights=multi_modal_channel_weights,
+                    multi_modal_channel_norm_weights=multi_modal_channel_norm_weights,
+                    img_norm_weights=img_norm_weights,
+                    pts_norm_weights=pts_norm_weights)
         elif self.feature_norm == 'ModalityProjection':
             pseudo_pts_bev_embed = self.l_modal_proj(img_bev_embed)
             pseudo_img_bev_embed = self.c_modal_proj(pts_bev_embed)
@@ -377,8 +348,8 @@ class UniBEVTransformer(BaseModule):
 
             if self.vis_output:
                 vis_data = dict(
-                    pseudo_pts_bev_embed = pseudo_pts_bev_embed,
-                    pseudo_img_bev_embed = pseudo_img_bev_embed,
+                    pseudo_pts_bev_embed=pseudo_pts_bev_embed,
+                    pseudo_img_bev_embed=pseudo_img_bev_embed,
                 )
 
         return img_bev_embed, pts_bev_embed, vis_data
@@ -400,30 +371,19 @@ class UniBEVTransformer(BaseModule):
                 img_spatial_norm_weights = self.spatial_norm_layer(spatial_weights[:1])[0]
                 pts_spatial_norm_weights = self.spatial_norm_layer(spatial_weights[1:])[0]
 
-            img_bev_embed = img_bev_embed * img_spatial_norm_weights[None,:,None]
-            pts_bev_embed = pts_bev_embed * pts_spatial_norm_weights[None,:,None]
+            img_bev_embed = img_bev_embed * img_spatial_norm_weights[None, :, None]
+            pts_bev_embed = pts_bev_embed * pts_spatial_norm_weights[None, :, None]
 
             if self.vis_output:
                 vis_data = dict(
-                    spatial_weights = spatial_weights,
-                    spatial_weights_norm = spatial_weights_norm,
-                    img_spatial_norm_weights = img_spatial_norm_weights,
-                    pts_spatial_norm_weights = pts_spatial_norm_weights
-                )
+                    spatial_weights=spatial_weights,
+                    spatial_weights_norm=spatial_weights_norm,
+                    img_spatial_norm_weights=img_spatial_norm_weights,
+                    pts_spatial_norm_weights=pts_spatial_norm_weights)
         return img_bev_embed, pts_bev_embed, vis_data
 
     @auto_fp16(apply_to=('mlvl_feats', 'bev_queries', 'object_query_embed', 'prev_bev', 'bev_pos'))
-    def forward(self,
-                img_mlvl_feats,
-                pts_mlvl_feats,
-                bev_queries,
-                object_query_embed,
-                bev_h,
-                bev_w,
-                bev_pos=None,
-                reg_branches=None,
-                cls_branches=None,
-                **kwargs):
+    def forward(self, img_mlvl_feats, pts_mlvl_feats, bev_queries, object_query_embed, bev_h, bev_w, bev_pos=None, reg_branches=None, cls_branches=None, **kwargs):
         """Forward function for `Detr3DTransformer`.
         Args:
             mlvl_feats (list(Tensor)): Input queries from
@@ -473,7 +433,7 @@ class UniBEVTransformer(BaseModule):
                 raise ValueError('Unrecognized type: {}'.format(type(self.drop_modality)))
             v_flag = self.get_probability(dropout_prob)
             if v_flag:
-                self.l_flag = self.get_probability(lidar_prob)*1
+                self.l_flag = self.get_probability(lidar_prob) * 1
                 self.c_flag = 1 - self.l_flag
             # print('dropout_prob:', dropout_prob)
             # print('lidar_prob:', lidar_prob)
@@ -506,9 +466,9 @@ class UniBEVTransformer(BaseModule):
                 bev_h=bev_h,
                 bev_w=bev_w,
                 bev_pos=bev_pos,
-                spatial_shapes = img_spatial_shapes,
-                level_start_index = img_level_start_index,
-                **kwargs) # encoder.batch_first = True: (bs, bev_h*bev_w, embed_dims)
+                spatial_shapes=img_spatial_shapes,
+                level_start_index=img_level_start_index,
+                **kwargs)  # encoder.batch_first = True: (bs, bev_h*bev_w, embed_dims)
         else:
             img_bev_embed = None
 
@@ -523,7 +483,7 @@ class UniBEVTransformer(BaseModule):
                 bev_pos=bev_pos,
                 spatial_shapes=pts_spatial_shapes,
                 level_start_index=pts_level_start_index,
-                **kwargs) # encoder.batch_first = True: (bs, bev_h*bev_w, embed_dims)
+                **kwargs)  # encoder.batch_first = True: (bs, bev_h*bev_w, embed_dims)
         else:
             pts_bev_embed = None
 

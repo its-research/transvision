@@ -15,17 +15,9 @@ bev_w_ = 200
 dist_params = dict(backend='gloo')
 
 img_norm_cfg = dict(mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
-input_modality =  dict(
-    use_lidar=False,
-    use_camera=True,
-    use_radar=False,
-    use_map=False,
-    use_external=False)
+input_modality = dict(use_lidar=False, use_camera=True, use_radar=False, use_map=False, use_external=False)
 img_scale = (1600, 900)
-class_names = [
-    'car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle',
-    'motorcycle', 'pedestrian', 'traffic_cone', 'barrier'
-]
+class_names = ['car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone', 'barrier']
 
 model = dict(
     use_lidar=input_modality['use_lidar'],
@@ -42,13 +34,8 @@ test_pipeline = [
         img_scale=img_scale,
         pts_scale_ratio=1,
         flip=False,
-        transforms=[
-            dict(
-                type='DefaultFormatBundle3DBEVFusion',
-                class_names=class_names,
-                with_label=False),
-            dict(type='CustomCollect3D', keys=['img'])
-        ])
+        transforms=[dict(type='DefaultFormatBundle3DBEVFusion', class_names=class_names, with_label=False),
+                    dict(type='CustomCollect3D', keys=['img'])])
 ]
 
 data = dict(
@@ -62,24 +49,12 @@ data = dict(
         modality=input_modality,
         samples_per_gpu=1,
         test_mode=True,
-        box_type_3d='LiDAR'),
-)
+        box_type_3d='LiDAR'), )
 
 eval_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
-        file_client_args=file_client_args),
-    dict(
-        type='LoadPointsFromMultiSweeps',
-        sweeps_num=10,
-        file_client_args=file_client_args),
-    dict(
-        type='DefaultFormatBundle3D',
-        class_names=class_names,
-        with_label=False),
+    dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=5, use_dim=5, file_client_args=file_client_args),
+    dict(type='LoadPointsFromMultiSweeps', sweeps_num=10, file_client_args=file_client_args),
+    dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
     dict(type='Collect3D', keys=['points'])
 ]
 evaluation = dict(pipeline=eval_pipeline)

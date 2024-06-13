@@ -1,20 +1,24 @@
-import torch
-import torch.nn as nn
 import math
 
+import torch
+import torch.nn as nn
+
+
 class RelPositionEmbedding(nn.Module):
+
     def __init__(self, num_pos_feats=64, pos_norm=True):
         super().__init__()
         self.num_pos_feats = num_pos_feats
-        self.fc = nn.Linear(4, self.num_pos_feats,bias=False)
+        self.fc = nn.Linear(4, self.num_pos_feats, bias=False)
         #nn.init.orthogonal_(self.fc.weight)
         #self.fc.weight.requires_grad = False
         self.pos_norm = pos_norm
         if self.pos_norm:
             self.norm = nn.LayerNorm(self.num_pos_feats)
+
     def forward(self, tensor):
         #mask = nesttensor.mask
-        B,C,H,W = tensor.shape
+        B, C, H, W = tensor.shape
         #print('tensor.shape',  tensor.shape)
         y_range = (torch.arange(H) / float(H - 1)).to(tensor.device)
         #y_axis = torch.stack((y_range, 1-y_range),dim=1)

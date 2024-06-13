@@ -15,17 +15,9 @@ bev_w_ = 200
 dist_params = dict(backend='gloo')
 
 img_norm_cfg = dict(mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
-input_modality =  dict(
-    use_lidar=True,
-    use_camera=True,
-    use_radar=False,
-    use_map=False,
-    use_external=False)
+input_modality = dict(use_lidar=True, use_camera=True, use_radar=False, use_map=False, use_external=False)
 img_scale = (1600, 900)
-class_names = [
-    'car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle',
-    'motorcycle', 'pedestrian', 'traffic_cone', 'barrier'
-]
+class_names = ['car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone', 'barrier']
 
 model = dict(
     use_lidar=input_modality['use_lidar'],
@@ -40,14 +32,7 @@ test_pipeline = [
         load_dim=5,
         use_dim=5,
     ),
-    dict(
-        type='LoadPointsFromMultiSweeps',
-        sweeps_num=10,
-        use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args,
-        pad_empty_sweeps=True,
-        remove_close=True
-    ),
+    dict(type='LoadPointsFromMultiSweeps', sweeps_num=10, use_dim=[0, 1, 2, 3, 4], file_client_args=file_client_args, pad_empty_sweeps=True, remove_close=True),
     dict(type='LoadMultiViewImageFromFiles', to_float32=True),
     dict(type='NormalizeMultiviewImage', **img_norm_cfg),
     dict(type='PadMultiViewImage', size_divisor=32),
@@ -58,10 +43,7 @@ test_pipeline = [
         flip=False,
         transforms=[
             dict(type='PadMultiViewImage', size_divisor=32),
-            dict(
-                type='DefaultFormatBundle3DBEVFusion',
-                class_names=class_names,
-                with_label=False),
+            dict(type='DefaultFormatBundle3DBEVFusion', class_names=class_names, with_label=False),
             dict(type='CustomCollect3D', keys=['points', 'img'])
         ])
 ]
@@ -77,25 +59,12 @@ data = dict(
         modality=input_modality,
         samples_per_gpu=1,
         test_mode=True,
-        box_type_3d='LiDAR'),
-)
+        box_type_3d='LiDAR'), )
 
 eval_pipeline = [
-    dict(
-        type='LoadPointsFromFile',
-        coord_type='LIDAR',
-        load_dim=5,
-        use_dim=5,
-        file_client_args=file_client_args),
-    dict(
-        type='LoadPointsFromMultiSweeps',
-        sweeps_num=10,
-        use_dim=[0, 1, 2, 3, 4],
-        file_client_args=file_client_args),
-    dict(
-        type='DefaultFormatBundle3D',
-        class_names=class_names,
-        with_label=False),
+    dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=5, use_dim=5, file_client_args=file_client_args),
+    dict(type='LoadPointsFromMultiSweeps', sweeps_num=10, use_dim=[0, 1, 2, 3, 4], file_client_args=file_client_args),
+    dict(type='DefaultFormatBundle3D', class_names=class_names, with_label=False),
     dict(type='Collect3D', keys=['points'])
 ]
 

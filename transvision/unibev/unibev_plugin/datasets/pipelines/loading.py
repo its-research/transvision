@@ -1,13 +1,14 @@
 import numpy as np
 import torch
-
-from mmdet.datasets.builder import PIPELINES
 from mmdet3d.core.points import BasePoints
+from mmdet.datasets.builder import PIPELINES
 from nuscenes.utils.data_classes import RadarPointCloud
+
 
 @PIPELINES.register_module()
 class LoadRadarPointsFromMultiSweeps(object):
     """Load radar points from multiple sweeps.
+
     This is usually used for nuScenes dataset to utilize previous sweeps.
     Args:
         sweeps_num (int): Number of sweeps. Defaults to 10.
@@ -65,23 +66,19 @@ class LoadRadarPointsFromMultiSweeps(object):
         num_points = points.shape[0]
 
         if num_points == self.max_num:
-            masks = np.ones((num_points, 1),
-                            dtype=points.dtype)
+            masks = np.ones((num_points, 1), dtype=points.dtype)
 
             return points, masks
 
         if num_points > self.max_num:
             points = np.random.permutation(points)[:self.max_num, :]
-            masks = np.ones((self.max_num, 1),
-                            dtype=points.dtype)
+            masks = np.ones((self.max_num, 1), dtype=points.dtype)
 
             return points, masks
 
         if num_points < self.max_num:
-            zeros = np.zeros((self.max_num - num_points, points.shape[1]),
-                             dtype=points.dtype)
-            masks = np.ones((num_points, 1),
-                            dtype=points.dtype)
+            zeros = np.zeros((self.max_num - num_points, points.shape[1]), dtype=points.dtype)
+            masks = np.ones((num_points, 1), dtype=points.dtype)
 
             points = np.concatenate((points, zeros), axis=0)
             masks = np.concatenate((masks, zeros.copy()[:, [0]]), axis=0)
@@ -121,35 +118,27 @@ class LoadRadarPointsFromMultiSweeps(object):
 
                 # velocity compensated by the ego motion in sensor frame
                 velo_comp = points_sweep[:, 8:10]
-                velo_comp = np.concatenate(
-                    (velo_comp, np.zeros((velo_comp.shape[0], 1))), 1)
+                velo_comp = np.concatenate((velo_comp, np.zeros((velo_comp.shape[0], 1))), 1)
                 velo_comp = velo_comp @ sweep['sensor2lidar_rotation'].T
                 velo_comp = velo_comp[:, :2]
 
                 # velocity in sensor frame
                 velo = points_sweep[:, 6:8]
-                velo = np.concatenate(
-                    (velo, np.zeros((velo.shape[0], 1))), 1)
+                velo = np.concatenate((velo, np.zeros((velo.shape[0], 1))), 1)
                 velo = velo @ sweep['sensor2lidar_rotation'].T
                 velo = velo[:, :2]
 
-                points_sweep[:, :3] = points_sweep[:, :3] @ sweep[
-                    'sensor2lidar_rotation'].T
+                points_sweep[:, :3] = points_sweep[:, :3] @ sweep['sensor2lidar_rotation'].T
                 points_sweep[:, :3] += sweep['sensor2lidar_translation']
 
-                points_sweep_ = np.concatenate(
-                    [points_sweep[:, :6], velo,
-                     velo_comp, points_sweep[:, 10:],
-                     time_diff], axis=1)
+                points_sweep_ = np.concatenate([points_sweep[:, :6], velo, velo_comp, points_sweep[:, 10:], time_diff], axis=1)
                 points_sweep_list.append(points_sweep_)
 
         points = np.concatenate(points_sweep_list, axis=0)
 
         points = points[:, self.use_dim]
 
-        points = RadarPoints(
-            points, points_dim=points.shape[-1], attribute_dims=None
-        )
+        points = RadarPoints(points, points_dim=points.shape[-1], attribute_dims=None)
 
         results['radar'] = points
         return results
@@ -179,20 +168,18 @@ class RadarPoints(BasePoints):
     """
 
     def __init__(self, tensor, points_dim=3, attribute_dims=None):
-        super(RadarPoints, self).__init__(
-            tensor, points_dim=points_dim, attribute_dims=attribute_dims
-        )
+        super(RadarPoints, self).__init__(tensor, points_dim=points_dim, attribute_dims=attribute_dims)
         self.rotation_axis = 2
 
-    def flip(self, bev_direction="horizontal"):
+    def flip(self, bev_direction='horizontal'):
         """Flip the boxes in BEV along given BEV direction."""
-        if bev_direction == "horizontal":
+        if bev_direction == 'horizontal':
             self.tensor[:, 1] = -self.tensor[:, 1]
             self.tensor[:, 4] = -self.tensor[:, 4]
             #self.tensor[:, 5] = -self.tensor[:, 5]
             #self.tensor[:, 7] = -self.tensor[:, 7]
             #self.tensor[:, 9] = -self.tensor[:, 9]
-        elif bev_direction == "vertical":
+        elif bev_direction == 'vertical':
             self.tensor[:, 0] = -self.tensor[:, 0]
             self.tensor[:, 3] = -self.tensor[:, 3]
             #self.tensor[:, 4] = -self.tensor[:, 4]
@@ -218,9 +205,7 @@ class RadarPoints(BasePoints):
         """
         if not isinstance(rotation, torch.Tensor):
             rotation = self.tensor.new_tensor(rotation)
-        assert (
-            rotation.shape == torch.Size([3, 3]) or rotation.numel() == 1
-        ), f"invalid rotation shape {rotation.shape}"
+        assert (rotation.shape == torch.Size([3, 3]) or rotation.numel() == 1), f'invalid rotation shape {rotation.shape}'
 
         if axis is None:
             axis = self.rotation_axis
@@ -229,19 +214,13 @@ class RadarPoints(BasePoints):
             rot_sin = torch.sin(rotation)
             rot_cos = torch.cos(rotation)
             if axis == 1:
-                rot_mat_T = rotation.new_tensor(
-                    [[rot_cos, 0, -rot_sin], [0, 1, 0], [rot_sin, 0, rot_cos]]
-                )
+                rot_mat_T = rotation.new_tensor([[rot_cos, 0, -rot_sin], [0, 1, 0], [rot_sin, 0, rot_cos]])
             elif axis == 2 or axis == -1:
-                rot_mat_T = rotation.new_tensor(
-                    [[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0], [0, 0, 1]]
-                )
-            elif axis == 0: # modified based on the BasePoints class
-                rot_mat_T = rotation.new_tensor(
-                    [[1, 0, 0], [0, rot_cos, -rot_sin], [0, rot_sin, rot_cos]]
-                )
+                rot_mat_T = rotation.new_tensor([[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0], [0, 0, 1]])
+            elif axis == 0:  # modified based on the BasePoints class
+                rot_mat_T = rotation.new_tensor([[1, 0, 0], [0, rot_cos, -rot_sin], [0, rot_sin, rot_cos]])
             else:
-                raise ValueError("axis should in range")
+                raise ValueError('axis should in range')
             rot_mat_T = rot_mat_T.T
         elif rotation.numel() == 9:
             rot_mat_T = rotation
@@ -267,12 +246,7 @@ class RadarPoints(BasePoints):
             torch.Tensor: Indicating whether each point is inside \
                 the reference range.
         """
-        in_range_flags = (
-            (self.tensor[:, 0] > point_range[0])
-            & (self.tensor[:, 1] > point_range[1])
-            & (self.tensor[:, 0] < point_range[2])
-            & (self.tensor[:, 1] < point_range[3])
-        )
+        in_range_flags = ((self.tensor[:, 0] > point_range[0]) & (self.tensor[:, 1] > point_range[1]) & (self.tensor[:, 0] < point_range[2]) & (self.tensor[:, 1] < point_range[3]))
         return in_range_flags
 
     def convert_to(self, dst, rt_mat=None):

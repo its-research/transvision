@@ -1,71 +1,56 @@
+import copy
+import time
+
+import mmdet3d
+import numpy as np
 import torch
-from mmcv.runner import force_fp32, auto_fp16
-from mmdet.models import DETECTORS
-from torch.nn import functional as F
+from mmcv.ops import Voxelization
+from mmcv.runner import auto_fp16, force_fp32
 from mmdet3d.core import bbox3d2result
 from mmdet3d.models import builder
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
-
 from mmdet3d.unibev_plugin.models.utils.grid_mask import GridMask
-from mmcv.ops import Voxelization
-import time
-import copy
-import numpy as np
-import mmdet3d
+from mmdet.models import DETECTORS
+from torch.nn import functional as F
 
 
 @DETECTORS.register_module()
 class UniBEV(MVXTwoStageDetector):
-    """
-    UniBEV model:
-        a multi-modal fusion model based on BEVFormer_Deformable(cam) and BEVVoxelDetr (lidar).
-        using unified bev query to build BEV embedding from image features and point features
-        todo
+    """UniBEV model: a multi-modal fusion model based on
+    BEVFormer_Deformable(cam) and BEVVoxelDetr (lidar). using unified bev query
+    to build BEV embedding from image features and point features todo.
+
         # temporal information is not applied.
         # video_test_mode (bool): Decide whether to use temporal information during inference.
     Args:
     """
 
-    def __init__(self,
-                 use_lidar = True,
-                 use_camera = True,
-                 use_radar = False,
-
-                 use_grid_mask=False,
-                 pts_voxel_layer=None,
-                 pts_voxel_encoder=None,
-                 pts_middle_encoder=None,
-                 pts_fusion_layer=None,
-                 img_backbone=None,
-                 pts_backbone=None,
-                 img_neck=None,
-                 pts_neck=None,
-                 pts_bbox_head=None,
-                 img_roi_head=None,
-                 img_rpn_head=None,
-
-                 radar_voxel_layer=None,
-                 radar_voxel_encoder=None,
-                 radar_middle_encoder=None,
-                 train_cfg=None,
-                 test_cfg=None,
-                 pretrained=None,
-                 ):
-        super(UniBEV,
-              self).__init__(pts_voxel_layer,
-                             pts_voxel_encoder,
-                             pts_middle_encoder,
-                             pts_fusion_layer,
-                             img_backbone,
-                             pts_backbone,
-                             img_neck,
-                             pts_neck,
-                             pts_bbox_head,
-                             img_roi_head,
-                             img_rpn_head,
-                             train_cfg,
-                             test_cfg,
-                             pretrained)
+    def __init__(
+        self,
+        use_lidar=True,
+        use_camera=True,
+        use_radar=False,
+        use_grid_mask=False,
+        pts_voxel_layer=None,
+        pts_voxel_encoder=None,
+        pts_middle_encoder=None,
+        pts_fusion_layer=None,
+        img_backbone=None,
+        pts_backbone=None,
+        img_neck=None,
+        pts_neck=None,
+        pts_bbox_head=None,
+        img_roi_head=None,
+        img_rpn_head=None,
+        radar_voxel_layer=None,
+        radar_voxel_encoder=None,
+        radar_middle_encoder=None,
+        train_cfg=None,
+        test_cfg=None,
+        pretrained=None,
+    ):
+        super(UniBEV, self).__init__(pts_voxel_layer, pts_voxel_encoder, pts_middle_encoder, pts_fusion_layer, img_backbone, pts_backbone, img_neck, pts_neck, pts_bbox_head,
+                                     img_roi_head, img_rpn_head, train_cfg, test_cfg, pretrained)
         self.use_lidar = use_lidar
         self.use_camera = use_camera
         self.use_radar = use_radar
@@ -208,34 +193,32 @@ class UniBEV(MVXTwoStageDetector):
     def forward(self, return_loss=True, **kwargs):
         """Calls either forward_train or forward_test depending on whether
         return_loss=True.
-        Note this setting will change the expected inputs. When
-        `return_loss=True`, img and img_metas are single-nested (i.e.
-        torch.Tensor and list[dict]), and when `resturn_loss=False`, img and
-        img_metas should be double nested (i.e.  list[torch.Tensor],
-        list[list[dict]]), with the outer list indicating test time
-        augmentations.
+
+        Note this setting will change the expected inputs. When `return_loss=True`, img and img_metas are single-nested (i.e. torch.Tensor and list[dict]), and when
+        `resturn_loss=False`, img and img_metas should be double nested (i.e.  list[torch.Tensor], list[list[dict]]), with the outer list indicating test time augmentations.
         """
         if return_loss:
             return self.forward_train(**kwargs)
         else:
             return self.forward_test(**kwargs)
 
-
-    def forward_train(self,
-                      points=None,
-                      img_metas=None,
-                      gt_bboxes_3d=None,
-                      gt_labels_3d=None,
-                      gt_labels=None,
-                      gt_bboxes=None,
-                      img=None,
-                      radar=None,
-                      proposals=None,
-                      gt_bboxes_ignore=None,
-                      img_depth=None,
-                      img_mask=None,
-                      ):
+    def forward_train(
+        self,
+        points=None,
+        img_metas=None,
+        gt_bboxes_3d=None,
+        gt_labels_3d=None,
+        gt_labels=None,
+        gt_bboxes=None,
+        img=None,
+        radar=None,
+        proposals=None,
+        gt_bboxes_ignore=None,
+        img_depth=None,
+        img_mask=None,
+    ):
         """Forward training function.
+
         Args:
             points (list[torch.Tensor], optional): Points of each sample.
                 Defaults to None.
@@ -272,7 +255,7 @@ class UniBEV(MVXTwoStageDetector):
             len_queue = 3
             img = None
         img_metas = [each[len_queue - 1] for each in img_metas]
-        img_feats, lidar_feats, radar_feats = self.extract_feat(img=img, points=points, radar_points= radar, img_metas=img_metas)
+        img_feats, lidar_feats, radar_feats = self.extract_feat(img=img, points=points, radar_points=radar, img_metas=img_metas)
 
         losses = dict()
         if self.use_lidar == True and self.use_radar == False:
@@ -295,8 +278,7 @@ class UniBEV(MVXTwoStageDetector):
 
         for var, name in [(img_metas, 'img_metas')]:
             if not isinstance(var, list):
-                raise TypeError('{} must be a list, but got {}'.format(
-                    name, type(var)))
+                raise TypeError('{} must be a list, but got {}'.format(name, type(var)))
 
         # num_augs = len(points)
         # if num_augs != len(img_metas):
@@ -308,11 +290,10 @@ class UniBEV(MVXTwoStageDetector):
         points = [points] if points is None else points
         radar = [radar] if radar is None else radar
 
-        bbox_results, bev_embeds = self.simple_test(
-            points[0], img_metas[0], img[0], radar[0], **kwargs)
+        bbox_results, bev_embeds = self.simple_test(points[0], img_metas[0], img[0], radar[0], **kwargs)
         return bbox_results
 
-    def simple_test(self, points, img_metas, img=None, radar = None, rescale=False):
+    def simple_test(self, points, img_metas, img=None, radar=None, rescale=False):
         """Test function without augmentaiton."""
         img_feats, lidar_feats, radar_feats = self.extract_feat(img=img, points=points, radar_points=radar, img_metas=img_metas)
 
@@ -329,12 +310,8 @@ class UniBEV(MVXTwoStageDetector):
 
         outs = self.pts_bbox_head(img_feats, pts_feats, img_metas)
 
-        bbox_list_head = self.pts_bbox_head.get_bboxes(
-            outs, img_metas, rescale=rescale)
-        bbox_pts = [
-            bbox3d2result(bboxes, scores, labels)
-            for bboxes, scores, labels in bbox_list_head
-        ]
+        bbox_list_head = self.pts_bbox_head.get_bboxes(outs, img_metas, rescale=rescale)
+        bbox_pts = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list_head]
 
         for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
             result_dict['pts_bbox'] = pts_bbox

@@ -5,8 +5,9 @@ from mmdet.core.bbox.match_costs.builder import MATCH_COST
 @MATCH_COST.register_module()
 class BBox3DL1CostBEVFormer(object):
     """BBox3DL1Cost.
-     Args:
-         weight (int | float, optional): loss_weight
+
+    Args:
+        weight (int | float, optional): loss_weight
     """
 
     def __init__(self, weight=1.):

@@ -1,7 +1,8 @@
 import os.path as osp
-from mmcv.runner.hooks.hook import HOOKS, Hook
-from mmcv.runner.hooks.checkpoint import CheckpointHook
+
 from mmcv.fileio import FileClient
+from mmcv.runner.hooks.checkpoint import CheckpointHook
+from mmcv.runner.hooks.hook import HOOKS, Hook
 
 
 @HOOKS.register_module()
@@ -29,14 +30,8 @@ class CheckpointLateStageHook(CheckpointHook):
             Default: None.
             `New in version 1.3.16.`
         """
-    def __init__(self,
-                 interval = 1,
-                 by_epoch = True,
-                 start = 0.5,
-                 save_optimizer = True,
-                 out_dir = None,
-                 file_client_args = None,
-                 **kwargs):
+
+    def __init__(self, interval=1, by_epoch=True, start=0.5, save_optimizer=True, out_dir=None, file_client_args=None, **kwargs):
         super().__init__()
         self.interval = interval
         self.by_epoch = by_epoch
@@ -45,7 +40,6 @@ class CheckpointLateStageHook(CheckpointHook):
         self.out_dir = out_dir
         self.args = kwargs
         self.file_client_args = file_client_args
-
 
     def before_run(self, runner):
         if not self.out_dir:
@@ -62,8 +56,7 @@ class CheckpointLateStageHook(CheckpointHook):
         elif 0 < self.start and self.start <= 1:
             self.start_epoch = round(self.start * runner._max_epochs)
         else:
-            raise ValueError(
-                f'Start epoch must be between 0 and the number of max epochs')
+            raise ValueError(f'Start epoch must be between 0 and the number of max epochs')
 
         runner.logger.info(f'The Late Stage Checkpoints will be saved from the epoch {self.start_epoch} '
                            f'to {self.out_dir} by {self.file_client.name}.')
@@ -72,7 +65,7 @@ class CheckpointLateStageHook(CheckpointHook):
         if not self.by_epoch:
             return
         if runner.epoch + 1 >= self.start_epoch and self.every_n_epochs(runner, self.interval):
-            checkpoint_name = 'epoch_{}.path'.format(runner.epoch+1)
+            checkpoint_name = 'epoch_{}.path'.format(runner.epoch + 1)
             file_path = osp.join(self.out_dir, checkpoint_name)
             if not osp.isfile(file_path):
                 runner.logger.info(f'Saving checkpoint at {runner.epoch + 1} epochs')
