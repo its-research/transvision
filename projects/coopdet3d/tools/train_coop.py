@@ -1,5 +1,4 @@
 import argparse
-import copy
 import os
 import random
 import time
@@ -7,22 +6,21 @@ import time
 import numpy as np
 import torch
 from mmcv import Config
-from torchpack import distributed as dist
-from torchpack.environ import auto_set_run_dir, set_run_dir
-from torchpack.utils.config import configs
-
 from mmdet3d.apis import train_model_coop
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_coop_model
-from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eval
+from mmdet3d.utils import convert_sync_batchnorm, get_root_logger, recursive_eval
+from torchpack import distributed as dist
+from torchpack.environ import auto_set_run_dir, set_run_dir
+from torchpack.utils.config import configs
 
 
 def main():
     dist.init()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("config", metavar="FILE", help="config file")
-    parser.add_argument("--run-dir", metavar="DIR", help="run directory")
+    parser.add_argument('config', metavar='FILE', help='config file')
+    parser.add_argument('--run-dir', metavar='DIR', help='run directory')
     args, opts = parser.parse_known_args()
 
     configs.load(args.config, recursive=True)
@@ -40,22 +38,20 @@ def main():
     cfg.run_dir = args.run_dir
 
     # dump config
-    cfg.dump(os.path.join(cfg.run_dir, "configs.yaml"))
+    cfg.dump(os.path.join(cfg.run_dir, 'configs.yaml'))
 
     # init the logger before other steps
-    timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
-    log_file = os.path.join(cfg.run_dir, f"{timestamp}.log")
+    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+    log_file = os.path.join(cfg.run_dir, f'{timestamp}.log')
     logger = get_root_logger(log_file=log_file)
 
     # log some basic info
-    logger.info(f"Config:\n{cfg.pretty_text}")
+    logger.info(f'Config:\n{cfg.pretty_text}')
 
     # set random seeds
     if cfg.seed is not None:
-        logger.info(
-            f"Set random seed to {cfg.seed}, "
-            f"deterministic mode: {cfg.deterministic}"
-        )
+        logger.info(f'Set random seed to {cfg.seed}, '
+                    f'deterministic mode: {cfg.deterministic}')
         random.seed(cfg.seed)
         np.random.seed(cfg.seed)
         torch.manual_seed(cfg.seed)
@@ -67,22 +63,14 @@ def main():
 
     model = build_coop_model(cfg.model)
     model.init_weights()
-    if cfg.get("sync_bn", None):
-        if not isinstance(cfg["sync_bn"], dict):
-            cfg["sync_bn"] = dict(exclude=[])
-        model = convert_sync_batchnorm(model, exclude=cfg["sync_bn"]["exclude"])
+    if cfg.get('sync_bn', None):
+        if not isinstance(cfg['sync_bn'], dict):
+            cfg['sync_bn'] = dict(exclude=[])
+        model = convert_sync_batchnorm(model, exclude=cfg['sync_bn']['exclude'])
 
-    logger.info(f"Model:\n{model}")
-    train_model_coop(
-        model,
-        datasets,
-        cfg,
-        distributed=True,
-        validate=True,
-        timestamp=timestamp,
-        freeze=cfg["freeze"]
-    )
+    logger.info(f'Model:\n{model}')
+    train_model_coop(model, datasets, cfg, distributed=True, validate=True, timestamp=timestamp, freeze=cfg['freeze'])
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

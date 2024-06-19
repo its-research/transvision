@@ -1,17 +1,17 @@
 from typing import Tuple
 
 from mmcv.runner import force_fp32
-from torch import nn
-
 from mmdet3d.models.builder import VTRANSFORMS
+from torch import nn
 
 from .base import BaseTransform, CoopInfraBaseTransform, CoopVehicleBaseTransform
 
-__all__ = ["LSSTransform", "CoopInfraLSSTransform", "CoopVehicleLSSTransform"]
+__all__ = ['LSSTransform', 'CoopInfraLSSTransform', 'CoopVehicleLSSTransform']
 
 
 @VTRANSFORMS.register_module()
 class LSSTransform(BaseTransform):
+
     def __init__(
         self,
         in_channels: int,
@@ -65,8 +65,8 @@ class LSSTransform(BaseTransform):
         x = x.view(B * N, C, fH, fW)
 
         x = self.depthnet(x)
-        depth = x[:, : self.D].softmax(dim=1)
-        x = depth.unsqueeze(1) * x[:, self.D : (self.D + self.C)].unsqueeze(2)
+        depth = x[:, :self.D].softmax(dim=1)
+        x = depth.unsqueeze(1) * x[:, self.D:(self.D + self.C)].unsqueeze(2)
 
         x = x.view(B, N, self.C, self.D, fH, fW)
         x = x.permute(0, 1, 3, 4, 5, 2)
@@ -76,9 +76,11 @@ class LSSTransform(BaseTransform):
         x = super().forward(*args, **kwargs)
         x = self.downsample(x)
         return x
+
 
 @VTRANSFORMS.register_module()
 class CoopInfraLSSTransform(CoopInfraBaseTransform):
+
     def __init__(
         self,
         in_channels: int,
@@ -101,8 +103,7 @@ class CoopInfraLSSTransform(CoopInfraBaseTransform):
             ybound=ybound,
             zbound=zbound,
             dbound=dbound,
-            vehicle=vehicle
-        )
+            vehicle=vehicle)
         self.depthnet = nn.Conv2d(in_channels, self.D + self.C, 1)
         if downsample > 1:
             assert downsample == 2, downsample
@@ -134,8 +135,8 @@ class CoopInfraLSSTransform(CoopInfraBaseTransform):
         x = x.view(B * N, C, fH, fW)
 
         x = self.depthnet(x)
-        depth = x[:, : self.D].softmax(dim=1)
-        x = depth.unsqueeze(1) * x[:, self.D : (self.D + self.C)].unsqueeze(2)
+        depth = x[:, :self.D].softmax(dim=1)
+        x = depth.unsqueeze(1) * x[:, self.D:(self.D + self.C)].unsqueeze(2)
 
         x = x.view(B, N, self.C, self.D, fH, fW)
         x = x.permute(0, 1, 3, 4, 5, 2)
@@ -146,8 +147,10 @@ class CoopInfraLSSTransform(CoopInfraBaseTransform):
         x = self.downsample(x)
         return x
 
+
 @VTRANSFORMS.register_module()
 class CoopVehicleLSSTransform(CoopVehicleBaseTransform):
+
     def __init__(
         self,
         in_channels: int,
@@ -170,8 +173,7 @@ class CoopVehicleLSSTransform(CoopVehicleBaseTransform):
             ybound=ybound,
             zbound=zbound,
             dbound=dbound,
-            vehicle=vehicle
-        )
+            vehicle=vehicle)
         self.depthnet = nn.Conv2d(in_channels, self.D + self.C, 1)
         if downsample > 1:
             assert downsample == 2, downsample
@@ -203,8 +205,8 @@ class CoopVehicleLSSTransform(CoopVehicleBaseTransform):
         x = x.view(B * N, C, fH, fW)
 
         x = self.depthnet(x)
-        depth = x[:, : self.D].softmax(dim=1)
-        x = depth.unsqueeze(1) * x[:, self.D : (self.D + self.C)].unsqueeze(2)
+        depth = x[:, :self.D].softmax(dim=1)
+        x = depth.unsqueeze(1) * x[:, self.D:(self.D + self.C)].unsqueeze(2)
 
         x = x.view(B, N, self.C, self.D, fH, fW)
         x = x.permute(0, 1, 3, 4, 5, 2)

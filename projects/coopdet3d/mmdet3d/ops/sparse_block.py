@@ -1,13 +1,12 @@
-import torch
-import torchsparse
-from mmcv.cnn import build_conv_layer, build_norm_layer
-from torch import nn
 import torchsparse.nn as spnn
-from mmdet.models.backbones.resnet import BasicBlock, Bottleneck
+from mmcv.cnn import build_conv_layer, build_norm_layer
+from mmdet.models.backbones.resnet import BasicBlock
+from torch import nn
 
 
 class SparseBasicBlock(BasicBlock):
     """Sparse basic block for PartA^2.
+
     Sparse basic block implemented with submanifold sparse convolution.
     Args:
         inplanes (int): inplanes of block.
@@ -42,23 +41,23 @@ class SparseBasicBlock(BasicBlock):
             norm_cfg=norm_cfg,
         )
         if act_cfg is not None:
-            if act_cfg == "swish":
+            if act_cfg == 'swish':
                 self.relu = spnn.SiLU(inplace=True)
             else:
                 self.relu = spnn.ReLU(inplace=True)
 
 
 def make_sparse_convmodule(
-    in_channels,
-    out_channels,
-    kernel_size,
-    # indice_key,
-    stride=1,
-    padding=0,
-    conv_type="TorchSparseConv3d",
-    norm_cfg=None,
-    order=("conv", "norm", "act"),
-    activation_type="relu",
+        in_channels,
+        out_channels,
+        kernel_size,
+        # indice_key,
+        stride=1,
+        padding=0,
+        conv_type='TorchSparseConv3d',
+        norm_cfg=None,
+        order=('conv', 'norm', 'act'),
+        activation_type='relu',
 ):
     """Make sparse convolution module.
 
@@ -79,31 +78,29 @@ def make_sparse_convmodule(
         spconv.SparseSequential: sparse convolution module.
     """
     assert isinstance(order, tuple) and len(order) <= 3
-    assert set(order) | {"conv", "norm", "act"} == {"conv", "norm", "act"}
+    assert set(order) | {'conv', 'norm', 'act'} == {'conv', 'norm', 'act'}
 
-    conv_cfg = {"type": conv_type}
+    conv_cfg = {'type': conv_type}
 
     layers = []
     for layer in order:
-        if layer == "conv":
-            layers.append(
-                build_conv_layer(
-                    conv_cfg,
-                    in_channels,
-                    out_channels,
-                    kernel_size,
-                    stride=stride,
-                    padding=padding,
-                    bias=False,
-                )
-            )
-        elif layer == "norm":
+        if layer == 'conv':
+            layers.append(build_conv_layer(
+                conv_cfg,
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride=stride,
+                padding=padding,
+                bias=False,
+            ))
+        elif layer == 'norm':
             layers.append(build_norm_layer(norm_cfg, out_channels)[1])
-        elif layer == "act":
-            if activation_type == "relu":
+        elif layer == 'act':
+            if activation_type == 'relu':
                 layers.append(spnn.ReLU(inplace=True))
-            elif activation_type == "swish":
-               layers.append(spnn.SiLU(inplace=True))
+            elif activation_type == 'swish':
+                layers.append(spnn.SiLU(inplace=True))
             else:
                 raise NotImplementedError
     layers = nn.Sequential(*layers)

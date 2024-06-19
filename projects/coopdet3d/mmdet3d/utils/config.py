@@ -1,6 +1,6 @@
 import copy
 
-__all__ = ["recursive_eval"]
+__all__ = ['recursive_eval']
 
 
 def recursive_eval(obj, globals=None):
@@ -13,7 +13,7 @@ def recursive_eval(obj, globals=None):
     elif isinstance(obj, list):
         for k, val in enumerate(obj):
             obj[k] = recursive_eval(val, globals)
-    elif isinstance(obj, str) and obj.startswith("${") and obj.endswith("}"):
+    elif isinstance(obj, str) and obj.startswith('${') and obj.endswith('}'):
         obj = eval(obj[2:-1], globals)
         obj = recursive_eval(obj, globals)
 

@@ -1,2 +1,2 @@
-from .max import *
 from .conv import *
+from .max import *

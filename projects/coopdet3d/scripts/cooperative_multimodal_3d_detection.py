@@ -1,44 +1,32 @@
 #!/usr/bin/env python
-import json
-
-
+import copy
+import os
+import sys
+import time
+import uuid
 ###################
 # IMPORTS
 ###################
-from copy import deepcopy
-import time
-import open3d
-from scipy.spatial.transform import Rotation as Rotation
+from pathlib import Path
+
 import cv2
-import sys
-import uuid
-import copy
-import torchvision
-import os
 import numpy as np
+import open3d
+import open3d as o3d
 import torch
 from mmcv import Config
 from mmcv.parallel import MMDistributedDataParallel
 from mmcv.runner import load_checkpoint
+from mmdet3d.datasets import build_dataloader, build_dataset
+from mmdet3d.models import build_coop_model
+from scripts.detection import Detection, detections_to_openlabel
+from scripts.parse_cooperative_parameters import parse_cooperative_parameters
+from scripts.utils import id_to_class_name_mapping
 from torchpack import distributed as dist
 from torchpack.utils.config import configs
 from tqdm import tqdm
-from mmcv.parallel import DataContainer as DC
-
-from mmdet3d.datasets import build_dataloader, build_dataset
-from mmdet3d.core.bbox.structures.lidar_box3d import LiDARInstance3DBoxes
-
-from pathlib import Path
-import open3d as o3d
-
 
 # inside docker
-sys.path.insert(0, "/home/coopdet3d")
-from mmdet3d.models import build_coop_model
-from scripts.utils import id_to_class_name_mapping
-from scripts.detection import Detection, detections_to_openlabel
-from scripts.parse_cooperative_parameters import \
-    parse_cooperative_parameters
 
 
 def generate_uuids(num_uuids):
@@ -58,7 +46,7 @@ def recursive_eval(obj, globals=None):
     elif isinstance(obj, list):
         for k, val in enumerate(obj):
             obj[k] = recursive_eval(val, globals)
-    elif isinstance(obj, str) and obj.startswith("${") and obj.endswith("}"):
+    elif isinstance(obj, str) and obj.startswith('${') and obj.endswith('}'):
         obj = eval(obj[2:-1], globals)
         obj = recursive_eval(obj, globals)
 
@@ -66,6 +54,7 @@ def recursive_eval(obj, globals=None):
 
 
 class Detector:
+
     def __init__(self, opt):
         self.opt = opt
         self.dataset_loaded = None
@@ -76,31 +65,30 @@ class Detector:
         self.v2i_transformation_matrix = None
 
     def initialize(self):
-        input_folder_path_point_clouds = self.opt["input_folder_path_point_clouds"]
-        if bool(self.opt["save_detections_openlabel"]):
-            subfolder = "/openlabel"
-            output_folder_path_detections_obj = Path(self.opt["output_folder_path_detections"] + subfolder,
-                                                     exist_ok=False)
+        input_folder_path_point_clouds = self.opt['input_folder_path_point_clouds']
+        if bool(self.opt['save_detections_openlabel']):
+            subfolder = '/openlabel'
+            output_folder_path_detections_obj = Path(self.opt['output_folder_path_detections'] + subfolder, exist_ok=False)
             output_folder_path_detections_obj.mkdir(parents=True, exist_ok=True)
             # Update incremented path
-            self.opt["output_folder_path_detections"] = str(output_folder_path_detections_obj)
+            self.opt['output_folder_path_detections'] = str(output_folder_path_detections_obj)
 
-        if self.opt["input_type"] == "hard_drive":
+        if self.opt['input_type'] == 'hard_drive':
             input_file_path_point_cloud = input_folder_path_point_clouds
             self.input_file_path_point_cloud = input_file_path_point_cloud
 
     def detect(self, point_cloud, timestamp=0, frame_id=None):
-        if self.opt["input_type"] == "hard_drive":
+        if self.opt['input_type'] == 'hard_drive':
             self.pc_original = point_cloud
         else:
-            print("Unknown input_type: ", self.opt["input_type"], ". Possible values are: [ros, hard_drive]")
+            print('Unknown input_type: ', self.opt['input_type'], '. Possible values are: [ros, hard_drive]')
             sys.exit()
         # Inference
 
         detections, boxes = self.inference(self.pc_original)
 
         # filter by overlap
-        if bool(self.opt["filter_by_overlap"]):
+        if bool(self.opt['filter_by_overlap']):
             detections, boxes = self.filter_by_overlap(detections, boxes)
             # print("frame_id: ", frame_id)
 
@@ -109,33 +97,26 @@ class Detector:
                 if detection.id != -1:
                     detection.uuid = self.mapping_id_to_uuid[detection.id]
 
-        if bool(self.opt["save_pc"]) or bool(self.opt["save_detections_kitti"]) or bool(
-                self.opt["save_detections_openlabel"]) or bool(self.opt["view_pc"]):
-            if self.opt["input_type"] == "hard_drive":
-                file_name_point_cloud = self.input_file_path_point_cloud.split("/")[-1]
-            if bool(self.opt["save_pc"]):
-                output_file_path_vis_point_cloud = os.path.join(self.opt["output_folder_path_point_clouds"],
-                                                                file_name_point_cloud)
+        if bool(self.opt['save_pc']) or bool(self.opt['save_detections_kitti']) or bool(self.opt['save_detections_openlabel']) or bool(self.opt['view_pc']):
+            if self.opt['input_type'] == 'hard_drive':
+                file_name_point_cloud = self.input_file_path_point_cloud.split('/')[-1]
+            # if bool(self.opt['save_pc']):
+            #     output_file_path_vis_point_cloud = os.path.join(self.opt['output_folder_path_point_clouds'], file_name_point_cloud)
 
-            if bool(self.opt["save_detections_openlabel"]):
-                output_file_path_detections = os.path.join(self.opt["output_folder_path_detections"],
-                                                           file_name_point_cloud.replace(".pcd", ".json"))
+            if bool(self.opt['save_detections_openlabel']):
+                output_file_path_detections = os.path.join(self.opt['output_folder_path_detections'], file_name_point_cloud.replace('.pcd', '.json'))
 
-        if bool(self.opt["save_detections_kitti"]):  # Write to file
+        if bool(self.opt['save_detections_kitti']):  # Write to file
             for detection in detections:
-                line = tuple([detection.category] + np.hstack((detection.location, np.array(detection.dimensions),
-                                                               detection.yaw)).tolist())  # Label format
-                with open(output_file_path_detections, "a") as f:
-                    f.write("%s " % line[0])
-                    f.write(("%g " * len(line[1:])).rstrip() % line[1:] + "\n")
-        if bool(self.opt["save_detections_openlabel"]):  # Write to file
-            detections_to_openlabel(detections, file_name_point_cloud.replace(".jpg", ".json"),
-                                    Path(output_file_path_detections).parent, frame_id=frame_id)
+                line = tuple([detection.category] + np.hstack((detection.location, np.array(detection.dimensions), detection.yaw)).tolist())  # Label format
+                with open(output_file_path_detections, 'a') as f:
+                    f.write('%s ' % line[0])
+                    f.write(('%g ' * len(line[1:])).rstrip() % line[1:] + '\n')
+        if bool(self.opt['save_detections_openlabel']):  # Write to file
+            detections_to_openlabel(detections, file_name_point_cloud.replace('.jpg', '.json'), Path(output_file_path_detections).parent, frame_id=frame_id)
 
     def inference(self, point_cloud):
-        input_dict = {
-            "points": point_cloud
-        }
+        input_dict = {'points': point_cloud}
 
         data_dict = self.dataset.prepare_data(data_dict=input_dict)
 
@@ -145,20 +126,20 @@ class Detector:
             start_time = time.time_ns()
             pred_dicts, _ = model.forward(data_dict)
             inference_time = time.time_ns() - start_time
-            print("Inference time: ", inference_time / 1000000, "ms")
+            print('Inference time: ', inference_time / 1000000, 'ms')
             pred_boxes = []
             pred_labels = []
             pred_scores = []
             for k, v in pred_dicts[0].items():
-                if k == "pred_boxes":
+                if k == 'pred_boxes':
                     pred_boxes = v.cpu().numpy()
-                elif k == "pred_labels":
+                elif k == 'pred_labels':
                     pred_labels = v.cpu().numpy() - 1
-                elif k == "pred_scores":
+                elif k == 'pred_scores':
                     pred_scores = v.cpu().numpy()
 
             pcd = open3d.geometry.PointCloud()
-            points = data_dict["points"].cpu().numpy()
+            points = data_dict['points'].cpu().numpy()
             pcd.points = o3d.utility.Vector3dVector(points[:, 1:4])
 
             detections = []
@@ -171,7 +152,7 @@ class Detector:
                 bbox.color = np.array([1, 0, 0])
                 num_lidar_points = len(bbox.get_point_indices_within_bounding_box(pcd.points))
                 score = float(pred_scores[i])
-                category = str(id_to_class_name_mapping[str(pred_labels[i])]["class_label_en"]).upper()
+                category = str(id_to_class_name_mapping[str(pred_labels[i])]['class_label_en']).upper()
 
                 if num_lidar_points >= 5 and score >= cfg.MODEL.POST_PROCESSING.SCORE_THRESH:
                     # if num_lidar_points >= 5 and score >= score_threshold:
@@ -188,9 +169,8 @@ class Detector:
                             yaw=float(pred_boxes[i][6]),
                             num_lidar_points=num_lidar_points,
                             score=score,
-                            sensor_id=self.opt["sensor_id"],
-                        )
-                    )
+                            sensor_id=self.opt['sensor_id'],
+                        ))
         return detections, boxes
 
     def save_point_cloud(self, image_cv2, output_file_path_vis_point_cloud):
@@ -230,33 +210,31 @@ class Detector:
         R = np.array(box.R)
         corners = np.empty((8, 3))
         for i in range(8):
-            sign = np.array(
-                [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]],
-                dtype=np.float32)
+            sign = np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], dtype=np.float32)
             corner = center + R @ (sign[i] * extent)
             corners[i] = corner
         return corners
 
 
 def detect(data, pcd, input_type):
-    if input_type == "hard_drive":
-        vehicle_points = data["vehicle_points"].data[0][0].cpu().numpy()
-        infrastructure_points = data["infrastructure_points"].data[0][0].cpu().numpy()
+    if input_type == 'hard_drive':
+        vehicle_points = data['vehicle_points'].data[0][0].cpu().numpy()
+        infrastructure_points = data['infrastructure_points'].data[0][0].cpu().numpy()
         o3dpoints = np.concatenate((vehicle_points, infrastructure_points), axis=0)
         pcd.points = o3d.utility.Vector3dVector(o3dpoints[:, 1:4])
 
     with torch.inference_mode():
         outputs = model(**data)
-    bboxes = outputs[0]["boxes_3d"].tensor.numpy()
-    scores = outputs[0]["scores_3d"].numpy()
-    labels = outputs[0]["labels_3d"].numpy()
-    if opt["bbox_classes"] is not None:
-        indices = np.isin(labels, opt["bbox_classes"])
+    bboxes = outputs[0]['boxes_3d'].tensor.numpy()
+    scores = outputs[0]['scores_3d'].numpy()
+    labels = outputs[0]['labels_3d'].numpy()
+    if opt['bbox_classes'] is not None:
+        indices = np.isin(labels, opt['bbox_classes'])
         bboxes = bboxes[indices]
         scores = scores[indices]
         labels = labels[indices]
-    if opt["bbox_score"] is not None:
-        indices = scores >= opt["bbox_score"]
+    if opt['bbox_score'] is not None:
+        indices = scores >= opt['bbox_score']
         bboxes = bboxes[indices]
         scores = scores[indices]
         labels = labels[indices]
@@ -272,13 +250,11 @@ def create_detection_list(bboxes, scores, labels):
         rotation_yaw_radians = rotation_yaw_degree * np.pi / 180
         o3d_bbox = o3d.geometry.OrientedBoundingBox(
             bbox[:3],
-            np.array(
-                [
-                    [np.cos(rotation_yaw_radians), -np.sin(rotation_yaw_radians), 0],
-                    [np.sin(rotation_yaw_radians), np.cos(rotation_yaw_radians), 0],
-                    [0, 0, 1],
-                ]
-            ),
+            np.array([
+                [np.cos(rotation_yaw_radians), -np.sin(rotation_yaw_radians), 0],
+                [np.sin(rotation_yaw_radians), np.cos(rotation_yaw_radians), 0],
+                [0, 0, 1],
+            ]),
             np.array([bbox[3], bbox[4], bbox[5]]),
         )
         num_lidar_points = len(o3d_bbox.get_point_indices_within_bounding_box(pcd.points))
@@ -292,19 +268,18 @@ def create_detection_list(bboxes, scores, labels):
                 yaw=-float(bbox[6]),
                 num_lidar_points=num_lidar_points,
                 score=float(scores[i]),
-                sensor_id="s110_lidar_ouster_south",
-            )
-        )
+                sensor_id='s110_lidar_ouster_south',
+            ))
     return detections
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     dist.init()
 
     opt, opts = parse_cooperative_parameters()
-    configs.load(opt["config"], recursive=True)
+    configs.load(opt['config'], recursive=True)
     configs.update(opts)
-    cfg = Config(recursive_eval(configs), filename=opt["config"])
+    cfg = Config(recursive_eval(configs), filename=opt['config'])
 
     torch.backends.cudnn.benchmark = cfg.cudnn_benchmark
     torch.cuda.set_device(dist.local_rank())
@@ -313,7 +288,7 @@ if __name__ == "__main__":
 
     # build the model and load checkpoint
     model = build_coop_model(cfg.model)
-    load_checkpoint(model, opt["checkpoint"], map_location="cpu")
+    load_checkpoint(model, opt['checkpoint'], map_location='cpu')
 
     model = MMDistributedDataParallel(
         model.cuda(),
@@ -322,10 +297,10 @@ if __name__ == "__main__":
     )
     model.eval()
 
-    if opt["input_type"] == "hard_drive":
+    if opt['input_type'] == 'hard_drive':
         detector.initialize()
         # build the dataloader
-        dataset = build_dataset(cfg.data[opt["split"]])
+        dataset = build_dataset(cfg.data[opt['split']])
         dataflow = build_dataloader(
             dataset,
             samples_per_gpu=1,
@@ -337,16 +312,14 @@ if __name__ == "__main__":
         for data in tqdm(dataflow):
             pcd = o3d.geometry.PointCloud()
 
-            bboxes, scores, labels = detect(data, pcd, input_type=opt["input_type"])
+            bboxes, scores, labels = detect(data, pcd, input_type=opt['input_type'])
             detections = create_detection_list(bboxes, scores, labels)
-            metas = data["metas"].data[0][0]
+            metas = data['metas'].data[0][0]
 
-            fname = metas["infrastructure_lidar_path"].split("/")[-1].replace("s110_lidar_ouster_south.bin",
-                                                                              "s110_lidar_ouster_south_and_vehicle_lidar_robosense_registered.json")
-            detections_to_openlabel(detection_list=detections, filename=fname,
-                                    output_folder_path=Path(opt["output_folder_path_detections"]))
+            fname = metas['infrastructure_lidar_path'].split('/')[-1].replace('s110_lidar_ouster_south.bin', 's110_lidar_ouster_south_and_vehicle_lidar_robosense_registered.json')
+            detections_to_openlabel(detection_list=detections, filename=fname, output_folder_path=Path(opt['output_folder_path_detections']))
 
             idx += 1
     else:
-        print("Unknown input_type: ", opt["input_type"], ". Possible values are: [ros, hard_drive]")
+        print('Unknown input_type: ', opt['input_type'], '. Possible values are: [ros, hard_drive]')
         sys.exit()

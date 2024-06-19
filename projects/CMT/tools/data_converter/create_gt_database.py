@@ -14,13 +14,8 @@ from os import path as osp
 import mmcv
 import numpy as np
 from mmcv import track_iter_progress
-from mmcv.ops import roi_align
-from pycocotools import mask as maskUtils
-from pycocotools.coco import COCO
-
 from mmdet3d.core.bbox import box_np_ops as box_np_ops
 from mmdet3d.datasets import build_dataset
-from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 
 
 def create_groundtruth_database(dataset_class_name,
@@ -59,28 +54,15 @@ def create_groundtruth_database(dataset_class_name,
             Default: False.
     """
     print(f'Create GT Database of {dataset_class_name}')
-    dataset_cfg = dict(
-        type=dataset_class_name, data_root=data_path, ann_file=info_path, return_gt_info=True)
+    dataset_cfg = dict(type=dataset_class_name, data_root=data_path, ann_file=info_path, return_gt_info=True)
 
     if dataset_class_name == 'CustomNuScenesDataset':
         dataset_cfg.update(
             use_valid_flag=True,
             pipeline=[
-                dict(
-                    type='LoadPointsFromFile',
-                    coord_type='LIDAR',
-                    load_dim=5,
-                    use_dim=5),
-                dict(
-                    type='LoadPointsFromMultiSweeps',
-                    sweeps_num=10,
-                    use_dim=[0, 1, 2, 3, 4],
-                    pad_empty_sweeps=True,
-                    remove_close=True),
-                dict(
-                    type='LoadAnnotations3D',
-                    with_bbox_3d=True,
-                    with_label_3d=True)
+                dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=5, use_dim=5),
+                dict(type='LoadPointsFromMultiSweeps', sweeps_num=10, use_dim=[0, 1, 2, 3, 4], pad_empty_sweeps=True, remove_close=True),
+                dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True)
             ])
 
     dataset = build_dataset(dataset_cfg)
@@ -88,8 +70,7 @@ def create_groundtruth_database(dataset_class_name,
     if database_save_path is None:
         database_save_path = osp.join(data_path, f'{info_prefix}_gt_database')
     if db_info_save_path is None:
-        db_info_save_path = osp.join(data_path,
-                                     f'{info_prefix}_dbinfos_train.pkl')
+        db_info_save_path = osp.join(data_path, f'{info_prefix}_dbinfos_train.pkl')
 
     database_pts_path = osp.join(database_save_path, 'pts_dir')
     database_img_path = osp.join(database_save_path, 'img_dir')
@@ -131,8 +112,7 @@ def create_groundtruth_database(dataset_class_name,
 
             # obtain lidar to image transformation matrix
             lidar2cam_r = np.linalg.inv(cam_info['sensor2lidar_rotation'])
-            lidar2cam_t = cam_info[
-                'sensor2lidar_translation'] @ lidar2cam_r.T
+            lidar2cam_t = cam_info['sensor2lidar_translation'] @ lidar2cam_r.T
             lidar2cam_rt = np.eye(4)
             lidar2cam_rt[:3, :3] = lidar2cam_r.T
             lidar2cam_rt[3, :3] = -lidar2cam_t
@@ -141,10 +121,7 @@ def create_groundtruth_database(dataset_class_name,
             viewpad[:intrinsic.shape[0], :intrinsic.shape[1]] = intrinsic
             lidar2img_rt = (viewpad @ lidar2cam_rt.T)
 
-            input_info[_cam]={
-                'lidar2img': lidar2img_rt,              
-                'lidar2cam': lidar2cam_rt,
-                'cam_intrinsic': viewpad}
+            input_info[_cam] = {'lidar2img': lidar2img_rt, 'lidar2cam': lidar2cam_rt, 'cam_intrinsic': viewpad}
 
         for i in range(num_obj):
             pts_filename = f'{image_idx}_{names[i]}_{i}.bin'
@@ -161,7 +138,7 @@ def create_groundtruth_database(dataset_class_name,
             with open(abs_filepath, 'w') as f:
                 gt_points.tofile(f)
 
-            img_crop, crop_key, crop_depth = find_img_crop(annos['gt_bboxes_3d'][i].corners.numpy(), input_img, input_info,  points[point_indices[:, i]])
+            img_crop, crop_key, crop_depth = find_img_crop(annos['gt_bboxes_3d'][i].corners.numpy(), input_img, input_info, points[point_indices[:, i]])
             if img_crop is not None:
                 mmcv.imwrite(img_crop, abs_img_filepath)
 
@@ -198,7 +175,7 @@ def create_groundtruth_database(dataset_class_name,
         pickle.dump(all_db_infos, f)
 
 
-def find_img_crop(gt_boxes_3d, input_img, input_info,  points):
+def find_img_crop(gt_boxes_3d, input_img, input_info, points):
     coord_3d = np.concatenate([gt_boxes_3d, np.ones_like(gt_boxes_3d[..., :1])], -1)
     coord_3d = coord_3d.squeeze(0)
     max_crop, crop_key = None, None
@@ -207,25 +184,25 @@ def find_img_crop(gt_boxes_3d, input_img, input_info,  points):
     for _key in input_img:
         lidar2img = np.array(input_info[_key]['lidar2img'])
         coord_img = coord_3d @ lidar2img.T
-        coord_img[:,:2] /= coord_img[:,2,None]
+        coord_img[:, :2] /= coord_img[:, 2, None]
         image_shape = input_img[_key].shape
         if (coord_img[2] <= 0).any():
             continue
-        
-        avg_depth = coord_img[:,2].mean()
-        minxy = np.min(coord_img[:,:2], axis=-2)
-        maxxy = np.max(coord_img[:,:2], axis=-2)
+
+        avg_depth = coord_img[:, 2].mean()
+        minxy = np.min(coord_img[:, :2], axis=-2)
+        maxxy = np.max(coord_img[:, :2], axis=-2)
         bbox = np.concatenate([minxy, maxxy], axis=-1)
-        bbox[0::2] = np.clip(bbox[0::2], a_min=0, a_max=image_shape[1]-1)
-        bbox[1::2] = np.clip(bbox[1::2], a_min=0, a_max=image_shape[0]-1)
+        bbox[0::2] = np.clip(bbox[0::2], a_min=0, a_max=image_shape[1] - 1)
+        bbox[1::2] = np.clip(bbox[1::2], a_min=0, a_max=image_shape[0] - 1)
         bbox = bbox.astype(int)
-        if ((bbox[2:]-bbox[:2]) <= 10).any():
+        if ((bbox[2:] - bbox[:2]) <= 10).any():
             continue
 
-        img_crop = input_img[_key][bbox[1]:bbox[3],bbox[0]:bbox[2]]
+        img_crop = input_img[_key][bbox[1]:bbox[3], bbox[0]:bbox[2]]
         if img_crop.shape[0] * img_crop.shape[1] > crop_area:
             max_crop = img_crop
             crop_key = _key
             crop_depth = avg_depth
-    
+
     return max_crop, crop_key, crop_depth

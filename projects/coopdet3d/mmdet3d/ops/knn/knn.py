@@ -13,9 +13,7 @@ class KNN(Function):
     """
 
     @staticmethod
-    def forward(
-        ctx, k: int, xyz: torch.Tensor, center_xyz: torch.Tensor = None, transposed: bool = False
-    ) -> torch.Tensor:
+    def forward(ctx, k: int, xyz: torch.Tensor, center_xyz: torch.Tensor = None, transposed: bool = False) -> torch.Tensor:
         """Forward.
 
         Args:
@@ -25,11 +23,11 @@ class KNN(Function):
             center_xyz (Tensor): (B, npoint, 3) if transposed == False,
                 else (B, 3, npoint). centers of the knn query.
             transposed (bool): whether the input tensors are transposed.
-                defaults to False. Should not expicitly use this keyword
+                defaults to False. Should not explicitly use this keyword
                 when calling knn (=KNN.apply), just add the fourth param.
 
         Returns:
-            Tensor: (B, k, npoint) tensor with the indicies of
+            Tensor: (B, k, npoint) tensor with the indices of
                 the features that form k-nearest neighbours.
         """
         assert k > 0
@@ -45,9 +43,7 @@ class KNN(Function):
         assert center_xyz.is_contiguous()  # [B, npoint, 3]
 
         center_xyz_device = center_xyz.get_device()
-        assert (
-            center_xyz_device == xyz.get_device()
-        ), "center_xyz and xyz should be put on the same device"
+        assert (center_xyz_device == xyz.get_device()), 'center_xyz and xyz should be put on the same device'
         if torch.cuda.current_device() != center_xyz_device:
             torch.cuda.set_device(center_xyz_device)
 

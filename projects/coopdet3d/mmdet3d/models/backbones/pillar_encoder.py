@@ -1,20 +1,18 @@
-"""
-PointPillars fork from SECOND.
-Code written by Alex Lang and Oscar Beijbom, 2018.
-Licensed under MIT License [see LICENSE].
+"""PointPillars fork from SECOND.
+
+Code written by Alex Lang and Oscar Beijbom, 2018. Licensed under MIT License [see LICENSE].
 """
 
 from typing import Any, Dict
 
 import torch
 from mmcv.cnn import build_norm_layer
+from mmdet3d.models.builder import build_backbone
+from mmdet.models import BACKBONES
 from torch import nn
 from torch.nn import functional as F
 
-from mmdet3d.models.builder import build_backbone
-from mmdet.models import BACKBONES
-
-__all__ = ["PillarFeatureNet", "PointPillarsScatter", "PointPillarsEncoder"]
+__all__ = ['PillarFeatureNet', 'PointPillarsScatter', 'PointPillarsEncoder']
 
 
 def get_paddings_indicator(actual_num, max_num, axis=0):
@@ -30,9 +28,7 @@ def get_paddings_indicator(actual_num, max_num, axis=0):
     # tiled_actual_num: [N, M, 1]
     max_num_shape = [1] * len(actual_num.shape)
     max_num_shape[axis + 1] = -1
-    max_num = torch.arange(max_num, dtype=torch.int, device=actual_num.device).view(
-        max_num_shape
-    )
+    max_num = torch.arange(max_num, dtype=torch.int, device=actual_num.device).view(max_num_shape)
     # tiled_actual_num: [[3,3,3,3,3], [4,4,4,4,4], [2,2,2,2,2]]
     # tiled_max_num: [[0,1,2,3,4], [0,1,2,3,4], [0,1,2,3,4]]
     paddings_indicator = actual_num.int() > max_num
@@ -41,25 +37,27 @@ def get_paddings_indicator(actual_num, max_num, axis=0):
 
 
 class PFNLayer(nn.Module):
+
     def __init__(self, in_channels, out_channels, norm_cfg=None, last_layer=False):
-        """
-        Pillar Feature Net Layer.
-        The Pillar Feature Net could be composed of a series of these layers, but the PointPillars paper results only
-        used a single PFNLayer. This layer performs a similar role as second.pytorch.voxelnet.VFELayer.
+        """Pillar Feature Net Layer. The Pillar Feature Net could be composed
+        of a series of these layers, but the PointPillars paper results only
+        used a single PFNLayer. This layer performs a similar role as
+        second.pytorch.voxelnet.VFELayer.
+
         :param in_channels: <int>. Number of input channels.
         :param out_channels: <int>. Number of output channels.
         :param last_layer: <bool>. If last_layer, there is no concatenation of features.
         """
 
         super().__init__()
-        self.name = "PFNLayer"
+        self.name = 'PFNLayer'
         self.last_vfe = last_layer
         if not self.last_vfe:
             out_channels = out_channels // 2
         self.units = out_channels
 
         if norm_cfg is None:
-            norm_cfg = dict(type="BN1d", eps=1e-3, momentum=0.01)
+            norm_cfg = dict(type='BN1d', eps=1e-3, momentum=0.01)
         self.norm_cfg = norm_cfg
 
         self.linear = nn.Linear(in_channels, self.units, bias=False)
@@ -85,19 +83,20 @@ class PFNLayer(nn.Module):
 
 @BACKBONES.register_module()
 class PillarFeatureNet(nn.Module):
+
     def __init__(
-        self,
-        in_channels=4,
-        feat_channels=(64,),
-        with_distance=False,
-        voxel_size=(0.2, 0.2, 4),
-        point_cloud_range=(0, -40, -3, 70.4, 40, 1),
-        norm_cfg=None,
+            self,
+            in_channels=4,
+            feat_channels=(64, ),
+            with_distance=False,
+            voxel_size=(0.2, 0.2, 4),
+            point_cloud_range=(0, -40, -3, 70.4, 40, 1),
+            norm_cfg=None,
     ):
-        """
-        Pillar Feature Net.
-        The network prepares the pillar features and performs forward pass through PFNLayers. This net performs a
-        similar role to SECOND's second.pytorch.voxelnet.VoxelFeatureExtractor.
+        """Pillar Feature Net. The network prepares the pillar features and
+        performs forward pass through PFNLayers. This net performs a similar
+        role to SECOND's second.pytorch.voxelnet.VoxelFeatureExtractor.
+
         :param num_input_features: <int>. Number of input features, either x, y, z or x, y, z, r.
         :param num_filters: (<int>: N). Number of features in each of the N PFNLayers.
         :param with_distance: <bool>. Whether to include Euclidean distance to points.
@@ -106,7 +105,7 @@ class PillarFeatureNet(nn.Module):
         """
 
         super().__init__()
-        self.name = "PillarFeatureNet"
+        self.name = 'PillarFeatureNet'
         assert len(feat_channels) > 0
 
         self.in_channels = in_channels
@@ -125,11 +124,7 @@ class PillarFeatureNet(nn.Module):
                 last_layer = False
             else:
                 last_layer = True
-            pfn_layers.append(
-                PFNLayer(
-                    in_filters, out_filters, norm_cfg=norm_cfg, last_layer=last_layer
-                )
-            )
+            pfn_layers.append(PFNLayer(in_filters, out_filters, norm_cfg=norm_cfg, last_layer=last_layer))
         self.pfn_layers = nn.ModuleList(pfn_layers)
 
         # Need pillar (voxel) size and x/y offset in order to calculate pillar offset
@@ -139,27 +134,21 @@ class PillarFeatureNet(nn.Module):
         self.y_offset = self.vy / 2 + point_cloud_range[1]
 
     def forward(self, features, num_voxels, coors):
-        device = features.device
+        # device = features.device
 
         dtype = features.dtype
 
         # Find distance of x, y, and z from cluster center
         # features = features[:, :, :self.num_input]
-        points_mean = features[:, :, :3].sum(dim=1, keepdim=True) / num_voxels.type_as(
-            features
-        ).view(-1, 1, 1)
+        points_mean = features[:, :, :3].sum(dim=1, keepdim=True) / num_voxels.type_as(features).view(-1, 1, 1)
         f_cluster = features[:, :, :3] - points_mean
 
         # Find distance of x, y, and z from pillar center
         # f_center = features[:, :, :2]
         # modified according to xyz coords
         f_center = torch.zeros_like(features[:, :, :2])
-        f_center[:, :, 0] = features[:, :, 0] - (
-            coors[:, 1].to(dtype).unsqueeze(1) * self.vx + self.x_offset
-        )
-        f_center[:, :, 1] = features[:, :, 1] - (
-            coors[:, 2].to(dtype).unsqueeze(1) * self.vy + self.y_offset
-        )
+        f_center[:, :, 0] = features[:, :, 0] - (coors[:, 1].to(dtype).unsqueeze(1) * self.vx + self.x_offset)
+        f_center[:, :, 1] = features[:, :, 1] - (coors[:, 2].to(dtype).unsqueeze(1) * self.vy + self.y_offset)
 
         # Combine together feature decorations
         features_ls = [features, f_cluster, f_center]
@@ -184,11 +173,12 @@ class PillarFeatureNet(nn.Module):
 
 @BACKBONES.register_module()
 class PointPillarsScatter(nn.Module):
+
     def __init__(self, in_channels=64, output_shape=(512, 512), **kwargs):
-        """
-        Point Pillar's Scatter.
-        Converts learned features from dense tensor to sparse pseudo image. This replaces SECOND's
+        """Point Pillar's Scatter. Converts learned features from dense tensor
+        to sparse pseudo image. This replaces SECOND's
         second.pytorch.voxelnet.SparseMiddleExtractor.
+
         :param output_shape: ([int]: 4). Required output shape of features.
         :param num_input_features: <int>. Number of input features.
         """
@@ -200,9 +190,7 @@ class PointPillarsScatter(nn.Module):
         self.ny = output_shape[1]
 
     def extra_repr(self):
-        return (
-            f"in_channels={self.in_channels}, output_shape={tuple(self.output_shape)}"
-        )
+        return (f'in_channels={self.in_channels}, output_shape={tuple(self.output_shape)}')
 
     def forward(self, voxel_features, coords, batch_size):
         # batch_canvas will be the final output.
@@ -242,6 +230,7 @@ class PointPillarsScatter(nn.Module):
 
 @BACKBONES.register_module()
 class PointPillarsEncoder(nn.Module):
+
     def __init__(
         self,
         pts_voxel_encoder: Dict[str, Any],

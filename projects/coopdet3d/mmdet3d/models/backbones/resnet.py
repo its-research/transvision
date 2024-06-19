@@ -2,15 +2,15 @@ from typing import List, Tuple
 
 import torch
 from mmcv.cnn.resnet import BasicBlock, make_res_layer
+from mmdet.models import BACKBONES
 from torch import nn
 
-from mmdet.models import BACKBONES
-
-__all__ = ["GeneralizedResNet"]
+__all__ = ['GeneralizedResNet']
 
 
 @BACKBONES.register_module()
 class GeneralizedResNet(nn.ModuleList):
+
     def __init__(
         self,
         in_channels: int,

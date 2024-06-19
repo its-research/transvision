@@ -4,16 +4,17 @@ from typing import Sequence
 
 import torch
 import torch.nn as nn
+from mmcv.runner import BaseModule
+from mmdet.models.builder import MODELS
 from torch.nn.modules.batchnorm import _BatchNorm
 
-from mmdet.models.builder import MODELS
-from mmcv.runner import BaseModule
+__all__ = ['BaseBackbone']
 
-__all__ = ["BaseBackbone"]
 
 @MODELS.register_module()
 class BaseBackbone(BaseModule, metaclass=ABCMeta):
     """BaseBackbone backbone used in YOLO series.
+
     .. code:: text
      Backbone model structure diagram
      +-----------+
@@ -80,8 +81,7 @@ class BaseBackbone(BaseModule, metaclass=ABCMeta):
         self.num_stages = len(arch_setting)
         self.arch_setting = arch_setting
 
-        assert set(out_indices).issubset(
-            i for i in range(len(arch_setting) + 1))
+        assert set(out_indices).issubset(i for i in range(len(arch_setting) + 1))
 
         if frozen_stages not in range(-1, len(arch_setting) + 1):
             raise ValueError('"frozen_stages" must be in range(-1, '
@@ -114,6 +114,7 @@ class BaseBackbone(BaseModule, metaclass=ABCMeta):
     @abstractmethod
     def build_stage_layer(self, stage_idx: int, setting: list):
         """Build a stage layer.
+
         Args:
             stage_idx (int): The index of a stage layer.
             setting (list): The architecture setting of a stage layer.

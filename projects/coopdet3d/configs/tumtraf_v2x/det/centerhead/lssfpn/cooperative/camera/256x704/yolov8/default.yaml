@@ -20,7 +20,7 @@ model:
             #init_cfg:
             #  type: Pretrained
             #  checkpoint: /home/coopdet3d/weights/yolov8_n_syncbn_fast_8xb16-500e_coco_20230114_131804-88c11cdb.pth
-            
+
             # YOLOv8 s
             type: YOLOv8CSPDarknet
             arch: P5
@@ -54,7 +54,7 @@ model:
               inplace: true
             upsample_cfg:
               mode: bilinear
-              align_corners: false      
+              align_corners: false
           vtransform:
             in_channels: 256
             out_channels: 80
@@ -87,7 +87,7 @@ model:
             #init_cfg:
             #  type: Pretrained
             #  checkpoint: /home/coopdet3d/weights/yolov8_n_syncbn_fast_8xb16-500e_coco_20230114_131804-88c11cdb.pth
-            
+
             # YOLOv8 s
             type: YOLOv8CSPDarknet
             arch: P5
@@ -121,7 +121,7 @@ model:
               inplace: true
             upsample_cfg:
               mode: bilinear
-              align_corners: false      
+              align_corners: false
           vtransform:
             in_channels: 256
             out_channels: 80

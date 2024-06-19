@@ -1,55 +1,17 @@
-# ------------------------------------------------------------------------
-# Copyright (c) 2022 megvii-model. All Rights Reserved.
-# ------------------------------------------------------------------------
-# Modified from DETR3D (https://github.com/WangYueFt/detr3d)
-# Copyright (c) 2021 Wang, Yue
-# ------------------------------------------------------------------------
-# Modified from mmdetection3d (https://github.com/open-mmlab/mmdetection3d)
-# Copyright (c) OpenMMLab. All rights reserved.
-# ------------------------------------------------------------------------
-
-import math
-import copy
-import warnings
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.utils.checkpoint as cp
-
-from typing import Sequence
 from einops import rearrange
-from mmcv.cnn.bricks.drop import build_dropout
+from mmcv.cnn import xavier_init
+from mmcv.cnn.bricks.transformer import build_transformer_layer_sequence
 from mmcv.runner.base_module import BaseModule
-from mmcv.cnn.bricks.transformer import (
-    BaseTransformerLayer,
-    TransformerLayerSequence,
-    build_transformer_layer_sequence
-)
-from mmcv.cnn import (
-    build_activation_layer,
-    build_conv_layer,
-    build_norm_layer,
-    xavier_init
-)
-from mmcv.cnn.bricks.registry import (
-    ATTENTION,
-    TRANSFORMER_LAYER,
-    TRANSFORMER_LAYER_SEQUENCE
-)
-from mmcv.utils import (
-    ConfigDict,
-    build_from_cfg,
-    deprecated_api_warning,
-    to_2tuple
-)
 from mmdet.models.utils.builder import TRANSFORMER
 
 
 @TRANSFORMER.register_module()
 class CmtTransformer(BaseModule):
-    """Implements the DETR transformer.
-    Following the official DETR implementation, this module copy-paste
-    from torch.nn.Transformer with modifications:
+    """Implements the DETR transformer. Following the official DETR
+    implementation, this module copy-paste from torch.nn.Transformer with
+    modifications:
+
         * positional encodings are passed in MultiheadAttention
         * extra LN at the end of encoder is removed
         * decoder returns a stack of activations from all decoding layers
@@ -102,14 +64,14 @@ class CmtTransformer(BaseModule):
                       [bs, embed_dims, h, w].
         """
         bs, c, h, w = x.shape
-        bev_memory = rearrange(x, "bs c h w -> (h w) bs c") # [bs, n, c, h, w] -> [n*h*w, bs, c]
-        rv_memory = rearrange(x_img, "(bs v) c h w -> (v h w) bs c", bs=bs)
-        bev_pos_embed = bev_pos_embed.unsqueeze(1).repeat(1, bs, 1) # [bs, n, c, h, w] -> [n*h*w, bs, c]
-        rv_pos_embed = rearrange(rv_pos_embed, "(bs v) h w c -> (v h w) bs c", bs=bs)
-        
+        bev_memory = rearrange(x, 'bs c h w -> (h w) bs c')  # [bs, n, c, h, w] -> [n*h*w, bs, c]
+        rv_memory = rearrange(x_img, '(bs v) c h w -> (v h w) bs c', bs=bs)
+        bev_pos_embed = bev_pos_embed.unsqueeze(1).repeat(1, bs, 1)  # [bs, n, c, h, w] -> [n*h*w, bs, c]
+        rv_pos_embed = rearrange(rv_pos_embed, '(bs v) h w c -> (v h w) bs c', bs=bs)
+
         memory, pos_embed = torch.cat([bev_memory, rv_memory], dim=0), torch.cat([bev_pos_embed, rv_pos_embed], dim=0)
         query_embed = query_embed.transpose(0, 1)  # [num_query, dim] -> [num_query, bs, dim]
-        mask =  memory.new_zeros(bs, memory.shape[0]) # [bs, n, h, w] -> [bs, n*h*w]
+        mask = memory.new_zeros(bs, memory.shape[0])  # [bs, n, h, w] -> [bs, n*h*w]
 
         target = torch.zeros_like(query_embed)
         # out_dec: [num_layers, num_query, bs, dim]
@@ -122,16 +84,17 @@ class CmtTransformer(BaseModule):
             key_padding_mask=mask,
             attn_masks=[attn_masks, None],
             reg_branch=reg_branch,
-            )
+        )
         out_dec = out_dec.transpose(1, 2)
-        return  out_dec, memory
+        return out_dec, memory
 
 
 @TRANSFORMER.register_module()
 class CmtLidarTransformer(BaseModule):
-    """Implements the DETR transformer.
-    Following the official DETR implementation, this module copy-paste
-    from torch.nn.Transformer with modifications:
+    """Implements the DETR transformer. Following the official DETR
+    implementation, this module copy-paste from torch.nn.Transformer with
+    modifications:
+
         * positional encodings are passed in MultiheadAttention
         * extra LN at the end of encoder is removed
         * decoder returns a stack of activations from all decoding layers
@@ -184,8 +147,8 @@ class CmtLidarTransformer(BaseModule):
                       [bs, embed_dims, h, w].
         """
         bs, c, h, w = x.shape
-        memory = rearrange(x, "bs c h w -> (h w) bs c") # [bs, n, c, h, w] -> [n*h*w, bs, c]
-        pos_embed = pos_embed.unsqueeze(1).repeat(1, bs, 1) # [bs, n, c, h, w] -> [n*h*w, bs, c]
+        memory = rearrange(x, 'bs c h w -> (h w) bs c')  # [bs, n, c, h, w] -> [n*h*w, bs, c]
+        pos_embed = pos_embed.unsqueeze(1).repeat(1, bs, 1)  # [bs, n, c, h, w] -> [n*h*w, bs, c]
         query_embed = query_embed.transpose(0, 1)  # [num_query, dim] -> [num_query, bs, dim]
         mask = mask.view(bs, -1)  # [bs, n, h, w] -> [bs, n*h*w]
         target = torch.zeros_like(query_embed)
@@ -199,16 +162,17 @@ class CmtLidarTransformer(BaseModule):
             key_padding_mask=mask,
             attn_masks=[attn_masks, None],
             reg_branch=reg_branch,
-            )
+        )
         out_dec = out_dec.transpose(1, 2)
-        return  out_dec, memory
+        return out_dec, memory
 
 
 @TRANSFORMER.register_module()
 class CmtImageTransformer(BaseModule):
-    """Implements the DETR transformer.
-    Following the official DETR implementation, this module copy-paste
-    from torch.nn.Transformer with modifications:
+    """Implements the DETR transformer. Following the official DETR
+    implementation, this module copy-paste from torch.nn.Transformer with
+    modifications:
+
         * positional encodings are passed in MultiheadAttention
         * extra LN at the end of encoder is removed
         * decoder returns a stack of activations from all decoding layers
@@ -260,11 +224,11 @@ class CmtImageTransformer(BaseModule):
                 - memory: Output results from encoder, with shape \
                       [bs, embed_dims, h, w].
         """
-        memory = rearrange(x_img, "(bs v) c h w -> (v h w) bs c", bs=bs)
-        pos_embed = rearrange(rv_pos_embed, "(bs v) h w c -> (v h w) bs c", bs=bs)
-        
+        memory = rearrange(x_img, '(bs v) c h w -> (v h w) bs c', bs=bs)
+        pos_embed = rearrange(rv_pos_embed, '(bs v) h w c -> (v h w) bs c', bs=bs)
+
         query_embed = query_embed.transpose(0, 1)  # [num_query, dim] -> [num_query, bs, dim]
-        mask =  memory.new_zeros(bs, memory.shape[0]) # [bs, n, h, w] -> [bs, n*h*w]
+        mask = memory.new_zeros(bs, memory.shape[0])  # [bs, n, h, w] -> [bs, n*h*w]
 
         target = torch.zeros_like(query_embed)
         # out_dec: [num_layers, num_query, bs, dim]
@@ -277,6 +241,6 @@ class CmtImageTransformer(BaseModule):
             key_padding_mask=mask,
             attn_masks=[attn_masks, None],
             reg_branch=reg_branch,
-            )
+        )
         out_dec = out_dec.transpose(1, 2)
-        return  out_dec, memory
+        return out_dec, memory

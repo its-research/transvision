@@ -1,40 +1,33 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
-import math
-import torch
-import torch.nn.functional as F
-from torch import nn
+from typing import Any, Dict, List, Optional
 
+import torch.nn.functional as F
 from mmcv.cnn import ConvModule
-from mmcv.runner import BaseModule, auto_fp16
+from mmcv.runner import BaseModule
 from mmdet.models.builder import NECKS
 
-from typing import List, Optional, Dict, Any
-
-
-__all__ = ["DetectronFPN"]
+__all__ = ['DetectronFPN']
 
 
 @NECKS.register_module()
 class DetectronFPN(BaseModule):
-    """
-    This module implements :paper:`FPN`.
+    """This module implements :paper:`FPN`.
+
     It creates pyramid features built on top of some input feature maps.
     """
 
     _fuse_type: str
 
-    def __init__(
-        self, 
-        in_indices: List[int], 
-        out_indices: List[int], 
-        in_channels: List[int],
-        out_channels: int, 
-        start_level: int,
-        conv_cfg: Optional[Dict[str, Any]] = dict(type="Conv2d"),
-        norm_cfg: Optional[Dict[str, Any]] = dict(type="BN2d"),
-        act_cfg: Optional[Dict[str, Any]] = None,
-        fuse_type: Optional[str] = "sum"
-    ):
+    def __init__(self,
+                 in_indices: List[int],
+                 out_indices: List[int],
+                 in_channels: List[int],
+                 out_channels: int,
+                 start_level: int,
+                 conv_cfg: Optional[Dict[str, Any]] = dict(type='Conv2d'),
+                 norm_cfg: Optional[Dict[str, Any]] = dict(type='BN2d'),
+                 act_cfg: Optional[Dict[str, Any]] = None,
+                 fuse_type: Optional[str] = 'sum'):
         """
         Args:
             bottom_up (Backbone): module representing the bottom up subnetwork.
@@ -67,27 +60,10 @@ class DetectronFPN(BaseModule):
         use_bias = norm_cfg is None
         stage = start_level
         for idx, in_channel in enumerate(in_channels):
-            lateral_conv = ConvModule(
-                in_channel, 
-                out_channels, 
-                kernel_size=1, 
-                bias=use_bias, 
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                act_cfg=act_cfg
-            )
-            output_conv = ConvModule(
-                out_channels,
-                out_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                act_cfg=act_cfg
-            )
-            self.add_module("fpn_lateral{}".format(stage), lateral_conv)
-            self.add_module("fpn_output{}".format(stage), output_conv)
+            lateral_conv = ConvModule(in_channel, out_channels, kernel_size=1, bias=use_bias, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
+            output_conv = ConvModule(out_channels, out_channels, kernel_size=3, stride=1, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
+            self.add_module('fpn_lateral{}'.format(stage), lateral_conv)
+            self.add_module('fpn_output{}'.format(stage), output_conv)
             stage += 1
 
             lateral_convs.append(lateral_conv)
@@ -98,9 +74,8 @@ class DetectronFPN(BaseModule):
         self.output_convs = output_convs[::-1]
         self.in_indices = tuple(in_indices)
         self.out_indices = tuple(out_indices)
-        assert fuse_type in {"avg", "sum"}
+        assert fuse_type in {'avg', 'sum'}
         self._fuse_type = fuse_type
-
 
     def forward(self, bottom_up_features):
         """
@@ -120,18 +95,16 @@ class DetectronFPN(BaseModule):
         results.append(self.output_convs[0](prev_features))
 
         # Reverse feature maps into top-down order (from low to high resolution)
-        for idx, (lateral_conv, output_conv) in enumerate(
-            zip(self.lateral_convs, self.output_convs)
-        ):
+        for idx, (lateral_conv, output_conv) in enumerate(zip(self.lateral_convs, self.output_convs)):
             # Slicing of ModuleList is not supported https://github.com/pytorch/pytorch/issues/47336
             # Therefore we loop over all modules but skip the first one
             if idx > 0:
                 features = self.in_indices[-idx - 1]
                 features = bottom_up_features[features]
-                top_down_features = F.interpolate(prev_features, scale_factor=2.0, mode="nearest")
+                top_down_features = F.interpolate(prev_features, scale_factor=2.0, mode='nearest')
                 lateral_features = lateral_conv(features)
                 prev_features = lateral_features + top_down_features
-                if self._fuse_type == "avg":
+                if self._fuse_type == 'avg':
                     prev_features /= 2
                 results.insert(0, output_conv(prev_features))
         return [results[x] for x in sorted(self.out_indices)]

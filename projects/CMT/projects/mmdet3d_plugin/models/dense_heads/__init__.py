@@ -1,8 +1,3 @@
-from .cmt_head import (
-    SeparateTaskHead,
-    CmtHead,
-    CmtImageHead,
-    CmtLidarHead
-)
+from .cmt_head import CmtHead, CmtImageHead, CmtLidarHead, SeparateTaskHead
 
 __all__ = ['SeparateTaskHead', 'CmtHead', 'CmtLidarHead', 'CmtImageHead']

@@ -1,15 +1,15 @@
 # Copyright (c) 2023 megvii-model. All Rights Reserved.
 
 import numpy as np
-from torch import nn
-from spconv.pytorch.utils import PointToVoxel  # spconv-cu111  2.1.21
 import torch
-import torch.nn.functional as F
+from spconv.pytorch.utils import PointToVoxel  # spconv-cu111  2.1.21
+from torch import nn
 from torch.nn.modules.utils import _pair
 
 
 class SPConvVoxelization(nn.Module):
-    def __init__(self, voxel_size, point_cloud_range, max_num_points, max_voxels, num_point_features, device=torch.device("cuda")):
+
+    def __init__(self, voxel_size, point_cloud_range, max_num_points, max_voxels, num_point_features, device=torch.device('cuda')):
         super().__init__()
         assert len(voxel_size) == 3
         assert len(point_cloud_range) == 6
@@ -59,7 +59,7 @@ class SPConvVoxelization(nn.Module):
         voxel_output = self.voxel_generator(points)
         voxels, coordinates, num_points = voxel_output
         return torch.clone(voxels), torch.clone(coordinates), torch.clone(num_points)
-    
+
     def __repr__(self):
         tmpstr = self.__class__.__name__ + '('
         tmpstr += 'voxel_size=' + str(self.voxel_size)

@@ -47,7 +47,7 @@ __global__ void generate_pts_mask_for_box3d(int boxes_num, int pts_num,
                                             int *pts_mask) {
   // params rois: (N, 7) [x, y, z, w, l, h, rz] in LiDAR coordinate
   // params pts: (npoints, 3) [x, y, z]
-  // params pts_mask: (N, npoints): -1 means point doesnot in this box,
+  // params pts_mask: (N, npoints): -1 means point doesn't in this box,
   // otherwise: encode (x_idxs, y_idxs, z_idxs) by binary bit
   int pt_idx = blockIdx.x * blockDim.x + threadIdx.x;
   int box_idx = blockIdx.y;

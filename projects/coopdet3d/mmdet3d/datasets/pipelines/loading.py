@@ -1,28 +1,25 @@
-import os
 from typing import Any, Dict, Tuple
 
+import matplotlib.pyplot as plt
 import mmcv
 import numpy as np
+from mmdet3d.core.points import BasePoints, get_points_type
+from mmdet.datasets.builder import PIPELINES
+from mmdet.datasets.pipelines import LoadAnnotations
 from nuscenes.map_expansion.map_api import NuScenesMap
 from nuscenes.map_expansion.map_api import locations as LOCATIONS
 from PIL import Image
 
-
-from mmdet3d.core.points import BasePoints, get_points_type
-from mmdet.datasets.builder import PIPELINES
-from mmdet.datasets.pipelines import LoadAnnotations
-
 from .loading_utils import load_augmented_point_cloud, reduce_LiDAR_beams
-
-import matplotlib.pyplot as plt
 
 plot_idx = 0
 
+
 def visualize_feature_lidar(points, path):
     global plot_idx
-    path = path + str(plot_idx) + ".png"
+    path = path + str(plot_idx) + '.png'
     plot_idx = plot_idx + 1
-    fig = plt.figure(figsize=(500,500))
+    fig = plt.figure(figsize=(500, 500))
 
     ax = plt.gca()
     ax.set_xlim((-250, 250))
@@ -34,18 +31,19 @@ def visualize_feature_lidar(points, path):
         points[:, 0],
         points[:, 1],
         s=15,
-        c="white",
+        c='white',
     )
 
     fig.savefig(
         path,
         dpi=10,
-        facecolor="black",
-        format="png",
-        bbox_inches="tight",
+        facecolor='black',
+        format='png',
+        bbox_inches='tight',
         pad_inches=0,
     )
     plt.close()
+
 
 @PIPELINES.register_module()
 class LoadMultiViewImageFromFiles:
@@ -59,7 +57,7 @@ class LoadMultiViewImageFromFiles:
         color_type (str): Color type of the file. Defaults to 'unchanged'.
     """
 
-    def __init__(self, to_float32=False, color_type="unchanged"):
+    def __init__(self, to_float32=False, color_type='unchanged'):
         self.to_float32 = to_float32
         self.color_type = color_type
 
@@ -81,36 +79,37 @@ class LoadMultiViewImageFromFiles:
                 - scale_factor (float): Scale factor.
                 - img_norm_cfg (dict): Normalization configuration of images.
         """
-        filename = results["image_paths"]
+        filename = results['image_paths']
         # img is of shape (h, w, c, num_views)
         # modified for waymo
         images = []
-        h, w = 0, 0
+        # h, w = 0, 0
         for name in filename:
             images.append(Image.open(name))
-        
-        #TODO: consider image padding in waymo
 
-        results["filename"] = filename
+        # TODO: consider image padding in waymo
+
+        results['filename'] = filename
         # unravel to list, see `DefaultFormatBundle` in formating.py
         # which will transpose each image separately and then stack into array
-        results["img"] = images
+        results['img'] = images
         # [1600, 900]
-        results["img_shape"] = images[0].size
-        results["ori_shape"] = images[0].size
+        results['img_shape'] = images[0].size
+        results['ori_shape'] = images[0].size
         # Set initial values for default meta_keys
-        results["pad_shape"] = images[0].size
-        results["scale_factor"] = 1.0
-        
+        results['pad_shape'] = images[0].size
+        results['scale_factor'] = 1.0
+
         return results
 
     def __repr__(self):
         """str: Return a string that describes the module."""
         repr_str = self.__class__.__name__
-        repr_str += f"(to_float32={self.to_float32}, "
+        repr_str += f'(to_float32={self.to_float32}, '
         repr_str += f"color_type='{self.color_type}')"
         return repr_str
-    
+
+
 @PIPELINES.register_module()
 class LoadMultiViewImageFromFilesCoop:
     """Load multi channel images from a list of separate channel files.
@@ -123,7 +122,7 @@ class LoadMultiViewImageFromFilesCoop:
         color_type (str): Color type of the file. Defaults to 'unchanged'.
     """
 
-    def __init__(self, to_float32=False, color_type="unchanged"):
+    def __init__(self, to_float32=False, color_type='unchanged'):
         self.to_float32 = to_float32
         self.color_type = color_type
 
@@ -145,43 +144,44 @@ class LoadMultiViewImageFromFilesCoop:
                 - scale_factor (float): Scale factor.
                 - img_norm_cfg (dict): Normalization configuration of images.
         """
-        vehicle_filename = results["vehicle_image_paths"]
-        infrastructure_filename = results["infrastructure_image_paths"]
+        vehicle_filename = results['vehicle_image_paths']
+        infrastructure_filename = results['infrastructure_image_paths']
         # img is of shape (h, w, c, num_views)
         # modified for waymo
         vehicle_images = []
         infrastructure_images = []
-        h, w = 0, 0
+        # h, w = 0, 0
         for vehicle_name in vehicle_filename:
             vehicle_images.append(Image.open(vehicle_name))
         for infrastructure_name in infrastructure_filename:
             infrastructure_images.append(Image.open(infrastructure_name))
-        
-        #TODO: consider image padding in waymo
 
-        results["vehicle_filename"] = vehicle_filename
-        results["infrastructure_filename"] = infrastructure_filename
+        # TODO: consider image padding in waymo
+
+        results['vehicle_filename'] = vehicle_filename
+        results['infrastructure_filename'] = infrastructure_filename
         # unravel to list, see `DefaultFormatBundle` in formating.py
         # which will transpose each image separately and then stack into array
-        results["vehicle_img"] = vehicle_images
-        results["infrastructure_img"] = infrastructure_images
+        results['vehicle_img'] = vehicle_images
+        results['infrastructure_img'] = infrastructure_images
         # [1600, 900]
-        results["vehicle_img_shape"] = vehicle_images[0].size
-        results["infrastructure_img_shape"] = infrastructure_images[0].size
-        results["vehicle_ori_shape"] = vehicle_images[0].size
-        results["infrastructure_ori_shape"] = infrastructure_images[0].size
+        results['vehicle_img_shape'] = vehicle_images[0].size
+        results['infrastructure_img_shape'] = infrastructure_images[0].size
+        results['vehicle_ori_shape'] = vehicle_images[0].size
+        results['infrastructure_ori_shape'] = infrastructure_images[0].size
         # Set initial values for default meta_keys
-        results["pad_shape"] = infrastructure_images[0].size
-        results["scale_factor"] = 1.0
-        
+        results['pad_shape'] = infrastructure_images[0].size
+        results['scale_factor'] = 1.0
+
         return results
 
     def __repr__(self):
         """str: Return a string that describes the module."""
         repr_str = self.__class__.__name__
-        repr_str += f"(to_float32={self.to_float32}, "
+        repr_str += f'(to_float32={self.to_float32}, '
         repr_str += f"color_type='{self.color_type}')"
         return repr_str
+
 
 @PIPELINES.register_module()
 class LoadPointsFromMultiSweeps:
@@ -235,12 +235,10 @@ class LoadPointsFromMultiSweeps:
         """
         mmcv.check_file_exist(lidar_path)
         if self.load_augmented:
-            assert self.load_augmented in ["pointpainting", "mvp"]
-            virtual = self.load_augmented == "mvp"
-            points = load_augmented_point_cloud(
-                lidar_path, virtual=virtual, reduce_beams=self.reduce_beams
-            )
-        elif lidar_path.endswith(".npy"):
+            assert self.load_augmented in ['pointpainting', 'mvp']
+            virtual = self.load_augmented == 'mvp'
+            points = load_augmented_point_cloud(lidar_path, virtual=virtual, reduce_beams=self.reduce_beams)
+        elif lidar_path.endswith('.npy'):
             points = np.load(lidar_path)
         else:
             points = np.fromfile(lidar_path, dtype=np.float32)
@@ -282,35 +280,31 @@ class LoadPointsFromMultiSweeps:
                 - points (np.ndarray | :obj:`BasePoints`): Multi-sweep point \
                     cloud arrays.
         """
-        points = results["points"]
+        points = results['points']
         points.tensor[:, 4] = 0
         sweep_points_list = [points]
-        ts = results["timestamp"] / 1e6
-        if self.pad_empty_sweeps and len(results["sweeps"]) == 0:
+        ts = results['timestamp'] / 1e6
+        if self.pad_empty_sweeps and len(results['sweeps']) == 0:
             for i in range(self.sweeps_num):
                 if self.remove_close:
                     sweep_points_list.append(self._remove_close(points))
                 else:
                     sweep_points_list.append(points)
         else:
-            if len(results["sweeps"]) <= self.sweeps_num:
-                choices = np.arange(len(results["sweeps"]))
+            if len(results['sweeps']) <= self.sweeps_num:
+                choices = np.arange(len(results['sweeps']))
             elif self.test_mode:
                 choices = np.arange(self.sweeps_num)
             else:
                 # NOTE: seems possible to load frame -11?
                 if not self.load_augmented:
-                    choices = np.random.choice(
-                        len(results["sweeps"]), self.sweeps_num, replace=False
-                    )
+                    choices = np.random.choice(len(results['sweeps']), self.sweeps_num, replace=False)
                 else:
                     # don't allow to sample the earliest frame, match with Tianwei's implementation.
-                    choices = np.random.choice(
-                        len(results["sweeps"]) - 1, self.sweeps_num, replace=False
-                    )
+                    choices = np.random.choice(len(results['sweeps']) - 1, self.sweeps_num, replace=False)
             for idx in choices:
-                sweep = results["sweeps"][idx]
-                points_sweep = self._load_points(sweep["data_path"])
+                sweep = results['sweeps'][idx]
+                points_sweep = self._load_points(sweep['data_path'])
                 points_sweep = np.copy(points_sweep).reshape(-1, self.load_dim)
 
                 # TODO: make it more general
@@ -319,24 +313,23 @@ class LoadPointsFromMultiSweeps:
 
                 if self.remove_close:
                     points_sweep = self._remove_close(points_sweep)
-                sweep_ts = sweep["timestamp"] / 1e6
-                points_sweep[:, :3] = (
-                    points_sweep[:, :3] @ sweep["sensor2lidar_rotation"].T
-                )
-                points_sweep[:, :3] += sweep["sensor2lidar_translation"]
+                sweep_ts = sweep['timestamp'] / 1e6
+                points_sweep[:, :3] = (points_sweep[:, :3] @ sweep['sensor2lidar_rotation'].T)
+                points_sweep[:, :3] += sweep['sensor2lidar_translation']
                 points_sweep[:, 4] = ts - sweep_ts
                 points_sweep = points.new_point(points_sweep)
                 sweep_points_list.append(points_sweep)
 
         points = points.cat(sweep_points_list)
         points = points[:, self.use_dim]
-        results["points"] = points
+        results['points'] = points
         return results
 
     def __repr__(self):
         """str: Return a string that describes the module."""
-        return f"{self.__class__.__name__}(sweeps_num={self.sweeps_num})"
-    
+        return f'{self.__class__.__name__}(sweeps_num={self.sweeps_num})'
+
+
 @PIPELINES.register_module()
 class LoadPointsFromMultiSweepsCoop:
     """Load points from multiple sweeps.
@@ -391,12 +384,10 @@ class LoadPointsFromMultiSweepsCoop:
         """
         mmcv.check_file_exist(lidar_path)
         if self.load_augmented:
-            assert self.load_augmented in ["pointpainting", "mvp"]
-            virtual = self.load_augmented == "mvp"
-            points = load_augmented_point_cloud(
-                lidar_path, virtual=virtual, reduce_beams=self.reduce_beams
-            )
-        elif lidar_path.endswith(".npy"):
+            assert self.load_augmented in ['pointpainting', 'mvp']
+            virtual = self.load_augmented == 'mvp'
+            points = load_augmented_point_cloud(lidar_path, virtual=virtual, reduce_beams=self.reduce_beams)
+        elif lidar_path.endswith('.npy'):
             points = np.load(lidar_path)
         else:
             points = np.fromfile(lidar_path, dtype=np.float32)
@@ -438,17 +429,17 @@ class LoadPointsFromMultiSweepsCoop:
                 - points (np.ndarray | :obj:`BasePoints`): Multi-sweep point \
                     cloud arrays.
         """
-        vehicle_points = results["vehicle_points"]
+        vehicle_points = results['vehicle_points']
         vehicle_points.tensor[:, 4] = 0
         vehicle_sweep_points_list = [vehicle_points]
-        vehicle_ts = results["timestamp"] / 1e6
+        vehicle_ts = results['timestamp'] / 1e6
 
-        infrastructure_points = results["infrastructure_points"]
+        infrastructure_points = results['infrastructure_points']
         infrastructure_points.tensor[:, 4] = 0
         infrastructure_sweep_points_list = [infrastructure_points]
-        infrastructure_ts = results["timestamp"] / 1e6
-        
-        if self.pad_empty_sweeps and len(results["vehicle_sweeps"]) == 0 and len(results["infrastructure_sweeps"]) == 0:
+        infrastructure_ts = results['timestamp'] / 1e6
+
+        if self.pad_empty_sweeps and len(results['vehicle_sweeps']) == 0 and len(results['infrastructure_sweeps']) == 0:
             for i in range(self.sweeps_num):
                 if self.remove_close:
                     vehicle_sweep_points_list.append(self._remove_close(vehicle_points))
@@ -457,32 +448,24 @@ class LoadPointsFromMultiSweepsCoop:
                     vehicle_sweep_points_list.append(vehicle_points)
                     infrastructure_sweep_points_list.append(infrastructure_points)
         else:
-            if len(results["vehicle_sweeps"]) <= self.sweeps_num and len(results["infrastructure_sweeps"]) <= self.sweeps_num:
-                vehicle_choices = np.arange(len(results["vehicle_sweeps"]))
-                infrastructure_choices = np.arange(len(results["infrastructure_sweeps"]))
+            if len(results['vehicle_sweeps']) <= self.sweeps_num and len(results['infrastructure_sweeps']) <= self.sweeps_num:
+                vehicle_choices = np.arange(len(results['vehicle_sweeps']))
+                infrastructure_choices = np.arange(len(results['infrastructure_sweeps']))
             elif self.test_mode:
                 vehicle_choices = np.arange(self.sweeps_num)
                 infrastructure_choices = np.arange(self.sweeps_num)
             else:
                 # NOTE: seems possible to load frame -11?
                 if not self.load_augmented:
-                    vehicle_choices = np.random.choice(
-                        len(results["vehicle_sweeps"]), self.sweeps_num, replace=False
-                    )
-                    infrastructure_choices = np.random.choice(
-                        len(results["infrastructure_sweeps"]), self.sweeps_num, replace=False
-                    )
+                    vehicle_choices = np.random.choice(len(results['vehicle_sweeps']), self.sweeps_num, replace=False)
+                    infrastructure_choices = np.random.choice(len(results['infrastructure_sweeps']), self.sweeps_num, replace=False)
                 else:
                     # don't allow to sample the earliest frame, match with Tianwei's implementation.
-                    vehicle_choices = np.random.choice(
-                        len(results["vehicle_sweeps"]) - 1, self.sweeps_num, replace=False
-                    )
-                    infrastructure_choices = np.random.choice(
-                        len(results["infrastructure_sweeps"]) - 1, self.sweeps_num, replace=False
-                    )
+                    vehicle_choices = np.random.choice(len(results['vehicle_sweeps']) - 1, self.sweeps_num, replace=False)
+                    infrastructure_choices = np.random.choice(len(results['infrastructure_sweeps']) - 1, self.sweeps_num, replace=False)
             for idx in vehicle_choices:
-                vehicle_sweep = results["vehicle_sweeps"][idx]
-                vehicle_points_sweep = self._load_points(vehicle_sweep["data_path"])
+                vehicle_sweep = results['vehicle_sweeps'][idx]
+                vehicle_points_sweep = self._load_points(vehicle_sweep['data_path'])
                 vehicle_points_sweep = np.copy(vehicle_points_sweep).reshape(-1, self.load_dim)
 
                 # TODO: make it more general
@@ -491,18 +474,16 @@ class LoadPointsFromMultiSweepsCoop:
 
                 if self.remove_close:
                     vehicle_points_sweep = self._remove_close(vehicle_points_sweep)
-                vehicle_sweep_ts = vehicle_sweep["timestamp"] / 1e6
-                vehicle_points_sweep[:, :3] = (
-                    vehicle_points_sweep[:, :3] @ vehicle_sweep["sensor2lidar_rotation"].T
-                )
-                vehicle_points_sweep[:, :3] += vehicle_sweep["sensor2lidar_translation"]
+                vehicle_sweep_ts = vehicle_sweep['timestamp'] / 1e6
+                vehicle_points_sweep[:, :3] = (vehicle_points_sweep[:, :3] @ vehicle_sweep['sensor2lidar_rotation'].T)
+                vehicle_points_sweep[:, :3] += vehicle_sweep['sensor2lidar_translation']
                 vehicle_points_sweep[:, 4] = vehicle_ts - vehicle_sweep_ts
                 vehicle_points_sweep = vehicle_points.new_point(vehicle_points_sweep)
                 vehicle_sweep_points_list.append(vehicle_points_sweep)
-            
+
             for idy in infrastructure_choices:
-                infrastructure_sweep = results["infrastructure_sweeps"][idy]
-                infrastructure_points_sweep = self._load_points(infrastructure_sweep["data_path"])
+                infrastructure_sweep = results['infrastructure_sweeps'][idy]
+                infrastructure_points_sweep = self._load_points(infrastructure_sweep['data_path'])
                 infrastructure_points_sweep = np.copy(infrastructure_points_sweep).reshape(-1, self.load_dim)
 
                 # TODO: make it more general
@@ -511,29 +492,28 @@ class LoadPointsFromMultiSweepsCoop:
 
                 if self.remove_close:
                     infrastructure_points_sweep = self._remove_close(infrastructure_points_sweep)
-                infrastructure_sweep_ts = infrastructure_sweep["timestamp"] / 1e6
-                infrastructure_points_sweep[:, :3] = (
-                    infrastructure_points_sweep[:, :3] @ infrastructure_sweep["sensor2lidar_rotation"].T
-                )
-                infrastructure_points_sweep[:, :3] += infrastructure_sweep["sensor2lidar_translation"]
+                infrastructure_sweep_ts = infrastructure_sweep['timestamp'] / 1e6
+                infrastructure_points_sweep[:, :3] = (infrastructure_points_sweep[:, :3] @ infrastructure_sweep['sensor2lidar_rotation'].T)
+                infrastructure_points_sweep[:, :3] += infrastructure_sweep['sensor2lidar_translation']
                 infrastructure_points_sweep[:, 4] = infrastructure_ts - infrastructure_sweep_ts
                 infrastructure_points_sweep = infrastructure_points.new_point(infrastructure_points_sweep)
                 infrastructure_sweep_points_list.append(infrastructure_points_sweep)
 
         vehicle_points = vehicle_points.cat(vehicle_sweep_points_list)
         vehicle_points = vehicle_points[:, self.use_dim]
-        results["vehicle_points"] = vehicle_points
+        results['vehicle_points'] = vehicle_points
         infrastructure_points = infrastructure_points.cat(infrastructure_sweep_points_list)
         infrastructure_points = infrastructure_points[:, self.use_dim]
-        results["infrastructure_points"] = infrastructure_points
+        results['infrastructure_points'] = infrastructure_points
 
-        #if not self.training:
+        # if not self.training:
         #    visualize_feature_lidar(vehicle_points, "/home/bevfusion/viz_tumtraf_featmap/features/lidar/vehicle/val_multisweep")
         return results
 
     def __repr__(self):
         """str: Return a string that describes the module."""
-        return f"{self.__class__.__name__}(sweeps_num={self.sweeps_num})"
+        return f'{self.__class__.__name__}(sweeps_num={self.sweeps_num})'
+
 
 @PIPELINES.register_module()
 class LoadPointsFromMultiSweepsCoopGT:
@@ -587,12 +567,10 @@ class LoadPointsFromMultiSweepsCoopGT:
         """
         mmcv.check_file_exist(lidar_path)
         if self.load_augmented:
-            assert self.load_augmented in ["pointpainting", "mvp"]
-            virtual = self.load_augmented == "mvp"
-            points = load_augmented_point_cloud(
-                lidar_path, virtual=virtual, reduce_beams=self.reduce_beams
-            )
-        elif lidar_path.endswith(".npy"):
+            assert self.load_augmented in ['pointpainting', 'mvp']
+            virtual = self.load_augmented == 'mvp'
+            points = load_augmented_point_cloud(lidar_path, virtual=virtual, reduce_beams=self.reduce_beams)
+        elif lidar_path.endswith('.npy'):
             points = np.load(lidar_path)
         else:
             points = np.fromfile(lidar_path, dtype=np.float32)
@@ -634,35 +612,31 @@ class LoadPointsFromMultiSweepsCoopGT:
                 - points (np.ndarray | :obj:`BasePoints`): Multi-sweep point \
                     cloud arrays.
         """
-        points = results["registered_points"]
+        points = results['registered_points']
         points.tensor[:, 4] = 0
         sweep_points_list = [points]
-        ts = results["timestamp"] / 1e6
-        if self.pad_empty_sweeps and len(results["registered_sweeps"]) == 0:
+        ts = results['timestamp'] / 1e6
+        if self.pad_empty_sweeps and len(results['registered_sweeps']) == 0:
             for i in range(self.sweeps_num):
                 if self.remove_close:
                     sweep_points_list.append(self._remove_close(points))
                 else:
                     sweep_points_list.append(points)
         else:
-            if len(results["registered_sweeps"]) <= self.sweeps_num:
-                choices = np.arange(len(results["registered_sweeps"]))
+            if len(results['registered_sweeps']) <= self.sweeps_num:
+                choices = np.arange(len(results['registered_sweeps']))
             elif self.test_mode:
                 choices = np.arange(self.sweeps_num)
             else:
                 # NOTE: seems possible to load frame -11?
                 if not self.load_augmented:
-                    choices = np.random.choice(
-                        len(results["registered_sweeps"]), self.sweeps_num, replace=False
-                    )
+                    choices = np.random.choice(len(results['registered_sweeps']), self.sweeps_num, replace=False)
                 else:
                     # don't allow to sample the earliest frame, match with Tianwei's implementation.
-                    choices = np.random.choice(
-                        len(results["registered_sweeps"]) - 1, self.sweeps_num, replace=False
-                    )
+                    choices = np.random.choice(len(results['registered_sweeps']) - 1, self.sweeps_num, replace=False)
             for idx in choices:
-                sweep = results["registered_sweeps"][idx]
-                points_sweep = self._load_points(sweep["data_path"])
+                sweep = results['registered_sweeps'][idx]
+                points_sweep = self._load_points(sweep['data_path'])
                 points_sweep = np.copy(points_sweep).reshape(-1, self.load_dim)
 
                 # TODO: make it more general
@@ -671,26 +645,26 @@ class LoadPointsFromMultiSweepsCoopGT:
 
                 if self.remove_close:
                     points_sweep = self._remove_close(points_sweep)
-                sweep_ts = sweep["timestamp"] / 1e6
-                points_sweep[:, :3] = (
-                    points_sweep[:, :3] @ sweep["sensor2lidar_rotation"].T
-                )
-                points_sweep[:, :3] += sweep["sensor2lidar_translation"]
+                sweep_ts = sweep['timestamp'] / 1e6
+                points_sweep[:, :3] = (points_sweep[:, :3] @ sweep['sensor2lidar_rotation'].T)
+                points_sweep[:, :3] += sweep['sensor2lidar_translation']
                 points_sweep[:, 4] = ts - sweep_ts
                 points_sweep = points.new_point(points_sweep)
                 sweep_points_list.append(points_sweep)
 
         points = points.cat(sweep_points_list)
         points = points[:, self.use_dim]
-        results["registered_points"] = points
+        results['registered_points'] = points
         return results
 
     def __repr__(self):
         """str: Return a string that describes the module."""
-        return f"{self.__class__.__name__}(sweeps_num={self.sweeps_num})"
+        return f'{self.__class__.__name__}(sweeps_num={self.sweeps_num})'
+
 
 @PIPELINES.register_module()
 class LoadBEVSegmentation:
+
     def __init__(
         self,
         dataset_root: str,
@@ -712,10 +686,10 @@ class LoadBEVSegmentation:
             self.maps[location] = NuScenesMap(dataset_root, location)
 
     def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        lidar2point = data["lidar_aug_matrix"]
+        lidar2point = data['lidar_aug_matrix']
         point2lidar = np.linalg.inv(lidar2point)
-        lidar2ego = data["lidar2ego"]
-        ego2global = data["ego2global"]
+        lidar2ego = data['lidar2ego']
+        ego2global = data['ego2global']
         lidar2global = ego2global @ lidar2ego @ point2lidar
 
         map_pose = lidar2global[:2, 3]
@@ -728,10 +702,10 @@ class LoadBEVSegmentation:
 
         mappings = {}
         for name in self.classes:
-            if name == "drivable_area*":
-                mappings[name] = ["road_segment", "lane"]
-            elif name == "divider":
-                mappings[name] = ["road_divider", "lane_divider"]
+            if name == 'drivable_area*':
+                mappings[name] = ['road_segment', 'lane']
+            elif name == 'divider':
+                mappings[name] = ['road_divider', 'lane_divider']
             else:
                 mappings[name] = [name]
 
@@ -740,7 +714,7 @@ class LoadBEVSegmentation:
             layer_names.extend(mappings[name])
         layer_names = list(set(layer_names))
 
-        location = data["location"]
+        location = data['location']
         masks = self.maps[location].get_map_mask(
             patch_box=patch_box,
             patch_angle=patch_angle,
@@ -758,7 +732,7 @@ class LoadBEVSegmentation:
                 index = layer_names.index(layer_name)
                 labels[k, masks[index]] = 1
 
-        data["gt_masks_bev"] = labels
+        data['gt_masks_bev'] = labels
         return data
 
 
@@ -797,10 +771,8 @@ class LoadPointsFromFile:
         self.use_color = use_color
         if isinstance(use_dim, int):
             use_dim = list(range(use_dim))
-        assert (
-            max(use_dim) < load_dim
-        ), f"Expect all used dimensions < {load_dim}, got {use_dim}"
-        assert coord_type in ["CAMERA", "LIDAR", "DEPTH"]
+        assert (max(use_dim) < load_dim), f'Expect all used dimensions < {load_dim}, got {use_dim}'
+        assert coord_type in ['CAMERA', 'LIDAR', 'DEPTH']
 
         self.coord_type = coord_type
         self.load_dim = load_dim
@@ -819,12 +791,10 @@ class LoadPointsFromFile:
         """
         mmcv.check_file_exist(lidar_path)
         if self.load_augmented:
-            assert self.load_augmented in ["pointpainting", "mvp"]
-            virtual = self.load_augmented == "mvp"
-            points = load_augmented_point_cloud(
-                lidar_path, virtual=virtual, reduce_beams=self.reduce_beams
-            )
-        elif lidar_path.endswith(".npy"):
+            assert self.load_augmented in ['pointpainting', 'mvp']
+            virtual = self.load_augmented == 'mvp'
+            points = load_augmented_point_cloud(lidar_path, virtual=virtual, reduce_beams=self.reduce_beams)
+        elif lidar_path.endswith('.npy'):
             points = np.load(lidar_path)
         else:
             points = np.fromfile(lidar_path, dtype=np.float32)
@@ -843,7 +813,7 @@ class LoadPointsFromFile:
 
                 - points (:obj:`BasePoints`): Point clouds data.
         """
-        lidar_path = results["lidar_path"]
+        lidar_path = results['lidar_path']
         points = self._load_points(lidar_path)
         points = points.reshape(-1, self.load_dim)
         # TODO: make it more general
@@ -855,32 +825,25 @@ class LoadPointsFromFile:
         if self.shift_height:
             floor_height = np.percentile(points[:, 2], 0.99)
             height = points[:, 2] - floor_height
-            points = np.concatenate(
-                [points[:, :3], np.expand_dims(height, 1), points[:, 3:]], 1
-            )
+            points = np.concatenate([points[:, :3], np.expand_dims(height, 1), points[:, 3:]], 1)
             attribute_dims = dict(height=3)
 
         if self.use_color:
             assert len(self.use_dim) >= 6
             if attribute_dims is None:
                 attribute_dims = dict()
-            attribute_dims.update(
-                dict(
-                    color=[
-                        points.shape[1] - 3,
-                        points.shape[1] - 2,
-                        points.shape[1] - 1,
-                    ]
-                )
-            )
+            attribute_dims.update(dict(color=[
+                points.shape[1] - 3,
+                points.shape[1] - 2,
+                points.shape[1] - 1,
+            ]))
 
         points_class = get_points_type(self.coord_type)
-        points = points_class(
-            points, points_dim=points.shape[-1], attribute_dims=attribute_dims
-        )
-        results["points"] = points
+        points = points_class(points, points_dim=points.shape[-1], attribute_dims=attribute_dims)
+        results['points'] = points
 
         return results
+
 
 @PIPELINES.register_module()
 class LoadPointsFromFileCoop:
@@ -918,10 +881,8 @@ class LoadPointsFromFileCoop:
         self.use_color = use_color
         if isinstance(use_dim, int):
             use_dim = list(range(use_dim))
-        assert (
-            max(use_dim) < load_dim
-        ), f"Expect all used dimensions < {load_dim}, got {use_dim}"
-        assert coord_type in ["CAMERA", "LIDAR", "DEPTH"]
+        assert (max(use_dim) < load_dim), f'Expect all used dimensions < {load_dim}, got {use_dim}'
+        assert coord_type in ['CAMERA', 'LIDAR', 'DEPTH']
 
         self.coord_type = coord_type
         self.load_dim = load_dim
@@ -941,12 +902,10 @@ class LoadPointsFromFileCoop:
         """
         mmcv.check_file_exist(lidar_path)
         if self.load_augmented:
-            assert self.load_augmented in ["pointpainting", "mvp"]
-            virtual = self.load_augmented == "mvp"
-            points = load_augmented_point_cloud(
-                lidar_path, virtual=virtual, reduce_beams=self.reduce_beams
-            )
-        elif lidar_path.endswith(".npy"):
+            assert self.load_augmented in ['pointpainting', 'mvp']
+            virtual = self.load_augmented == 'mvp'
+            points = load_augmented_point_cloud(lidar_path, virtual=virtual, reduce_beams=self.reduce_beams)
+        elif lidar_path.endswith('.npy'):
             points = np.load(lidar_path)
         else:
             points = np.fromfile(lidar_path, dtype=np.float32)
@@ -965,8 +924,8 @@ class LoadPointsFromFileCoop:
 
                 - points (:obj:`BasePoints`): Point clouds data.
         """
-        vehicle_lidar_path = results["vehicle_lidar_path"]
-        infrastructure_lidar_path = results["infrastructure_lidar_path"]
+        vehicle_lidar_path = results['vehicle_lidar_path']
+        infrastructure_lidar_path = results['infrastructure_lidar_path']
         vehicle_points = self._load_points(vehicle_lidar_path)
         infrastructure_points = self._load_points(infrastructure_lidar_path)
         vehicle_points = vehicle_points.reshape(-1, self.load_dim)
@@ -984,12 +943,8 @@ class LoadPointsFromFileCoop:
             infrastructure_floor_height = np.percentile(infrastructure_points[:, 2], 0.99)
             vehicle_height = vehicle_points[:, 2] - vehicle_floor_height
             infrastructure_height = infrastructure_points[:, 2] - infrastructure_floor_height
-            vehicle_points = np.concatenate(
-                [vehicle_points[:, :3], np.expand_dims(vehicle_height, 1), vehicle_points[:, 3:]], 1
-            )
-            infrastructure_points = np.concatenate(
-                [infrastructure_points[:, :3], np.expand_dims(infrastructure_height, 1), infrastructure_points[:, 3:]], 1
-            )
+            vehicle_points = np.concatenate([vehicle_points[:, :3], np.expand_dims(vehicle_height, 1), vehicle_points[:, 3:]], 1)
+            infrastructure_points = np.concatenate([infrastructure_points[:, :3], np.expand_dims(infrastructure_height, 1), infrastructure_points[:, 3:]], 1)
             attribute_dims = dict(vehicle_height=3, infrastructure_height=3)
 
         if self.use_color:
@@ -1007,25 +962,20 @@ class LoadPointsFromFileCoop:
                         infrastructure_points.shape[1] - 3,
                         infrastructure_points.shape[1] - 2,
                         infrastructure_points.shape[1] - 1,
-                    ]
-                )
-            )
+                    ]))
 
         points_class = get_points_type(self.coord_type)
-        vehicle_points = points_class(
-            vehicle_points, points_dim=vehicle_points.shape[-1], attribute_dims=attribute_dims
-        )
-        results["vehicle_points"] = vehicle_points
-        infrastructure_points = points_class(
-            infrastructure_points, points_dim=infrastructure_points.shape[-1], attribute_dims=attribute_dims
-        )
-        results["infrastructure_points"] = infrastructure_points
+        vehicle_points = points_class(vehicle_points, points_dim=vehicle_points.shape[-1], attribute_dims=attribute_dims)
+        results['vehicle_points'] = vehicle_points
+        infrastructure_points = points_class(infrastructure_points, points_dim=infrastructure_points.shape[-1], attribute_dims=attribute_dims)
+        results['infrastructure_points'] = infrastructure_points
 
-        #if not self.training:
+        # if not self.training:
         #    visualize_feature_lidar(vehicle_points, "/home/bevfusion/viz_tumtraf_featmap/features/lidar/vehicle/val_loadfromfile")
 
         return results
-    
+
+
 @PIPELINES.register_module()
 class LoadPointsFromFileCoopGT:
     """Load Points From File.
@@ -1061,10 +1011,8 @@ class LoadPointsFromFileCoopGT:
         self.use_color = use_color
         if isinstance(use_dim, int):
             use_dim = list(range(use_dim))
-        assert (
-            max(use_dim) < load_dim
-        ), f"Expect all used dimensions < {load_dim}, got {use_dim}"
-        assert coord_type in ["CAMERA", "LIDAR", "DEPTH"]
+        assert (max(use_dim) < load_dim), f'Expect all used dimensions < {load_dim}, got {use_dim}'
+        assert coord_type in ['CAMERA', 'LIDAR', 'DEPTH']
 
         self.coord_type = coord_type
         self.load_dim = load_dim
@@ -1083,12 +1031,10 @@ class LoadPointsFromFileCoopGT:
         """
         mmcv.check_file_exist(lidar_path)
         if self.load_augmented:
-            assert self.load_augmented in ["pointpainting", "mvp"]
-            virtual = self.load_augmented == "mvp"
-            points = load_augmented_point_cloud(
-                lidar_path, virtual=virtual, reduce_beams=self.reduce_beams
-            )
-        elif lidar_path.endswith(".npy"):
+            assert self.load_augmented in ['pointpainting', 'mvp']
+            virtual = self.load_augmented == 'mvp'
+            points = load_augmented_point_cloud(lidar_path, virtual=virtual, reduce_beams=self.reduce_beams)
+        elif lidar_path.endswith('.npy'):
             points = np.load(lidar_path)
         else:
             points = np.fromfile(lidar_path, dtype=np.float32)
@@ -1107,7 +1053,7 @@ class LoadPointsFromFileCoopGT:
 
                 - points (:obj:`BasePoints`): Point clouds data.
         """
-        lidar_path = results["registered_lidar_path"]
+        lidar_path = results['registered_lidar_path']
         points = self._load_points(lidar_path)
         points = points.reshape(-1, self.load_dim)
         # TODO: make it more general
@@ -1119,32 +1065,25 @@ class LoadPointsFromFileCoopGT:
         if self.shift_height:
             floor_height = np.percentile(points[:, 2], 0.99)
             height = points[:, 2] - floor_height
-            points = np.concatenate(
-                [points[:, :3], np.expand_dims(height, 1), points[:, 3:]], 1
-            )
+            points = np.concatenate([points[:, :3], np.expand_dims(height, 1), points[:, 3:]], 1)
             attribute_dims = dict(height=3)
 
         if self.use_color:
             assert len(self.use_dim) >= 6
             if attribute_dims is None:
                 attribute_dims = dict()
-            attribute_dims.update(
-                dict(
-                    color=[
-                        points.shape[1] - 3,
-                        points.shape[1] - 2,
-                        points.shape[1] - 1,
-                    ]
-                )
-            )
+            attribute_dims.update(dict(color=[
+                points.shape[1] - 3,
+                points.shape[1] - 2,
+                points.shape[1] - 1,
+            ]))
 
         points_class = get_points_type(self.coord_type)
-        points = points_class(
-            points, points_dim=points.shape[-1], attribute_dims=attribute_dims
-        )
-        results["registered_points"] = points
+        points = points_class(points, points_dim=points.shape[-1], attribute_dims=attribute_dims)
+        results['registered_points'] = points
 
         return results
+
 
 @PIPELINES.register_module()
 class LoadAnnotations3D(LoadAnnotations):
@@ -1207,8 +1146,8 @@ class LoadAnnotations3D(LoadAnnotations):
         Returns:
             dict: The dict containing loaded 3D bounding box annotations.
         """
-        results["gt_bboxes_3d"] = results["ann_info"]["gt_bboxes_3d"]
-        results["bbox3d_fields"].append("gt_bboxes_3d")
+        results['gt_bboxes_3d'] = results['ann_info']['gt_bboxes_3d']
+        results['bbox3d_fields'].append('gt_bboxes_3d')
         return results
 
     def _load_bboxes_depth(self, results):
@@ -1220,8 +1159,8 @@ class LoadAnnotations3D(LoadAnnotations):
         Returns:
             dict: The dict containing loaded 2.5D bounding box annotations.
         """
-        results["centers2d"] = results["ann_info"]["centers2d"]
-        results["depths"] = results["ann_info"]["depths"]
+        results['centers2d'] = results['ann_info']['centers2d']
+        results['depths'] = results['ann_info']['depths']
         return results
 
     def _load_labels_3d(self, results):
@@ -1233,7 +1172,7 @@ class LoadAnnotations3D(LoadAnnotations):
         Returns:
             dict: The dict containing loaded label annotations.
         """
-        results["gt_labels_3d"] = results["ann_info"]["gt_labels_3d"]
+        results['gt_labels_3d'] = results['ann_info']['gt_labels_3d']
         return results
 
     def _load_attr_labels(self, results):
@@ -1245,7 +1184,7 @@ class LoadAnnotations3D(LoadAnnotations):
         Returns:
             dict: The dict containing loaded label annotations.
         """
-        results["attr_labels"] = results["ann_info"]["attr_labels"]
+        results['attr_labels'] = results['ann_info']['attr_labels']
         return results
 
     def __call__(self, results):

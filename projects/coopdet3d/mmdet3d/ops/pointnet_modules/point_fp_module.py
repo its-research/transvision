@@ -1,10 +1,10 @@
+from typing import List
+
 import torch
 from mmcv.cnn import ConvModule
 from mmcv.runner import BaseModule, force_fp32
-from torch import nn as nn
-from typing import List
-
 from mmdet3d.ops import three_interpolate, three_nn
+from torch import nn as nn
 
 
 class PointFPModule(BaseModule):
@@ -18,19 +18,19 @@ class PointFPModule(BaseModule):
             Default: dict(type='BN2d').
     """
 
-    def __init__(self, mlp_channels: List[int], norm_cfg: dict = dict(type="BN2d"), init_cfg=None):
+    def __init__(self, mlp_channels: List[int], norm_cfg: dict = dict(type='BN2d'), init_cfg=None):
         super().__init__(init_cfg=init_cfg)
         self.fp16_enabled = False
         self.mlps = nn.Sequential()
         for i in range(len(mlp_channels) - 1):
             self.mlps.add_module(
-                f"layer{i}",
+                f'layer{i}',
                 ConvModule(
                     mlp_channels[i],
                     mlp_channels[i + 1],
                     kernel_size=(1, 1),
                     stride=(1, 1),
-                    conv_cfg=dict(type="Conv2d"),
+                    conv_cfg=dict(type='Conv2d'),
                     norm_cfg=norm_cfg,
                 ),
             )

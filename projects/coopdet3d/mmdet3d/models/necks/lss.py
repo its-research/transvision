@@ -1,16 +1,16 @@
 from typing import List, Tuple
 
 import torch
+from mmdet.models import NECKS
 from torch import nn
 from torch.nn import functional as F
 
-from mmdet.models import NECKS
-
-__all__ = ["LSSFPN"]
+__all__ = ['LSSFPN']
 
 
 @NECKS.register_module()
 class LSSFPN(nn.Module):
+
     def __init__(
         self,
         in_indices: Tuple[int, int],
@@ -36,7 +36,7 @@ class LSSFPN(nn.Module):
             self.upsample = nn.Sequential(
                 nn.Upsample(
                     scale_factor=scale_factor,
-                    mode="bilinear",
+                    mode='bilinear',
                     align_corners=True,
                 ),
                 nn.Conv2d(out_channels, out_channels, 3, padding=1, bias=False),
@@ -54,7 +54,7 @@ class LSSFPN(nn.Module):
         x1 = F.interpolate(
             x1,
             size=x2.shape[-2:],
-            mode="bilinear",
+            mode='bilinear',
             align_corners=True,
         )
         x = torch.cat([x1, x2], dim=1)

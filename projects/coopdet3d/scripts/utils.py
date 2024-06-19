@@ -1,5 +1,3 @@
-import uuid
-
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -7,110 +5,109 @@ IMAGE_WIDTH = 1920
 IMAGE_HEIGHT = 1200
 
 id_to_class_name_mapping = {
-    "0": {
-        "class_label_de": "PKW",
-        "class_label_en": "Car",
-        "color_hex": "#00ccf6",
-        "color_rgb": (0, 204, 246),
-        "color_rgb_normalized": (0, 0.8, 0.96),
+    '0': {
+        'class_label_de': 'PKW',
+        'class_label_en': 'Car',
+        'color_hex': '#00ccf6',
+        'color_rgb': (0, 204, 246),
+        'color_rgb_normalized': (0, 0.8, 0.96),
     },
-    "1": {
-        "class_label_de": "LKW",
-        "class_label_en": "Truck",
-        "color_hex": "#3FE9B9",
-        "color_rgb": (63, 233, 185),
-        "color_rgb_normalized": (0.25, 0.91, 0.72),
+    '1': {
+        'class_label_de': 'LKW',
+        'class_label_en': 'Truck',
+        'color_hex': '#3FE9B9',
+        'color_rgb': (63, 233, 185),
+        'color_rgb_normalized': (0.25, 0.91, 0.72),
     },
-    "2": {
-        "class_label_de": "Anhänger",
-        "class_label_en": "Trailer",
-        "color_hex": "#5AFF7E",
-        "color_rgb": (90, 255, 126),
-        "color_rgb_normalized": (0.35, 1, 0.49),
+    '2': {
+        'class_label_de': 'Anhänger',
+        'class_label_en': 'Trailer',
+        'color_hex': '#5AFF7E',
+        'color_rgb': (90, 255, 126),
+        'color_rgb_normalized': (0.35, 1, 0.49),
     },
-    "3": {
-        "class_label_de": "Van",
-        "class_label_en": "Van",
-        "color_hex": "#EBCF36",
-        "color_rgb": (235, 207, 54),
-        "color_rgb_normalized": (0.92, 0.81, 0.21),
+    '3': {
+        'class_label_de': 'Van',
+        'class_label_en': 'Van',
+        'color_hex': '#EBCF36',
+        'color_rgb': (235, 207, 54),
+        'color_rgb_normalized': (0.92, 0.81, 0.21),
     },
-    "4": {
-        "class_label_de": "Motorrad",
-        "class_label_en": "Motorcycle",
-        "color_hex": "#B9A454",
-        "color_rgb": (185, 164, 84),
-        "color_rgb_normalized": (0.72, 0.64, 0.33),
+    '4': {
+        'class_label_de': 'Motorrad',
+        'class_label_en': 'Motorcycle',
+        'color_hex': '#B9A454',
+        'color_rgb': (185, 164, 84),
+        'color_rgb_normalized': (0.72, 0.64, 0.33),
     },
-    "5": {
-        "class_label_de": "Bus",
-        "class_label_en": "Bus",
-        "color_hex": "#D98A86",
-        "color_rgb": (217, 138, 134),
-        "color_rgb_normalized": (0.85, 0.54, 0.52),
+    '5': {
+        'class_label_de': 'Bus',
+        'class_label_en': 'Bus',
+        'color_hex': '#D98A86',
+        'color_rgb': (217, 138, 134),
+        'color_rgb_normalized': (0.85, 0.54, 0.52),
     },
-    "6": {
-        "class_label_de": "Person",
-        "class_label_en": "Pedestrian",
-        "color_hex": "#E976F9",
-        "color_rgb": (233, 118, 249),
-        "color_rgb_normalized": (0.91, 0.46, 0.97),
+    '6': {
+        'class_label_de': 'Person',
+        'class_label_en': 'Pedestrian',
+        'color_hex': '#E976F9',
+        'color_rgb': (233, 118, 249),
+        'color_rgb_normalized': (0.91, 0.46, 0.97),
     },
-    "7": {
-        "class_label_de": "Fahrrad",
-        "class_label_en": "Bicycle",
-        "color_hex": "#B18CFF",
-        "color_rgb": (177, 140, 255),
-        "color_rgb_normalized": (0.69, 0.55, 1),
+    '7': {
+        'class_label_de': 'Fahrrad',
+        'class_label_en': 'Bicycle',
+        'color_hex': '#B18CFF',
+        'color_rgb': (177, 140, 255),
+        'color_rgb_normalized': (0.69, 0.55, 1),
     },
-    "8": {
-        "class_label_de": "Einsatzfahrzeug",
-        "class_label_en": "Emergency_Vehicle",
-        "color_hex": "#666bfa",
-        "color_rgb": (102, 107, 250),
-        "color_rgb_normalized": (0.4, 0.42, 0.98),
+    '8': {
+        'class_label_de': 'Einsatzfahrzeug',
+        'class_label_en': 'Emergency_Vehicle',
+        'color_hex': '#666bfa',
+        'color_rgb': (102, 107, 250),
+        'color_rgb_normalized': (0.4, 0.42, 0.98),
     },
-    "9": {
-        "class_label_de": "Unbekannt",
-        "class_label_en": "Other",
-        "color_hex": "#C7C7C7",
-        "color_rgb": (199, 199, 199),
-        "color_rgb_normalized": (0.78, 0.78, 0.78),
+    '9': {
+        'class_label_de': 'Unbekannt',
+        'class_label_en': 'Other',
+        'color_hex': '#C7C7C7',
+        'color_rgb': (199, 199, 199),
+        'color_rgb_normalized': (0.78, 0.78, 0.78),
     },
-    "10": {
-        "class_label_de": "Nummernschild",
-        "class_label_en": "License_Plate",
-        "color_hex": "#000000",
-        "color_rgb": (0, 0, 0),
-        "color_rgb_normalized": (0, 0, 0),
+    '10': {
+        'class_label_de': 'Nummernschild',
+        'class_label_en': 'License_Plate',
+        'color_hex': '#000000',
+        'color_rgb': (0, 0, 0),
+        'color_rgb_normalized': (0, 0, 0),
     },
 }
 
 class_name_to_id_mapping = {
-    "CAR": 0,
-    "TRUCK": 1,
-    "TRAILER": 2,
-    "VAN": 3,
-    "MOTORCYCLE": 4,
-    "BUS": 5,
-    "PEDESTRIAN": 6,
-    "BICYCLE": 7,
-    "EMERGENCY_VEHICLE": 8,
-    "OTHER": 9,
+    'CAR': 0,
+    'TRUCK': 1,
+    'TRAILER': 2,
+    'VAN': 3,
+    'MOTORCYCLE': 4,
+    'BUS': 5,
+    'PEDESTRIAN': 6,
+    'BICYCLE': 7,
+    'EMERGENCY_VEHICLE': 8,
+    'OTHER': 9,
 }
+
 
 def get_corners(cuboid):
     l = cuboid[7]
     w = cuboid[8]
     h = cuboid[9]
     # Create a bounding box outline
-    bounding_box = np.array(
-        [
-            [-l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2],
-            [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2],
-            [-h / 2, -h / 2, -h / 2, -h / 2, h / 2, h / 2, h / 2, h / 2],
-        ]
-    )
+    bounding_box = np.array([
+        [-l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2],
+        [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2],
+        [-h / 2, -h / 2, -h / 2, -h / 2, h / 2, h / 2, h / 2, h / 2],
+    ])
 
     translation = cuboid[:3]
     # Repeat the [x, y, z] eight times
@@ -136,9 +133,8 @@ def check_corners_within_image(corners):
 
 
 def get_2d_corner_points(cx, cy, length, width, yaw):
-    """
-    Find the coordinates of the rectangle with given center, length, width and angle of the longer side
-    """
+    """Find the coordinates of the rectangle with given center, length, width
+    and angle of the longer side."""
 
     mp1 = [cx + length / 2 * np.cos(yaw), cy + length / 2 * np.sin(yaw)]
     mp3 = [cx - length / 2 * np.cos(yaw), cy - length / 2 * np.sin(yaw)]

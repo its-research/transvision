@@ -1,5 +1,4 @@
 import torch
-
 from mmdet.core.bbox import BaseBBoxCoder
 from mmdet.core.bbox.builder import BBOX_CODERS
 
@@ -41,7 +40,7 @@ class DeltaXYZWLHRBBoxCoder(BaseBBoxCoder):
             xg, yg, zg, wg, lg, hg, rg = torch.split(dst_boxes, 1, dim=-1)
         za = za + ha / 2
         zg = zg + hg / 2
-        diagonal = torch.sqrt(la ** 2 + wa ** 2)
+        diagonal = torch.sqrt(la**2 + wa**2)
         xt = (xg - xa) / diagonal
         yt = (yg - ya) / diagonal
         zt = (zg - za) / ha
@@ -74,7 +73,7 @@ class DeltaXYZWLHRBBoxCoder(BaseBBoxCoder):
             xt, yt, zt, wt, lt, ht, rt = torch.split(deltas, 1, dim=-1)
 
         za = za + ha / 2
-        diagonal = torch.sqrt(la ** 2 + wa ** 2)
+        diagonal = torch.sqrt(la**2 + wa**2)
         xg = xt * diagonal + xa
         yg = yt * diagonal + ya
         zg = zt * ha + za

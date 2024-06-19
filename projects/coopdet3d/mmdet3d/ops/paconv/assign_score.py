@@ -22,7 +22,7 @@ class AssignScoreWithK(Function):
     """
 
     @staticmethod
-    def forward(ctx, scores, point_features, center_features, knn_idx, aggregate="sum"):
+    def forward(ctx, scores, point_features, center_features, knn_idx, aggregate='sum'):
         """Forward.
 
         Args:
@@ -43,7 +43,7 @@ class AssignScoreWithK(Function):
         Returns:
             torch.Tensor: (B, out_dim, npoint, K), the aggregated features.
         """
-        agg = {"sum": 0, "avg": 1, "max": 2}
+        agg = {'sum': 0, 'avg': 1, 'max': 2}
 
         B, N, M, out_dim = point_features.size()
         _, npoint, K, _ = scores.size()

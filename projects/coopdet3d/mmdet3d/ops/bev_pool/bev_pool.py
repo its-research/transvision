@@ -2,10 +2,11 @@ import torch
 
 from . import bev_pool_ext
 
-__all__ = ["bev_pool"]
+__all__ = ['bev_pool']
 
 
 class QuickCumsum(torch.autograd.Function):
+
     @staticmethod
     def forward(ctx, x, geom_feats, ranks):
         x = x.cumsum(0)
@@ -25,7 +26,7 @@ class QuickCumsum(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, gradx, gradgeom):
-        (kept,) = ctx.saved_tensors
+        (kept, ) = ctx.saved_tensors
         back = torch.cumsum(kept, 0)
         back[kept] -= 1
 
@@ -35,6 +36,7 @@ class QuickCumsum(torch.autograd.Function):
 
 
 class QuickCumsumCuda(torch.autograd.Function):
+
     @staticmethod
     def forward(ctx, x, geom_feats, ranks, B, D, H, W):
         kept = torch.ones(x.shape[0], device=x.device, dtype=torch.bool)
@@ -83,12 +85,7 @@ class QuickCumsumCuda(torch.autograd.Function):
 def bev_pool(feats, coords, B, D, H, W):
     assert feats.shape[0] == coords.shape[0]
 
-    ranks = (
-        coords[:, 0] * (W * D * B)
-        + coords[:, 1] * (D * B)
-        + coords[:, 2] * B
-        + coords[:, 3]
-    )
+    ranks = (coords[:, 0] * (W * D * B) + coords[:, 1] * (D * B) + coords[:, 2] * B + coords[:, 3])
     indices = ranks.argsort()
     feats, coords, ranks = feats[indices], coords[indices], ranks[indices]
 

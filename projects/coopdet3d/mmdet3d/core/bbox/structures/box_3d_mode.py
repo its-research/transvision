@@ -1,6 +1,7 @@
+from enum import IntEnum, unique
+
 import numpy as np
 import torch
-from enum import IntEnum, unique
 
 from .base_box3d import BaseInstance3DBoxes
 from .cam_box3d import CameraInstance3DBoxes
@@ -86,10 +87,8 @@ class Box3DMode(IntEnum):
         is_Instance3DBoxes = isinstance(box, BaseInstance3DBoxes)
         single_box = isinstance(box, (list, tuple))
         if single_box:
-            assert len(box) >= 7, (
-                "Box3DMode.convert takes either a k-tuple/list or "
-                "an Nxk array/tensor, where k >= 7"
-            )
+            assert len(box) >= 7, ('Box3DMode.convert takes either a k-tuple/list or '
+                                   'an Nxk array/tensor, where k >= 7')
             arr = torch.tensor(box)[None, :]
         else:
             # avoid modifying the input box
@@ -127,9 +126,8 @@ class Box3DMode(IntEnum):
                 rt_mat = arr.new_tensor([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
             xyz_size = torch.cat([y_size, x_size, z_size], dim=-1)
         else:
-            raise NotImplementedError(
-                f"Conversion from Box3DMode {src} to {dst} " "is not supported yet"
-            )
+            raise NotImplementedError(f'Conversion from Box3DMode {src} to {dst} '
+                                      'is not supported yet')
 
         if not isinstance(rt_mat, torch.Tensor):
             rt_mat = arr.new_tensor(rt_mat)
@@ -156,9 +154,8 @@ class Box3DMode(IntEnum):
             elif dst == Box3DMode.DEPTH:
                 target_type = DepthInstance3DBoxes
             else:
-                raise NotImplementedError(
-                    f"Conversion to {dst} through {original_type}" " is not supported yet"
-                )
+                raise NotImplementedError(f'Conversion to {dst} through {original_type}'
+                                          ' is not supported yet')
             return target_type(arr, box_dim=arr.size(-1), with_yaw=box.with_yaw)
         else:
             return arr

@@ -1,7 +1,8 @@
+from typing import Tuple
+
 import torch
 from torch import nn as nn
 from torch.autograd import Function
-from typing import Tuple
 
 from ..ball_query import ball_query
 from ..knn import knn
@@ -56,18 +57,17 @@ class QueryAndGroup(nn.Module):
         self.return_unique_cnt = return_unique_cnt
         self.return_grouped_idx = return_grouped_idx
         if self.return_unique_cnt:
-            assert self.uniform_sample, (
-                "uniform_sample should be True when " "returning the count of unique samples"
-            )
+            assert self.uniform_sample, ('uniform_sample should be True when '
+                                         'returning the count of unique samples')
         if self.max_radius is None:
-            assert not self.normalize_xyz, "can not normalize grouped xyz when max_radius is None"
+            assert not self.normalize_xyz, 'can not normalize grouped xyz when max_radius is None'
 
     def forward(self, points_xyz, center_xyz, features=None):
         """forward.
 
         Args:
             points_xyz (Tensor): (B, N, 3) xyz coordinates of the features.
-            center_xyz (Tensor): (B, npoint, 3) Centriods.
+            center_xyz (Tensor): (B, npoint, 3) Centroids.
             features (Tensor): (B, C, N) Descriptors of the features.
 
         Return：
@@ -79,9 +79,7 @@ class QueryAndGroup(nn.Module):
             idx = knn(self.sample_num, points_xyz, center_xyz, False)
             idx = idx.transpose(1, 2).contiguous()
         else:
-            idx = ball_query(
-                self.min_radius, self.max_radius, self.sample_num, points_xyz, center_xyz
-            )
+            idx = ball_query(self.min_radius, self.max_radius, self.sample_num, points_xyz, center_xyz)
 
         if self.uniform_sample:
             unique_cnt = torch.zeros((idx.shape[0], idx.shape[1]))
@@ -90,18 +88,14 @@ class QueryAndGroup(nn.Module):
                     unique_ind = torch.unique(idx[i_batch, i_region, :])
                     num_unique = unique_ind.shape[0]
                     unique_cnt[i_batch, i_region] = num_unique
-                    sample_ind = torch.randint(
-                        0, num_unique, (self.sample_num - num_unique,), dtype=torch.long
-                    )
+                    sample_ind = torch.randint(0, num_unique, (self.sample_num - num_unique, ), dtype=torch.long)
                     all_ind = torch.cat((unique_ind, unique_ind[sample_ind]))
                     idx[i_batch, i_region, :] = all_ind
 
         xyz_trans = points_xyz.transpose(1, 2).contiguous()
         # (B, 3, npoint, sample_num)
         grouped_xyz = grouping_operation(xyz_trans, idx)
-        grouped_xyz_diff = grouped_xyz - center_xyz.transpose(1, 2).unsqueeze(
-            -1
-        )  # relative offsets
+        grouped_xyz_diff = grouped_xyz - center_xyz.transpose(1, 2).unsqueeze(-1)  # relative offsets
         if self.normalize_xyz:
             grouped_xyz_diff /= self.max_radius
 
@@ -113,7 +107,7 @@ class QueryAndGroup(nn.Module):
             else:
                 new_features = grouped_features
         else:
-            assert self.use_xyz, "Cannot have not features and not use xyz as a feature!"
+            assert self.use_xyz, 'Cannot have not features and not use xyz as a feature!'
             new_features = grouped_xyz_diff
 
         ret = [new_features]
@@ -178,7 +172,7 @@ class GroupingOperation(Function):
 
         Args:
             features (Tensor): (B, C, N) tensor of features to group.
-            indices (Tensor): (B, npoint, nsample) the indicies of
+            indices (Tensor): (B, npoint, nsample) the indices of
                 features to group with.
 
         Returns:

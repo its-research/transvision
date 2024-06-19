@@ -21,16 +21,14 @@ class CameraPoints(BasePoints):
     """
 
     def __init__(self, tensor, points_dim=3, attribute_dims=None):
-        super(CameraPoints, self).__init__(
-            tensor, points_dim=points_dim, attribute_dims=attribute_dims
-        )
+        super(CameraPoints, self).__init__(tensor, points_dim=points_dim, attribute_dims=attribute_dims)
         self.rotation_axis = 1
 
-    def flip(self, bev_direction="horizontal"):
+    def flip(self, bev_direction='horizontal'):
         """Flip the boxes in BEV along given BEV direction."""
-        if bev_direction == "horizontal":
+        if bev_direction == 'horizontal':
             self.tensor[:, 0] = -self.tensor[:, 0]
-        elif bev_direction == "vertical":
+        elif bev_direction == 'vertical':
             self.tensor[:, 2] = -self.tensor[:, 2]
 
     def in_range_bev(self, point_range):
@@ -44,12 +42,7 @@ class CameraPoints(BasePoints):
             torch.Tensor: Indicating whether each point is inside \
                 the reference range.
         """
-        in_range_flags = (
-            (self.tensor[:, 0] > point_range[0])
-            & (self.tensor[:, 2] > point_range[1])
-            & (self.tensor[:, 0] < point_range[2])
-            & (self.tensor[:, 2] < point_range[3])
-        )
+        in_range_flags = ((self.tensor[:, 0] > point_range[0]) & (self.tensor[:, 2] > point_range[1]) & (self.tensor[:, 0] < point_range[2]) & (self.tensor[:, 2] < point_range[3]))
         return in_range_flags
 
     def convert_to(self, dst, rt_mat=None):

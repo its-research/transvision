@@ -1,7 +1,7 @@
 import numpy as np
 import torch
-
 from mmdet3d.core.points import BasePoints
+
 from .base_box3d import BaseInstance3DBoxes
 from .utils import limit_period, rotation_3d_in_axis
 
@@ -42,7 +42,7 @@ class CameraInstance3DBoxes(BaseInstance3DBoxes):
         if isinstance(tensor, torch.Tensor):
             device = tensor.device
         else:
-            device = torch.device("cpu")
+            device = torch.device('cpu')
         tensor = torch.as_tensor(tensor, dtype=torch.float32, device=device)
         if tensor.numel() == 0:
             # Use reshape, so we don't end up creating a new tensor that
@@ -122,9 +122,7 @@ class CameraInstance3DBoxes(BaseInstance3DBoxes):
         #  empty tensor currently.
         assert len(self.tensor) != 0
         dims = self.dims
-        corners_norm = torch.from_numpy(
-            np.stack(np.unravel_index(np.arange(8), [2] * 3), axis=1)
-        ).to(device=dims.device, dtype=dims.dtype)
+        corners_norm = torch.from_numpy(np.stack(np.unravel_index(np.arange(8), [2] * 3), axis=1)).to(device=dims.device, dtype=dims.dtype)
 
         corners_norm = corners_norm[[0, 1, 3, 2, 4, 5, 7, 6]]
         # use relative origin [0.5, 1, 0.5]
@@ -154,9 +152,7 @@ class CameraInstance3DBoxes(BaseInstance3DBoxes):
 
         # find the center of boxes
         conditions = (normed_rotations > np.pi / 4)[..., None]
-        bboxes_xywh = torch.where(
-            conditions, bev_rotated_boxes[:, [0, 1, 3, 2]], bev_rotated_boxes[:, :4]
-        )
+        bboxes_xywh = torch.where(conditions, bev_rotated_boxes[:, [0, 1, 3, 2]], bev_rotated_boxes[:, :4])
 
         centers = bboxes_xywh[:, :2]
         dims = bboxes_xywh[:, 2:]
@@ -180,16 +176,12 @@ class CameraInstance3DBoxes(BaseInstance3DBoxes):
         """
         if not isinstance(angle, torch.Tensor):
             angle = self.tensor.new_tensor(angle)
-        assert (
-            angle.shape == torch.Size([3, 3]) or angle.numel() == 1
-        ), f"invalid rotation angle shape {angle.shape}"
+        assert (angle.shape == torch.Size([3, 3]) or angle.numel() == 1), f'invalid rotation angle shape {angle.shape}'
 
         if angle.numel() == 1:
             rot_sin = torch.sin(angle)
             rot_cos = torch.cos(angle)
-            rot_mat_T = self.tensor.new_tensor(
-                [[rot_cos, 0, -rot_sin], [0, 1, 0], [rot_sin, 0, rot_cos]]
-            )
+            rot_mat_T = self.tensor.new_tensor([[rot_cos, 0, -rot_sin], [0, 1, 0], [rot_sin, 0, rot_cos]])
         else:
             rot_mat_T = angle
             rot_sin = rot_mat_T[2, 0]
@@ -212,7 +204,7 @@ class CameraInstance3DBoxes(BaseInstance3DBoxes):
                 raise ValueError
             return points, rot_mat_T
 
-    def flip(self, bev_direction="horizontal", points=None):
+    def flip(self, bev_direction='horizontal', points=None):
         """Flip the boxes in BEV along given BEV direction.
 
         In CAM coordinates, it flips the x (horizontal) or z (vertical) axis.
@@ -225,12 +217,12 @@ class CameraInstance3DBoxes(BaseInstance3DBoxes):
         Returns:
             torch.Tensor, numpy.ndarray or None: Flipped points.
         """
-        assert bev_direction in ("horizontal", "vertical")
-        if bev_direction == "horizontal":
+        assert bev_direction in ('horizontal', 'vertical')
+        if bev_direction == 'horizontal':
             self.tensor[:, 0::7] = -self.tensor[:, 0::7]
             if self.with_yaw:
                 self.tensor[:, 6] = -self.tensor[:, 6] + np.pi
-        elif bev_direction == "vertical":
+        elif bev_direction == 'vertical':
             self.tensor[:, 2::7] = -self.tensor[:, 2::7]
             if self.with_yaw:
                 self.tensor[:, 6] = -self.tensor[:, 6]
@@ -238,9 +230,9 @@ class CameraInstance3DBoxes(BaseInstance3DBoxes):
         if points is not None:
             assert isinstance(points, (torch.Tensor, np.ndarray, BasePoints))
             if isinstance(points, (torch.Tensor, np.ndarray)):
-                if bev_direction == "horizontal":
+                if bev_direction == 'horizontal':
                     points[:, 0] = -points[:, 0]
-                elif bev_direction == "vertical":
+                elif bev_direction == 'vertical':
                     points[:, 2] = -points[:, 2]
             elif isinstance(points, BasePoints):
                 points.flip(bev_direction)
@@ -262,16 +254,11 @@ class CameraInstance3DBoxes(BaseInstance3DBoxes):
             torch.Tensor: Indicating whether each box is inside \
                 the reference range.
         """
-        in_range_flags = (
-            (self.tensor[:, 0] > box_range[0])
-            & (self.tensor[:, 2] > box_range[1])
-            & (self.tensor[:, 0] < box_range[2])
-            & (self.tensor[:, 2] < box_range[3])
-        )
+        in_range_flags = ((self.tensor[:, 0] > box_range[0]) & (self.tensor[:, 2] > box_range[1]) & (self.tensor[:, 0] < box_range[2]) & (self.tensor[:, 2] < box_range[3]))
         return in_range_flags
 
     @classmethod
-    def height_overlaps(cls, boxes1, boxes2, mode="iou"):
+    def height_overlaps(cls, boxes1, boxes2, mode='iou'):
         """Calculate height overlaps of two boxes.
 
         This function calculates the height overlaps between ``boxes1`` and

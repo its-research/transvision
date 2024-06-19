@@ -1,7 +1,7 @@
 import numpy as np
 import torch
-
 from mmdet.core.bbox.builder import BBOX_CODERS
+
 from .partial_bin_based_bbox_coder import PartialBinBasedBBoxCoder
 
 
@@ -61,20 +61,20 @@ class AnchorFreeBBoxCoder(PartialBinBasedBBoxCoder):
         Returns:
             torch.Tensor: Decoded bbox3d with shape (batch, n, 7).
         """
-        center = bbox_out["center"]
+        center = bbox_out['center']
         batch_size, num_proposal = center.shape[:2]
 
         # decode heading angle
         if self.with_rot:
-            dir_class = torch.argmax(bbox_out["dir_class"], -1)
-            dir_res = torch.gather(bbox_out["dir_res"], 2, dir_class.unsqueeze(-1))
+            dir_class = torch.argmax(bbox_out['dir_class'], -1)
+            dir_res = torch.gather(bbox_out['dir_res'], 2, dir_class.unsqueeze(-1))
             dir_res.squeeze_(2)
             dir_angle = self.class2angle(dir_class, dir_res).reshape(batch_size, num_proposal, 1)
         else:
             dir_angle = center.new_zeros(batch_size, num_proposal, 1)
 
         # decode bbox size
-        bbox_size = torch.clamp(bbox_out["size"] * 2, min=0.1)
+        bbox_size = torch.clamp(bbox_out['size'] * 2, min=0.1)
 
         bbox3d = torch.cat([center, bbox_size, dir_angle], dim=-1)
         return bbox3d
@@ -91,7 +91,7 @@ class AnchorFreeBBoxCoder(PartialBinBasedBBoxCoder):
             dict[str, torch.Tensor]: Split results.
         """
         results = {}
-        results["obj_scores"] = cls_preds
+        results['obj_scores'] = cls_preds
 
         start, end = 0, 0
         reg_preds_trans = reg_preds.transpose(2, 1)
@@ -99,26 +99,26 @@ class AnchorFreeBBoxCoder(PartialBinBasedBBoxCoder):
         # decode center
         end += 3
         # (batch_size, num_proposal, 3)
-        results["center_offset"] = reg_preds_trans[..., start:end]
-        results["center"] = base_xyz.detach() + reg_preds_trans[..., start:end]
+        results['center_offset'] = reg_preds_trans[..., start:end]
+        results['center'] = base_xyz.detach() + reg_preds_trans[..., start:end]
         start = end
 
         # decode center
         end += 3
         # (batch_size, num_proposal, 3)
-        results["size"] = reg_preds_trans[..., start:end]
+        results['size'] = reg_preds_trans[..., start:end]
         start = end
 
         # decode direction
         end += self.num_dir_bins
-        results["dir_class"] = reg_preds_trans[..., start:end]
+        results['dir_class'] = reg_preds_trans[..., start:end]
         start = end
 
         end += self.num_dir_bins
         dir_res_norm = reg_preds_trans[..., start:end]
         start = end
 
-        results["dir_res_norm"] = dir_res_norm
-        results["dir_res"] = dir_res_norm * (2 * np.pi / self.num_dir_bins)
+        results['dir_res_norm'] = dir_res_norm
+        results['dir_res'] = dir_res_norm * (2 * np.pi / self.num_dir_bins)
 
         return results

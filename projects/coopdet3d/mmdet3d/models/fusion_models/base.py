@@ -5,7 +5,7 @@ import torch
 import torch.distributed as dist
 from mmcv.runner import BaseModule
 
-__all__ = ["Base3DFusionModel"]
+__all__ = ['Base3DFusionModel']
 
 
 class Base3DFusionModel(BaseModule, metaclass=ABCMeta):
@@ -20,7 +20,7 @@ class Base3DFusionModel(BaseModule, metaclass=ABCMeta):
 
         Args:
             losses (dict): Raw output of the network, which usually contain
-                losses and other necessary infomation.
+                losses and other necessary information.
 
         Returns:
             tuple[Tensor, dict]: (loss, log_vars), loss is the loss tensor \
@@ -34,11 +34,11 @@ class Base3DFusionModel(BaseModule, metaclass=ABCMeta):
             elif isinstance(loss_value, list):
                 log_vars[loss_name] = sum(_loss.mean() for _loss in loss_value)
             else:
-                raise TypeError(f"{loss_name} is not a tensor or list of tensors")
+                raise TypeError(f'{loss_name} is not a tensor or list of tensors')
 
-        loss = sum(_value for _key, _value in log_vars.items() if "loss" in _key)
+        loss = sum(_value for _key, _value in log_vars.items() if 'loss' in _key)
 
-        log_vars["loss"] = loss
+        log_vars['loss'] = loss
         for loss_name, loss_value in log_vars.items():
             # reduce loss when distributed training
             if dist.is_available() and dist.is_initialized():
@@ -78,20 +78,19 @@ class Base3DFusionModel(BaseModule, metaclass=ABCMeta):
         losses = self(**data)
         loss, log_vars = self._parse_losses(losses)
 
-        outputs = dict(loss=loss, log_vars=log_vars, num_samples=len(data["metas"]))
+        outputs = dict(loss=loss, log_vars=log_vars, num_samples=len(data['metas']))
 
         return outputs
 
     def val_step(self, data, optimizer):
         """The iteration step during validation.
 
-        This method shares the same signature as :func:`train_step`, but used
-        during val epochs. Note that the evaluation after training epochs is
-        not implemented with this method, but an evaluation hook.
+        This method shares the same signature as :func:`train_step`, but used during val epochs. Note that the evaluation after training epochs is not implemented with this method,
+        but an evaluation hook.
         """
         losses = self(**data)
         loss, log_vars = self._parse_losses(losses)
 
-        outputs = dict(loss=loss, log_vars=log_vars, num_samples=len(data["metas"]))
+        outputs = dict(loss=loss, log_vars=log_vars, num_samples=len(data['metas']))
 
         return outputs

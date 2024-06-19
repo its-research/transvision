@@ -1,13 +1,12 @@
-import torch
-import torch.nn as nn
-from mmdet.models.backbones.swin import WindowMSA, ShiftWindowMSA
-from mmdet3d.ops.spconv import SparseConv3d, SubMConv3d
-from mmdet3d.models.utils.transformer import MultiheadAttention
 from typing import Union
+
+import torch.nn as nn
+from mmdet3d.models.utils.transformer import MultiheadAttention
+from mmdet3d.ops.spconv import SparseConv3d, SubMConv3d
+from mmdet.models.backbones.swin import ShiftWindowMSA, WindowMSA
 from thop import profile
 
-
-__all__ = ["flops_counter"]
+__all__ = ['flops_counter']
 
 
 # TODO: no need to consider ShiftWindowMSA since it contains WindowMSA
@@ -36,7 +35,7 @@ def count_sparseconv(m: Union[SparseConv3d, SubMConv3d], x, y):
 
 
 def count_mha(m: Union[MultiheadAttention, nn.MultiheadAttention], x, y):
-    flops = 0 
+    flops = 0
     if len(x) == 3:
         q, k, v = x
     elif len(x) == 2:
@@ -81,11 +80,10 @@ def count_mha(m: Union[MultiheadAttention, nn.MultiheadAttention], x, y):
     flops += qlen * qdim
 
     # Initial projections
-    flops += (
-        (qlen * qdim * qdim)  # QW
-        + (klen * kdim * kdim)  # KW
-        + (vlen * vdim * vdim)  # VW
-    )
+    flops += ((qlen * qdim * qdim)  # QW
+              + (klen * kdim * kdim)  # KW
+              + (vlen * vdim * vdim)  # VW
+              )
 
     if m.in_proj_bias is not None:
         flops += (qlen + klen + vlen) * qdim
@@ -94,11 +92,10 @@ def count_mha(m: Union[MultiheadAttention, nn.MultiheadAttention], x, y):
     qk_head_dim = qdim // num_heads
     v_head_dim = vdim // num_heads
 
-    head_flops = (
-        (qlen * klen * qk_head_dim)  # QK^T
-        + (qlen * klen)  # softmax
-        + (qlen * klen * v_head_dim)  # AV
-    )
+    head_flops = ((qlen * klen * qk_head_dim)  # QK^T
+                  + (qlen * klen)  # softmax
+                  + (qlen * klen * v_head_dim)  # AV
+                  )
 
     flops += num_heads * head_flops
 
@@ -111,16 +108,15 @@ def count_mha(m: Union[MultiheadAttention, nn.MultiheadAttention], x, y):
 
 def flops_counter(model, inputs):
     macs, params = profile(
-        model, 
-        inputs, 
+        model,
+        inputs,
         custom_ops={
             WindowMSA: count_window_msa,
-            #ShiftWindowMSA: count_window_msa,
+            # ShiftWindowMSA: count_window_msa,
             SparseConv3d: count_sparseconv,
             SubMConv3d: count_sparseconv,
             MultiheadAttention: count_mha
         },
-        verbose=False
-    )
+        verbose=False)
 
     return macs, params

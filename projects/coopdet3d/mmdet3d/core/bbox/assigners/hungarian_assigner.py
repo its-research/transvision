@@ -1,17 +1,19 @@
-from mmdet.core.bbox.builder import BBOX_ASSIGNERS
+import torch
 from mmdet.core.bbox.assigners import AssignResult, BaseAssigner
+from mmdet.core.bbox.builder import BBOX_ASSIGNERS
+from mmdet.core.bbox.iou_calculators import build_iou_calculator
 from mmdet.core.bbox.match_costs import build_match_cost
 from mmdet.core.bbox.match_costs.builder import MATCH_COST
-from mmdet.core.bbox.iou_calculators import build_iou_calculator
-import torch
 
 try:
     from scipy.optimize import linear_sum_assignment
 except ImportError:
     linear_sum_assignment = None
 
+
 @MATCH_COST.register_module()
 class BBoxBEVL1Cost(object):
+
     def __init__(self, weight):
         self.weight = weight
 
@@ -27,20 +29,19 @@ class BBoxBEVL1Cost(object):
 
 @MATCH_COST.register_module()
 class IoU3DCost(object):
+
     def __init__(self, weight):
         self.weight = weight
 
     def __call__(self, iou):
-        iou_cost = - iou
+        iou_cost = -iou
         return iou_cost * self.weight
 
 
 @BBOX_ASSIGNERS.register_module()
 class HeuristicAssigner3D(BaseAssigner):
-    def __init__(self,
-                 dist_thre=100,
-                 iou_calculator=dict(type='BboxOverlaps3D')
-                 ):
+
+    def __init__(self, dist_thre=100, iou_calculator=dict(type='BboxOverlaps3D')):
         self.dist_thre = dist_thre  # distance in meter
         self.iou_calculator = build_iou_calculator(iou_calculator)
 
@@ -56,9 +57,15 @@ class HeuristicAssigner3D(BaseAssigner):
 
         # for each gt box, assign it to the nearest pred box
         nearest_values, nearest_indices = bev_dist.min(1)  # [num_gts]
-        assigned_gt_inds = torch.ones([num_bboxes, ]).to(bboxes) * 0
-        assigned_gt_vals = torch.ones([num_bboxes, ]).to(bboxes) * 10000
-        assigned_gt_labels = torch.ones([num_bboxes, ]).to(bboxes) * -1
+        assigned_gt_inds = torch.ones([
+            num_bboxes,
+        ]).to(bboxes) * 0
+        assigned_gt_vals = torch.ones([
+            num_bboxes,
+        ]).to(bboxes) * 10000
+        assigned_gt_labels = torch.ones([
+            num_bboxes,
+        ]).to(bboxes) * -1
         for idx_gts in range(num_gts):
             # for idx_pred in torch.where(bev_dist[idx_gts] < dist_thre)[0]: # each gt match to all the pred box within some radius
             idx_pred = nearest_indices[idx_gts]  # each gt only match to the nearest pred box
@@ -68,24 +75,24 @@ class HeuristicAssigner3D(BaseAssigner):
                     assigned_gt_inds[idx_pred] = idx_gts + 1  # for AssignResult, 0 is negative, -1 is ignore, 1-based indices are positive
                     assigned_gt_labels[idx_pred] = gt_labels[idx_gts]
 
-        max_overlaps = torch.zeros([num_bboxes, ]).to(bboxes)
+        max_overlaps = torch.zeros([
+            num_bboxes,
+        ]).to(bboxes)
         matched_indices = torch.where(assigned_gt_inds > 0)
         matched_iou = self.iou_calculator(gt_bboxes[assigned_gt_inds[matched_indices].long() - 1], bboxes[matched_indices]).diag()
         max_overlaps[matched_indices] = matched_iou
 
-        return AssignResult(
-            num_gts, assigned_gt_inds.long(), max_overlaps, labels=assigned_gt_labels
-        )
+        return AssignResult(num_gts, assigned_gt_inds.long(), max_overlaps, labels=assigned_gt_labels)
 
 
 @BBOX_ASSIGNERS.register_module()
 class HungarianAssigner3D(BaseAssigner):
+
     def __init__(self,
                  cls_cost=dict(type='ClassificationCost', weight=1.),
                  reg_cost=dict(type='BBoxBEVL1Cost', weight=1.0),
                  iou_cost=dict(type='IoU3DCost', weight=1.0),
-                 iou_calculator=dict(type='BboxOverlaps3D')
-                 ):
+                 iou_calculator=dict(type='BboxOverlaps3D')):
         self.cls_cost = build_match_cost(cls_cost)
         self.reg_cost = build_match_cost(reg_cost)
         self.iou_cost = build_match_cost(iou_cost)
@@ -95,19 +102,14 @@ class HungarianAssigner3D(BaseAssigner):
         num_gts, num_bboxes = gt_bboxes.size(0), bboxes.size(0)
 
         # 1. assign -1 by default
-        assigned_gt_inds = bboxes.new_full((num_bboxes,),
-                                           -1,
-                                           dtype=torch.long)
-        assigned_labels = bboxes.new_full((num_bboxes,),
-                                          -1,
-                                          dtype=torch.long)
+        assigned_gt_inds = bboxes.new_full((num_bboxes, ), -1, dtype=torch.long)
+        assigned_labels = bboxes.new_full((num_bboxes, ), -1, dtype=torch.long)
         if num_gts == 0 or num_bboxes == 0:
             # No ground truth or boxes, return empty assignment
             if num_gts == 0:
                 # No ground truth, assign all to background
                 assigned_gt_inds[:] = 0
-            return AssignResult(
-                num_gts, assigned_gt_inds, None, labels=assigned_labels)
+            return AssignResult(num_gts, assigned_gt_inds, None, labels=assigned_labels)
 
         # 2. compute the weighted costs
         # see mmdetection/mmdet/core/bbox/match_costs/match_cost.py
@@ -138,5 +140,4 @@ class HungarianAssigner3D(BaseAssigner):
         max_overlaps = torch.zeros_like(iou.max(1).values)
         max_overlaps[matched_row_inds] = iou[matched_row_inds, matched_col_inds]
         # max_overlaps = iou.max(1).values
-        return AssignResult(
-            num_gts, assigned_gt_inds, max_overlaps, labels=assigned_labels)
+        return AssignResult(num_gts, assigned_gt_inds, max_overlaps, labels=assigned_labels)

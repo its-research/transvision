@@ -4,14 +4,12 @@ import os
 import warnings
 
 import mmcv
+import mmdet
 import torch
 from mmcv import Config, DictAction
 from mmcv.cnn import fuse_conv_bn
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
-from mmcv.runner import (get_dist_info, init_dist, load_checkpoint,
-                         wrap_fp16_model)
-
-import mmdet
+from mmcv.runner import get_dist_info, init_dist, load_checkpoint, wrap_fp16_model
 from mmdet3d.apis import single_gpu_test
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
@@ -34,27 +32,18 @@ except ImportError:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description='MMDet test (and eval) a model')
+    parser = argparse.ArgumentParser(description='MMDet test (and eval) a model')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument('--out', help='output result file in pickle format')
     parser.add_argument(
-        '--fuse-conv-bn',
-        action='store_true',
-        help='Whether to fuse conv and bn, this will slightly increase'
+        '--fuse-conv-bn', action='store_true', help='Whether to fuse conv and bn, this will slightly increase'
         'the inference speed')
     parser.add_argument(
-        '--gpu-ids',
-        type=int,
-        nargs='+',
-        help='(Deprecated, please use --gpu-id) ids of gpus to use '
+        '--gpu-ids', type=int, nargs='+', help='(Deprecated, please use --gpu-id) ids of gpus to use '
         '(only applicable to non-distributed training)')
     parser.add_argument(
-        '--gpu-id',
-        type=int,
-        default=0,
-        help='id of gpu to use '
+        '--gpu-id', type=int, default=0, help='id of gpu to use '
         '(only applicable to non-distributed testing)')
     parser.add_argument(
         '--format-only',
@@ -63,27 +52,16 @@ def parse_args():
         'useful when you want to format the result to a specific format and '
         'submit it to the test server')
     parser.add_argument(
-        '--eval',
-        type=str,
-        nargs='+',
-        help='evaluation metrics, which depends on the dataset, e.g., "bbox",'
+        '--eval', type=str, nargs='+', help='evaluation metrics, which depends on the dataset, e.g., "bbox",'
         ' "segm", "proposal" for COCO, and "mAP", "recall" for PASCAL VOC')
     parser.add_argument('--show', action='store_true', help='show results')
+    parser.add_argument('--show-dir', help='directory where results will be saved')
+    parser.add_argument('--gpu-collect', action='store_true', help='whether to use gpu to collect results.')
     parser.add_argument(
-        '--show-dir', help='directory where results will be saved')
-    parser.add_argument(
-        '--gpu-collect',
-        action='store_true',
-        help='whether to use gpu to collect results.')
-    parser.add_argument(
-        '--tmpdir',
-        help='tmp directory used for collecting results from multiple '
+        '--tmpdir', help='tmp directory used for collecting results from multiple '
         'workers, available when gpu-collect is not specified')
     parser.add_argument('--seed', type=int, default=0, help='random seed')
-    parser.add_argument(
-        '--deterministic',
-        action='store_true',
-        help='whether to set deterministic options for CUDNN backend.')
+    parser.add_argument('--deterministic', action='store_true', help='whether to set deterministic options for CUDNN backend.')
     parser.add_argument(
         '--cfg-options',
         nargs='+',
@@ -107,20 +85,15 @@ def parse_args():
         action=DictAction,
         help='custom options for evaluation, the key-value pair in xxx=yyy '
         'format will be kwargs for dataset.evaluate() function')
-    parser.add_argument(
-        '--launcher',
-        choices=['none', 'pytorch', 'slurm', 'mpi'],
-        default='none',
-        help='job launcher')
+    parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='none', help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
 
     if args.options and args.eval_options:
-        raise ValueError(
-            '--options and --eval-options cannot be both specified, '
-            '--options is deprecated in favor of --eval-options')
+        raise ValueError('--options and --eval-options cannot be both specified, '
+                         '--options is deprecated in favor of --eval-options')
     if args.options:
         warnings.warn('--options is deprecated in favor of --eval-options')
         args.eval_options = args.options
@@ -173,7 +146,7 @@ def main():
                 for m in _module_dir[1:]:
                     _module_path = _module_path + '.' + m
                 print(_module_path)
-                plg_lib = importlib.import_module(_module_path)
+                plg_lib = importlib.import_module(_module_path)  # noqa F841
 
     cfg = compat_cfg(cfg)
 
@@ -202,16 +175,14 @@ def main():
         distributed = True
         init_dist(args.launcher, **cfg.dist_params)
 
-    test_dataloader_default_args = dict(
-        samples_per_gpu=1, workers_per_gpu=2, dist=distributed, shuffle=False)
+    test_dataloader_default_args = dict(samples_per_gpu=1, workers_per_gpu=2, dist=distributed, shuffle=False)
 
     # in case the test dataset is concatenated
     if isinstance(cfg.data.test, dict):
         cfg.data.test.test_mode = True
         if cfg.data.test_dataloader.get('samples_per_gpu', 1) > 1:
             # Replace 'ImageToTensor' to 'DefaultFormatBundle'
-            cfg.data.test.pipeline = replace_ImageToTensor(
-                cfg.data.test.pipeline)
+            cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
     elif isinstance(cfg.data.test, list):
         for ds_cfg in cfg.data.test:
             ds_cfg.test_mode = True
@@ -219,10 +190,7 @@ def main():
             for ds_cfg in cfg.data.test:
                 ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
 
-    test_loader_cfg = {
-        **test_dataloader_default_args,
-        **cfg.data.get('test_dataloader', {})
-    }
+    test_loader_cfg = {**test_dataloader_default_args, **cfg.data.get('test_dataloader', {})}
 
     # set random seeds
     if args.seed is not None:
@@ -258,12 +226,8 @@ def main():
         model = MMDataParallel(model, device_ids=cfg.gpu_ids)
         outputs = single_gpu_test(model, data_loader, args.show, args.show_dir)
     else:
-        model = MMDistributedDataParallel(
-            model.cuda(),
-            device_ids=[torch.cuda.current_device()],
-            broadcast_buffers=False)
-        outputs = multi_gpu_test(model, data_loader, args.tmpdir,
-                                 args.gpu_collect)
+        model = MMDistributedDataParallel(model.cuda(), device_ids=[torch.cuda.current_device()], broadcast_buffers=False)
+        outputs = multi_gpu_test(model, data_loader, args.tmpdir, args.gpu_collect)
 
     rank, _ = get_dist_info()
     if rank == 0:
@@ -276,10 +240,7 @@ def main():
         if args.eval:
             eval_kwargs = cfg.get('evaluation', {}).copy()
             # hard-code way to remove EvalHook args
-            for key in [
-                    'interval', 'tmpdir', 'start', 'gpu_collect', 'save_best',
-                    'rule'
-            ]:
+            for key in ['interval', 'tmpdir', 'start', 'gpu_collect', 'save_best', 'rule']:
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, **kwargs))
             print(dataset.evaluate(outputs, **eval_kwargs))

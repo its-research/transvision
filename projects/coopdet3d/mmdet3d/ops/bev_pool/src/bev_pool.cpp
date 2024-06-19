@@ -21,8 +21,8 @@ void bev_pool_grad(int b, int d, int h, int w, int n, int c, int n_intervals, co
 */
 at::Tensor bev_pool_forward(
   const at::Tensor _x,
-  const at::Tensor _geom_feats, 
-  const at::Tensor _interval_lengths, 
+  const at::Tensor _geom_feats,
+  const at::Tensor _interval_lengths,
   const at::Tensor _interval_starts,
   int b, int d, int h, int w
 ) {
@@ -34,7 +34,7 @@ at::Tensor bev_pool_forward(
   const int* geom_feats = _geom_feats.data_ptr<int>();
   const int* interval_lengths = _interval_lengths.data_ptr<int>();
   const int* interval_starts = _interval_starts.data_ptr<int>();
-  
+
   auto options =
       torch::TensorOptions().dtype(_x.dtype()).device(_x.device());
   at::Tensor _out = torch::zeros({b, d, h, w, c}, options);
@@ -59,8 +59,8 @@ at::Tensor bev_pool_forward(
 */
 at::Tensor bev_pool_backward(
   const at::Tensor _out_grad,
-  const at::Tensor _geom_feats, 
-  const at::Tensor _interval_lengths, 
+  const at::Tensor _geom_feats,
+  const at::Tensor _interval_lengths,
   const at::Tensor _interval_starts,
   int b, int d, int h, int w
 ) {
@@ -77,12 +77,12 @@ at::Tensor bev_pool_backward(
       torch::TensorOptions().dtype(_out_grad.dtype()).device(_out_grad.device());
   at::Tensor _x_grad = torch::zeros({n, c}, options);
   float* x_grad = _x_grad.data_ptr<float>();
-  
+
   bev_pool_grad(
     b, d, h, w, n, c, n_intervals, out_grad,
     geom_feats, interval_starts, interval_lengths, x_grad
   );
-  
+
   return _x_grad;
 }
 

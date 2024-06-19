@@ -9,15 +9,15 @@
 # ------------------------------------------------------------------------
 
 import numpy as np
-from mmdet.datasets import DATASETS
 from mmdet3d.datasets import NuScenesDataset
+from mmdet.datasets import DATASETS
 
 
 @DATASETS.register_module()
 class CustomNuScenesDataset(NuScenesDataset):
     r"""NuScenes Dataset.
 
-    This datset only add camera intrinsics and extrinsics to the results.
+    This dataset only add camera intrinsics and extrinsics to the results.
     """
 
     def __init__(self, *args, return_gt_info=False, **kwargs):
@@ -44,15 +44,14 @@ class CustomNuScenesDataset(NuScenesDataset):
                 - ann_info (dict): Annotation info.
         """
         info = self.data_infos[index]
-        # standard protocal modified from SECOND.Pytorch
+        # standard protocol modified from SECOND.Pytorch
         input_dict = dict(
             sample_idx=info['token'],
             pts_filename=info['lidar_path'],
             sweeps=info['sweeps'],
             timestamp=info['timestamp'] / 1e6,
             img_sweeps=None if 'img_sweeps' not in info else info['img_sweeps'],
-            radar_info=None if 'radars' not in info else info['radars']
-        )
+            radar_info=None if 'radars' not in info else info['radars'])
 
         if self.return_gt_info:
             input_dict['info'] = info
@@ -68,8 +67,7 @@ class CustomNuScenesDataset(NuScenesDataset):
                 image_paths.append(cam_info['data_path'])
                 # obtain lidar to image transformation matrix
                 lidar2cam_r = np.linalg.inv(cam_info['sensor2lidar_rotation'])
-                lidar2cam_t = cam_info[
-                    'sensor2lidar_translation'] @ lidar2cam_r.T
+                lidar2cam_t = cam_info['sensor2lidar_translation'] @ lidar2cam_r.T
                 lidar2cam_rt = np.eye(4)
                 lidar2cam_rt[:3, :3] = lidar2cam_r.T
                 lidar2cam_rt[3, :3] = -lidar2cam_t
@@ -82,14 +80,13 @@ class CustomNuScenesDataset(NuScenesDataset):
                 cam_intrinsics.append(viewpad)
                 lidar2cam_rts.append(lidar2cam_rt.T)
 
-            input_dict.update(
-                dict(
-                    img_timestamp=img_timestamp,
-                    img_filename=image_paths,
-                    lidar2img=lidar2img_rts,
-                    cam_intrinsic=cam_intrinsics,
-                    lidar2cam=lidar2cam_rts,
-                ))
+            input_dict.update(dict(
+                img_timestamp=img_timestamp,
+                img_filename=image_paths,
+                lidar2img=lidar2img_rts,
+                cam_intrinsic=cam_intrinsics,
+                lidar2cam=lidar2cam_rts,
+            ))
 
         if not self.test_mode:
             annos = self.get_ann_info(index)

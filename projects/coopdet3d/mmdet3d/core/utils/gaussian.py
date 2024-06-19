@@ -14,7 +14,7 @@ def gaussian_2d(shape, sigma=1):
         np.ndarray: Generated gaussian map.
     """
     m, n = [(ss - 1.0) / 2.0 for ss in shape]
-    y, x = np.ogrid[-m : m + 1, -n : n + 1]
+    y, x = np.ogrid[-m:m + 1, -n:n + 1]
 
     h = np.exp(-(x * x + y * y) / (2 * sigma * sigma))
     h[h < np.finfo(h.dtype).eps * h.max()] = 0
@@ -27,7 +27,7 @@ def draw_heatmap_gaussian(heatmap, center, radius, k=1):
     Args:
         heatmap (torch.Tensor): Heatmap to be masked.
         center (torch.Tensor): Center coord of the heatmap.
-        radius (int): Radius of gausian.
+        radius (int): Radius of gaussian.
         K (int): Multiple of masked_gaussian. Defaults to 1.
 
     Returns:
@@ -43,10 +43,8 @@ def draw_heatmap_gaussian(heatmap, center, radius, k=1):
     left, right = min(x, radius), min(width - x, radius + 1)
     top, bottom = min(y, radius), min(height - y, radius + 1)
 
-    masked_heatmap = heatmap[y - top : y + bottom, x - left : x + right]
-    masked_gaussian = torch.from_numpy(
-        gaussian[radius - top : radius + bottom, radius - left : radius + right]
-    ).to(heatmap.device, torch.float32)
+    masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
+    masked_gaussian = torch.from_numpy(gaussian[radius - top:radius + bottom, radius - left:radius + right]).to(heatmap.device, torch.float32)
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
         torch.max(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
     return heatmap

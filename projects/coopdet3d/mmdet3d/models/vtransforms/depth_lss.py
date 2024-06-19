@@ -2,17 +2,17 @@ from typing import Tuple
 
 import torch
 from mmcv.runner import force_fp32
-from torch import nn
-
 from mmdet3d.models.builder import VTRANSFORMS
+from torch import nn
 
 from .base import BaseDepthTransform, CoopBaseDepthTransform
 
-__all__ = ["DepthLSSTransform", "CoopDepthLSSTransform"]
+__all__ = ['DepthLSSTransform', 'CoopDepthLSSTransform']
 
 
 @VTRANSFORMS.register_module()
 class DepthLSSTransform(BaseDepthTransform):
+
     def __init__(
         self,
         in_channels: int,
@@ -89,8 +89,8 @@ class DepthLSSTransform(BaseDepthTransform):
         x = torch.cat([d, x], dim=1)
         x = self.depthnet(x)
 
-        depth = x[:, : self.D].softmax(dim=1)
-        x = depth.unsqueeze(1) * x[:, self.D : (self.D + self.C)].unsqueeze(2)
+        depth = x[:, :self.D].softmax(dim=1)
+        x = depth.unsqueeze(1) * x[:, self.D:(self.D + self.C)].unsqueeze(2)
 
         x = x.view(B, N, self.C, self.D, fH, fW)
         x = x.permute(0, 1, 3, 4, 5, 2)
@@ -100,9 +100,11 @@ class DepthLSSTransform(BaseDepthTransform):
         x = super().forward(*args, **kwargs)
         x = self.downsample(x)
         return x
-    
+
+
 @VTRANSFORMS.register_module()
 class CoopDepthLSSTransform(CoopBaseDepthTransform):
+
     def __init__(
         self,
         in_channels: int,
@@ -125,8 +127,7 @@ class CoopDepthLSSTransform(CoopBaseDepthTransform):
             ybound=ybound,
             zbound=zbound,
             dbound=dbound,
-            vehicle = vehicle
-        )
+            vehicle=vehicle)
         self.dtransform = nn.Sequential(
             nn.Conv2d(1, 8, 1),
             nn.BatchNorm2d(8),
@@ -181,8 +182,8 @@ class CoopDepthLSSTransform(CoopBaseDepthTransform):
         x = torch.cat([d, x], dim=1)
         x = self.depthnet(x)
 
-        depth = x[:, : self.D].softmax(dim=1)
-        x = depth.unsqueeze(1) * x[:, self.D : (self.D + self.C)].unsqueeze(2)
+        depth = x[:, :self.D].softmax(dim=1)
+        x = depth.unsqueeze(1) * x[:, self.D:(self.D + self.C)].unsqueeze(2)
 
         x = x.view(B, N, self.C, self.D, fH, fW)
         x = x.permute(0, 1, 3, 4, 5, 2)

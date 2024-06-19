@@ -2,17 +2,17 @@ import torch
 
 
 def calc_euclidian_dist(xyz1, xyz2):
-    """Calculate the Euclidian distance between two sets of points.
+    """Calculate the Euclidean distance between two sets of points.
 
     Args:
         xyz1 (torch.Tensor): (N, 3), the first set of points.
         xyz2 (torch.Tensor): (N, 3), the second set of points.
 
     Returns:
-        torch.Tensor: (N, ), the Euclidian distance between each point pair.
+        torch.Tensor: (N, ), the Euclidean distance between each point pair.
     """
-    assert xyz1.shape[0] == xyz2.shape[0], "number of points are not the same"
-    assert xyz1.shape[1] == xyz2.shape[1] == 3, "points coordinates dimension is not 3"
+    assert xyz1.shape[0] == xyz2.shape[0], 'number of points are not the same'
+    assert xyz1.shape[1] == xyz2.shape[1] == 3, 'points coordinates dimension is not 3'
     return torch.norm(xyz1 - xyz2, dim=-1)
 
 
@@ -63,12 +63,8 @@ def assign_kernel_withoutk(features, kernels, M):
     """
     B, in_dim, N = features.size()
     feat_trans = features.permute(0, 2, 1)  # [B, N, in_dim]
-    out_feat_half1 = torch.matmul(feat_trans, kernels[:in_dim]).view(
-        B, N, M, -1
-    )  # [B, N, M, out_dim]
-    out_feat_half2 = torch.matmul(feat_trans, kernels[in_dim:]).view(
-        B, N, M, -1
-    )  # [B, N, M, out_dim]
+    out_feat_half1 = torch.matmul(feat_trans, kernels[:in_dim]).view(B, N, M, -1)  # [B, N, M, out_dim]
+    out_feat_half2 = torch.matmul(feat_trans, kernels[in_dim:]).view(B, N, M, -1)  # [B, N, M, out_dim]
 
     # TODO: why this hard-coded if condition?
     # when the network input is only xyz without additional features
@@ -77,10 +73,9 @@ def assign_kernel_withoutk(features, kernels, M):
     # `point_features - center_features` will result in all zeros?
     if features.size(1) % 2 != 0:
         out_feat_half_coord = torch.matmul(
-            feat_trans[:, :, :3], kernels[in_dim : in_dim + 3]  # [B, N, 3]
-        ).view(
-            B, N, M, -1
-        )  # [B, N, M, out_dim]
+            feat_trans[:, :, :3],
+            kernels[in_dim:in_dim + 3]  # [B, N, 3]
+        ).view(B, N, M, -1)  # [B, N, M, out_dim]
     else:
         out_feat_half_coord = torch.zeros_like(out_feat_half2)
 

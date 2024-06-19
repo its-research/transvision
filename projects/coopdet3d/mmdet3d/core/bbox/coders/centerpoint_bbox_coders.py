@@ -1,5 +1,4 @@
 import torch
-
 from mmdet.core.bbox import BaseBBoxCoder
 from mmdet.core.bbox.builder import BBOX_CODERS
 
@@ -84,16 +83,12 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
         # topk_xs = (topk_inds % width).int().float()
 
         # original:
-        topk_xs = (
-            (topk_inds.float() / torch.tensor(width, dtype=torch.float)).int().float()
-        )
+        topk_xs = ((topk_inds.float() / torch.tensor(width, dtype=torch.float)).int().float())
         topk_ys = (topk_inds % width).int().float()
 
         topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), K)
         topk_clses = (topk_ind / torch.tensor(K, dtype=torch.float)).int()
-        topk_inds = self._gather_feat(topk_inds.view(batch, -1, 1), topk_ind).view(
-            batch, K
-        )
+        topk_inds = self._gather_feat(topk_inds.view(batch, -1, 1), topk_ind).view(batch, K)
         topk_ys = self._gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, K)
         topk_xs = self._gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, K)
 
@@ -172,14 +167,8 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
         clses = clses.view(batch, self.max_num).float()
         scores = scores.view(batch, self.max_num)
 
-        xs = (
-            xs.view(batch, self.max_num, 1) * self.out_size_factor * self.voxel_size[0]
-            + self.pc_range[0]
-        )
-        ys = (
-            ys.view(batch, self.max_num, 1) * self.out_size_factor * self.voxel_size[1]
-            + self.pc_range[1]
-        )
+        xs = (xs.view(batch, self.max_num, 1) * self.out_size_factor * self.voxel_size[0] + self.pc_range[0])
+        ys = (ys.view(batch, self.max_num, 1) * self.out_size_factor * self.voxel_size[1] + self.pc_range[1])
 
         if vel is None:  # KITTI FORMAT
             final_box_preds = torch.cat([xs, ys, hei, dim, rot], dim=2)
@@ -210,16 +199,14 @@ class CenterPointBBoxCoder(BaseBBoxCoder):
                 scores = final_scores[i, cmask]
                 labels = final_preds[i, cmask]
                 predictions_dict = {
-                    "bboxes": boxes3d,
-                    "scores": scores,
-                    "labels": labels,
+                    'bboxes': boxes3d,
+                    'scores': scores,
+                    'labels': labels,
                 }
 
                 predictions_dicts.append(predictions_dict)
         else:
-            raise NotImplementedError(
-                "Need to reorganize output as a batch, only "
-                "support post_center_range is not None for now!"
-            )
+            raise NotImplementedError('Need to reorganize output as a batch, only '
+                                      'support post_center_range is not None for now!')
 
         return predictions_dicts

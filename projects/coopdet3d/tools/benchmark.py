@@ -1,24 +1,26 @@
 import argparse
 import time
+
 import torch
 from mmcv import Config
 from mmcv.parallel import MMDataParallel
 from mmcv.runner import load_checkpoint, wrap_fp16_model
-
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_fusion_model
-from torchpack.utils.config import configs
 from mmdet3d.utils import recursive_eval
+from torchpack.utils.config import configs
+
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="MMDet benchmark a model")
-    parser.add_argument("config", help="test config file path")
-    parser.add_argument("checkpoint", help="checkpoint file")
-    parser.add_argument("--samples", default=2000, help="samples to benchmark")
-    parser.add_argument("--log-interval", default=50, help="interval of logging")
-    parser.add_argument("--fp16", action="store_true")
+    parser = argparse.ArgumentParser(description='MMDet benchmark a model')
+    parser.add_argument('config', help='test config file path')
+    parser.add_argument('checkpoint', help='checkpoint file')
+    parser.add_argument('--samples', default=2000, help='samples to benchmark')
+    parser.add_argument('--log-interval', default=50, help='interval of logging')
+    parser.add_argument('--fp16', action='store_true')
     args = parser.parse_args()
     return args
+
 
 def main():
     args = parse_args()
@@ -26,7 +28,7 @@ def main():
     configs.load(args.config, recursive=True)
     cfg = Config(recursive_eval(configs), filename=args.config)
     # set cudnn_benchmark
-    if cfg.get("cudnn_benchmark", False):
+    if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
     cfg.model.pretrained = None
     cfg.data.test.test_mode = True
@@ -44,10 +46,10 @@ def main():
 
     # build the model and load checkpoint
     cfg.model.train_cfg = None
-    model = build_fusion_model(cfg.model, test_cfg=cfg.get("test_cfg"))
+    model = build_fusion_model(cfg.model, test_cfg=cfg.get('test_cfg'))
     if args.fp16:
         wrap_fp16_model(model)
-    load_checkpoint(model, args.checkpoint, map_location="cpu")
+    load_checkpoint(model, args.checkpoint, map_location='cpu')
 
     model = MMDataParallel(model, device_ids=[0])
 
@@ -73,17 +75,15 @@ def main():
             pure_inf_time += elapsed
             if (i + 1) % int(args.log_interval) == 0:
                 fps = (i + 1 - num_warmup) / pure_inf_time
-                print(
-                    f"Done image [{i + 1:<3}/ {args.samples}], "
-                    f"fps: {fps:.1f} img / s"
-                )
+                print(f'Done image [{i + 1:<3}/ {args.samples}], '
+                      f'fps: {fps:.1f} img / s')
 
         if (i + 1) == args.samples:
             pure_inf_time += elapsed
             fps = (i + 1 - num_warmup) / pure_inf_time
-            print(f"Overall fps: {fps:.1f} img / s")
+            print(f'Overall fps: {fps:.1f} img / s')
             break
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

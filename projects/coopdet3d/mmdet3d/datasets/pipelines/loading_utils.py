@@ -3,32 +3,32 @@ import os
 import numpy as np
 import torch
 
-__all__ = ["load_augmented_point_cloud", "reduce_LiDAR_beams"]
+__all__ = ['load_augmented_point_cloud', 'reduce_LiDAR_beams']
 
 
 def load_augmented_point_cloud(path, virtual=False, reduce_beams=32):
     # NOTE: following Tianwei's implementation, it is hard coded for nuScenes
     points = np.fromfile(path, dtype=np.float32).reshape(-1, 5)
     # NOTE: path definition different from Tianwei's implementation.
-    tokens = path.split("/")
-    vp_dir = "_VIRTUAL" if reduce_beams == 32 else f"_VIRTUAL_{reduce_beams}BEAMS"
+    tokens = path.split('/')
+    vp_dir = '_VIRTUAL' if reduce_beams == 32 else f'_VIRTUAL_{reduce_beams}BEAMS'
     seg_path = os.path.join(
         *tokens[:-3],
-        "virtual_points",
+        'virtual_points',
         tokens[-3],
         tokens[-2] + vp_dir,
-        tokens[-1] + ".pkl.npy",
+        tokens[-1] + '.pkl.npy',
     )
     assert os.path.exists(seg_path)
     data_dict = np.load(seg_path, allow_pickle=True).item()
 
-    virtual_points1 = data_dict["real_points"]
+    virtual_points1 = data_dict['real_points']
     # NOTE: add zero reflectance to virtual points instead of removing them from real points
     virtual_points2 = np.concatenate(
         [
-            data_dict["virtual_points"][:, :3],
-            np.zeros([data_dict["virtual_points"].shape[0], 1]),
-            data_dict["virtual_points"][:, 3:],
+            data_dict['virtual_points'][:, :3],
+            np.zeros([data_dict['virtual_points'].shape[0], 1]),
+            data_dict['virtual_points'][:, 3:],
         ],
         axis=-1,
     )
@@ -40,16 +40,12 @@ def load_augmented_point_cloud(path, virtual=False, reduce_beams=32):
         ],
         axis=1,
     )
-    virtual_points1 = np.concatenate(
-        [virtual_points1, np.zeros([virtual_points1.shape[0], 1])], axis=1
-    )
+    virtual_points1 = np.concatenate([virtual_points1, np.zeros([virtual_points1.shape[0], 1])], axis=1)
     # note: this part is different from Tianwei's implementation, we don't have duplicate foreground real points.
-    if len(data_dict["real_points_indice"]) > 0:
-        points[data_dict["real_points_indice"]] = virtual_points1
+    if len(data_dict['real_points_indice']) > 0:
+        points[data_dict['real_points_indice']] = virtual_points1
     if virtual:
-        virtual_points2 = np.concatenate(
-            [virtual_points2, -1 * np.ones([virtual_points2.shape[0], 1])], axis=1
-        )
+        virtual_points2 = np.concatenate([virtual_points2, -1 * np.ones([virtual_points2.shape[0], 1])], axis=1)
         points = np.concatenate([points, virtual_points2], axis=0).astype(np.float32)
     return points
 
@@ -62,7 +58,7 @@ def reduce_LiDAR_beams(pts, reduce_beams_to=32):
     sine_theta = pts[:, 2] / radius
     # [-pi/2, pi/2]
     theta = torch.asin(sine_theta)
-    phi = torch.atan2(pts[:, 1], pts[:, 0])
+    # phi = torch.atan2(pts[:, 1], pts[:, 0])
 
     top_ang = 0.1862
     down_ang = -0.5353
@@ -80,28 +76,21 @@ def reduce_LiDAR_beams(pts, reduce_beams_to=32):
     mask = torch.zeros(num_pts)
     if reduce_beams_to == 16:
         for id in [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31]:
-            beam_mask = (theta < (beam_range[id - 1] - 0.012)) * (
-                theta > (beam_range[id] - 0.012)
-            )
+            beam_mask = (theta < (beam_range[id - 1] - 0.012)) * (theta > (beam_range[id] - 0.012))
             mask = mask + beam_mask
         mask = mask.bool()
     elif reduce_beams_to == 4:
         for id in [7, 9, 11, 13]:
-            beam_mask = (theta < (beam_range[id - 1] - 0.012)) * (
-                theta > (beam_range[id] - 0.012)
-            )
+            beam_mask = (theta < (beam_range[id - 1] - 0.012)) * (theta > (beam_range[id] - 0.012))
             mask = mask + beam_mask
         mask = mask.bool()
     # [?] pick the 14th beam
     elif reduce_beams_to == 1:
         chosen_beam_id = 9
-        mask = (theta < (beam_range[chosen_beam_id - 1] - 0.012)) * (
-            theta > (beam_range[chosen_beam_id] - 0.012)
-        )
+        mask = (theta < (beam_range[chosen_beam_id - 1] - 0.012)) * (theta > (beam_range[chosen_beam_id] - 0.012))
     else:
         raise NotImplementedError
     # points = copy.copy(pts)
     points = pts[mask]
     # print(points.size())
     return points.numpy()
-

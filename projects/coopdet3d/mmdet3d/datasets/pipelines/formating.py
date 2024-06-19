@@ -1,13 +1,11 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import numpy as np
+import torch
 from mmcv.parallel import DataContainer as DC
-
 from mmdet3d.core.bbox import BaseInstance3DBoxes
 from mmdet3d.core.points import BasePoints
 from mmdet.datasets.builder import PIPELINES
 from mmdet.datasets.pipelines import to_tensor
-
-import torch
 
 
 @PIPELINES.register_module()
@@ -48,67 +46,62 @@ class DefaultFormatBundle3D:
                 default bundle.
         """
         # Format 3D data
-        if "points" in results:
-            assert isinstance(results["points"], BasePoints)
-            results["points"] = DC(results["points"].tensor)
+        if 'points' in results:
+            assert isinstance(results['points'], BasePoints)
+            results['points'] = DC(results['points'].tensor)
 
-        for key in ["voxels", "coors", "voxel_centers", "num_points"]:
+        for key in ['voxels', 'coors', 'voxel_centers', 'num_points']:
             if key not in results:
                 continue
             results[key] = DC(to_tensor(results[key]), stack=False)
 
         if self.with_gt:
             # Clean GT bboxes in the final
-            if "gt_bboxes_3d_mask" in results:
-                gt_bboxes_3d_mask = results["gt_bboxes_3d_mask"]
-                results["gt_bboxes_3d"] = results["gt_bboxes_3d"][gt_bboxes_3d_mask]
-                if "gt_names_3d" in results:
-                    results["gt_names_3d"] = results["gt_names_3d"][gt_bboxes_3d_mask]
-                if "centers2d" in results:
-                    results["centers2d"] = results["centers2d"][gt_bboxes_3d_mask]
-                if "depths" in results:
-                    results["depths"] = results["depths"][gt_bboxes_3d_mask]
-            if "gt_bboxes_mask" in results:
-                gt_bboxes_mask = results["gt_bboxes_mask"]
-                if "gt_bboxes" in results:
-                    results["gt_bboxes"] = results["gt_bboxes"][gt_bboxes_mask]
-                results["gt_names"] = results["gt_names"][gt_bboxes_mask]
+            if 'gt_bboxes_3d_mask' in results:
+                gt_bboxes_3d_mask = results['gt_bboxes_3d_mask']
+                results['gt_bboxes_3d'] = results['gt_bboxes_3d'][gt_bboxes_3d_mask]
+                if 'gt_names_3d' in results:
+                    results['gt_names_3d'] = results['gt_names_3d'][gt_bboxes_3d_mask]
+                if 'centers2d' in results:
+                    results['centers2d'] = results['centers2d'][gt_bboxes_3d_mask]
+                if 'depths' in results:
+                    results['depths'] = results['depths'][gt_bboxes_3d_mask]
+            if 'gt_bboxes_mask' in results:
+                gt_bboxes_mask = results['gt_bboxes_mask']
+                if 'gt_bboxes' in results:
+                    results['gt_bboxes'] = results['gt_bboxes'][gt_bboxes_mask]
+                results['gt_names'] = results['gt_names'][gt_bboxes_mask]
             if self.with_label:
-                if "gt_names" in results and len(results["gt_names"]) == 0:
-                    results["gt_labels"] = np.array([], dtype=np.int64)
-                    results["attr_labels"] = np.array([], dtype=np.int64)
-                elif "gt_names" in results and isinstance(results["gt_names"][0], list):
+                if 'gt_names' in results and len(results['gt_names']) == 0:
+                    results['gt_labels'] = np.array([], dtype=np.int64)
+                    results['attr_labels'] = np.array([], dtype=np.int64)
+                elif 'gt_names' in results and isinstance(results['gt_names'][0], list):
                     # gt_labels might be a list of list in multi-view setting
-                    results["gt_labels"] = [
-                        np.array(
-                            [self.class_names.index(n) for n in res], dtype=np.int64
-                        )
-                        for res in results["gt_names"]
-                    ]
-                elif "gt_names" in results:
-                    results["gt_labels"] = np.array(
-                        [self.class_names.index(n) for n in results["gt_names"]],
+                    results['gt_labels'] = [np.array([self.class_names.index(n) for n in res], dtype=np.int64) for res in results['gt_names']]
+                elif 'gt_names' in results:
+                    results['gt_labels'] = np.array(
+                        [self.class_names.index(n) for n in results['gt_names']],
                         dtype=np.int64,
                     )
                 # we still assume one pipeline for one frame LiDAR
                 # thus, the 3D name is list[string]
-                if "gt_names_3d" in results:
-                    results["gt_labels_3d"] = np.array(
-                        [self.class_names.index(n) for n in results["gt_names_3d"]],
+                if 'gt_names_3d' in results:
+                    results['gt_labels_3d'] = np.array(
+                        [self.class_names.index(n) for n in results['gt_names_3d']],
                         dtype=np.int64,
                     )
-        if "img" in results:
-            results["img"] = DC(torch.stack(results["img"]), stack=True)
+        if 'img' in results:
+            results['img'] = DC(torch.stack(results['img']), stack=True)
 
         for key in [
-            "proposals",
-            "gt_bboxes",
-            "gt_bboxes_ignore",
-            "gt_labels",
-            "gt_labels_3d",
-            "attr_labels",
-            "centers2d",
-            "depths",
+                'proposals',
+                'gt_bboxes',
+                'gt_bboxes_ignore',
+                'gt_labels',
+                'gt_labels_3d',
+                'attr_labels',
+                'centers2d',
+                'depths',
         ]:
             if key not in results:
                 continue
@@ -116,12 +109,13 @@ class DefaultFormatBundle3D:
                 results[key] = DC([to_tensor(res) for res in results[key]])
             else:
                 results[key] = DC(to_tensor(results[key]))
-        if "gt_bboxes_3d" in results:
-            if isinstance(results["gt_bboxes_3d"], BaseInstance3DBoxes):
-                results["gt_bboxes_3d"] = DC(results["gt_bboxes_3d"], cpu_only=True)
+        if 'gt_bboxes_3d' in results:
+            if isinstance(results['gt_bboxes_3d'], BaseInstance3DBoxes):
+                results['gt_bboxes_3d'] = DC(results['gt_bboxes_3d'], cpu_only=True)
             else:
-                results["gt_bboxes_3d"] = DC(to_tensor(results["gt_bboxes_3d"]))
+                results['gt_bboxes_3d'] = DC(to_tensor(results['gt_bboxes_3d']))
         return results
+
 
 @PIPELINES.register_module()
 class DefaultFormatBundle3DCoop:
@@ -161,74 +155,69 @@ class DefaultFormatBundle3DCoop:
                 default bundle.
         """
         # Format 3D data
-        if "vehicle_points" in results:
-            assert isinstance(results["vehicle_points"], BasePoints)
-            results["vehicle_points"] = DC(results["vehicle_points"].tensor)
+        if 'vehicle_points' in results:
+            assert isinstance(results['vehicle_points'], BasePoints)
+            results['vehicle_points'] = DC(results['vehicle_points'].tensor)
 
-        if "infrastructure_points" in results:
-            assert isinstance(results["infrastructure_points"], BasePoints)
-            results["infrastructure_points"] = DC(results["infrastructure_points"].tensor)
+        if 'infrastructure_points' in results:
+            assert isinstance(results['infrastructure_points'], BasePoints)
+            results['infrastructure_points'] = DC(results['infrastructure_points'].tensor)
 
-        for key in ["voxels", "coors", "voxel_centers", "vehicle_num_points", "infrastructure_num_points"]:
+        for key in ['voxels', 'coors', 'voxel_centers', 'vehicle_num_points', 'infrastructure_num_points']:
             if key not in results:
                 continue
             results[key] = DC(to_tensor(results[key]), stack=False)
 
         if self.with_gt:
             # Clean GT bboxes in the final
-            if "gt_bboxes_3d_mask" in results:
-                gt_bboxes_3d_mask = results["gt_bboxes_3d_mask"]
-                results["gt_bboxes_3d"] = results["gt_bboxes_3d"][gt_bboxes_3d_mask]
-                if "gt_names_3d" in results:
-                    results["gt_names_3d"] = results["gt_names_3d"][gt_bboxes_3d_mask]
-                if "centers2d" in results:
-                    results["centers2d"] = results["centers2d"][gt_bboxes_3d_mask]
-                if "depths" in results:
-                    results["depths"] = results["depths"][gt_bboxes_3d_mask]
-            if "gt_bboxes_mask" in results:
-                gt_bboxes_mask = results["gt_bboxes_mask"]
-                if "gt_bboxes" in results:
-                    results["gt_bboxes"] = results["gt_bboxes"][gt_bboxes_mask]
-                results["gt_names"] = results["gt_names"][gt_bboxes_mask]
+            if 'gt_bboxes_3d_mask' in results:
+                gt_bboxes_3d_mask = results['gt_bboxes_3d_mask']
+                results['gt_bboxes_3d'] = results['gt_bboxes_3d'][gt_bboxes_3d_mask]
+                if 'gt_names_3d' in results:
+                    results['gt_names_3d'] = results['gt_names_3d'][gt_bboxes_3d_mask]
+                if 'centers2d' in results:
+                    results['centers2d'] = results['centers2d'][gt_bboxes_3d_mask]
+                if 'depths' in results:
+                    results['depths'] = results['depths'][gt_bboxes_3d_mask]
+            if 'gt_bboxes_mask' in results:
+                gt_bboxes_mask = results['gt_bboxes_mask']
+                if 'gt_bboxes' in results:
+                    results['gt_bboxes'] = results['gt_bboxes'][gt_bboxes_mask]
+                results['gt_names'] = results['gt_names'][gt_bboxes_mask]
             if self.with_label:
-                if "gt_names" in results and len(results["gt_names"]) == 0:
-                    results["gt_labels"] = np.array([], dtype=np.int64)
-                    results["attr_labels"] = np.array([], dtype=np.int64)
-                elif "gt_names" in results and isinstance(results["gt_names"][0], list):
+                if 'gt_names' in results and len(results['gt_names']) == 0:
+                    results['gt_labels'] = np.array([], dtype=np.int64)
+                    results['attr_labels'] = np.array([], dtype=np.int64)
+                elif 'gt_names' in results and isinstance(results['gt_names'][0], list):
                     # gt_labels might be a list of list in multi-view setting
-                    results["gt_labels"] = [
-                        np.array(
-                            [self.class_names.index(n) for n in res], dtype=np.int64
-                        )
-                        for res in results["gt_names"]
-                    ]
-                elif "gt_names" in results:
-                    results["gt_labels"] = np.array(
-                        [self.class_names.index(n) for n in results["gt_names"]],
+                    results['gt_labels'] = [np.array([self.class_names.index(n) for n in res], dtype=np.int64) for res in results['gt_names']]
+                elif 'gt_names' in results:
+                    results['gt_labels'] = np.array(
+                        [self.class_names.index(n) for n in results['gt_names']],
                         dtype=np.int64,
                     )
                 # we still assume one pipeline for one frame LiDAR
                 # thus, the 3D name is list[string]
-                if "gt_names_3d" in results:
-                    results["gt_labels_3d"] = np.array(
-                        [self.class_names.index(n) for n in results["gt_names_3d"]],
+                if 'gt_names_3d' in results:
+                    results['gt_labels_3d'] = np.array(
+                        [self.class_names.index(n) for n in results['gt_names_3d']],
                         dtype=np.int64,
                     )
-        if "vehicle_img" in results:
-            results["vehicle_img"] = DC(torch.stack(results["vehicle_img"]), stack=True)
-        
-        if "infrastructure_img" in results:
-            results["infrastructure_img"] = DC(torch.stack(results["infrastructure_img"]), stack=True)
+        if 'vehicle_img' in results:
+            results['vehicle_img'] = DC(torch.stack(results['vehicle_img']), stack=True)
+
+        if 'infrastructure_img' in results:
+            results['infrastructure_img'] = DC(torch.stack(results['infrastructure_img']), stack=True)
 
         for key in [
-            "proposals",
-            "gt_bboxes",
-            "gt_bboxes_ignore",
-            "gt_labels",
-            "gt_labels_3d",
-            "attr_labels",
-            "centers2d",
-            "depths",
+                'proposals',
+                'gt_bboxes',
+                'gt_bboxes_ignore',
+                'gt_labels',
+                'gt_labels_3d',
+                'attr_labels',
+                'centers2d',
+                'depths',
         ]:
             if key not in results:
                 continue
@@ -236,46 +225,48 @@ class DefaultFormatBundle3DCoop:
                 results[key] = DC([to_tensor(res) for res in results[key]])
             else:
                 results[key] = DC(to_tensor(results[key]))
-        if "gt_bboxes_3d" in results:
-            if isinstance(results["gt_bboxes_3d"], BaseInstance3DBoxes):
-                results["gt_bboxes_3d"] = DC(results["gt_bboxes_3d"], cpu_only=True)
+        if 'gt_bboxes_3d' in results:
+            if isinstance(results['gt_bboxes_3d'], BaseInstance3DBoxes):
+                results['gt_bboxes_3d'] = DC(results['gt_bboxes_3d'], cpu_only=True)
             else:
-                results["gt_bboxes_3d"] = DC(to_tensor(results["gt_bboxes_3d"]))
+                results['gt_bboxes_3d'] = DC(to_tensor(results['gt_bboxes_3d']))
         return results
+
 
 @PIPELINES.register_module()
 class Collect3D:
+
     def __init__(
         self,
         keys,
         meta_keys=(
-            "camera_intrinsics",
-            "camera2ego",
-            "img_aug_matrix",
-            "lidar_aug_matrix",
+            'camera_intrinsics',
+            'camera2ego',
+            'img_aug_matrix',
+            'lidar_aug_matrix',
         ),
         meta_lis_keys=(
-            "filename",
-            "timestamp",
-            "ori_shape",
-            "img_shape",
-            "lidar2image",
-            "depth2img",
-            "cam2img",
-            "pad_shape",
-            "scale_factor",
-            "flip",
-            "pcd_horizontal_flip",
-            "pcd_vertical_flip",
-            "box_mode_3d",
-            "box_type_3d",
-            "img_norm_cfg",
-            "pcd_trans",
-            "token",
-            "pcd_scale_factor",
-            "pcd_rotation",
-            "lidar_path",
-            "transformation_3d_flow",
+            'filename',
+            'timestamp',
+            'ori_shape',
+            'img_shape',
+            'lidar2image',
+            'depth2img',
+            'cam2img',
+            'pad_shape',
+            'scale_factor',
+            'flip',
+            'pcd_horizontal_flip',
+            'pcd_vertical_flip',
+            'box_mode_3d',
+            'box_type_3d',
+            'img_norm_cfg',
+            'pcd_trans',
+            'token',
+            'pcd_scale_factor',
+            'pcd_rotation',
+            'lidar_path',
+            'transformation_3d_flow',
         ),
     ):
         self.keys = keys
@@ -312,50 +303,52 @@ class Collect3D:
             if key in results:
                 metas[key] = results[key]
 
-        data["metas"] = DC(metas, cpu_only=True)
+        data['metas'] = DC(metas, cpu_only=True)
         return data
+
 
 @PIPELINES.register_module()
 class Collect3DCoop:
+
     def __init__(
         self,
         keys,
         meta_keys=(
-            "vehicle_camera_intrinsics",
-            "vehicle_img_aug_matrix",
-            "vehicle_lidar_aug_matrix",
-            "infrastructure_camera_intrinsics",
-            "infrastructure_img_aug_matrix",
-            "infrastructure_lidar_aug_matrix",
-            "vehicle2infrastructure",
+            'vehicle_camera_intrinsics',
+            'vehicle_img_aug_matrix',
+            'vehicle_lidar_aug_matrix',
+            'infrastructure_camera_intrinsics',
+            'infrastructure_img_aug_matrix',
+            'infrastructure_lidar_aug_matrix',
+            'vehicle2infrastructure',
         ),
         meta_lis_keys=(
-            "timestamp",
-            "vehicle_filename",
-            "vehicle_lidar_path",
-            "vehicle_ori_shape",
-            "vehicle_img_shape",
-            "vehicle_lidar2image",
-            "infrastructure_filename",
-            "infrastructure_lidar_path",
-            "infrastructure_ori_shape",
-            "infrastructure_img_shape",
-            "infrastructure_lidar2image",
-            "depth2img",
-            "cam2img",
-            "pad_shape",
-            "scale_factor",
-            "flip",
-            "pcd_horizontal_flip",
-            "pcd_vertical_flip",
-            "box_mode_3d",
-            "box_type_3d",
-            "img_norm_cfg",
-            "pcd_trans",
-            "token",
-            "pcd_scale_factor",
-            "pcd_rotation",
-            "transformation_3d_flow",
+            'timestamp',
+            'vehicle_filename',
+            'vehicle_lidar_path',
+            'vehicle_ori_shape',
+            'vehicle_img_shape',
+            'vehicle_lidar2image',
+            'infrastructure_filename',
+            'infrastructure_lidar_path',
+            'infrastructure_ori_shape',
+            'infrastructure_img_shape',
+            'infrastructure_lidar2image',
+            'depth2img',
+            'cam2img',
+            'pad_shape',
+            'scale_factor',
+            'flip',
+            'pcd_horizontal_flip',
+            'pcd_vertical_flip',
+            'box_mode_3d',
+            'box_type_3d',
+            'img_norm_cfg',
+            'pcd_trans',
+            'token',
+            'pcd_scale_factor',
+            'pcd_rotation',
+            'transformation_3d_flow',
         ),
     ):
         self.keys = keys
@@ -382,9 +375,9 @@ class Collect3DCoop:
         for key in self.meta_keys:
             if key in results:
                 val = np.array(results[key])
-                if isinstance(results[key], list) and key != "vehicle2infrastructure":
+                if isinstance(results[key], list) and key != 'vehicle2infrastructure':
                     data[key] = DC(to_tensor(val), stack=True)
-                elif isinstance(results[key], list) and key == "vehicle2infrastructure":
+                elif isinstance(results[key], list) and key == 'vehicle2infrastructure':
                     data[key] = DC(to_tensor(val.astype(np.float16)), stack=True, pad_dims=1)
                 else:
                     data[key] = DC(to_tensor(val), stack=True, pad_dims=1)
@@ -394,5 +387,5 @@ class Collect3DCoop:
             if key in results:
                 metas[key] = results[key]
 
-        data["metas"] = DC(metas, cpu_only=True)
+        data['metas'] = DC(metas, cpu_only=True)
         return data

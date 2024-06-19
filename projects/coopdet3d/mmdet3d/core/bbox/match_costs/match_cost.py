@@ -5,6 +5,7 @@ from mmdet.core.bbox.match_costs.builder import MATCH_COST
 @MATCH_COST.register_module()
 class BBox3DL1Cost:
     """BBox3DL1Cost.
+
     Args:
         weight (int | float, optional): loss_weight
     """

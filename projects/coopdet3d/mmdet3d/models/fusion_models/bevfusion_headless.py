@@ -1,22 +1,15 @@
 from typing import Any, Dict
 
+import matplotlib.pyplot as plt
 import torch
-from mmcv.runner import auto_fp16, force_fp32, BaseModule
+from mmcv.runner import BaseModule, auto_fp16, force_fp32
+from mmdet3d.models import FUSIONMODELS
+from mmdet3d.models.builder import build_backbone, build_fuser, build_neck, build_vtransform
+from mmdet3d.ops import DynamicScatter, Voxelization
 from torch import nn
 from torch.nn import functional as F
 
-from mmdet3d.models.builder import (
-    build_backbone,
-    build_fuser,
-    build_neck,
-    build_vtransform,
-)
-from mmdet3d.ops import Voxelization, DynamicScatter
-from mmdet3d.models import FUSIONMODELS
-
-import matplotlib.pyplot as plt
-
-__all__ = ["BEVFusionHeadless"]
+__all__ = ['BEVFusionHeadless']
 
 cam_plot_idx = 0
 v_lid_plot_idx = 0
@@ -25,11 +18,12 @@ lid_plot_idx = 0
 
 plot_idx = 0
 
+
 def visualize_feature_lidar(points, path):
     global plot_idx
-    path = path + str(plot_idx) + ".png"
+    path = path + str(plot_idx) + '.png'
     plot_idx = plot_idx + 1
-    fig = plt.figure(figsize=(500,500))
+    fig = plt.figure(figsize=(500, 500))
 
     ax = plt.gca()
     ax.set_xlim((-250, 250))
@@ -41,61 +35,67 @@ def visualize_feature_lidar(points, path):
         points[:, 0],
         points[:, 1],
         s=15,
-        c="white",
+        c='white',
     )
 
     fig.savefig(
         path,
         dpi=10,
-        facecolor="black",
-        format="png",
-        bbox_inches="tight",
+        facecolor='black',
+        format='png',
+        bbox_inches='tight',
         pad_inches=0,
     )
     plt.close()
+
 
 def visualize_feature_map_cam(feature):
     global cam_plot_idx
     cam_plot_idx += 1
     feature = feature.detach().cpu().squeeze(0)
-    feature = feature[0] #For when training
-    gray_scale = torch.sum(feature,0)
+    feature = feature[0]  # For when training
+    gray_scale = torch.sum(feature, 0)
     gray_scale = gray_scale / feature.shape[0]
     plt.imshow(gray_scale)
-    plt.savefig(str('/home/bevfusion/viz_tumtraf_featmap/features/camera/feature_map_cam_vehicle'+str(cam_plot_idx)+'.png'), bbox_inches='tight')
+    plt.savefig(str('/home/bevfusion/viz_tumtraf_featmap/features/camera/feature_map_cam_vehicle' + str(cam_plot_idx) + '.png'), bbox_inches='tight')
+
 
 def visualize_feature_map_lidar_vehicle(feature):
     global v_lid_plot_idx
     v_lid_plot_idx += 1
     feature = feature.detach().cpu().squeeze(0)
-    #feature = feature[0] #For when training
-    gray_scale = torch.sum(feature,0)
+    # feature = feature[0] # For when training
+    gray_scale = torch.sum(feature, 0)
     gray_scale = gray_scale / feature.shape[0]
     plt.imshow(gray_scale)
-    plt.savefig(str('/home/bevfusion/viz_tumtraf_featmap/features/lidar/vehicle/feature_map_lidonly_'+str(v_lid_plot_idx)+'.png'), bbox_inches='tight')
+    plt.savefig(str('/home/bevfusion/viz_tumtraf_featmap/features/lidar/vehicle/feature_map_lidonly_' + str(v_lid_plot_idx) + '.png'), bbox_inches='tight')
+
 
 def visualize_feature_map_lidar_infra(feature):
     global i_lid_plot_idx
     i_lid_plot_idx += 1
     feature = feature.detach().cpu().squeeze(0)
-    #feature = feature[0] #For when training
-    gray_scale = torch.sum(feature,0)
+    # feature = feature[0] # For when training
+    gray_scale = torch.sum(feature, 0)
     gray_scale = gray_scale / feature.shape[0]
     plt.imshow(gray_scale)
-    plt.savefig(str('/home/bevfusion/viz_tumtraf_featmap/features/lidar/infra/feature_map_'+str(i_lid_plot_idx)+'.png'), bbox_inches='tight')
+    plt.savefig(str('/home/bevfusion/viz_tumtraf_featmap/features/lidar/infra/feature_map_' + str(i_lid_plot_idx) + '.png'), bbox_inches='tight')
+
 
 def visualize_feature_map_lidar_fused(feature):
     global lid_plot_idx
     lid_plot_idx += 1
     feature = feature.detach().cpu().squeeze(0)
-    #feature = feature[0] #For when training
-    gray_scale = torch.sum(feature,0)
+    # feature = feature[0] # For when training
+    gray_scale = torch.sum(feature, 0)
     gray_scale = gray_scale / feature.shape[0]
     plt.imshow(gray_scale)
-    plt.savefig(str('/home/bevfusion/viz_tumtraf_featmap/features/lidar/fused/feature_map_fused_'+str(lid_plot_idx)+'.png'), bbox_inches='tight')
+    plt.savefig(str('/home/bevfusion/viz_tumtraf_featmap/features/lidar/fused/feature_map_fused_' + str(lid_plot_idx) + '.png'), bbox_inches='tight')
+
 
 @FUSIONMODELS.register_module()
 class BEVFusionHeadless(BaseModule):
+
     def __init__(
         self,
         encoders: Dict[str, Any],
@@ -105,43 +105,38 @@ class BEVFusionHeadless(BaseModule):
         super().__init__()
 
         self.encoders = nn.ModuleDict()
-        if encoders.get("lidar") is not None:
-            if encoders["lidar"]["voxelize"].get("max_num_points", -1) > 0:
-                print("USING VOXELIZE")
-                voxelize_module = Voxelization(**encoders["lidar"]["voxelize"])
+        if encoders.get('lidar') is not None:
+            if encoders['lidar']['voxelize'].get('max_num_points', -1) > 0:
+                print('USING VOXELIZE')
+                voxelize_module = Voxelization(**encoders['lidar']['voxelize'])
             else:
                 # DynamicScatter is currently not working
-                print("USING DYNAMICSCATTER")
-                voxelize_module = DynamicScatter(**encoders["lidar"]["voxelize"])
-            self.encoders["lidar"] = nn.ModuleDict(
-                {
-                    "voxelize": voxelize_module,
-                    "backbone": build_backbone(encoders["lidar"]["backbone"]),
-                }
-            )
-            self.voxelize_reduce = encoders["lidar"].get("voxelize_reduce", True)
-        
-        if encoders.get("camera") is not None:
-            self.encoders["camera"] = nn.ModuleDict(
-                {
-                    "backbone": build_backbone(encoders["camera"]["backbone"]),
-                    "neck": build_neck(encoders["camera"]["neck"]),
-                    "vtransform": build_vtransform(encoders["camera"]["vtransform"]),
-                }
-            )
+                print('USING DYNAMICSCATTER')
+                voxelize_module = DynamicScatter(**encoders['lidar']['voxelize'])
+            self.encoders['lidar'] = nn.ModuleDict({
+                'voxelize': voxelize_module,
+                'backbone': build_backbone(encoders['lidar']['backbone']),
+            })
+            self.voxelize_reduce = encoders['lidar'].get('voxelize_reduce', True)
+
+        if encoders.get('camera') is not None:
+            self.encoders['camera'] = nn.ModuleDict({
+                'backbone': build_backbone(encoders['camera']['backbone']),
+                'neck': build_neck(encoders['camera']['neck']),
+                'vtransform': build_vtransform(encoders['camera']['vtransform']),
+            })
 
         if fuser is not None:
             self.fuser = build_fuser(fuser)
         else:
             self.fuser = None
 
-        
         self.train_counter = 0
         self.val_counter = 0
 
     def init_weights(self) -> None:
-        if "camera" in self.encoders:
-            self.encoders["camera"]["backbone"].init_weights()
+        if 'camera' in self.encoders:
+            self.encoders['camera']['backbone'].init_weights()
 
     def extract_camera_features(
         self,
@@ -159,8 +154,8 @@ class BEVFusionHeadless(BaseModule):
         B, N, C, H, W = x.size()
         x = x.view(B * N, C, H, W)
 
-        x = self.encoders["camera"]["backbone"](x)
-        x = self.encoders["camera"]["neck"](x)
+        x = self.encoders['camera']['backbone'](x)
+        x = self.encoders['camera']['neck'](x)
 
         if not isinstance(x, torch.Tensor):
             x = x[0]
@@ -171,7 +166,7 @@ class BEVFusionHeadless(BaseModule):
         # print("H", H)
         # print("W", W)
         x = x.view(B, int(BN / B), C, H, W)
-        x = self.encoders["camera"]["vtransform"](
+        x = self.encoders['camera']['vtransform'](
             self.training,
             x,
             points,
@@ -193,7 +188,7 @@ class BEVFusionHeadless(BaseModule):
 
         feats, coords, sizes = self.voxelize(x)
         batch_size = coords[-1, 0] + 1
-        x = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
+        x = self.encoders['lidar']['backbone'](feats, coords, batch_size, sizes=sizes)
         return x
 
     @torch.no_grad()
@@ -201,7 +196,7 @@ class BEVFusionHeadless(BaseModule):
     def voxelize(self, points):
         feats, coords, sizes = [], [], []
         for k, res in enumerate(points):
-            ret = self.encoders["lidar"]["voxelize"](res.to(torch.float32))
+            ret = self.encoders['lidar']['voxelize'](res.to(torch.float32))
             if len(ret) == 3:
                 # hard voxelize
                 f, c, n = ret
@@ -210,7 +205,7 @@ class BEVFusionHeadless(BaseModule):
                 f, c = ret
                 n = None
             feats.append(f)
-            coords.append(F.pad(c, (1, 0), mode="constant", value=k))
+            coords.append(F.pad(c, (1, 0), mode='constant', value=k))
             if n is not None:
                 sizes.append(n)
 
@@ -219,14 +214,12 @@ class BEVFusionHeadless(BaseModule):
         if len(sizes) > 0:
             sizes = torch.cat(sizes, dim=0)
             if self.voxelize_reduce:
-                feats = feats.sum(dim=1, keepdim=False) / sizes.type_as(feats).view(
-                    -1, 1
-                )
+                feats = feats.sum(dim=1, keepdim=False) / sizes.type_as(feats).view(-1, 1)
                 feats = feats.contiguous()
 
         return feats, coords, sizes
 
-    @auto_fp16(apply_to=("img", "points", "vehicle2infrastructure"))
+    @auto_fp16(apply_to=('img', 'points', 'vehicle2infrastructure'))
     def forward(
         self,
         img,
@@ -269,7 +262,7 @@ class BEVFusionHeadless(BaseModule):
             )
             return outputs, batch_size
 
-    @auto_fp16(apply_to=("img", "points", "vehicle2infrastructure"))
+    @auto_fp16(apply_to=('img', 'points', 'vehicle2infrastructure'))
     def forward_single(
         self,
         img,
@@ -288,7 +281,7 @@ class BEVFusionHeadless(BaseModule):
         gt_labels_3d=None,
         **kwargs,
     ):
-        if node == "vehicle":
+        if node == 'vehicle':
             vehicle2infrastructure = vehicle2infrastructure.to(torch.float32)
             batch_size = len(points)
             # Transform every point cloud in the batch to the augmented infrastructure LiDAR perspective
@@ -301,14 +294,12 @@ class BEVFusionHeadless(BaseModule):
             #   visualize_feature_lidar(points[0].detach().cpu().numpy(), "/home/bevfusion/viz_tumtraf_featmap/features/lidar/vehicle/val_firstinv2i")
 
             features = []
-            for sensor in (
-                self.encoders if self.training else list(self.encoders.keys())[::-1]
-            ):
+            for sensor in (self.encoders if self.training else list(self.encoders.keys())[::-1]):
                 # TODO: add param to visualize feature maps
                 # print("LiDAR in 1")
                 # visualize_feature_lidar(points[0].detach().cpu().numpy(), "/home/bevfusion/viz_tumtraf_featmap/features/lidar/vehicle/val_lidarinloop")
 
-                if sensor == "camera":
+                if sensor == 'camera':
                     feature = self.extract_camera_features(
                         img,
                         points,
@@ -325,7 +316,7 @@ class BEVFusionHeadless(BaseModule):
                     # print(feature.size())
                     # visualize_feature_map_cam(feature)
 
-                elif sensor == "lidar":
+                elif sensor == 'lidar':
                     # TODO: add param to visualize feature maps
                     # print("LiDAR in 2")
                     # visualize_feature_lidar(points[0].detach().cpu().numpy(), "/home/bevfusion/viz_tumtraf_featmap/features/lidar/vehicle/val_lidarin")
@@ -338,14 +329,14 @@ class BEVFusionHeadless(BaseModule):
                     #    print("LiDAR out")
                     #    visualize_feature_map_lidar_vehicle(feature)
                 else:
-                    raise ValueError(f"unsupported sensor: {sensor}")
+                    raise ValueError(f'unsupported sensor: {sensor}')
                 features.append(feature)
 
                 # TODO: add param to visualize feature maps
                 # print(feature.size())
                 # visualize_feature_map_cam(feature)
 
-        elif node == "infrastructure":
+        elif node == 'infrastructure':
             vehicle2infrastructure = vehicle2infrastructure.to(torch.float32)
             batch_size = len(points)
             # Transform every point cloud in the batch to the augmented infrastructure LiDAR perspective
@@ -357,10 +348,8 @@ class BEVFusionHeadless(BaseModule):
             # visualize_feature_lidar(points[0].detach().cpu().numpy(), "/home/bevfusion/viz_tumtraf_featmap/features/lidar/infra/val_firstinv2ii")
 
             features = []
-            for sensor in (
-                self.encoders if self.training else list(self.encoders.keys())[::-1]
-            ):
-                if sensor == "camera":
+            for sensor in (self.encoders if self.training else list(self.encoders.keys())[::-1]):
+                if sensor == 'camera':
                     feature = self.extract_camera_features(
                         img,
                         points,
@@ -377,7 +366,7 @@ class BEVFusionHeadless(BaseModule):
                     # print(feature.size())
                     # visualize_feature_map_cam(feature)
 
-                elif sensor == "lidar":
+                elif sensor == 'lidar':
                     # TODO: add param to visualize feature maps
                     # print("LiDAR in")
                     # visualize_feature_lidar(points[0].detach().cpu().numpy(), "/home/bevfusion/viz_tumtraf_featmap/features/lidar/vehicle/val_lidarin")
@@ -389,7 +378,7 @@ class BEVFusionHeadless(BaseModule):
                     # if not self.training:
                     #   visualize_feature_map_lidar_infra(feature)
                 else:
-                    raise ValueError(f"unsupported sensor: {sensor}")
+                    raise ValueError(f'unsupported sensor: {sensor}')
                 features.append(feature)
 
         if not self.training:

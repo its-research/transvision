@@ -1,17 +1,15 @@
+import json
+import os
 import tempfile
+import time
+from collections import defaultdict
 from os import path as osp
 from typing import Any, Dict
 
-import os
-import time
-import json
 import mmcv
 import numpy as np
-import torch
-from collections import defaultdict
-from scipy.spatial.transform import Rotation
-
 from mmdet.datasets import DATASETS
+from scipy.spatial.transform import Rotation
 
 from ..core.bbox import LiDARInstance3DBoxes
 from .custom_3d import Custom3DDataset
@@ -23,33 +21,22 @@ class TUMTrafNuscDataset(Custom3DDataset):
 
     # https://github.com/nutonomy/nuscenes-devkit/blob/57889ff20678577025326cfc24e57424a829be0a/python-sdk/nuscenes/eval/detection/evaluate.py#L222 # noqa
     ErrNameMapping = {
-        "trans_err": "mATE",
-        "scale_err": "mASE",
-        "orient_err": "mAOE",
-        "vel_err": "mAVE",
+        'trans_err': 'mATE',
+        'scale_err': 'mASE',
+        'orient_err': 'mAOE',
+        'vel_err': 'mAVE',
     }
 
-    # Modified from the originally used configs of BEVFusion https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/configs/detection_cvpr_2019.json
-    cls_range = {
-        "CAR": 50,
-        "TRUCK": 50,
-        "BUS": 50,
-        "TRAILER": 50,
-        "VAN": 50,
-        'EMERGENCY_VEHICLE': 50,
-        "PEDESTRIAN": 40,
-        "MOTORCYCLE": 40,
-        "BICYCLE": 40,
-        "OTHER": 30
-    }
-    dist_fcn = "center_distance"
+    # Modified from the  BEVFusion https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/configs/detection_cvpr_2019.json
+    cls_range = {'CAR': 50, 'TRUCK': 50, 'BUS': 50, 'TRAILER': 50, 'VAN': 50, 'EMERGENCY_VEHICLE': 50, 'PEDESTRIAN': 40, 'MOTORCYCLE': 40, 'BICYCLE': 40, 'OTHER': 30}
+    dist_fcn = 'center_distance'
     dist_ths = [0.5, 1.0, 2.0, 4.0]
     dist_th_tp = 2.0
     min_recall = 0.1
     min_precision = 0.1
     max_boxes_per_sample = 500
     mean_ap_weight = 5
-    
+
     def __init__(
         self,
         ann_file,
@@ -59,7 +46,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
         load_interval=1,
         with_velocity=True,
         modality=None,
-        box_type_3d="LiDAR",
+        box_type_3d='LiDAR',
         filter_empty_gt=True,
         test_mode=False,
         use_valid_flag=False,
@@ -80,14 +67,14 @@ class TUMTrafNuscDataset(Custom3DDataset):
         self.with_velocity = with_velocity
 
         self.eval_detection_configs = {
-            "class_range": self.cls_range, 
-            "dist_fcn": self.dist_fcn, 
-            "dist_ths": self.dist_ths, 
-            "dist_th_tp": self.dist_th_tp, 
-            "min_recall": self.min_recall, 
-            "min_precision": self.min_precision, 
-            "max_boxes_per_sample": self.max_boxes_per_sample,
-            "mean_ap_weight": self.mean_ap_weight
+            'class_range': self.cls_range,
+            'dist_fcn': self.dist_fcn,
+            'dist_ths': self.dist_ths,
+            'dist_th_tp': self.dist_th_tp,
+            'min_recall': self.min_recall,
+            'min_precision': self.min_precision,
+            'max_boxes_per_sample': self.max_boxes_per_sample,
+            'mean_ap_weight': self.mean_ap_weight
         }
 
         if self.modality is None:
@@ -98,6 +85,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
                 use_map=False,
                 use_external=False,
             )
+
     def get_cat_ids(self, idx):
         """Get category distribution of single scene.
 
@@ -111,17 +99,17 @@ class TUMTrafNuscDataset(Custom3DDataset):
         """
         info = self.data_infos[idx]
         if self.use_valid_flag:
-            mask = info["valid_flag"]
-            gt_names = set(info["gt_names"][mask])
+            mask = info['valid_flag']
+            gt_names = set(info['gt_names'][mask])
         else:
-            gt_names = set(info["gt_names"])
+            gt_names = set(info['gt_names'])
 
         cat_ids = []
         for name in gt_names:
             if name in self.CLASSES:
                 cat_ids.append(self.cat2id[name])
         return cat_ids
-    
+
     def load_annotations(self, ann_file):
         """Load annotations from ann_file.
 
@@ -132,60 +120,60 @@ class TUMTrafNuscDataset(Custom3DDataset):
             list[dict]: List of annotations sorted by timestamps.
         """
         data = mmcv.load(ann_file)
-        data_infos = list(sorted(data["infos"], key=lambda e: e["timestamp"]))
-        data_infos = data_infos[:: self.load_interval]
-        self.metadata = data["metadata"]
-        self.version = self.metadata["version"]
+        data_infos = list(sorted(data['infos'], key=lambda e: e['timestamp']))
+        data_infos = data_infos[::self.load_interval]
+        self.metadata = data['metadata']
+        self.version = self.metadata['version']
         return data_infos
 
     def get_data_info(self, index: int) -> Dict[str, Any]:
         info = self.data_infos[index]
 
         data = dict(
-            lidar_path=info["lidar_path"],
-            sweeps=info["sweeps"],
-            timestamp=info["timestamp"],
-            location=info["location"],
+            lidar_path=info['lidar_path'],
+            sweeps=info['sweeps'],
+            timestamp=info['timestamp'],
+            location=info['location'],
         )
 
         # lidar to ego transform
-        data["lidar2ego"] = info["lidar2ego"]
+        data['lidar2ego'] = info['lidar2ego']
 
-        if self.modality["use_camera"]:
-            data["image_paths"] = []
-            data["lidar2camera"] = []
-            data["lidar2image"] = []
-            data["camera2ego"] = []
-            data["camera_intrinsics"] = []
-            data["camera2lidar"] = []
+        if self.modality['use_camera']:
+            data['image_paths'] = []
+            data['lidar2camera'] = []
+            data['lidar2image'] = []
+            data['camera2ego'] = []
+            data['camera_intrinsics'] = []
+            data['camera2lidar'] = []
 
-            for _, camera_info in info["cams"].items():
-                data["image_paths"].append(camera_info["data_path"])
+            for _, camera_info in info['cams'].items():
+                data['image_paths'].append(camera_info['data_path'])
 
                 # lidar to camera transform
-                camera2lidar = camera_info["sensor2lidar"]
+                camera2lidar = camera_info['sensor2lidar']
                 camera2lidar = np.vstack([camera2lidar, [0.0, 0.0, 0.0, 1.0]])
                 lidar2camera = np.linalg.inv(camera2lidar)
                 lidar2camera = lidar2camera[:-1, :]
-                data["lidar2camera"].append(lidar2camera)
+                data['lidar2camera'].append(lidar2camera)
 
                 # camera intrinsics
-                data["camera_intrinsics"].append(camera_info["camera_intrinsics"])
+                data['camera_intrinsics'].append(camera_info['camera_intrinsics'])
 
                 # lidar to image transform
-                data["lidar2image"].append(camera_info["lidar2image"])
+                data['lidar2image'].append(camera_info['lidar2image'])
 
                 # camera to ego transform
-                data["camera2ego"].append(camera_info["sensor2ego"])
+                data['camera2ego'].append(camera_info['sensor2ego'])
 
                 # camera to lidar transform
-                data["camera2lidar"].append(camera_info["sensor2lidar"])
+                data['camera2lidar'].append(camera_info['sensor2lidar'])
 
         if self.test_mode:
             annos = None
         else:
             annos = self.get_ann_info(index)
-        data["ann_info"] = annos
+        data['ann_info'] = annos
         return data
 
     def get_ann_info(self, index):
@@ -205,11 +193,11 @@ class TUMTrafNuscDataset(Custom3DDataset):
         info = self.data_infos[index]
         # filter out bbox containing no points
         if self.use_valid_flag:
-            mask = info["valid_flag"]
+            mask = info['valid_flag']
         else:
-            mask = info["num_lidar_pts"] > 0
-        gt_bboxes_3d = info["gt_boxes"][mask]
-        gt_names_3d = info["gt_names"][mask]
+            mask = info['num_lidar_pts'] > 0
+        gt_bboxes_3d = info['gt_boxes'][mask]
+        gt_names_3d = info['gt_names'][mask]
         gt_labels_3d = []
         for cat in gt_names_3d:
             if cat in self.CLASSES:
@@ -219,7 +207,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
         gt_labels_3d = np.array(gt_labels_3d)
 
         if self.with_velocity:
-            gt_velocity = info["gt_velocity"][mask]
+            gt_velocity = info['gt_velocity'][mask]
             nan_mask = np.isnan(gt_velocity[:, 0])
             gt_velocity[nan_mask] = [0.0, 0.0]
             gt_bboxes_3d = np.concatenate([gt_bboxes_3d, gt_velocity], axis=-1)
@@ -227,9 +215,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
         # the nuscenes box center is [0.5, 0.5, 0.5], we change it to be
         # the same as KITTI (0.5, 0.5, 0)
         # haotian: this is an important change: from 0.5, 0.5, 0.5 -> 0.5, 0.5, 0
-        gt_bboxes_3d = LiDARInstance3DBoxes(
-            gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], origin=(0.5, 0.5, 0.5)
-        ).convert_to(self.box_mode_3d)
+        gt_bboxes_3d = LiDARInstance3DBoxes(gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], origin=(0.5, 0.5, 0.5)).convert_to(self.box_mode_3d)
 
         anns_results = dict(
             gt_bboxes_3d=gt_bboxes_3d,
@@ -237,7 +223,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
             gt_names=gt_names_3d,
         )
         return anns_results
-    
+
     def _format_bbox(self, results, jsonfile_prefix=None):
         """Convert the results to the standard format.
 
@@ -253,37 +239,37 @@ class TUMTrafNuscDataset(Custom3DDataset):
         nusc_annos = {}
         mapped_class_names = self.CLASSES
 
-        print("Start to convert detection format...")
+        print('Start to convert detection format...')
         for index, det in enumerate(mmcv.track_iter_progress(results)):
             annos = []
-            ts = str(self.data_infos[index]["timestamp"])
+            ts = str(self.data_infos[index]['timestamp'])
             boxes = output_to_box_dict(det)
             boxes = filter_box_in_lidar_cs(boxes, mapped_class_names, self.eval_detection_configs)
             for i, box in enumerate(boxes):
-                name = mapped_class_names[box["label"]]
+                name = mapped_class_names[box['label']]
 
                 nusc_anno = dict(
                     timestamp=ts,
-                    translation=box["center"].tolist(),
-                    size=box["wlh"].tolist(),
-                    rotation=box["orientation"],
-                    velocity=box["velocity"][:2].tolist(),
+                    translation=box['center'].tolist(),
+                    size=box['wlh'].tolist(),
+                    rotation=box['orientation'],
+                    velocity=box['velocity'][:2].tolist(),
                     detection_name=name,
-                    detection_score=box["score"],
+                    detection_score=box['score'],
                 )
                 annos.append(nusc_anno)
             nusc_annos[ts] = annos
         nusc_submissions = {
-            "meta": self.modality,
-            "results": nusc_annos,
+            'meta': self.modality,
+            'results': nusc_annos,
         }
 
         mmcv.mkdir_or_exist(jsonfile_prefix)
-        res_path = osp.join(jsonfile_prefix, "results_nusc.json")
-        print("Results writes to", res_path)
+        res_path = osp.join(jsonfile_prefix, 'results_nusc.json')
+        print('Results writes to', res_path)
         mmcv.dump(nusc_submissions, res_path)
         return res_path
-    
+
     def format_results(self, results, jsonfile_prefix=None):
         """Format the results to json (standard format for COCO evaluation).
 
@@ -299,16 +285,12 @@ class TUMTrafNuscDataset(Custom3DDataset):
                 directory created for saving json files when \
                 `jsonfile_prefix` is not specified.
         """
-        assert isinstance(results, list), "results must be a list"
-        assert len(results) == len(
-            self
-        ), "The length of results is not equal to the dataset len: {} != {}".format(
-            len(results), len(self)
-        )
+        assert isinstance(results, list), 'results must be a list'
+        assert len(results) == len(self), 'The length of results is not equal to the dataset len: {} != {}'.format(len(results), len(self))
 
         if jsonfile_prefix is None:
             tmp_dir = tempfile.TemporaryDirectory()
-            jsonfile_prefix = osp.join(tmp_dir.name, "results")
+            jsonfile_prefix = osp.join(tmp_dir.name, 'results')
         else:
             tmp_dir = None
 
@@ -316,15 +298,15 @@ class TUMTrafNuscDataset(Custom3DDataset):
         return result_files, tmp_dir
 
     # IDEA: Custom evaluation based on adapted NuScenes functions but not using nuscenes itself since it needs tokens
-    # SEE: 
+    # SEE:
     # https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/evaluate.py
     # https://github.com/nutonomy/nuscenes-devkit/blob/master/python-sdk/nuscenes/eval/detection/algo.py
     # https://github.com/nutonomy/nuscenes-devkit/blob/da3c9a977112fca05413dab4e944d911769385a9/python-sdk/nuscenes/eval/common/utils.py
     # https://github.com/nutonomy/nuscenes-devkit/blob/da3c9a977112fca05413dab4e944d911769385a9/python-sdk/nuscenes/eval/detection/data_classes.py
 
     def load_prediction(self, result_path: str, max_boxes_per_sample: int, verbose: bool = False):
-        """
-        Loads object predictions from file.
+        """Loads object predictions from file.
+
         :param result_path: Path to the .json result file provided by the user.
         :param max_boxes_per_sample: Maximum number of boxes allowed per sample.
         :param verbose: Whether to print messages to stdout.
@@ -344,7 +326,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
                 box_list.append({
                     'timestamp': box['timestamp'],
                     'translation': box['translation'],
-                    "ego_dist": np.sqrt(np.sum(np.array(box['translation'][:2]) ** 2)),
+                    'ego_dist': np.sqrt(np.sum(np.array(box['translation'][:2])**2)),
                     'size': box['size'],
                     'rotation': box['rotation'],
                     'velocity': box['velocity'],
@@ -356,18 +338,17 @@ class TUMTrafNuscDataset(Custom3DDataset):
 
         meta = data['meta']
         if verbose:
-            print("Loaded results from {}. Found detections for {} samples.".format(result_path, len(all_results)))
+            print('Loaded results from {}. Found detections for {} samples.'.format(result_path, len(all_results)))
 
         # Check that each sample has no more than x predicted boxes.
         for result in all_results:
-            assert len(all_results[result]) <= max_boxes_per_sample, "Error: Only <= %d boxes per sample allowed!" % max_boxes_per_sample
+            assert len(all_results[result]) <= max_boxes_per_sample, 'Error: Only <= %d boxes per sample allowed!' % max_boxes_per_sample
 
         return all_results, meta
 
-
     def load_gt(self, verbose: bool = False):
-        """
-        Loads ground truth boxes from database.
+        """Loads ground truth boxes from database.
+
         :param nusc: A NuScenes instance.
         :param eval_split: The evaluation split for which we load GT boxes.
         :param box_cls: Type of box to load, e.g. DetectionBox or TrackingBox.
@@ -375,12 +356,12 @@ class TUMTrafNuscDataset(Custom3DDataset):
         :return: The GT boxes.
         """
 
-        assert len(self.data_infos) > 0, "Error: Pickle has no samples!"
+        assert len(self.data_infos) > 0, 'Error: Pickle has no samples!'
 
         all_annotations = {}
 
         for i, info in enumerate(self.data_infos):
-            json1_file = open(info["lidar_anno_path"])
+            json1_file = open(info['lidar_anno_path'])
             json1_str = json1_file.read()
             lidar_annotation = json.loads(json1_str)
 
@@ -395,10 +376,10 @@ class TUMTrafNuscDataset(Custom3DDataset):
 
             for id in lidar_anno_frame['objects']:
                 object_data = lidar_anno_frame['objects'][id]['object_data']
-                    
+
                 loc = np.asarray(object_data['cuboid']['val'][:3], dtype=np.float32)
                 dim = np.asarray(object_data['cuboid']['val'][7:], dtype=np.float32)
-                rot = np.asarray(object_data['cuboid']['val'][3:7], dtype=np.float32) # Quaternion in x,y,z,w
+                rot = np.asarray(object_data['cuboid']['val'][3:7], dtype=np.float32)  # Quaternion in x,y,z,w
 
                 rot_temp = Rotation.from_quat(rot)
                 rot_temp = rot_temp.as_euler('xyz', degrees=False)
@@ -412,60 +393,61 @@ class TUMTrafNuscDataset(Custom3DDataset):
                         num_lidar_pts = n['val']
 
                 sample_boxes.append({
-                    "timestamp": timestamp,
-                    "translation": loc,
-                    "ego_dist": np.sqrt(np.sum(np.array(loc[:2]) ** 2)),
-                    "size": dim,
-                    "rotation": yaw,
-                    "velocity": [0, 0],
-                    "num_pts": num_lidar_pts,
-                    "detection_name": object_data['type'],
-                    "detection_score": -1.0,  # GT samples do not have a score.
+                    'timestamp': timestamp,
+                    'translation': loc,
+                    'ego_dist': np.sqrt(np.sum(np.array(loc[:2])**2)),
+                    'size': dim,
+                    'rotation': yaw,
+                    'velocity': [0, 0],
+                    'num_pts': num_lidar_pts,
+                    'detection_name': object_data['type'],
+                    'detection_score': -1.0,  # GT samples do not have a score.
                 })
 
             all_annotations[timestamp] = sample_boxes
 
         if verbose:
-            print("Loaded ground truth annotations for {} samples.".format(len(all_annotations)))
+            print('Loaded ground truth annotations for {} samples.'.format(len(all_annotations)))
 
         return all_annotations
-    
+
     def center_distance(self, gt_box, pred_box) -> float:
-        """
-        L2 distance between the box centers (xy only).
+        """L2 distance between the box centers (xy only).
+
         :param gt_box: GT annotation sample.
         :param pred_box: Predicted sample.
         :return: L2 distance.
         """
-        return np.linalg.norm(np.array(pred_box["translation"][:2]) - np.array(gt_box["translation"][:2]))
-    
+        return np.linalg.norm(np.array(pred_box['translation'][:2]) - np.array(gt_box['translation'][:2]))
+
     def velocity_l2(self, gt_box, pred_box) -> float:
-        """
-        L2 distance between the velocity vectors (xy only).
-        If the predicted velocities are nan, we return inf, which is subsequently clipped to 1.
+        """L2 distance between the velocity vectors (xy only). If the predicted
+        velocities are nan, we return inf, which is subsequently clipped to 1.
+
         :param gt_box: GT annotation sample.
         :param pred_box: Predicted sample.
         :return: L2 distance.
         """
-        return np.linalg.norm(np.array(pred_box["velocity"]) - np.array(gt_box["velocity"]))
+        return np.linalg.norm(np.array(pred_box['velocity']) - np.array(gt_box['velocity']))
 
+    def yaw_diff(self, gt_box, eval_box, period: float = 2 * np.pi) -> float:
+        """Returns the yaw angle difference between the orientation of two
+        boxes.
 
-    def yaw_diff(self, gt_box, eval_box, period: float = 2*np.pi) -> float:
-        """
-        Returns the yaw angle difference between the orientation of two boxes.
         :param gt_box: Ground truth box.
         :param eval_box: Predicted box.
         :param period: Periodicity in radians for assessing angle difference.
         :return: Yaw angle difference in radians in [0, pi].
         """
-        yaw_gt = gt_box["rotation"]
-        yaw_est = eval_box["rotation"]
+        yaw_gt = gt_box['rotation']
+        yaw_est = eval_box['rotation']
 
         return abs(self.angle_diff(yaw_gt, yaw_est, period))
-    
+
     def angle_diff(self, x: float, y: float, period: float) -> float:
-        """
-        Get the smallest angle difference between 2 angles: the angle from y to x.
+        """Get the smallest angle difference between 2 angles: the angle from y
+        to x.
+
         :param x: To angle.
         :param y: From angle.
         :param period: Periodicity in radians for assessing angle difference.
@@ -478,19 +460,20 @@ class TUMTrafNuscDataset(Custom3DDataset):
             diff = diff - (2 * np.pi)  # shift (pi, 2*pi] to (-pi, 0]
 
         return diff
-    
+
     def scale_iou(self, sample_annotation, sample_result) -> float:
-        """
-        This method compares predictions to the ground truth in terms of scale.
-        It is equivalent to intersection over union (IOU) between the two boxes in 3D,
-        if we assume that the boxes are aligned, i.e. translation and rotation are considered identical.
+        """This method compares predictions to the ground truth in terms of
+        scale. It is equivalent to intersection over union (IOU) between the
+        two boxes in 3D, if we assume that the boxes are aligned, i.e.
+        translation and rotation are considered identical.
+
         :param sample_annotation: GT annotation sample.
         :param sample_result: Predicted sample.
         :return: Scale IOU.
         """
         # Validate inputs.
-        sa_size = np.array(sample_annotation["size"])
-        sr_size = np.array(sample_result["size"])
+        sa_size = np.array(sample_annotation['size'])
+        sr_size = np.array(sample_result['size'])
         assert all(sa_size > 0), 'Error: sample_annotation sizes must be >0.'
         assert all(sr_size > 0), 'Error: sample_result sizes must be >0.'
 
@@ -503,10 +486,11 @@ class TUMTrafNuscDataset(Custom3DDataset):
         iou = intersection / union
 
         return iou
-    
+
     def cummean(self, x: np.array) -> np.array:
-        """
-        Computes the cumulative mean up to each position in a NaN sensitive way
+        """Computes the cumulative mean up to each position in a NaN sensitive
+        way.
+
         - If all values are NaN return an array of ones.
         - If some values are NaN, accumulate arrays discording those entries.
         """
@@ -518,11 +502,12 @@ class TUMTrafNuscDataset(Custom3DDataset):
             sum_vals = np.nancumsum(x.astype(float))  # Cumulative sum ignoring nans.
             count_vals = np.cumsum(~np.isnan(x))  # Number of non-nans up to each position.
             return np.divide(sum_vals, count_vals, out=np.zeros_like(sum_vals), where=count_vals != 0)
-        
+
     def accumulate(self, gt_boxes: list, pred_boxes: list, class_name: str, dist_th: float, verbose: bool = False):
-        """
-        Average Precision over predefined different recall thresholds for a single distance threshold.
-        The recall/conf thresholds and other raw metrics will be used in secondary metrics.
+        """Average Precision over predefined different recall thresholds for a
+        single distance threshold. The recall/conf thresholds and other raw
+        metrics will be used in secondary metrics.
+
         :param gt_boxes: Maps every sample_token to a list of its sample_annotations.
         :param pred_boxes: Maps every sample_token to a list of its sample_results.
         :param class_name: Class to compute AP on.
@@ -539,34 +524,32 @@ class TUMTrafNuscDataset(Custom3DDataset):
         gt_boxes_all = []
         for key in gt_boxes:
             gt_boxes_all.extend(gt_boxes[key])
-        npos = len([1 for box in gt_boxes_all if box["detection_name"] == class_name])
+        npos = len([1 for box in gt_boxes_all if box['detection_name'] == class_name])
         if verbose:
-            print("Found {} GT of class {} out of {} total across {} samples.".
-                format(npos, class_name, len(gt_boxes_all), len(gt_boxes.keys())))
+            print('Found {} GT of class {} out of {} total across {} samples.'.format(npos, class_name, len(gt_boxes_all), len(gt_boxes.keys())))
 
         # For missing classes in the GT, return a data structure corresponding to no predictions.
         if npos == 0:
             # Return dict with values of nuScenes DetectionMetricData.no_predictions()
             return {
-                "recall": np.linspace(0, 1, 101), # 101 is from nuScene's nelem value
-                "precision": np.zeros(101),
-                "confidence": np.zeros(101),
-                "trans_err": np.ones(101),
-                "vel_err": np.ones(101),
-                "scale_err": np.ones(101),
-                "orient_err": np.ones(101)
+                'recall': np.linspace(0, 1, 101),  # 101 is from nuScene's nelem value
+                'precision': np.zeros(101),
+                'confidence': np.zeros(101),
+                'trans_err': np.ones(101),
+                'vel_err': np.ones(101),
+                'scale_err': np.ones(101),
+                'orient_err': np.ones(101)
             }
 
         # Organize the predictions in a single list.
         pred_boxes_all = []
         for key in pred_boxes:
             pred_boxes_all.extend(pred_boxes[key])
-        pred_boxes_list = [box for box in pred_boxes_all if box["detection_name"] == class_name]
-        pred_confs = [box["detection_score"] for box in pred_boxes_list]
+        pred_boxes_list = [box for box in pred_boxes_all if box['detection_name'] == class_name]
+        pred_confs = [box['detection_score'] for box in pred_boxes_list]
 
         if verbose:
-            print("Found {} PRED of class {} out of {} total across {} samples.".
-                format(len(pred_confs), class_name, len(pred_boxes_all), len(pred_boxes.keys())))
+            print('Found {} PRED of class {} out of {} total across {} samples.'.format(len(pred_confs), class_name, len(pred_boxes_all), len(pred_boxes.keys())))
 
         # Sort by confidence.
         sortind = [i for (v, i) in sorted((v, i) for (i, v) in enumerate(pred_confs))][::-1]
@@ -577,11 +560,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
         conf = []  # Accumulator of confidences.
 
         # match_data holds the extra metrics we calculate for each match.
-        match_data = {'trans_err': [],
-                    'vel_err': [],
-                    'scale_err': [],
-                    'orient_err': [],
-                    'conf': []}
+        match_data = {'trans_err': [], 'vel_err': [], 'scale_err': [], 'orient_err': [], 'conf': []}
 
         # ---------------------------------------------
         # Match and accumulate match data.
@@ -593,10 +572,10 @@ class TUMTrafNuscDataset(Custom3DDataset):
             min_dist = np.inf
             match_gt_idx = None
 
-            for gt_idx, gt_box in enumerate(gt_boxes[pred_box["timestamp"]]):
+            for gt_idx, gt_box in enumerate(gt_boxes[pred_box['timestamp']]):
 
                 # Find closest match among ground truth boxes
-                if gt_box["detection_name"] == class_name and not (pred_box["timestamp"], gt_idx) in taken:
+                if gt_box['detection_name'] == class_name and not (pred_box['timestamp'], gt_idx) in taken:
                     this_distance = self.center_distance(gt_box, pred_box)
                     if this_distance < min_dist:
                         min_dist = this_distance
@@ -606,15 +585,15 @@ class TUMTrafNuscDataset(Custom3DDataset):
             is_match = min_dist < dist_th
 
             if is_match:
-                taken.add((pred_box["timestamp"], match_gt_idx))
+                taken.add((pred_box['timestamp'], match_gt_idx))
 
                 #  Update tp, fp and confs.
                 tp.append(1)
                 fp.append(0)
-                conf.append(pred_box["detection_score"])
+                conf.append(pred_box['detection_score'])
 
                 # Since it is a match, update match data also.
-                gt_box_match = gt_boxes[pred_box["timestamp"]][match_gt_idx]
+                gt_box_match = gt_boxes[pred_box['timestamp']][match_gt_idx]
 
                 match_data['trans_err'].append(self.center_distance(gt_box_match, pred_box))
                 match_data['vel_err'].append(self.velocity_l2(gt_box_match, pred_box))
@@ -624,25 +603,25 @@ class TUMTrafNuscDataset(Custom3DDataset):
                 period = np.pi if class_name == 'barrier' else 2 * np.pi
                 match_data['orient_err'].append(self.yaw_diff(gt_box_match, pred_box, period=period))
 
-                match_data['conf'].append(pred_box["detection_score"])
+                match_data['conf'].append(pred_box['detection_score'])
 
             else:
                 # No match. Mark this as a false positive.
                 tp.append(0)
                 fp.append(1)
-                conf.append(pred_box["detection_score"])
+                conf.append(pred_box['detection_score'])
 
         # Check if we have any matches. If not, just return a "no predictions" array.
         if len(match_data['trans_err']) == 0:
             # Return dict with values of nuScenes DetectionMetricData.no_predictions()
             return {
-                "recall": np.linspace(0, 1, 101), # 101 is from nuScene's nelem value
-                "precision": np.zeros(101),
-                "confidence": np.zeros(101),
-                "trans_err": np.ones(101),
-                "vel_err": np.ones(101),
-                "scale_err": np.ones(101),
-                "orient_err": np.ones(101)
+                'recall': np.linspace(0, 1, 101),  # 101 is from nuScene's nelem value
+                'precision': np.zeros(101),
+                'confidence': np.zeros(101),
+                'trans_err': np.ones(101),
+                'vel_err': np.ones(101),
+                'scale_err': np.ones(101),
+                'orient_err': np.ones(101)
             }
 
         # ---------------------------------------------
@@ -668,7 +647,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
         # ---------------------------------------------
 
         for key in match_data.keys():
-            if key == "conf":
+            if key == 'conf':
                 continue  # Confidence is used as reference to align with fp and tp. So skip in this step.
 
             else:
@@ -682,17 +661,18 @@ class TUMTrafNuscDataset(Custom3DDataset):
         # Done. Instantiate MetricData and return
         # ---------------------------------------------
         return {
-            "recall": rec,
-            "precision": prec,
-            "confidence": conf,
-            "trans_err": match_data['trans_err'],
-            "vel_err": match_data['vel_err'],
-            "scale_err": match_data['scale_err'],
-            "orient_err": match_data['orient_err']}
+            'recall': rec,
+            'precision': prec,
+            'confidence': conf,
+            'trans_err': match_data['trans_err'],
+            'vel_err': match_data['vel_err'],
+            'scale_err': match_data['scale_err'],
+            'orient_err': match_data['orient_err']
+        }
 
     def filter_eval_boxes(self, eval_boxes, max_dist: Dict[str, float], verbose: bool = False):
-        """
-        Applies filtering to boxes. Distance, bike-racks and points per box.
+        """Applies filtering to boxes. Distance, bike-racks and points per box.
+
         :param nusc: An instance of the NuScenes class.
         :param eval_boxes: An instance of the EvalBoxes class.
         :param max_dist: Maps the detection name to the eval distance threshold for that class.
@@ -704,70 +684,63 @@ class TUMTrafNuscDataset(Custom3DDataset):
 
             # Filter on distance first.
             total += len(eval_boxes[timestamp])
-            eval_boxes[timestamp] = [box for box in eval_boxes[timestamp] if box["ego_dist"] < max_dist[box["detection_name"]]]
+            eval_boxes[timestamp] = [box for box in eval_boxes[timestamp] if box['ego_dist'] < max_dist[box['detection_name']]]
             dist_filter += len(eval_boxes[timestamp])
 
             # Then remove boxes with zero points in them. Eval boxes have -1 points by default.
-            eval_boxes[timestamp] = [box for box in eval_boxes[timestamp] if not box["num_pts"] == 0]
+            eval_boxes[timestamp] = [box for box in eval_boxes[timestamp] if not box['num_pts'] == 0]
             point_filter += len(eval_boxes[timestamp])
 
         if verbose:
-            print("=> Original number of boxes: %d" % total)
-            print("=> After distance based filtering: %d" % dist_filter)
-            print("=> After LIDAR and RADAR points based filtering: %d" % point_filter)
+            print('=> Original number of boxes: %d' % total)
+            print('=> After distance based filtering: %d' % dist_filter)
+            print('=> After LIDAR and RADAR points based filtering: %d' % point_filter)
 
         return eval_boxes
-    
+
     def calc_ap(self, md, min_recall: float, min_precision: float) -> float:
-        """ Calculated average precision. """
+        """Calculated average precision."""
 
         assert 0 <= min_precision < 1
         assert 0 <= min_recall <= 1
 
-        prec = np.copy(md["precision"])
+        prec = np.copy(md['precision'])
         prec = prec[round(100 * min_recall) + 1:]  # Clip low recalls. +1 to exclude the min recall bin.
         prec -= min_precision  # Clip low precision
         prec[prec < 0] = 0
         return float(np.mean(prec)) / (1.0 - min_precision)
 
-
     def calc_tp(self, md, min_recall: float, metric_name: str) -> float:
-        """ Calculates true positive errors. """
+        """Calculates true positive errors."""
 
         first_ind = round(100 * min_recall) + 1  # +1 to exclude the error at min recall.
 
         # Last instance of confidence > 0 is index of max achieved recall.
-        non_zero = np.nonzero(md["confidence"])[0]
+        non_zero = np.nonzero(md['confidence'])[0]
         if len(non_zero) == 0:  # If there are no matches, all the confidence values will be zero.
             max_recall_ind = 0
         else:
             max_recall_ind = non_zero[-1]
 
         last_ind = max_recall_ind  # First instance of confidence = 0 is index of max achieved recall.
-        
+
         if last_ind < first_ind:
             return 1.0  # Assign 1 here. If this happens for all classes, the score for that TP metric will be 0.
         else:
-            return float(np.mean(md[metric_name][first_ind: last_ind + 1]))  # +1 to include error at max recall.
-        
+            return float(np.mean(md[metric_name][first_ind:last_ind + 1]))  # +1 to include error at max recall.
+
     def serializeMetricDara(self, value):
         return {
-            "recall": value["recall"].tolist(),
-            "precision": value["precision"].tolist(),
-            "confidence": value["confidence"].tolist(),
-            "trans_err": value["trans_err"].tolist(),
-            "vel_err": value["vel_err"].tolist(),
-            "scale_err": value["scale_err"].tolist(),
-            "orient_err": value["orient_err"].tolist()   
+            'recall': value['recall'].tolist(),
+            'precision': value['precision'].tolist(),
+            'confidence': value['confidence'].tolist(),
+            'trans_err': value['trans_err'].tolist(),
+            'vel_err': value['vel_err'].tolist(),
+            'scale_err': value['scale_err'].tolist(),
+            'orient_err': value['orient_err'].tolist()
         }
-    
-    def _evaluate_tumtraf_nusc(
-            self,
-            config: dict,
-            result_path: str,
-            output_dir: str = None,
-            verbose: bool = True
-    ):
+
+    def _evaluate_tumtraf_nusc(self, config: dict, result_path: str, output_dir: str = None, verbose: bool = True):
         assert osp.exists(result_path), 'Error: The result file does not exist!'
 
         if verbose:
@@ -806,36 +779,33 @@ class TUMTrafNuscDataset(Custom3DDataset):
         # -----------------------------------
         if verbose:
             print('Calculating metrics...')
-        metrics = {
-            "label_aps": defaultdict(lambda: defaultdict(float)),
-            "label_tp_errors": defaultdict(lambda: defaultdict(float))
-        }
+        metrics = {'label_aps': defaultdict(lambda: defaultdict(float)), 'label_tp_errors': defaultdict(lambda: defaultdict(float))}
         for class_name in self.CLASSES:
             # Compute APs.
             for dist_th in self.dist_ths:
                 metric_data = metric_data_list[(class_name, dist_th)]
                 ap = self.calc_ap(metric_data, self.min_recall, self.min_precision)
-                metrics["label_aps"][class_name][dist_th] = ap
+                metrics['label_aps'][class_name][dist_th] = ap
 
             # Compute TP metrics.
             TP_METRICS = ['trans_err', 'scale_err', 'orient_err', 'vel_err']
             for metric_name in TP_METRICS:
                 metric_data = metric_data_list[(class_name, self.dist_th_tp)]
                 tp = self.calc_tp(metric_data, self.min_recall, metric_name)
-                metrics["label_tp_errors"][class_name][metric_name] = tp
+                metrics['label_tp_errors'][class_name][metric_name] = tp
 
         # Compute evaluation time.
-        metrics["eval_time"] = time.time() - start_time
+        metrics['eval_time'] = time.time() - start_time
 
         # Compute other values for metrics summary
-        mean_dist_aps = {class_name: np.mean(list(d.values())) for class_name, d in metrics["label_aps"].items()}
+        mean_dist_aps = {class_name: np.mean(list(d.values())) for class_name, d in metrics['label_aps'].items()}
         mean_ap = float(np.mean(list(mean_dist_aps.values())))
-        
+
         tp_errors = {}
         for metric_name in TP_METRICS:
             class_errors = []
             for detection_name in self.CLASSES:
-                class_errors.append(metrics["label_tp_errors"][detection_name][metric_name])
+                class_errors.append(metrics['label_tp_errors'][detection_name][metric_name])
 
             tp_errors[metric_name] = float(np.nanmean(class_errors))
 
@@ -858,16 +828,16 @@ class TUMTrafNuscDataset(Custom3DDataset):
         # Dump the metric data, meta and metrics to disk.
         if verbose:
             print('Saving metrics to: %s' % output_dir)
-        
+
         metrics_summary = {
-            "label_aps": metrics["label_aps"],
+            'label_aps': metrics['label_aps'],
             'mean_dist_aps': mean_dist_aps,
             'mean_ap': mean_ap,
-            'label_tp_errors': metrics["label_tp_errors"],
+            'label_tp_errors': metrics['label_tp_errors'],
             'tp_errors': tp_errors,
             'tp_scores': tp_scores,
             'nd_score': nd_score,
-            'eval_time': metrics["eval_time"],
+            'eval_time': metrics['eval_time'],
             'cfg': self.eval_detection_configs
         }
         metrics_summary['meta'] = self.meta.copy()
@@ -881,12 +851,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
 
         # Print high-level metrics.
         print('mAP: %.4f' % (metrics_summary['mean_ap']))
-        err_name_mapping = {
-            'trans_err': 'mATE',
-            'scale_err': 'mASE',
-            'orient_err': 'mAOE',
-            'vel_err': 'mAVE'
-        }
+        err_name_mapping = {'trans_err': 'mATE', 'scale_err': 'mASE', 'orient_err': 'mAOE', 'vel_err': 'mAVE'}
         for tp_name, tp_val in metrics_summary['tp_errors'].items():
             print('%s: %.4f' % (err_name_mapping[tp_name], tp_val))
         print('NDS: %.4f' % (metrics_summary['nd_score']))
@@ -899,21 +864,17 @@ class TUMTrafNuscDataset(Custom3DDataset):
         class_aps = metrics_summary['mean_dist_aps']
         class_tps = metrics_summary['label_tp_errors']
         for class_name in class_aps.keys():
-            print('%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f'
-                % (class_name, class_aps[class_name],
-                    class_tps[class_name]['trans_err'],
-                    class_tps[class_name]['scale_err'],
-                    class_tps[class_name]['orient_err'],
-                    class_tps[class_name]['vel_err']))
-            
+            print('%-20s\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f\t%-6.3f' % (class_name, class_aps[class_name], class_tps[class_name]['trans_err'], class_tps[class_name]['scale_err'],
+                                                                     class_tps[class_name]['orient_err'], class_tps[class_name]['vel_err']))
+
         return metrics_summary
-    
+
     def _evaluate_single(
         self,
         result_path,
         logger=None,
-        metric="bbox",
-        result_name="pts_bbox",
+        metric='bbox',
+        result_name='pts_bbox',
     ):
         """Evaluation for a single model in nuScenes protocol.
 
@@ -938,29 +899,29 @@ class TUMTrafNuscDataset(Custom3DDataset):
         )
 
         # record metrics
-        metrics = mmcv.load(osp.join(output_dir, "metrics_summary.json"))
+        metrics = mmcv.load(osp.join(output_dir, 'metrics_summary.json'))
         detail = dict()
         for name in self.CLASSES:
-            for k, v in metrics["label_aps"][name].items():
-                val = float("{:.4f}".format(v))
-                detail["object/{}_ap_dist_{}".format(name, k)] = val
-            for k, v in metrics["label_tp_errors"][name].items():
-                val = float("{:.4f}".format(v))
-                detail["object/{}_{}".format(name, k)] = val
-            for k, v in metrics["tp_errors"].items():
-                val = float("{:.4f}".format(v))
-                detail["object/{}".format(self.ErrNameMapping[k])] = val
+            for k, v in metrics['label_aps'][name].items():
+                val = float('{:.4f}'.format(v))
+                detail['object/{}_ap_dist_{}'.format(name, k)] = val
+            for k, v in metrics['label_tp_errors'][name].items():
+                val = float('{:.4f}'.format(v))
+                detail['object/{}_{}'.format(name, k)] = val
+            for k, v in metrics['tp_errors'].items():
+                val = float('{:.4f}'.format(v))
+                detail['object/{}'.format(self.ErrNameMapping[k])] = val
 
-        detail["object/nds"] = metrics["nd_score"]
-        detail["object/map"] = metrics["mean_ap"]
+        detail['object/nds'] = metrics['nd_score']
+        detail['object/map'] = metrics['mean_ap']
         return detail
 
     def evaluate(
         self,
         results,
-        metric="bbox",
+        metric='bbox',
         jsonfile_prefix=None,
-        result_names=["pts_bbox"],
+        result_names=['pts_bbox'],
         **kwargs,
     ):
         """Evaluation in nuScenes protocol.
@@ -978,12 +939,12 @@ class TUMTrafNuscDataset(Custom3DDataset):
 
         metrics = {}
 
-        if "boxes_3d" in results[0]:
+        if 'boxes_3d' in results[0]:
             result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
 
             if isinstance(result_files, dict):
                 for name in result_names:
-                    print("Evaluating bboxes of {}".format(name))
+                    print('Evaluating bboxes of {}'.format(name))
                     ret_dict = self._evaluate_single(result_files[name])
                 metrics.update(ret_dict)
             elif isinstance(result_files, str):
@@ -993,6 +954,7 @@ class TUMTrafNuscDataset(Custom3DDataset):
                 tmp_dir.cleanup()
 
         return metrics
+
 
 def output_to_box_dict(detection):
     """Convert the output to the box class in the nuScenes.
@@ -1007,27 +969,27 @@ def output_to_box_dict(detection):
     Returns:
         list[:obj:`dict`]: List of standard box dicts.
     """
-    box3d = detection["boxes_3d"]
-    scores = detection["scores_3d"].numpy()
-    labels = detection["labels_3d"].numpy()
+    box3d = detection['boxes_3d']
+    scores = detection['scores_3d'].numpy()
+    labels = detection['labels_3d'].numpy()
 
     box_gravity_center = box3d.gravity_center.numpy()
     box_dims = box3d.dims.numpy()
     box_yaw = box3d.yaw.numpy()
     # TODO: check whether this is necessary
     # with dir_offset & dir_limit in the head
-    
+
     box_list = []
     for i in range(len(box3d)):
         velocity = (*box3d.tensor[i, 7:9], 0.0)
         box = {
-            "center": np.array(box_gravity_center[i]),
-            "wlh": np.array(box_dims[i]),
-            "orientation": box_yaw[i],
-            "label": int(labels[i]) if not np.isnan(labels[i]) else labels[i],
-            "score": float(scores[i]) if not np.isnan(scores[i]) else scores[i],
-            "velocity": np.array(velocity),
-            "name": None
+            'center': np.array(box_gravity_center[i]),
+            'wlh': np.array(box_dims[i]),
+            'orientation': box_yaw[i],
+            'label': int(labels[i]) if not np.isnan(labels[i]) else labels[i],
+            'score': float(scores[i]) if not np.isnan(scores[i]) else scores[i],
+            'velocity': np.array(velocity),
+            'name': None
         }
         box_list.append(box)
     return box_list
@@ -1052,9 +1014,9 @@ def filter_box_in_lidar_cs(boxes, classes, eval_configs):
     box_list = []
     for box in boxes:
         # filter det in ego.
-        cls_range_map = eval_configs["class_range"]
-        radius = np.linalg.norm(box["center"][:2], 2)
-        det_range = cls_range_map[classes[box["label"]]]
+        cls_range_map = eval_configs['class_range']
+        radius = np.linalg.norm(box['center'][:2], 2)
+        det_range = cls_range_map[classes[box['label']]]
         if radius > det_range:
             continue
         box_list.append(box)

@@ -1,7 +1,7 @@
 import torch
+from mmdet3d.ops import PAConv, PAConvCUDA
 from torch import nn as nn
 
-from mmdet3d.ops import PAConv, PAConvCUDA
 from .builder import SA_MODULES
 from .point_sa_module import BasePointSAModule
 
@@ -27,7 +27,7 @@ class PAConvSAModuleMSG(BasePointSAModule):
             - 'w_neighbor': Use xyz coordinates and the difference with center
                 points as input.
             - 'w_neighbor_dist': Use xyz coordinates, the difference with
-                center points and the Euclidian distance as input.
+                center points and the Euclidean distance as input.
 
         scorenet_cfg (dict, optional): Config of the ScoreNet module, which
             may contain the following keys and values:
@@ -41,25 +41,23 @@ class PAConvSAModuleMSG(BasePointSAModule):
     """
 
     def __init__(
-        self,
-        num_point,
-        radii,
-        sample_nums,
-        mlp_channels,
-        paconv_num_kernels,
-        fps_mod=["D-FPS"],
-        fps_sample_range_list=[-1],
-        dilated_group=False,
-        norm_cfg=dict(type="BN2d", momentum=0.1),
-        use_xyz=True,
-        pool_mod="max",
-        normalize_xyz=False,
-        bias="auto",
-        paconv_kernel_input="w_neighbor",
-        scorenet_input="w_neighbor_dist",
-        scorenet_cfg=dict(
-            mlp_channels=[16, 16, 16], score_norm="softmax", temp_factor=1.0, last_bn=False
-        ),
+            self,
+            num_point,
+            radii,
+            sample_nums,
+            mlp_channels,
+            paconv_num_kernels,
+            fps_mod=['D-FPS'],
+            fps_sample_range_list=[-1],
+            dilated_group=False,
+            norm_cfg=dict(type='BN2d', momentum=0.1),
+            use_xyz=True,
+            pool_mod='max',
+            normalize_xyz=False,
+            bias='auto',
+            paconv_kernel_input='w_neighbor',
+            scorenet_input='w_neighbor_dist',
+            scorenet_cfg=dict(mlp_channels=[16, 16, 16], score_norm='softmax', temp_factor=1.0, last_bn=False),
     ):
         super(PAConvSAModuleMSG, self).__init__(
             num_point=num_point,
@@ -77,12 +75,10 @@ class PAConvSAModuleMSG(BasePointSAModule):
 
         assert len(paconv_num_kernels) == len(mlp_channels)
         for i in range(len(mlp_channels)):
-            assert (
-                len(paconv_num_kernels[i]) == len(mlp_channels[i]) - 1
-            ), "PAConv number of kernel weights wrong"
+            assert (len(paconv_num_kernels[i]) == len(mlp_channels[i]) - 1), 'PAConv number of kernel weights wrong'
 
         # in PAConv, bias only exists in ScoreNet
-        scorenet_cfg["bias"] = bias
+        scorenet_cfg['bias'] = bias
 
         for i in range(len(self.mlp_channels)):
             mlp_channel = self.mlp_channels[i]
@@ -94,7 +90,7 @@ class PAConvSAModuleMSG(BasePointSAModule):
             mlp = nn.Sequential()
             for i in range(len(mlp_channel) - 1):
                 mlp.add_module(
-                    f"layer{i}",
+                    f'layer{i}',
                     PAConv(
                         mlp_channel[i],
                         mlp_channel[i + 1],
@@ -118,23 +114,21 @@ class PAConvSAModule(PAConvSAModuleMSG):
     """
 
     def __init__(
-        self,
-        mlp_channels,
-        paconv_num_kernels,
-        num_point=None,
-        radius=None,
-        num_sample=None,
-        norm_cfg=dict(type="BN2d", momentum=0.1),
-        use_xyz=True,
-        pool_mod="max",
-        fps_mod=["D-FPS"],
-        fps_sample_range_list=[-1],
-        normalize_xyz=False,
-        paconv_kernel_input="w_neighbor",
-        scorenet_input="w_neighbor_dist",
-        scorenet_cfg=dict(
-            mlp_channels=[16, 16, 16], score_norm="softmax", temp_factor=1.0, last_bn=False
-        ),
+            self,
+            mlp_channels,
+            paconv_num_kernels,
+            num_point=None,
+            radius=None,
+            num_sample=None,
+            norm_cfg=dict(type='BN2d', momentum=0.1),
+            use_xyz=True,
+            pool_mod='max',
+            fps_mod=['D-FPS'],
+            fps_sample_range_list=[-1],
+            normalize_xyz=False,
+            paconv_kernel_input='w_neighbor',
+            scorenet_input='w_neighbor_dist',
+            scorenet_cfg=dict(mlp_channels=[16, 16, 16], score_norm='softmax', temp_factor=1.0, last_bn=False),
     ):
         super(PAConvSAModule, self).__init__(
             mlp_channels=[mlp_channels],
@@ -165,25 +159,23 @@ class PAConvCUDASAModuleMSG(BasePointSAModule):
     """
 
     def __init__(
-        self,
-        num_point,
-        radii,
-        sample_nums,
-        mlp_channels,
-        paconv_num_kernels,
-        fps_mod=["D-FPS"],
-        fps_sample_range_list=[-1],
-        dilated_group=False,
-        norm_cfg=dict(type="BN2d", momentum=0.1),
-        use_xyz=True,
-        pool_mod="max",
-        normalize_xyz=False,
-        bias="auto",
-        paconv_kernel_input="w_neighbor",
-        scorenet_input="w_neighbor_dist",
-        scorenet_cfg=dict(
-            mlp_channels=[8, 16, 16], score_norm="softmax", temp_factor=1.0, last_bn=False
-        ),
+            self,
+            num_point,
+            radii,
+            sample_nums,
+            mlp_channels,
+            paconv_num_kernels,
+            fps_mod=['D-FPS'],
+            fps_sample_range_list=[-1],
+            dilated_group=False,
+            norm_cfg=dict(type='BN2d', momentum=0.1),
+            use_xyz=True,
+            pool_mod='max',
+            normalize_xyz=False,
+            bias='auto',
+            paconv_kernel_input='w_neighbor',
+            scorenet_input='w_neighbor_dist',
+            scorenet_cfg=dict(mlp_channels=[8, 16, 16], score_norm='softmax', temp_factor=1.0, last_bn=False),
     ):
         super(PAConvCUDASAModuleMSG, self).__init__(
             num_point=num_point,
@@ -202,12 +194,10 @@ class PAConvCUDASAModuleMSG(BasePointSAModule):
 
         assert len(paconv_num_kernels) == len(mlp_channels)
         for i in range(len(mlp_channels)):
-            assert (
-                len(paconv_num_kernels[i]) == len(mlp_channels[i]) - 1
-            ), "PAConv number of kernel weights wrong"
+            assert (len(paconv_num_kernels[i]) == len(mlp_channels[i]) - 1), 'PAConv number of kernel weights wrong'
 
         # in PAConv, bias only exists in ScoreNet
-        scorenet_cfg["bias"] = bias
+        scorenet_cfg['bias'] = bias
 
         # we need to manually concat xyz for CUDA implemented PAConv
         self.use_xyz = use_xyz
@@ -232,8 +222,7 @@ class PAConvCUDASAModuleMSG(BasePointSAModule):
                         kernel_input=paconv_kernel_input,
                         scorenet_input=scorenet_input,
                         scorenet_cfg=scorenet_cfg,
-                    )
-                )
+                    ))
             self.mlps.append(mlp)
 
     def forward(
@@ -280,9 +269,7 @@ class PAConvCUDASAModuleMSG(BasePointSAModule):
                     new_features = torch.cat((points_xyz.permute(0, 2, 1), new_features), dim=1)
 
                 # (B, out_c, num_point, nsample)
-                grouped_new_features = self.mlps[i][j](
-                    (new_features, grouped_xyz, grouped_idx.long())
-                )[0]
+                grouped_new_features = self.mlps[i][j]((new_features, grouped_xyz, grouped_idx.long()))[0]
 
                 # different from PointNet++ and non CUDA version of PAConv
                 # CUDA version of PAConv needs to aggregate local features
@@ -312,23 +299,21 @@ class PAConvCUDASAModule(PAConvCUDASAModuleMSG):
     """
 
     def __init__(
-        self,
-        mlp_channels,
-        paconv_num_kernels,
-        num_point=None,
-        radius=None,
-        num_sample=None,
-        norm_cfg=dict(type="BN2d", momentum=0.1),
-        use_xyz=True,
-        pool_mod="max",
-        fps_mod=["D-FPS"],
-        fps_sample_range_list=[-1],
-        normalize_xyz=False,
-        paconv_kernel_input="w_neighbor",
-        scorenet_input="w_neighbor_dist",
-        scorenet_cfg=dict(
-            mlp_channels=[8, 16, 16], score_norm="softmax", temp_factor=1.0, last_bn=False
-        ),
+            self,
+            mlp_channels,
+            paconv_num_kernels,
+            num_point=None,
+            radius=None,
+            num_sample=None,
+            norm_cfg=dict(type='BN2d', momentum=0.1),
+            use_xyz=True,
+            pool_mod='max',
+            fps_mod=['D-FPS'],
+            fps_sample_range_list=[-1],
+            normalize_xyz=False,
+            paconv_kernel_input='w_neighbor',
+            scorenet_input='w_neighbor_dist',
+            scorenet_cfg=dict(mlp_channels=[8, 16, 16], score_norm='softmax', temp_factor=1.0, last_bn=False),
     ):
         super(PAConvCUDASAModule, self).__init__(
             mlp_channels=[mlp_channels],

@@ -1,12 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import torch
-import torch.nn as nn
 from mmcv.cnn import ConvModule, DepthwiseSeparableConvModule
 from mmcv.runner import BaseModule
 from torch import Tensor
 
+
 class DarknetBottleneck(BaseModule):
     """The basic bottleneck block used in Darknet.
+
     Each ResBlock consists of two ConvModules and the input is added to the
     final output. Each ConvModule is composed of Conv, BN, and LeakyReLU.
     The first convLayer has filter size of 1x1 and the second one has the
@@ -41,22 +41,8 @@ class DarknetBottleneck(BaseModule):
         super().__init__(init_cfg=init_cfg)
         hidden_channels = int(out_channels * expansion)
         conv = DepthwiseSeparableConvModule if use_depthwise else ConvModule
-        self.conv1 = ConvModule(
-            in_channels,
-            hidden_channels,
-            1,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
-        self.conv2 = conv(
-            hidden_channels,
-            out_channels,
-            3,
-            stride=1,
-            padding=1,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
+        self.conv1 = ConvModule(in_channels, hidden_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
+        self.conv2 = conv(hidden_channels, out_channels, 3, stride=1, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
         self.add_identity = \
             add_identity and in_channels == out_channels
 

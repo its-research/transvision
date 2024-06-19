@@ -1,9 +1,9 @@
 import torch
 from mmcv.cnn import ConvModule
+from mmdet3d.ops import GroupAll, PAConv, Points_Sampler, QueryAndGroup, gather_points
 from torch import nn as nn
 from torch.nn import functional as F
 
-from mmdet3d.ops import GroupAll, PAConv, Points_Sampler, QueryAndGroup, gather_points
 from .builder import SA_MODULES
 
 
@@ -43,11 +43,11 @@ class BasePointSAModule(nn.Module):
         radii,
         sample_nums,
         mlp_channels,
-        fps_mod=["D-FPS"],
+        fps_mod=['D-FPS'],
         fps_sample_range_list=[-1],
         dilated_group=False,
         use_xyz=True,
-        pool_mod="max",
+        pool_mod='max',
         normalize_xyz=False,
         grouper_return_grouped_xyz=False,
         grouper_return_grouped_idx=False,
@@ -55,7 +55,7 @@ class BasePointSAModule(nn.Module):
         super(BasePointSAModule, self).__init__()
 
         assert len(radii) == len(sample_nums) == len(mlp_channels)
-        assert pool_mod in ["max", "avg"]
+        assert pool_mod in ['max', 'avg']
         assert isinstance(fps_mod, list) or isinstance(fps_mod, tuple)
         assert isinstance(fps_sample_range_list, list) or isinstance(fps_sample_range_list, tuple)
         assert len(fps_mod) == len(fps_sample_range_list)
@@ -69,7 +69,7 @@ class BasePointSAModule(nn.Module):
         elif isinstance(num_point, list) or isinstance(num_point, tuple):
             self.num_point = num_point
         else:
-            raise NotImplementedError("Error type of num_point!")
+            raise NotImplementedError('Error type of num_point!')
 
         self.pool_mod = pool_mod
         self.groupers = nn.ModuleList()
@@ -77,9 +77,7 @@ class BasePointSAModule(nn.Module):
         self.fps_mod_list = fps_mod
         self.fps_sample_range_list = fps_sample_range_list
 
-        self.points_sampler = Points_Sampler(
-            self.num_point, self.fps_mod_list, self.fps_sample_range_list
-        )
+        self.points_sampler = Points_Sampler(self.num_point, self.fps_mod_list, self.fps_sample_range_list)
 
         for i in range(len(radii)):
             radius = radii[i]
@@ -124,20 +122,12 @@ class BasePointSAModule(nn.Module):
         xyz_flipped = points_xyz.transpose(1, 2).contiguous()
         if indices is not None:
             assert indices.shape[1] == self.num_point[0]
-            new_xyz = (
-                gather_points(xyz_flipped, indices).transpose(1, 2).contiguous()
-                if self.num_point is not None
-                else None
-            )
+            new_xyz = (gather_points(xyz_flipped, indices).transpose(1, 2).contiguous() if self.num_point is not None else None)
         elif target_xyz is not None:
             new_xyz = target_xyz.contiguous()
         else:
             indices = self.points_sampler(points_xyz, features)
-            new_xyz = (
-                gather_points(xyz_flipped, indices).transpose(1, 2).contiguous()
-                if self.num_point is not None
-                else None
-            )
+            new_xyz = (gather_points(xyz_flipped, indices).transpose(1, 2).contiguous() if self.num_point is not None else None)
 
         return new_xyz, indices
 
@@ -152,10 +142,10 @@ class BasePointSAModule(nn.Module):
             torch.Tensor: (B, C, N)
                 Pooled features aggregating local information.
         """
-        if self.pool_mod == "max":
+        if self.pool_mod == 'max':
             # (B, C, N, 1)
             new_features = F.max_pool2d(features, kernel_size=[1, features.size(3)])
-        elif self.pool_mod == "avg":
+        elif self.pool_mod == 'avg':
             # (B, C, N, 1)
             new_features = F.avg_pool2d(features, kernel_size=[1, features.size(3)])
         else:
@@ -250,19 +240,19 @@ class PointSAModuleMSG(BasePointSAModule):
     """
 
     def __init__(
-        self,
-        num_point,
-        radii,
-        sample_nums,
-        mlp_channels,
-        fps_mod=["D-FPS"],
-        fps_sample_range_list=[-1],
-        dilated_group=False,
-        norm_cfg=dict(type="BN2d"),
-        use_xyz=True,
-        pool_mod="max",
-        normalize_xyz=False,
-        bias="auto",
+            self,
+            num_point,
+            radii,
+            sample_nums,
+            mlp_channels,
+            fps_mod=['D-FPS'],
+            fps_sample_range_list=[-1],
+            dilated_group=False,
+            norm_cfg=dict(type='BN2d'),
+            use_xyz=True,
+            pool_mod='max',
+            normalize_xyz=False,
+            bias='auto',
     ):
         super(PointSAModuleMSG, self).__init__(
             num_point=num_point,
@@ -285,13 +275,13 @@ class PointSAModuleMSG(BasePointSAModule):
             mlp = nn.Sequential()
             for i in range(len(mlp_channel) - 1):
                 mlp.add_module(
-                    f"layer{i}",
+                    f'layer{i}',
                     ConvModule(
                         mlp_channel[i],
                         mlp_channel[i + 1],
                         kernel_size=(1, 1),
                         stride=(1, 1),
-                        conv_cfg=dict(type="Conv2d"),
+                        conv_cfg=dict(type='Conv2d'),
                         norm_cfg=norm_cfg,
                         bias=bias,
                     ),
@@ -328,17 +318,17 @@ class PointSAModule(PointSAModuleMSG):
     """
 
     def __init__(
-        self,
-        mlp_channels,
-        num_point=None,
-        radius=None,
-        num_sample=None,
-        norm_cfg=dict(type="BN2d"),
-        use_xyz=True,
-        pool_mod="max",
-        fps_mod=["D-FPS"],
-        fps_sample_range_list=[-1],
-        normalize_xyz=False,
+            self,
+            mlp_channels,
+            num_point=None,
+            radius=None,
+            num_sample=None,
+            norm_cfg=dict(type='BN2d'),
+            use_xyz=True,
+            pool_mod='max',
+            fps_mod=['D-FPS'],
+            fps_sample_range_list=[-1],
+            normalize_xyz=False,
     ):
         super(PointSAModule, self).__init__(
             mlp_channels=[mlp_channels],

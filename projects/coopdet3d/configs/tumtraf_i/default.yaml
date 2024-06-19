@@ -74,7 +74,7 @@ train_pipeline:
       dataset_root: ${dataset_root}
       info_path: ${dataset_root + "tumtraf_nusc_dbinfos_train.pkl"}
       rate: 1.0
-      prepare: 
+      prepare:
         filter_by_difficulty: [-1]
         filter_by_min_points:
           CAR: 5
@@ -134,7 +134,7 @@ train_pipeline:
     type: ImageNormalize
     mean: [0.485, 0.456, 0.406]
     std: [0.229, 0.224, 0.225]
-  - 
+  -
     type: GridMask
     use_h: true
     use_w: true
@@ -329,4 +329,3 @@ data:
 evaluation:
   interval: 1
   pipeline: ${test_pipeline}
- 

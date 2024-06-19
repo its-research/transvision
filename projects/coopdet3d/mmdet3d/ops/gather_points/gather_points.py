@@ -41,9 +41,7 @@ class GatherPoints(Function):
 
         grad_features = torch.cuda.FloatTensor(B, C, N).zero_()
         grad_out_data = grad_out.data.contiguous()
-        gather_points_ext.gather_points_grad_wrapper(
-            B, C, N, npoint, grad_out_data, idx, grad_features.data
-        )
+        gather_points_ext.gather_points_grad_wrapper(B, C, N, npoint, grad_out_data, idx, grad_features.data)
         return grad_features, None
 
 

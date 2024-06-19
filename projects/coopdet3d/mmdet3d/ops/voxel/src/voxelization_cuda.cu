@@ -234,7 +234,7 @@ int hard_voxelize_gpu(const at::Tensor& points, at::Tensor& voxels,
                       const std::vector<float> coors_range,
                       const int max_points, const int max_voxels,
                       const int NDim = 3) {
-  // current version tooks about 0.04s for one frame on cpu
+  // current version takes about 0.04s for one frame on cpu
   // check device
   CHECK_INPUT(points);
 
@@ -305,7 +305,7 @@ int hard_voxelize_gpu(const at::Tensor& points, at::Tensor& voxels,
   cudaDeviceSynchronize();
   AT_CUDA_CHECK(cudaGetLastError());
 
-  // 3. determin voxel num and voxel's coor index
+  // 3. determine voxel num and voxel's coor index
   // make the logic in the CUDA device could accelerate about 10 times
   auto coor_to_voxelidx = -at::ones(
       {
@@ -316,7 +316,7 @@ int hard_voxelize_gpu(const at::Tensor& points, at::Tensor& voxels,
       {
           1,
       },
-      points.options().dtype(at::kInt));  // must be zero from the begining
+      points.options().dtype(at::kInt));  // must be zero from the beginning
 
   AT_DISPATCH_ALL_TYPES(
       temp_coors.scalar_type(), "determin_duplicate", ([&] {
@@ -486,7 +486,7 @@ void dynamic_voxelize_gpu(const at::Tensor& points, at::Tensor& coors,
                           const std::vector<float> voxel_size,
                           const std::vector<float> coors_range,
                           const int NDim = 3) {
-  // current version tooks about 0.04s for one frame on cpu
+  // current version takes about 0.04s for one frame on cpu
   // check device
   CHECK_INPUT(points);
 

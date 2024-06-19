@@ -1,35 +1,35 @@
 # Copyright (c) OpenMMLab. All rights reserved.#
 import math
-from typing import Tuple, Union, Sequence
+from typing import Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
-from torch import Tensor
-
-from mmdet.models.builder import BACKBONES
+from mmcv.cnn import ACTIVATION_LAYERS, ConvModule, DepthwiseSeparableConvModule
 from mmcv.runner import BaseModule
-from mmcv.cnn import ConvModule, DepthwiseSeparableConvModule
-
-from mmcv.cnn import ACTIVATION_LAYERS
-from mmcv.utils import Registry
+from mmdet.models.builder import BACKBONES
+from torch import Tensor
 
 from .base_backbone import BaseBackbone
 from .mmdet_darknet import DarknetBottleneck as MMDET_DarknetBottleneck
 
 ACTIVATION_LAYERS.register_module(module=nn.SiLU, name='SiLU')
 
-__all__ = ["YOLOv8CSPDarknet"]
+__all__ = ['YOLOv8CSPDarknet']
+
 
 def make_divisible(x: float, widen_factor: float = 1.0, divisor: int = 8) -> int:
     """Make sure that x*widen_factor is divisible by divisor."""
     return math.ceil(x * widen_factor / divisor) * divisor
 
+
 def make_round(x: float, deepen_factor: float = 1.0) -> int:
     """Make sure that x*deepen_factor becomes an integer not less than 1."""
     return max(round(x * deepen_factor), 1) if x > 1 else x
 
+
 class DarknetBottleneck(MMDET_DarknetBottleneck):
     """The basic bottleneck block used in Darknet.
+
     Each ResBlock consists of two ConvModules and the input is added to the
     final output. Each ConvModule is composed of Conv, BN, and LeakyReLU.
     The first convLayer has filter size of k1Xk1 and the second one has the
@@ -75,28 +75,15 @@ class DarknetBottleneck(MMDET_DarknetBottleneck):
         conv = DepthwiseSeparableConvModule if use_depthwise else ConvModule
         assert isinstance(kernel_size, Sequence) and len(kernel_size) == 2
 
-        self.conv1 = ConvModule(
-            in_channels,
-            hidden_channels,
-            kernel_size[0],
-            padding=padding[0],
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
-        self.conv2 = conv(
-            hidden_channels,
-            out_channels,
-            kernel_size[1],
-            stride=1,
-            padding=padding[1],
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
+        self.conv1 = ConvModule(in_channels, hidden_channels, kernel_size[0], padding=padding[0], conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
+        self.conv2 = conv(hidden_channels, out_channels, kernel_size[1], stride=1, padding=padding[1], conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
         self.add_identity = \
             add_identity and in_channels == out_channels
 
+
 class CSPLayerWithTwoConv(BaseModule):
     """Cross Stage Partial Layer with 2 convolutions.
+
     Args:
         in_channels (int): The input channels of the CSP layer.
         out_channels (int): The output channels of the CSP layer.
@@ -130,20 +117,8 @@ class CSPLayerWithTwoConv(BaseModule):
         super().__init__(init_cfg=init_cfg)
 
         self.mid_channels = int(out_channels * expand_ratio)
-        self.main_conv = ConvModule(
-            in_channels,
-            2 * self.mid_channels,
-            1,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
-        self.final_conv = ConvModule(
-            (2 + num_blocks) * self.mid_channels,
-            out_channels,
-            1,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
+        self.main_conv = ConvModule(in_channels, 2 * self.mid_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
+        self.final_conv = ConvModule((2 + num_blocks) * self.mid_channels, out_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
 
         self.blocks = nn.ModuleList(
             DarknetBottleneck(
@@ -164,7 +139,8 @@ class CSPLayerWithTwoConv(BaseModule):
         x_main = list(x_main.split((self.mid_channels, self.mid_channels), 1))
         x_main.extend(blocks(x_main[-1]) for blocks in self.blocks)
         return self.final_conv(torch.cat(x_main, 1))
-    
+
+
 class SPPFBottleneck(BaseModule):
     """Spatial pyramid pooling - Fast (SPPF) layer for
     YOLOv5, YOLOX and PPYOLOE by Glenn Jocher
@@ -204,36 +180,19 @@ class SPPFBottleneck(BaseModule):
 
         if use_conv_first:
             mid_channels = int(in_channels * mid_channels_scale)
-            self.conv1 = ConvModule(
-                in_channels,
-                mid_channels,
-                1,
-                stride=1,
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                act_cfg=act_cfg)
+            self.conv1 = ConvModule(in_channels, mid_channels, 1, stride=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
         else:
             mid_channels = in_channels
             self.conv1 = None
         self.kernel_sizes = kernel_sizes
         if isinstance(kernel_sizes, int):
-            self.poolings = nn.MaxPool2d(
-                kernel_size=kernel_sizes, stride=1, padding=kernel_sizes // 2)
+            self.poolings = nn.MaxPool2d(kernel_size=kernel_sizes, stride=1, padding=kernel_sizes // 2)
             conv2_in_channels = mid_channels * 4
         else:
-            self.poolings = nn.ModuleList([
-                nn.MaxPool2d(kernel_size=ks, stride=1, padding=ks // 2)
-                for ks in kernel_sizes
-            ])
+            self.poolings = nn.ModuleList([nn.MaxPool2d(kernel_size=ks, stride=1, padding=ks // 2) for ks in kernel_sizes])
             conv2_in_channels = mid_channels * (len(kernel_sizes) + 1)
 
-        self.conv2 = ConvModule(
-            conv2_in_channels,
-            out_channels,
-            1,
-            conv_cfg=conv_cfg,
-            norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
+        self.conv2 = ConvModule(conv2_in_channels, out_channels, 1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
 
     def forward(self, x: Tensor) -> Tensor:
         """Forward process
@@ -247,10 +206,10 @@ class SPPFBottleneck(BaseModule):
             y2 = self.poolings(y1)
             x = torch.cat([x, y1, y2, self.poolings(y2)], dim=1)
         else:
-            x = torch.cat(
-                [x] + [pooling(x) for pooling in self.poolings], dim=1)
+            x = torch.cat([x] + [pooling(x) for pooling in self.poolings], dim=1)
         x = self.conv2(x)
         return x
+
 
 @BACKBONES.register_module()
 class YOLOv8CSPDarknet(BaseBackbone):
@@ -296,8 +255,7 @@ class YOLOv8CSPDarknet(BaseBackbone):
     # in_channels, out_channels, num_blocks, add_identity, use_spp
     # the final out_channels will be set according to the param.
     arch_settings = {
-        'P5': [[64, 128, 3, True, False], [128, 256, 6, True, False],
-               [256, 512, 6, True, False], [512, None, 3, True, True]],
+        'P5': [[64, 128, 3, True, False], [128, 256, 6, True, False], [256, 512, 6, True, False], [512, None, 3, True, True]],
     }
 
     def __init__(self,
@@ -328,16 +286,11 @@ class YOLOv8CSPDarknet(BaseBackbone):
     def build_stem_layer(self) -> nn.Module:
         """Build a stem layer."""
         return ConvModule(
-            self.input_channels,
-            make_divisible(self.arch_setting[0][0], self.widen_factor),
-            kernel_size=3,
-            stride=2,
-            padding=1,
-            norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            self.input_channels, make_divisible(self.arch_setting[0][0], self.widen_factor), kernel_size=3, stride=2, padding=1, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg)
 
     def build_stage_layer(self, stage_idx: int, setting: list) -> list:
         """Build a stage layer.
+
         Args:
             stage_idx (int): The index of a stage layer.
             setting (list): The architecture setting of a stage layer.
@@ -348,30 +301,12 @@ class YOLOv8CSPDarknet(BaseBackbone):
         out_channels = make_divisible(out_channels, self.widen_factor)
         num_blocks = make_round(num_blocks, self.deepen_factor)
         stage = []
-        conv_layer = ConvModule(
-            in_channels,
-            out_channels,
-            kernel_size=3,
-            stride=2,
-            padding=1,
-            norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+        conv_layer = ConvModule(in_channels, out_channels, kernel_size=3, stride=2, padding=1, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg)
         stage.append(conv_layer)
-        csp_layer = CSPLayerWithTwoConv(
-            out_channels,
-            out_channels,
-            num_blocks=num_blocks,
-            add_identity=add_identity,
-            norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+        csp_layer = CSPLayerWithTwoConv(out_channels, out_channels, num_blocks=num_blocks, add_identity=add_identity, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg)
         stage.append(csp_layer)
         if use_spp:
-            spp = SPPFBottleneck(
-                out_channels,
-                out_channels,
-                kernel_sizes=5,
-                norm_cfg=self.norm_cfg,
-                act_cfg=self.act_cfg)
+            spp = SPPFBottleneck(out_channels, out_channels, kernel_sizes=5, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg)
             stage.append(spp)
         return stage
 

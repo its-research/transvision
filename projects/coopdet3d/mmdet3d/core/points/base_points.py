@@ -1,7 +1,8 @@
-import numpy as np
-import torch
 import warnings
 from abc import abstractmethod
+
+import numpy as np
+import torch
 
 
 class BasePoints:
@@ -27,14 +28,12 @@ class BasePoints:
         if isinstance(tensor, torch.Tensor):
             device = tensor.device
         else:
-            device = torch.device("cpu")
+            device = torch.device('cpu')
         tensor = torch.as_tensor(tensor, dtype=torch.float32, device=device)
         if tensor.numel() == 0:
             # Use reshape, so we don't end up creating a new tensor that
             # does not depend on the inputs (and consequently confuses jit)
-            tensor = tensor.reshape((0, points_dim)).to(
-                dtype=torch.float32, device=device
-            )
+            tensor = tensor.reshape((0, points_dim)).to(dtype=torch.float32, device=device)
         assert tensor.dim() == 2 and tensor.size(-1) == points_dim, tensor.size()
 
         self.tensor = tensor
@@ -54,7 +53,7 @@ class BasePoints:
         try:
             tensor = tensor.reshape(self.shape[0], 3)
         except (RuntimeError, ValueError):  # for torch.Tensor and np.ndarray
-            raise ValueError(f"got unexpected shape {tensor.shape}")
+            raise ValueError(f'got unexpected shape {tensor.shape}')
         if not isinstance(tensor, torch.Tensor):
             tensor = self.tensor.new_tensor(tensor)
         self.tensor[:, :3] = tensor
@@ -62,8 +61,8 @@ class BasePoints:
     @property
     def height(self):
         """torch.Tensor: A vector with height of each point."""
-        if self.attribute_dims is not None and "height" in self.attribute_dims.keys():
-            return self.tensor[:, self.attribute_dims["height"]]
+        if self.attribute_dims is not None and 'height' in self.attribute_dims.keys():
+            return self.tensor[:, self.attribute_dims['height']]
         else:
             return None
 
@@ -73,11 +72,11 @@ class BasePoints:
         try:
             tensor = tensor.reshape(self.shape[0])
         except (RuntimeError, ValueError):  # for torch.Tensor and np.ndarray
-            raise ValueError(f"got unexpected shape {tensor.shape}")
+            raise ValueError(f'got unexpected shape {tensor.shape}')
         if not isinstance(tensor, torch.Tensor):
             tensor = self.tensor.new_tensor(tensor)
-        if self.attribute_dims is not None and "height" in self.attribute_dims.keys():
-            self.tensor[:, self.attribute_dims["height"]] = tensor
+        if self.attribute_dims is not None and 'height' in self.attribute_dims.keys():
+            self.tensor[:, self.attribute_dims['height']] = tensor
         else:
             # add height attribute
             if self.attribute_dims is None:
@@ -90,8 +89,8 @@ class BasePoints:
     @property
     def color(self):
         """torch.Tensor: A vector with color of each point."""
-        if self.attribute_dims is not None and "color" in self.attribute_dims.keys():
-            return self.tensor[:, self.attribute_dims["color"]]
+        if self.attribute_dims is not None and 'color' in self.attribute_dims.keys():
+            return self.tensor[:, self.attribute_dims['color']]
         else:
             return None
 
@@ -101,22 +100,20 @@ class BasePoints:
         try:
             tensor = tensor.reshape(self.shape[0], 3)
         except (RuntimeError, ValueError):  # for torch.Tensor and np.ndarray
-            raise ValueError(f"got unexpected shape {tensor.shape}")
+            raise ValueError(f'got unexpected shape {tensor.shape}')
         if tensor.max() >= 256 or tensor.min() < 0:
-            warnings.warn("point got color value beyond [0, 255]")
+            warnings.warn('point got color value beyond [0, 255]')
         if not isinstance(tensor, torch.Tensor):
             tensor = self.tensor.new_tensor(tensor)
-        if self.attribute_dims is not None and "color" in self.attribute_dims.keys():
-            self.tensor[:, self.attribute_dims["color"]] = tensor
+        if self.attribute_dims is not None and 'color' in self.attribute_dims.keys():
+            self.tensor[:, self.attribute_dims['color']] = tensor
         else:
             # add color attribute
             if self.attribute_dims is None:
                 self.attribute_dims = dict()
             attr_dim = self.shape[1]
             self.tensor = torch.cat([self.tensor, tensor], dim=1)
-            self.attribute_dims.update(
-                dict(color=[attr_dim, attr_dim + 1, attr_dim + 2])
-            )
+            self.attribute_dims.update(dict(color=[attr_dim, attr_dim + 1, attr_dim + 2]))
             self.points_dim += 3
 
     @property
@@ -144,9 +141,7 @@ class BasePoints:
         """
         if not isinstance(rotation, torch.Tensor):
             rotation = self.tensor.new_tensor(rotation)
-        assert (
-            rotation.shape == torch.Size([3, 3]) or rotation.numel() == 1
-        ), f"invalid rotation shape {rotation.shape}"
+        assert (rotation.shape == torch.Size([3, 3]) or rotation.numel() == 1), f'invalid rotation shape {rotation.shape}'
 
         if axis is None:
             axis = self.rotation_axis
@@ -155,19 +150,13 @@ class BasePoints:
             rot_sin = torch.sin(rotation)
             rot_cos = torch.cos(rotation)
             if axis == 1:
-                rot_mat_T = rotation.new_tensor(
-                    [[rot_cos, 0, -rot_sin], [0, 1, 0], [rot_sin, 0, rot_cos]]
-                )
+                rot_mat_T = rotation.new_tensor([[rot_cos, 0, -rot_sin], [0, 1, 0], [rot_sin, 0, rot_cos]])
             elif axis == 2 or axis == -1:
-                rot_mat_T = rotation.new_tensor(
-                    [[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0], [0, 0, 1]]
-                )
+                rot_mat_T = rotation.new_tensor([[rot_cos, -rot_sin, 0], [rot_sin, rot_cos, 0], [0, 0, 1]])
             elif axis == 0:
-                rot_mat_T = rotation.new_tensor(
-                    [[0, rot_cos, -rot_sin], [0, rot_sin, rot_cos], [1, 0, 0]]
-                )
+                rot_mat_T = rotation.new_tensor([[0, rot_cos, -rot_sin], [0, rot_sin, rot_cos], [1, 0, 0]])
             else:
-                raise ValueError("axis should in range")
+                raise ValueError('axis should in range')
             rot_mat_T = rot_mat_T.T
         elif rotation.numel() == 9:
             rot_mat_T = rotation
@@ -178,7 +167,7 @@ class BasePoints:
         return rot_mat_T
 
     @abstractmethod
-    def flip(self, bev_direction="horizontal"):
+    def flip(self, bev_direction='horizontal'):
         """Flip the points in BEV along given BEV direction."""
         pass
 
@@ -195,14 +184,9 @@ class BasePoints:
         if trans_vector.dim() == 1:
             assert trans_vector.shape[0] == 3
         elif trans_vector.dim() == 2:
-            assert (
-                trans_vector.shape[0] == self.tensor.shape[0]
-                and trans_vector.shape[1] == 3
-            )
+            assert (trans_vector.shape[0] == self.tensor.shape[0] and trans_vector.shape[1] == 3)
         else:
-            raise NotImplementedError(
-                f"Unsupported translation vector of shape {trans_vector.shape}"
-            )
+            raise NotImplementedError(f'Unsupported translation vector of shape {trans_vector.shape}')
         self.tensor[:, :3] += trans_vector
 
     def in_range_3d(self, point_range):
@@ -221,14 +205,12 @@ class BasePoints:
             torch.Tensor: A binary vector indicating whether each point is \
                 inside the reference range.
         """
-        in_range_flags = (
-            (self.tensor[:, 0] > point_range[0])
-            & (self.tensor[:, 1] > point_range[1])
-            & (self.tensor[:, 2] > point_range[2])
-            & (self.tensor[:, 0] < point_range[3])
-            & (self.tensor[:, 1] < point_range[4])
-            & (self.tensor[:, 2] < point_range[5])
-        )
+        in_range_flags = ((self.tensor[:, 0] > point_range[0])
+                          & (self.tensor[:, 1] > point_range[1])
+                          & (self.tensor[:, 2] > point_range[2])
+                          & (self.tensor[:, 0] < point_range[3])
+                          & (self.tensor[:, 1] < point_range[4])
+                          & (self.tensor[:, 2] < point_range[5]))
         return in_range_flags
 
     @abstractmethod
@@ -314,18 +296,14 @@ class BasePoints:
                 item = tuple(item)
             p = self.tensor[item[0], item[1]]
 
-            keep_dims = list(
-                set(item[1]).intersection(set(range(3, self.tensor.shape[1])))
-            )
+            keep_dims = list(set(item[1]).intersection(set(range(3, self.tensor.shape[1]))))
             if self.attribute_dims is not None:
                 attribute_dims = self.attribute_dims.copy()
                 for key in self.attribute_dims.keys():
                     cur_attribute_dims = attribute_dims[key]
                     if isinstance(cur_attribute_dims, int):
                         cur_attribute_dims = [cur_attribute_dims]
-                    intersect_attr = list(
-                        set(cur_attribute_dims).intersection(set(keep_dims))
-                    )
+                    intersect_attr = list(set(cur_attribute_dims).intersection(set(keep_dims)))
                     if len(intersect_attr) == 1:
                         attribute_dims[key] = intersect_attr[0]
                     elif len(intersect_attr) > 1:
@@ -338,11 +316,9 @@ class BasePoints:
             p = self.tensor[item]
             attribute_dims = self.attribute_dims
         else:
-            raise NotImplementedError(f"Invalid slice {item}!")
+            raise NotImplementedError(f'Invalid slice {item}!')
 
-        assert (
-            p.dim() == 2
-        ), f"Indexing on Points with {item} failed to return a matrix!"
+        assert (p.dim() == 2), f'Indexing on Points with {item} failed to return a matrix!'
         return original_type(p, points_dim=p.shape[1], attribute_dims=attribute_dims)
 
     def __len__(self):
@@ -351,7 +327,7 @@ class BasePoints:
 
     def __repr__(self):
         """str: Return a strings that describes the object."""
-        return self.__class__.__name__ + "(\n    " + str(self.tensor) + ")"
+        return self.__class__.__name__ + '(\n    ' + str(self.tensor) + ')'
 
     @classmethod
     def cat(cls, points_list):
@@ -434,12 +410,6 @@ class BasePoints:
             :obj:`BasePoints`: A new point object with ``data``, \
                 the object's other properties are similar to ``self``.
         """
-        new_tensor = (
-            self.tensor.new_tensor(data)
-            if not isinstance(data, torch.Tensor)
-            else data.to(self.device)
-        )
+        new_tensor = (self.tensor.new_tensor(data) if not isinstance(data, torch.Tensor) else data.to(self.device))
         original_type = type(self)
-        return original_type(
-            new_tensor, points_dim=self.points_dim, attribute_dims=self.attribute_dims
-        )
+        return original_type(new_tensor, points_dim=self.points_dim, attribute_dims=self.attribute_dims)

@@ -1,11 +1,11 @@
 import json
+import math
 from dataclasses import dataclass, field
-from typing import Tuple, Optional, List, Any
+from pathlib import Path
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
-import math
 from scipy.spatial.transform import Rotation as R
-from pathlib import Path
 
 next_detection_id = 0
 
@@ -44,10 +44,10 @@ class Detection:
     # - s110_lidar_ouster_north
     # - s110_camera_basler_south1_8mm,
     # - s110_camera_basler_south2_8mm
-    sensor_id: str = ""
+    sensor_id: str = ''
 
     # Unique object ID (32 hex chars)
-    uuid: str = ""
+    uuid: str = ''
 
     # Speed vector
     speed: Optional[np.ndarray] = None  # [dx, dy] * m/s
@@ -94,8 +94,8 @@ class Detection:
         self.yaw += delta
 
     def pick_yaw(self, yaw_options: np.ndarray, apply=True) -> float:
-        """Align current heading with a valid option, considering
-        current and past headings."""
+        """Align current heading with a valid option, considering current and
+        past headings."""
         if not self.yaw_history:
             if apply:
                 self.adjust_yaw(yaw_options[0] - self.yaw)
@@ -130,10 +130,8 @@ class Detection:
 
 
 def detections_to_dict(detection_list: List[Detection]):
-    """
-    Convert list of detected detections to the format
-    expected by the devkit evaluation module.
-    """
+    """Convert list of detected detections to the format expected by the devkit
+    evaluation module."""
     names = []
     boxes = []
     scores = []
@@ -145,7 +143,7 @@ def detections_to_dict(detection_list: List[Detection]):
         boxes.append(np.array(values))
         scores.append(v.score)
 
-    return {"name": np.array(names), "boxes_3d": np.array(boxes), "score": np.array(scores)}
+    return {'name': np.array(names), 'boxes_3d': np.array(boxes), 'score': np.array(scores)}
 
 
 def get_corners(yaw: float, width: float, length: float, position: np.ndarray) -> np.ndarray:
@@ -161,14 +159,12 @@ def get_corners(yaw: float, width: float, length: float, position: np.ndarray) -
     pos = position.flatten()
 
     # return the corners by moving the center of the rectangle by the vectors
-    return np.array(
-        [
-            pos + v1 + v2,
-            pos - v1 + v2,
-            pos - v1 - v2,
-            pos + v1 - v2,
-        ]
-    )
+    return np.array([
+        pos + v1 + v2,
+        pos - v1 + v2,
+        pos - v1 - v2,
+        pos + v1 - v2,
+    ])
 
 
 def detections_to_openlabel(
@@ -180,22 +176,21 @@ def detections_to_openlabel(
     frame_id=None,
     streams=None,
 ):
-    """
-    Convert list of detected detections to the format expected by the OpenLABEL
-    """
-    output_json_data = {"openlabel": {"metadata": {"schema_version": "1.0.0"}, "coordinate_systems": {}}}
+    """Convert list of detected detections to the format expected by the
+    OpenLABEL."""
+    output_json_data = {'openlabel': {'metadata': {'schema_version': '1.0.0'}, 'coordinate_systems': {}}}
     if coordinate_systems:
-        output_json_data["openlabel"]["coordinate_systems"] = coordinate_systems
+        output_json_data['openlabel']['coordinate_systems'] = coordinate_systems
 
     objects_map = {}
     if frame_id is None:
-        frame_id = "0"
+        frame_id = '0'
     frame_map = {str(frame_id): {}}
     for detection_idx, detection in enumerate(detection_list):
         category = detection.category
         position_3d = detection.location.flatten()
         rotation_yaw = detection.yaw
-        rotation_quat = R.from_euler("xyz", [0, 0, rotation_yaw], degrees=False).as_quat()
+        rotation_quat = R.from_euler('xyz', [0, 0, rotation_yaw], degrees=False).as_quat()
         dimensions = detection.dimensions
 
         # TODO: store all unique track IDs (.id) into a unique list (set).
@@ -203,28 +198,28 @@ def detections_to_openlabel(
         # TODO: Better: use existing uuid for tracking (change tracker.py from id to uuid)
         object_id = str(detection.uuid) or str(detection_idx)
 
-        object_attributes = {"text": [], "num": [], "vec": []}
+        object_attributes = {'text': [], 'num': [], 'vec': []}
 
         if detection.color is not None:
-            body_color_attribute = {"name": "body_color", "val": detection.color.lower()}
-            object_attributes["text"].append(body_color_attribute)
+            body_color_attribute = {'name': 'body_color', 'val': detection.color.lower()}
+            object_attributes['text'].append(body_color_attribute)
 
-        overlap_attribute = {"name": "overlap", "val": str(detection.overlap)}
-        object_attributes["text"].append(overlap_attribute)
+        overlap_attribute = {'name': 'overlap', 'val': str(detection.overlap)}
+        object_attributes['text'].append(overlap_attribute)
 
         if detection.occlusion_level is not None:
-            occlusion_attribute = {"name": "occlusion_level", "val": detection.occlusion_level}
-            object_attributes["text"].append(occlusion_attribute)
+            occlusion_attribute = {'name': 'occlusion_level', 'val': detection.occlusion_level}
+            object_attributes['text'].append(occlusion_attribute)
 
         if detection.sensor_id is not None:
-            sensor_id_attribute = {"name": "sensor_id", "val": detection.sensor_id}
-            object_attributes["text"].append(sensor_id_attribute)
+            sensor_id_attribute = {'name': 'sensor_id', 'val': detection.sensor_id}
+            object_attributes['text'].append(sensor_id_attribute)
 
-        num_lidar_points_attribute = {"name": "num_points", "val": detection.num_lidar_points}
-        object_attributes["num"].append(num_lidar_points_attribute)
+        num_lidar_points_attribute = {'name': 'num_points', 'val': detection.num_lidar_points}
+        object_attributes['num'].append(num_lidar_points_attribute)
 
-        score_attribute = {"name": "score", "val": detection.score}
-        object_attributes["num"].append(score_attribute)
+        score_attribute = {'name': 'score', 'val': detection.score}
+        object_attributes['num'].append(score_attribute)
 
         if detection.bbox_2d is not None:
             # convert x_min, y_min, x_max, y_max to xywh
@@ -232,7 +227,7 @@ def detections_to_openlabel(
             height = float(detection.bbox_2d[3] - detection.bbox_2d[1])
             x_center = float(detection.bbox_2d[0] + width / 2.0)
             y_center = float(detection.bbox_2d[1] + height / 2.0)
-            bbox_2d = [{"name": "shape", "val": [x_center, y_center, width, height]}]
+            bbox_2d = [{'name': 'shape', 'val': [x_center, y_center, width, height]}]
         else:
             bbox_2d = []
 
@@ -244,16 +239,17 @@ def detections_to_openlabel(
                 track_history.append(position[0])
                 track_history.append(position[1])
                 track_history.append(position[2])
-            track_history_attribute = {"name": "track_history", "val": track_history}
-            object_attributes["vec"].append(track_history_attribute)
+            track_history_attribute = {'name': 'track_history', 'val': track_history}
+            object_attributes['vec'].append(track_history_attribute)
 
         objects_map[object_id] = {
-            "object_data": {
-                "name": category.upper() + "_" + object_id.split("-")[0],
-                "type": category.upper(),
-                "cuboid": {
-                    "name": "shape3D",
-                    "val": [
+            'object_data': {
+                'name': category.upper() + '_' + object_id.split('-')[0],
+                'type': category.upper(),
+                'cuboid': {
+                    'name':
+                    'shape3D',
+                    'val': [
                         position_3d[0],
                         position_3d[1],
                         position_3d[2],
@@ -265,19 +261,20 @@ def detections_to_openlabel(
                         dimensions[1],
                         dimensions[2],
                     ],
-                    "attributes": object_attributes,
+                    'attributes':
+                    object_attributes,
                 },
-                "bbox": bbox_2d,
+                'bbox': bbox_2d,
             }
         }
-    frame_map[frame_id]["objects"] = objects_map
+    frame_map[frame_id]['objects'] = objects_map
     if frame_properties:
-        frame_map[frame_id]["frame_properties"] = frame_properties
+        frame_map[frame_id]['frame_properties'] = frame_properties
     if streams:
-        output_json_data["openlabel"]["streams"] = streams
-    output_json_data["openlabel"]["frames"] = frame_map
+        output_json_data['openlabel']['streams'] = streams
+    output_json_data['openlabel']['frames'] = frame_map
 
-    with open(output_folder_path / filename, "w", encoding="utf-8") as f:
+    with open(output_folder_path / filename, 'w', encoding='utf-8') as f:
         json.dump(output_json_data, f, indent=4)
 
     return output_json_data

@@ -5,35 +5,24 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 # ------------------------------------------------------------------------
 
-import mmcv
-import copy
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-
-from mmcv.runner import force_fp32, auto_fp16
-from mmdet.core import multi_apply
-from mmdet.models import DETECTORS
-from mmdet.models.builder import build_backbone
-from mmdet3d.core import (Box3DMode, Coord3DMode, bbox3d2result,
-                          merge_aug_bboxes_3d, show_result)
+from mmcv.runner import auto_fp16, force_fp32
+from mmdet3d.core import bbox3d2result
 from mmdet3d.models.detectors.mvx_two_stage import MVXTwoStageDetector
-
-from projects.mmdet3d_plugin.models.utils.grid_mask import GridMask
+from mmdet.models import DETECTORS
 from projects.mmdet3d_plugin import SPConvVoxelization
+from projects.mmdet3d_plugin.models.utils.grid_mask import GridMask
 
 
 @DETECTORS.register_module()
 class CmtDetector(MVXTwoStageDetector):
 
-    def __init__(self,
-                 use_grid_mask=False,
-                 **kwargs):
+    def __init__(self, use_grid_mask=False, **kwargs):
         pts_voxel_cfg = kwargs.get('pts_voxel_layer', None)
         kwargs['pts_voxel_layer'] = None
         super(CmtDetector, self).__init__(**kwargs)
-        
+
         self.use_grid_mask = use_grid_mask
         self.grid_mask = GridMask(True, True, rotate=1, offset=False, ratio=0.5, mode=1, prob=0.7)
         if pts_voxel_cfg:
@@ -43,7 +32,7 @@ class CmtDetector(MVXTwoStageDetector):
         """Initialize model weights."""
         super(CmtDetector, self).init_weights()
 
-    @auto_fp16(apply_to=('img'), out_fp32=True) 
+    @auto_fp16(apply_to=('img'), out_fp32=True)
     def extract_img_feat(self, img, img_metas):
         """Extract features of images."""
         if self.with_img_backbone and img is not None:
@@ -76,8 +65,11 @@ class CmtDetector(MVXTwoStageDetector):
         if pts is None:
             return None
         voxels, num_points, coors = self.voxelize(pts)
-        voxel_features = self.pts_voxel_encoder(voxels, num_points, coors,
-                                                )
+        voxel_features = self.pts_voxel_encoder(
+            voxels,
+            num_points,
+            coors,
+        )
         batch_size = coors[-1, 0] + 1
         x = self.pts_middle_encoder(voxel_features, coors, batch_size)
         x = self.pts_backbone(x)
@@ -112,16 +104,7 @@ class CmtDetector(MVXTwoStageDetector):
         coors_batch = torch.cat(coors_batch, dim=0)
         return voxels, num_points, coors_batch
 
-    def forward_train(self,
-                      points=None,
-                      img_metas=None,
-                      gt_bboxes_3d=None,
-                      gt_labels_3d=None,
-                      gt_labels=None,
-                      gt_bboxes=None,
-                      img=None,
-                      proposals=None,
-                      gt_bboxes_ignore=None):
+    def forward_train(self, points=None, img_metas=None, gt_bboxes_3d=None, gt_labels_3d=None, gt_labels=None, gt_bboxes=None, img=None, proposals=None, gt_bboxes_ignore=None):
         """Forward training function.
 
         Args:
@@ -148,24 +131,15 @@ class CmtDetector(MVXTwoStageDetector):
             dict: Losses of different branches.
         """
 
-        img_feats, pts_feats = self.extract_feat(
-            points, img=img, img_metas=img_metas)
+        img_feats, pts_feats = self.extract_feat(points, img=img, img_metas=img_metas)
         losses = dict()
         if pts_feats or img_feats:
-            losses_pts = self.forward_pts_train(pts_feats, img_feats, gt_bboxes_3d,
-                                                gt_labels_3d, img_metas,
-                                                gt_bboxes_ignore)
+            losses_pts = self.forward_pts_train(pts_feats, img_feats, gt_bboxes_3d, gt_labels_3d, img_metas, gt_bboxes_ignore)
             losses.update(losses_pts)
         return losses
 
     @force_fp32(apply_to=('pts_feats', 'img_feats'))
-    def forward_pts_train(self,
-                          pts_feats,
-                          img_feats,
-                          gt_bboxes_3d,
-                          gt_labels_3d,
-                          img_metas,
-                          gt_bboxes_ignore=None):
+    def forward_pts_train(self, pts_feats, img_feats, gt_bboxes_3d, gt_labels_3d, img_metas, gt_bboxes_ignore=None):
         """Forward function for point cloud branch.
 
         Args:
@@ -190,10 +164,7 @@ class CmtDetector(MVXTwoStageDetector):
         losses = self.pts_bbox_head.loss(*loss_inputs)
         return losses
 
-    def forward_test(self,
-                     points=None,
-                     img_metas=None,
-                     img=None, **kwargs):
+    def forward_test(self, points=None, img_metas=None, img=None, **kwargs):
         """
         Args:
             points (list[torch.Tensor]): the outer list indicates test-time
@@ -213,40 +184,32 @@ class CmtDetector(MVXTwoStageDetector):
             img = [None]
         for var, name in [(points, 'points'), (img, 'img'), (img_metas, 'img_metas')]:
             if not isinstance(var, list):
-                raise TypeError('{} must be a list, but got {}'.format(
-                    name, type(var)))
+                raise TypeError('{} must be a list, but got {}'.format(name, type(var)))
 
         return self.simple_test(points[0], img_metas[0], img[0], **kwargs)
-    
+
     @force_fp32(apply_to=('x', 'x_img'))
     def simple_test_pts(self, x, x_img, img_metas, rescale=False):
         """Test function of point cloud branch."""
         outs = self.pts_bbox_head(x, x_img, img_metas)
-        bbox_list = self.pts_bbox_head.get_bboxes(
-            outs, img_metas, rescale=rescale)
-        bbox_results = [
-            bbox3d2result(bboxes, scores, labels)
-            for bboxes, scores, labels in bbox_list
-        ] 
+        bbox_list = self.pts_bbox_head.get_bboxes(outs, img_metas, rescale=rescale)
+        bbox_results = [bbox3d2result(bboxes, scores, labels) for bboxes, scores, labels in bbox_list]
         return bbox_results
 
     def simple_test(self, points, img_metas, img=None, rescale=False):
-        img_feats, pts_feats = self.extract_feat(
-            points, img=img, img_metas=img_metas)
+        img_feats, pts_feats = self.extract_feat(points, img=img, img_metas=img_metas)
         if pts_feats is None:
             pts_feats = [None]
         if img_feats is None:
             img_feats = [None]
-        
+
         bbox_list = [dict() for i in range(len(img_metas))]
         if (pts_feats or img_feats) and self.with_pts_bbox:
-            bbox_pts = self.simple_test_pts(
-                pts_feats, img_feats, img_metas, rescale=rescale)
+            bbox_pts = self.simple_test_pts(pts_feats, img_feats, img_metas, rescale=rescale)
             for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
                 result_dict['pts_bbox'] = pts_bbox
         if img_feats and self.with_img_bbox:
-            bbox_img = self.simple_test_img(
-                img_feats, img_metas, rescale=rescale)
+            bbox_img = self.simple_test_img(img_feats, img_metas, rescale=rescale)
             for result_dict, img_bbox in zip(bbox_list, bbox_img):
                 result_dict['img_bbox'] = img_bbox
         return bbox_list

@@ -1,6 +1,6 @@
 import torch
-
 from mmdet.core.bbox.builder import BBOX_SAMPLERS
+
 from . import RandomSampler, SamplingResult
 
 
@@ -8,8 +8,8 @@ from . import RandomSampler, SamplingResult
 class IoUNegPiecewiseSampler(RandomSampler):
     """IoU Piece-wise Sampling.
 
-    Sampling negtive proposals according to a list of IoU thresholds.
-    The negtive proposals are divided into several pieces according
+    Sampling negative proposals according to a list of IoU thresholds.
+    The negative proposals are divided into several pieces according
     to `neg_iou_piece_thrs`. And the ratio of each piece is indicated
     by `neg_piece_fractions`.
 
@@ -17,11 +17,11 @@ class IoUNegPiecewiseSampler(RandomSampler):
         num (int): Number of proposals.
         pos_fraction (float): The fraction of positive proposals.
         neg_piece_fractions (list): A list contains fractions that indicates
-            the ratio of each piece of total negtive samplers.
+            the ratio of each piece of total negative samplers.
         neg_iou_piece_thrs (list): A list contains IoU thresholds that
             indicate the upper bound of this piece.
         neg_pos_ub (float): The total ratio to limit the upper bound
-            number of negtive samples.
+            number of negative samples.
         add_gt_as_proposals (bool): Whether to add gt as proposals.
     """
 
@@ -35,9 +35,7 @@ class IoUNegPiecewiseSampler(RandomSampler):
         add_gt_as_proposals=False,
         return_iou=False,
     ):
-        super(IoUNegPiecewiseSampler, self).__init__(
-            num, pos_fraction, neg_pos_ub, add_gt_as_proposals
-        )
+        super(IoUNegPiecewiseSampler, self).__init__(num, pos_fraction, neg_pos_ub, add_gt_as_proposals)
         assert isinstance(neg_piece_fractions, list)
         assert len(neg_piece_fractions) == len(neg_iou_piece_thrs)
         self.neg_piece_fractions = neg_piece_fractions
@@ -75,14 +73,10 @@ class IoUNegPiecewiseSampler(RandomSampler):
                     # if the numbers of negative samplers in previous
                     # pieces are less than the expected number, extend
                     # the same number in the current piece.
-                    piece_expected_num = (
-                        int(num_expected * self.neg_piece_fractions[piece_inds]) + extend_num
-                    )
+                    piece_expected_num = (int(num_expected * self.neg_piece_fractions[piece_inds]) + extend_num)
                     min_iou_thr = self.neg_iou_thr[piece_inds + 1]
                 max_iou_thr = self.neg_iou_thr[piece_inds]
-                piece_neg_inds = torch.nonzero(
-                    (max_overlaps >= min_iou_thr) & (max_overlaps < max_iou_thr), as_tuple=False
-                ).view(-1)
+                piece_neg_inds = torch.nonzero((max_overlaps >= min_iou_thr) & (max_overlaps < max_iou_thr), as_tuple=False).view(-1)
 
                 if len(piece_neg_inds) < piece_expected_num:
                     neg_inds_choice = torch.cat([neg_inds_choice, neg_inds[piece_neg_inds]], dim=0)
@@ -112,19 +106,17 @@ class IoUNegPiecewiseSampler(RandomSampler):
         if len(bboxes.shape) < 2:
             bboxes = bboxes[None, :]
 
-        gt_flags = bboxes.new_zeros((bboxes.shape[0],), dtype=torch.bool)
+        gt_flags = bboxes.new_zeros((bboxes.shape[0], ), dtype=torch.bool)
         if self.add_gt_as_proposals and len(gt_bboxes) > 0:
             if gt_labels is None:
-                raise ValueError("gt_labels must be given when add_gt_as_proposals is True")
+                raise ValueError('gt_labels must be given when add_gt_as_proposals is True')
             bboxes = torch.cat([gt_bboxes, bboxes], dim=0)
             assign_result.add_gt_(gt_labels)
             gt_ones = bboxes.new_ones(gt_bboxes.shape[0], dtype=torch.bool)
             gt_flags = torch.cat([gt_ones, gt_flags])
 
         num_expected_pos = int(self.num * self.pos_fraction)
-        pos_inds = self.pos_sampler._sample_pos(
-            assign_result, num_expected_pos, bboxes=bboxes, **kwargs
-        )
+        pos_inds = self.pos_sampler._sample_pos(assign_result, num_expected_pos, bboxes=bboxes, **kwargs)
         # We found that sampled indices have duplicated items occasionally.
         # (may be a bug of PyTorch)
         pos_inds = pos_inds.unique()
@@ -135,14 +127,10 @@ class IoUNegPiecewiseSampler(RandomSampler):
             neg_upper_bound = int(self.neg_pos_ub * _pos)
             if num_expected_neg > neg_upper_bound:
                 num_expected_neg = neg_upper_bound
-        neg_inds = self.neg_sampler._sample_neg(
-            assign_result, num_expected_neg, bboxes=bboxes, **kwargs
-        )
+        neg_inds = self.neg_sampler._sample_neg(assign_result, num_expected_neg, bboxes=bboxes, **kwargs)
         neg_inds = neg_inds.unique()
 
-        sampling_result = SamplingResult(
-            pos_inds, neg_inds, bboxes, gt_bboxes, assign_result, gt_flags
-        )
+        sampling_result = SamplingResult(pos_inds, neg_inds, bboxes, gt_bboxes, assign_result, gt_flags)
         if self.return_iou:
             # PartA2 needs iou score to regression.
             sampling_result.iou = assign_result.max_overlaps[torch.cat([pos_inds, neg_inds])]

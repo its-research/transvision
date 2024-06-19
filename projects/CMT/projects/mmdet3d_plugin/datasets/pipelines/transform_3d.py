@@ -5,22 +5,20 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 # ------------------------------------------------------------------------
 
-import numpy as np
-from numpy import random
-import torch
-import mmcv
 import cv2
-
+import mmcv
+import numpy as np
+import torch
 from mmcv.utils import build_from_cfg
-from mmdet.datasets.builder import PIPELINES
-from mmdet.datasets.pipelines import RandomFlip
 from mmdet3d.core.bbox import box_np_ops
 from mmdet3d.datasets.builder import OBJECTSAMPLERS
+from mmdet.datasets.builder import PIPELINES
 
 
 @PIPELINES.register_module()
 class PadMultiViewImage(object):
     """Pad the multi-view image.
+
     There are two padding modes: (1) pad to a fixed size and (2) pad to the
     minimum size that is divisible by some number.
     Added keys are "pad_shape", "pad_fixed_size", "pad_size_divisor",
@@ -41,11 +39,9 @@ class PadMultiViewImage(object):
     def _pad_img(self, results):
         """Pad images according to ``self.size``."""
         if self.size is not None:
-            padded_img = [mmcv.impad(
-                img, shape=self.size, pad_val=self.pad_val) for img in results['img']]
+            padded_img = [mmcv.impad(img, shape=self.size, pad_val=self.pad_val) for img in results['img']]
         elif self.size_divisor is not None:
-            padded_img = [mmcv.impad_to_multiple(
-                img, self.size_divisor, pad_val=self.pad_val) for img in results['img']]
+            padded_img = [mmcv.impad_to_multiple(img, self.size_divisor, pad_val=self.pad_val) for img in results['img']]
         results['img'] = padded_img
         results['img_shape'] = [img.shape for img in padded_img]
         results['pad_shape'] = [img.shape for img in padded_img]
@@ -54,6 +50,7 @@ class PadMultiViewImage(object):
 
     def __call__(self, results):
         """Call function to pad images, masks, semantic segmentation maps.
+
         Args:
             results (dict): Result dict from loading pipeline.
         Returns:
@@ -73,6 +70,7 @@ class PadMultiViewImage(object):
 @PIPELINES.register_module()
 class NormalizeMultiviewImage(object):
     """Normalize the image.
+
     Added key is "img_norm_cfg".
     Args:
         mean (sequence): Mean values of 3 channels.
@@ -88,16 +86,15 @@ class NormalizeMultiviewImage(object):
 
     def __call__(self, results):
         """Call function to normalize images.
+
         Args:
             results (dict): Result dict from loading pipeline.
         Returns:
             dict: Normalized results, 'img_norm_cfg' key is added into
                 result dict.
         """
-        results['img'] = [mmcv.imnormalize(
-            img, self.mean, self.std, self.to_rgb) for img in results['img']]
-        results['img_norm_cfg'] = dict(
-            mean=self.mean, std=self.std, to_rgb=self.to_rgb)
+        results['img'] = [mmcv.imnormalize(img, self.mean, self.std, self.to_rgb) for img in results['img']]
+        results['img_norm_cfg'] = dict(mean=self.mean, std=self.std, to_rgb=self.to_rgb)
         return results
 
     def __repr__(self):
@@ -160,25 +157,18 @@ class UnifiedObjectSample(object):
         points = input_dict['points']
         if self.sample_2d:
             # Assume for now 3D & 2D bboxes are the same
-            sampled_dict = self.db_sampler.sample_all(
-                gt_bboxes_3d.tensor.numpy(),
-                gt_labels_3d,
-                with_img=True)
+            sampled_dict = self.db_sampler.sample_all(gt_bboxes_3d.tensor.numpy(), gt_labels_3d, with_img=True)
         else:
-            sampled_dict = self.db_sampler.sample_all(
-                gt_bboxes_3d.tensor.numpy(), gt_labels_3d, with_img=False)
+            sampled_dict = self.db_sampler.sample_all(gt_bboxes_3d.tensor.numpy(), gt_labels_3d, with_img=False)
 
         if sampled_dict is not None:
             sampled_gt_bboxes_3d = sampled_dict['gt_bboxes_3d']
             sampled_points = sampled_dict['points']
-            sampled_points_idx = sampled_dict["points_idx"]
+            sampled_points_idx = sampled_dict['points_idx']
             sampled_gt_labels = sampled_dict['gt_labels_3d']
 
-            gt_labels_3d = np.concatenate([gt_labels_3d, sampled_gt_labels],
-                                          axis=0)
-            gt_bboxes_3d = gt_bboxes_3d.new_box(
-                np.concatenate(
-                    [gt_bboxes_3d.tensor.numpy(), sampled_gt_bboxes_3d]))
+            gt_labels_3d = np.concatenate([gt_labels_3d, sampled_gt_labels], axis=0)
+            gt_bboxes_3d = gt_bboxes_3d.new_box(np.concatenate([gt_bboxes_3d.tensor.numpy(), sampled_gt_bboxes_3d]))
 
             points = self.remove_points_in_boxes(points, sampled_gt_bboxes_3d)
             points_idx = -1 * np.ones(len(points), dtype=np.int)
@@ -192,11 +182,8 @@ class UnifiedObjectSample(object):
                 lidar2img = input_dict['lidar2img']
                 sampled_img = sampled_dict['images']
                 sampled_num = len(sampled_gt_bboxes_3d)
-                imgs, points_keep = self.unified_sample(imgs, lidar2img, 
-                                            points.tensor.numpy(), 
-                                            points_idx, gt_bboxes_3d.corners.numpy(), 
-                                            sampled_img, sampled_num)
-                
+                imgs, points_keep = self.unified_sample(imgs, lidar2img, points.tensor.numpy(), points_idx, gt_bboxes_3d.corners.numpy(), sampled_img, sampled_num)
+
                 input_dict['img'] = imgs
 
                 if self.modify_points:
@@ -214,30 +201,30 @@ class UnifiedObjectSample(object):
         is_raw = np.ones(len(bboxes_3d))
         is_raw[-sampled_num:] = 0
         is_raw = is_raw.astype(bool)
-        raw_num = len(is_raw)-sampled_num
+        raw_num = len(is_raw) - sampled_num
         # for point cloud
-        points_3d = points[:,:4].copy()
-        points_3d[:,-1] = 1
+        points_3d = points[:, :4].copy()
+        points_3d[:, -1] = 1
         points_keep = np.ones(len(points_3d)).astype(np.bool)
         new_imgs = imgs
 
-        assert len(imgs)==len(lidar2img) and len(sampled_img)==sampled_num
+        assert len(imgs) == len(lidar2img) and len(sampled_img) == sampled_num
         for _idx, (_img, _lidar2img) in enumerate(zip(imgs, lidar2img)):
             coord_img = bboxes_3d @ _lidar2img.T
-            coord_img[...,:2] /= coord_img[...,2,None]
-            depth = coord_img[...,2]
+            coord_img[..., :2] /= coord_img[..., 2, None]
+            depth = coord_img[..., 2]
             img_mask = (depth > 0).all(axis=-1)
             img_count = img_mask.nonzero()[0]
             if img_mask.sum() == 0:
                 continue
             depth = depth.mean(1)[img_mask]
-            coord_img = coord_img[...,:2][img_mask]
+            coord_img = coord_img[..., :2][img_mask]
             minxy = np.min(coord_img, axis=-2)
             maxxy = np.max(coord_img, axis=-2)
             bbox = np.concatenate([minxy, maxxy], axis=-1).astype(int)
-            bbox[:,0::2] = np.clip(bbox[:,0::2], a_min=0, a_max=_img.shape[1]-1)
-            bbox[:,1::2] = np.clip(bbox[:,1::2], a_min=0, a_max=_img.shape[0]-1)
-            img_mask = ((bbox[:,2:]-bbox[:,:2]) > 1).all(axis=-1)
+            bbox[:, 0::2] = np.clip(bbox[:, 0::2], a_min=0, a_max=_img.shape[1] - 1)
+            bbox[:, 1::2] = np.clip(bbox[:, 1::2], a_min=0, a_max=_img.shape[0] - 1)
+            img_mask = ((bbox[:, 2:] - bbox[:, :2]) > 1).all(axis=-1)
             if img_mask.sum() == 0:
                 continue
             depth = depth[img_mask]
@@ -255,46 +242,47 @@ class UnifiedObjectSample(object):
             raw_img = []
             for _count, _box in zip(img_count, bbox):
                 if is_raw[_count]:
-                    raw_img.append(_img[_box[1]:_box[3],_box[0]:_box[2]])
+                    raw_img.append(_img[_box[1]:_box[3], _box[0]:_box[2]])
 
             # then stitch the crops to raw image
             for _count, _box in zip(img_count, bbox):
                 if is_raw[_count]:
                     if self.mixup_rate < 0:
-                        _img[_box[1]:_box[3],_box[0]:_box[2]] = raw_img.pop(0)
+                        _img[_box[1]:_box[3], _box[0]:_box[2]] = raw_img.pop(0)
                     else:
-                        _img[_box[1]:_box[3],_box[0]:_box[2]] = \
-                            _img[_box[1]:_box[3],_box[0]:_box[2]] * (1 - self.mixup_rate) + raw_img.pop(0) * self.mixup_rate
-                    fg_mask[_box[1]:_box[3],_box[0]:_box[2]] = 1
+                        _img[_box[1]:_box[3], _box[0]:_box[2]] = \
+                            _img[_box[1]:_box[3], _box[0]:_box[2]] * (1 - self.mixup_rate) + raw_img.pop(0) * self.mixup_rate
+                    fg_mask[_box[1]:_box[3], _box[0]:_box[2]] = 1
                 else:
-                    img_crop = sampled_img[_count-raw_num]
-                    if len(img_crop)==0: continue
-                    img_crop = cv2.resize(img_crop, tuple(_box[[2,3]]-_box[[0,1]]))
+                    img_crop = sampled_img[_count - raw_num]
+                    if len(img_crop) == 0:
+                        continue
+                    img_crop = cv2.resize(img_crop, tuple(_box[[2, 3]] - _box[[0, 1]]))
                     if self.mixup_rate < 0:
-                        _img[_box[1]:_box[3],_box[0]:_box[2]] = img_crop
+                        _img[_box[1]:_box[3], _box[0]:_box[2]] = img_crop
                     else:
-                        _img[_box[1]:_box[3],_box[0]:_box[2]] = \
-                            _img[_box[1]:_box[3],_box[0]:_box[2]] * (1 - self.mixup_rate) + img_crop * self.mixup_rate
+                        _img[_box[1]:_box[3], _box[0]:_box[2]] = \
+                            _img[_box[1]:_box[3], _box[0]:_box[2]] * (1 - self.mixup_rate) + img_crop * self.mixup_rate
 
-                paste_mask[_box[1]:_box[3],_box[0]:_box[2]] = _count
-            
+                paste_mask[_box[1]:_box[3], _box[0]:_box[2]] = _count
+
             new_imgs[_idx] = _img
 
             # calculate modify mask
             if self.modify_points:
                 points_img = points_3d @ _lidar2img.T
-                points_img[:,:2] /= points_img[:,2,None]
-                depth = points_img[:,2]
+                points_img[:, :2] /= points_img[:, 2, None]
+                depth = points_img[:, 2]
                 img_mask = depth > 0
                 if img_mask.sum() == 0:
                     continue
-                img_mask = (points_img[:,0] > 0) & (points_img[:,0] < _img.shape[1]) & \
-                           (points_img[:,1] > 0) & (points_img[:,1] < _img.shape[0]) & img_mask
+                img_mask = (points_img[:, 0] > 0) & (points_img[:, 0] < _img.shape[1]) & \
+                           (points_img[:, 1] > 0) & (points_img[:, 1] < _img.shape[0]) & img_mask
                 points_img = points_img[img_mask].astype(int)
-                new_mask = paste_mask[points_img[:,1], points_img[:,0]]==(points_idx[img_mask]+raw_num)
+                new_mask = paste_mask[points_img[:, 1], points_img[:, 0]] == (points_idx[img_mask] + raw_num)
                 raw_fg = (fg_mask == 1) & (paste_mask >= 0) & (paste_mask < raw_num)
                 raw_bg = (fg_mask == 0) & (paste_mask < 0)
-                raw_mask = raw_fg[points_img[:,1], points_img[:,0]] | raw_bg[points_img[:,1], points_img[:,0]]
+                raw_mask = raw_fg[points_img[:, 1], points_img[:, 0]] | raw_bg[points_img[:, 1], points_img[:, 0]]
                 keep_mask = new_mask | raw_mask
                 points_keep[img_mask] = points_keep[img_mask] & keep_mask
 
@@ -324,17 +312,17 @@ class ResizeCropFlipImage(object):
         self.data_aug_conf = data_aug_conf
         self.training = training
         self.pic_wise = pic_wise
-        
 
     def __call__(self, results):
         """Call function to pad images, masks, semantic segmentation maps.
+
         Args:
             results (dict): Result dict from loading pipeline.
         Returns:
             dict: Updated result dict.
         """
 
-        imgs = results["img"]
+        imgs = results['img']
         N = len(imgs)
         new_imgs = []
         new_depths = []
@@ -357,12 +345,12 @@ class ResizeCropFlipImage(object):
                 flip=flip,
                 rotate=rotate,
             )
-            if "depths" in results.keys():
+            if 'depths' in results.keys():
                 depth = results['depths'][i]
                 depth = self._depth_transform(
                     depth,
                     resize=resize,
-                    resize_dims=self.data_aug_conf["final_dim"],
+                    resize_dims=self.data_aug_conf['final_dim'],
                     crop=crop,
                     flip=flip,
                     rotate=rotate,
@@ -373,29 +361,27 @@ class ResizeCropFlipImage(object):
             results['cam_intrinsic'][i][:2, :3] = post_rot2 @ results['cam_intrinsic'][i][:2, :3]
             results['cam_intrinsic'][i][:2, 2] = post_tran2 + results['cam_intrinsic'][i][:2, 2]
 
-        results["img"] = new_imgs
-        results["depths"] = new_depths
+        results['img'] = new_imgs
+        results['depths'] = new_depths
         results['lidar2img'] = [results['cam_intrinsic'][i] @ results['lidar2cam'][i] for i in range(len(results['lidar2cam']))]
 
         return results
 
     def _get_rot(self, h):
 
-        return torch.Tensor(
-            [
-                [np.cos(h), np.sin(h)],
-                [-np.sin(h), np.cos(h)],
-            ]
-        )
+        return torch.Tensor([
+            [np.cos(h), np.sin(h)],
+            [-np.sin(h), np.cos(h)],
+        ])
 
     def _img_transform(self, img, post_rot, post_tran, resize, resize_dims, crop, flip, rotate):
         # adjust image
         resized_img = cv2.resize(img, resize_dims)
         img = np.zeros((crop[3] - crop[1], crop[2] - crop[0], 3))
-        
+
         hsize, wsize = crop[3] - crop[1], crop[2] - crop[0]
         dh, dw, sh, sw = crop[1], crop[0], 0, 0
-        
+
         if dh < 0:
             sh = -dh
             hsize += dh
@@ -408,8 +394,8 @@ class ResizeCropFlipImage(object):
             dw = 0
         if dw + wsize > resized_img.shape[1]:
             wsize = resized_img.shape[1] - dw
-        img[sh : sh + hsize, sw : sw + wsize] = resized_img[dh: dh + hsize, dw: dw + wsize]
-        
+        img[sh:sh + hsize, sw:sw + wsize] = resized_img[dh:dh + hsize, dw:dw + wsize]
+
         (h, w) = img.shape[:2]
         center = (w / 2, h / 2)
         if flip:
@@ -433,24 +419,24 @@ class ResizeCropFlipImage(object):
         return img, post_rot, post_tran
 
     def _sample_augmentation(self):
-        H, W = self.data_aug_conf["H"], self.data_aug_conf["W"]
-        fH, fW = self.data_aug_conf["final_dim"]
+        H, W = self.data_aug_conf['H'], self.data_aug_conf['W']
+        fH, fW = self.data_aug_conf['final_dim']
         if self.training:
-            resize = np.random.uniform(*self.data_aug_conf["resize_lim"])
+            resize = np.random.uniform(*self.data_aug_conf['resize_lim'])
             resize_dims = (int(W * resize), int(H * resize))
             newW, newH = resize_dims
-            crop_h = int((1 - np.random.uniform(*self.data_aug_conf["bot_pct_lim"])) * newH) - fH
+            crop_h = int((1 - np.random.uniform(*self.data_aug_conf['bot_pct_lim'])) * newH) - fH
             crop_w = int(np.random.uniform(0, max(0, newW - fW)))
             crop = (crop_w, crop_h, crop_w + fW, crop_h + fH)
             flip = False
-            if self.data_aug_conf["rand_flip"] and np.random.choice([0, 1]):
+            if self.data_aug_conf['rand_flip'] and np.random.choice([0, 1]):
                 flip = True
-            rotate = np.random.uniform(*self.data_aug_conf["rot_lim"])
+            rotate = np.random.uniform(*self.data_aug_conf['rot_lim'])
         else:
             resize = max(fH / H, fW / W)
             resize_dims = (int(W * resize), int(H * resize))
             newW, newH = resize_dims
-            crop_h = int((1 - np.mean(self.data_aug_conf["bot_pct_lim"])) * newH) - fH
+            crop_h = int((1 - np.mean(self.data_aug_conf['bot_pct_lim'])) * newH) - fH
             crop_w = int(max(0, newW - fW) / 2)
             crop = (crop_w, crop_h, crop_w + fW, crop_h + fH)
             flip = False
@@ -493,12 +479,7 @@ class ResizeCropFlipImage(object):
         depth_coords = cam_depth[:, :2].astype(np.int16)
 
         depth_map = np.zeros((H, W, 3))
-        valid_mask = (
-            (depth_coords[:, 1] < resize_dims[0])
-            & (depth_coords[:, 0] < resize_dims[1])
-            & (depth_coords[:, 1] >= 0)
-            & (depth_coords[:, 0] >= 0)
-        )
+        valid_mask = ((depth_coords[:, 1] < resize_dims[0]) & (depth_coords[:, 0] < resize_dims[1]) & (depth_coords[:, 1] >= 0) & (depth_coords[:, 0] >= 0))
         depth_map[depth_coords[valid_mask, 1], depth_coords[valid_mask, 0], :] = cam_depth[valid_mask, :]
 
         return depth_map
@@ -522,11 +503,7 @@ class GlobalRotScaleTransAll(object):
             Defaults to False.
     """
 
-    def __init__(self,
-                 rot_range=[-0.78539816, 0.78539816],
-                 scale_ratio_range=[0.95, 1.05],
-                 translation_std=[0, 0, 0],
-                 shift_height=False):
+    def __init__(self, rot_range=[-0.78539816, 0.78539816], scale_ratio_range=[0.95, 1.05], translation_std=[0, 0, 0], shift_height=False):
         seq_types = (list, tuple, np.ndarray)
         if not isinstance(rot_range, seq_types):
             assert isinstance(rot_range, (int, float)), \
@@ -541,9 +518,7 @@ class GlobalRotScaleTransAll(object):
         if not isinstance(translation_std, seq_types):
             assert isinstance(translation_std, (int, float)), \
                 f'unsupported translation_std type {type(translation_std)}'
-            translation_std = [
-                translation_std, translation_std, translation_std
-            ]
+            translation_std = [translation_std, translation_std, translation_std]
         assert all([std >= 0 for std in translation_std]), \
             'translation_std should be positive'
         self.translation_std = translation_std
@@ -562,7 +537,7 @@ class GlobalRotScaleTransAll(object):
         """
         translation_std = np.array(self.translation_std, dtype=np.float32)
         trans_factor = np.random.normal(scale=translation_std, size=3).T
-        
+
         input_dict['points'].translate(trans_factor)
         if 'radar' in input_dict:
             input_dict['radar'].translate(trans_factor)
@@ -573,9 +548,9 @@ class GlobalRotScaleTransAll(object):
         trans_mat = np.eye(4)
         trans_mat[:3, -1] = trans_factor
         trans_mat_inv = np.linalg.inv(trans_mat)
-        for view in range(len(input_dict["lidar2img"])):
-            input_dict["lidar2img"][view] = input_dict["lidar2img"][view] @ trans_mat_inv
-            input_dict["lidar2cam"][view] = input_dict["lidar2cam"][view] @ trans_mat_inv
+        for view in range(len(input_dict['lidar2img'])):
+            input_dict['lidar2img'][view] = input_dict['lidar2img'][view] @ trans_mat_inv
+            input_dict['lidar2cam'][view] = input_dict['lidar2cam'][view] @ trans_mat_inv
 
     def _rot_bbox_points(self, input_dict):
         """Private function to rotate bounding boxes and points.
@@ -610,16 +585,15 @@ class GlobalRotScaleTransAll(object):
             rot_mat[:3, :3].copy_(rot_mat_T)
             rot_mat[0, 1], rot_mat[1, 0] = -rot_mat[0, 1], -rot_mat[1, 0]
             rot_mat_inv = torch.inverse(rot_mat)
-            for view in range(len(input_dict["lidar2img"])):
-                input_dict["lidar2img"][view] = (torch.tensor(input_dict["lidar2img"][view]).float() @ rot_mat_inv).numpy()
-                input_dict["lidar2cam"][view] = (torch.tensor(input_dict["lidar2cam"][view]).float() @ rot_mat_inv).numpy()
+            for view in range(len(input_dict['lidar2img'])):
+                input_dict['lidar2img'][view] = (torch.tensor(input_dict['lidar2img'][view]).float() @ rot_mat_inv).numpy()
+                input_dict['lidar2cam'][view] = (torch.tensor(input_dict['lidar2cam'][view]).float() @ rot_mat_inv).numpy()
             return
 
         # rotate points with bboxes
         for key in input_dict['bbox3d_fields']:
             if len(input_dict[key].tensor) != 0:
-                points, rot_mat_T = input_dict[key].rotate(
-                    noise_rotation, input_dict['points'])
+                points, rot_mat_T = input_dict[key].rotate(noise_rotation, input_dict['points'])
                 input_dict['points'] = points
                 input_dict['pcd_rotation'] = rot_mat_T
                 if 'radar' in input_dict:
@@ -629,10 +603,9 @@ class GlobalRotScaleTransAll(object):
                 rot_mat[:3, :3].copy_(rot_mat_T)
                 rot_mat[0, 1], rot_mat[1, 0] = -rot_mat[0, 1], -rot_mat[1, 0]
                 rot_mat_inv = torch.inverse(rot_mat)
-                for view in range(len(input_dict["lidar2img"])):
-                    input_dict["lidar2img"][view] = (torch.tensor(input_dict["lidar2img"][view]).float() @ rot_mat_inv).numpy()
-                    input_dict["lidar2cam"][view] = (torch.tensor(input_dict["lidar2cam"][view]).float() @ rot_mat_inv).numpy()
-
+                for view in range(len(input_dict['lidar2img'])):
+                    input_dict['lidar2img'][view] = (torch.tensor(input_dict['lidar2img'][view]).float() @ rot_mat_inv).numpy()
+                    input_dict['lidar2cam'][view] = (torch.tensor(input_dict['lidar2cam'][view]).float() @ rot_mat_inv).numpy()
 
     def _scale_bbox_points(self, input_dict):
         """Private function to scale bounding boxes and points.
@@ -652,25 +625,23 @@ class GlobalRotScaleTransAll(object):
                 'setting shift_height=True but points have no height attribute'
             points.tensor[:, points.attribute_dims['height']] *= scale
         input_dict['points'] = points
-        
+
         if 'radar' in input_dict:
             input_dict['radar'].scale(scale)
-            
+
         for key in input_dict['bbox3d_fields']:
             input_dict[key].scale(scale)
 
-        scale_mat = torch.tensor(
-            [
-                [scale, 0, 0, 0],
-                [0, scale, 0, 0],
-                [0, 0, scale, 0],
-                [0, 0, 0, 1],
-            ]
-        )
+        scale_mat = torch.tensor([
+            [scale, 0, 0, 0],
+            [0, scale, 0, 0],
+            [0, 0, scale, 0],
+            [0, 0, 0, 1],
+        ])
         scale_mat_inv = torch.inverse(scale_mat)
-        for view in range(len(input_dict["lidar2img"])):
-            input_dict["lidar2img"][view] = (torch.tensor(input_dict["lidar2img"][view]).float() @ scale_mat_inv).numpy()
-            input_dict["lidar2cam"][view] = (torch.tensor(input_dict["lidar2cam"][view]).float() @ scale_mat_inv).numpy()
+        for view in range(len(input_dict['lidar2img'])):
+            input_dict['lidar2img'][view] = (torch.tensor(input_dict['lidar2img'][view]).float() @ scale_mat_inv).numpy()
+            input_dict['lidar2cam'][view] = (torch.tensor(input_dict['lidar2cam'][view]).float() @ scale_mat_inv).numpy()
 
     def _random_scale(self, input_dict):
         """Private function to randomly set the scale factor.
@@ -682,8 +653,7 @@ class GlobalRotScaleTransAll(object):
             dict: Results after scaling, 'pcd_scale_factor' are updated \
                 in the result dict.
         """
-        scale_factor = np.random.uniform(self.scale_ratio_range[0],
-                                         self.scale_ratio_range[1])
+        scale_factor = np.random.uniform(self.scale_ratio_range[0], self.scale_ratio_range[1])
         input_dict['pcd_scale_factor'] = scale_factor
 
     def __call__(self, input_dict):
@@ -741,21 +711,14 @@ class CustomRandomFlip3D(object):
             in vertical direction. Defaults to 0.0.
     """
 
-    def __init__(self,
-                 flip_ratio_bev_horizontal=0.0,
-                 flip_ratio_bev_vertical=0.0,
-                 **kwargs):
+    def __init__(self, flip_ratio_bev_horizontal=0.0, flip_ratio_bev_vertical=0.0, **kwargs):
         super(CustomRandomFlip3D, self).__init__()
         self.flip_ratio_bev_horizontal = flip_ratio_bev_horizontal
         self.flip_ratio_bev_vertical = flip_ratio_bev_vertical
         if flip_ratio_bev_horizontal is not None:
-            assert isinstance(
-                flip_ratio_bev_horizontal,
-                (int, float)) and 0 <= flip_ratio_bev_horizontal <= 1
+            assert isinstance(flip_ratio_bev_horizontal, (int, float)) and 0 <= flip_ratio_bev_horizontal <= 1
         if flip_ratio_bev_vertical is not None:
-            assert isinstance(
-                flip_ratio_bev_vertical,
-                (int, float)) and 0 <= flip_ratio_bev_vertical <= 1
+            assert isinstance(flip_ratio_bev_vertical, (int, float)) and 0 <= flip_ratio_bev_vertical <= 1
 
     def random_flip_data_3d(self, input_dict, direction='horizontal'):
         """Flip 3D data randomly.
@@ -771,13 +734,11 @@ class CustomRandomFlip3D(object):
         assert direction in ['horizontal', 'vertical']
         if len(input_dict['bbox3d_fields']) == 0:  # test mode
             input_dict['bbox3d_fields'].append('empty_box3d')
-            input_dict['empty_box3d'] = input_dict['box_type_3d'](
-                np.array([], dtype=np.float32))
+            input_dict['empty_box3d'] = input_dict['box_type_3d'](np.array([], dtype=np.float32))
         assert len(input_dict['bbox3d_fields']) == 1
         for key in input_dict['bbox3d_fields']:
             if 'points' in input_dict:
-                input_dict['points'] = input_dict[key].flip(
-                    direction, points=input_dict['points'])
+                input_dict['points'] = input_dict[key].flip(direction, points=input_dict['points'])
             else:
                 input_dict[key].flip(direction)
             if 'radar' in input_dict:
@@ -796,12 +757,10 @@ class CustomRandomFlip3D(object):
                 into result dict.
         """
         if 'pcd_horizontal_flip' not in input_dict:
-            flip_horizontal = True if np.random.rand(
-            ) < self.flip_ratio_bev_horizontal else False
+            flip_horizontal = True if np.random.rand() < self.flip_ratio_bev_horizontal else False
             input_dict['pcd_horizontal_flip'] = flip_horizontal
         if 'pcd_vertical_flip' not in input_dict:
-            flip_vertical = True if np.random.rand(
-            ) < self.flip_ratio_bev_vertical else False
+            flip_vertical = True if np.random.rand() < self.flip_ratio_bev_vertical else False
             input_dict['pcd_vertical_flip'] = flip_vertical
 
         if 'transformation_3d_flow' not in input_dict:
@@ -816,9 +775,9 @@ class CustomRandomFlip3D(object):
             self.random_flip_data_3d(input_dict, 'vertical')
             input_dict['transformation_3d_flow'].extend(['VF'])
             flip_mat[0, 0] = -1
-        for view in range(len(input_dict["lidar2img"])):
-            input_dict["lidar2img"][view] = input_dict["lidar2img"][view] @ flip_mat
-            input_dict["lidar2cam"][view] = input_dict["lidar2cam"][view] @ flip_mat
+        for view in range(len(input_dict['lidar2img'])):
+            input_dict['lidar2img'][view] = input_dict['lidar2img'][view] @ flip_mat
+            input_dict['lidar2cam'][view] = input_dict['lidar2cam'][view] @ flip_mat
         return input_dict
 
     def __repr__(self):
@@ -865,16 +824,14 @@ class GlobalRotScaleTransImage(object):
         size (tuple, optional): Fixed padding size.
     """
 
-    def __init__(
-        self,
-        rot_range=[-0.3925, 0.3925],
-        scale_ratio_range=[0.95, 1.05],
-        translation_std=[0, 0, 0],
-        reverse_angle=False,
-        training=True,
-        flip_dx_ratio=0.0,
-        flip_dy_ratio=0.0
-    ):
+    def __init__(self,
+                 rot_range=[-0.3925, 0.3925],
+                 scale_ratio_range=[0.95, 1.05],
+                 translation_std=[0, 0, 0],
+                 reverse_angle=False,
+                 training=True,
+                 flip_dx_ratio=0.0,
+                 flip_dy_ratio=0.0):
 
         self.rot_range = rot_range
         self.scale_ratio_range = scale_ratio_range
@@ -882,12 +839,13 @@ class GlobalRotScaleTransImage(object):
 
         self.reverse_angle = reverse_angle
         self.training = training
-        
+
         self.flip_dx_ratio = flip_dx_ratio
         self.flip_dy_ratio = flip_dy_ratio
 
     def __call__(self, results):
         """Call function to pad images, masks, semantic segmentation maps.
+
         Args:
             results (dict): Result dict from loading pipeline.
         Returns:
@@ -899,14 +857,12 @@ class GlobalRotScaleTransImage(object):
         self.rotate_bev_along_z(results, rot_angle)
         if self.reverse_angle:
             rot_angle *= -1
-        results["gt_bboxes_3d"].rotate(
-            np.array(rot_angle)
-        )  # mmdet LiDARInstance3DBoxes存的角度方向是反的(rotate函数实现的是绕着z轴由y向x转)
+        results['gt_bboxes_3d'].rotate(np.array(rot_angle))  # mmdet LiDARInstance3DBoxes存的角度方向是反的(rotate函数实现的是绕着z轴由y向x转)
 
         # random scale
         scale_ratio = np.random.uniform(*self.scale_ratio_range)
         self.scale_xyz(results, scale_ratio)
-        results["gt_bboxes_3d"].scale(scale_ratio)
+        results['gt_bboxes_3d'].scale(scale_ratio)
 
         # TODO: support translation
 
@@ -921,49 +877,40 @@ class GlobalRotScaleTransImage(object):
         rot_mat = torch.tensor([[rot_cos, -rot_sin, 0, 0], [rot_sin, rot_cos, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
         rot_mat_inv = torch.inverse(rot_mat)
 
-        num_view = len(results["lidar2img"])
+        num_view = len(results['lidar2img'])
         for view in range(num_view):
-            results["lidar2img"][view] = (torch.tensor(results["lidar2img"][view]).float() @ rot_mat_inv).numpy()
-            results["lidar2cam"][view] = (torch.tensor(results["lidar2cam"][view]).float() @ rot_mat_inv).numpy()
+            results['lidar2img'][view] = (torch.tensor(results['lidar2img'][view]).float() @ rot_mat_inv).numpy()
+            results['lidar2cam'][view] = (torch.tensor(results['lidar2cam'][view]).float() @ rot_mat_inv).numpy()
 
         return
 
     def scale_xyz(self, results, scale_ratio):
-        rot_mat = torch.tensor(
-            [
-                [scale_ratio, 0, 0, 0],
-                [0, scale_ratio, 0, 0],
-                [0, 0, scale_ratio, 0],
-                [0, 0, 0, 1],
-            ]
-        )
+        rot_mat = torch.tensor([
+            [scale_ratio, 0, 0, 0],
+            [0, scale_ratio, 0, 0],
+            [0, 0, scale_ratio, 0],
+            [0, 0, 0, 1],
+        ])
 
         rot_mat_inv = torch.inverse(rot_mat)
 
-        num_view = len(results["lidar2img"])
+        num_view = len(results['lidar2img'])
         for view in range(num_view):
-            results["lidar2img"][view] = (torch.tensor(results["lidar2img"][view]).float() @ rot_mat_inv).numpy()
-            results["lidar2cam"][view] = (torch.tensor(results["lidar2cam"][view]).float() @ rot_mat_inv).numpy()
+            results['lidar2img'][view] = (torch.tensor(results['lidar2img'][view]).float() @ rot_mat_inv).numpy()
+            results['lidar2cam'][view] = (torch.tensor(results['lidar2cam'][view]).float() @ rot_mat_inv).numpy()
         return
 
     def flip_xy(self, results):
-        mat = torch.tensor(
-            [
-                [1, 0, 0, 0],
-                [0, 1, 0, 0],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ]
-        )
+        mat = torch.tensor([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
         if np.random.rand() < self.flip_dx_ratio:
             mat[0][0] = -1
-            results["gt_bboxes_3d"].flip(bev_direction='vertical')
+            results['gt_bboxes_3d'].flip(bev_direction='vertical')
         if np.random.rand() < self.flip_dy_ratio:
             mat[1][1] = -1
-            results["gt_bboxes_3d"].flip(bev_direction='horizontal')
-            
+            results['gt_bboxes_3d'].flip(bev_direction='horizontal')
+
         num_view = len(results['lidar2img'])
         for view in range(num_view):
-            results["lidar2img"][view] = (torch.tensor(results["lidar2img"][view]).float() @ mat.float()).numpy()
-            results["lidar2cam"][view] = (torch.tensor(results["lidar2cam"][view]).float() @ mat.float()).numpy()
+            results['lidar2img'][view] = (torch.tensor(results['lidar2img'][view]).float() @ mat.float()).numpy()
+            results['lidar2cam'][view] = (torch.tensor(results['lidar2cam'][view]).float() @ mat.float()).numpy()
         return

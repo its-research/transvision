@@ -3,11 +3,10 @@ import numpy as np
 import torch
 from mmcv.cnn import build_conv_layer, build_norm_layer, build_upsample_layer
 from mmcv.runner import BaseModule, auto_fp16
+from mmdet.models import NECKS
 from torch import nn as nn
 
-from mmdet.models import NECKS
-
-__all__ = ["SECONDFPN"]
+__all__ = ['SECONDFPN']
 
 
 @NECKS.register_module()
@@ -26,15 +25,15 @@ class SECONDFPN(BaseModule):
     """
 
     def __init__(
-        self,
-        in_channels=[128, 128, 256],
-        out_channels=[256, 256, 256],
-        upsample_strides=[1, 2, 4],
-        norm_cfg=dict(type="BN", eps=1e-3, momentum=0.01),
-        upsample_cfg=dict(type="deconv", bias=False),
-        conv_cfg=dict(type="Conv2d", bias=False),
-        use_conv_for_no_stride=False,
-        init_cfg=None,
+            self,
+            in_channels=[128, 128, 256],
+            out_channels=[256, 256, 256],
+            upsample_strides=[1, 2, 4],
+            norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
+            upsample_cfg=dict(type='deconv', bias=False),
+            conv_cfg=dict(type='Conv2d', bias=False),
+            use_conv_for_no_stride=False,
+            init_cfg=None,
     ):
         # if for GroupNorm,
         # cfg is dict(type='GN', num_groups=num_groups, eps=1e-3, affine=True)
@@ -75,8 +74,8 @@ class SECONDFPN(BaseModule):
 
         if init_cfg is None:
             self.init_cfg = [
-                dict(type="Kaiming", layer="ConvTranspose2d"),
-                dict(type="Constant", layer="NaiveSyncBatchNorm2d", val=1.0),
+                dict(type='Kaiming', layer='ConvTranspose2d'),
+                dict(type='Constant', layer='NaiveSyncBatchNorm2d', val=1.0),
             ]
 
     @auto_fp16()
@@ -92,7 +91,7 @@ class SECONDFPN(BaseModule):
         assert len(x) == len(self.in_channels)
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
 
-        #for up in ups:
+        # for up in ups:
         #    print(up.size())
 
         if len(ups) > 1:

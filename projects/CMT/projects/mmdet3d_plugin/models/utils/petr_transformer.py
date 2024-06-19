@@ -1,42 +1,22 @@
-import math
-import copy
 import warnings
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.utils.checkpoint as cp
-
-from einops import rearrange
+from mmcv.cnn import build_norm_layer
 from mmcv.cnn.bricks.drop import build_dropout
+from mmcv.cnn.bricks.registry import ATTENTION, TRANSFORMER_LAYER, TRANSFORMER_LAYER_SEQUENCE
+from mmcv.cnn.bricks.transformer import BaseTransformerLayer, TransformerLayerSequence
 from mmcv.runner.base_module import BaseModule
+from mmcv.utils import deprecated_api_warning
 
-from mmcv.cnn.bricks.transformer import (
-    BaseTransformerLayer,
-    TransformerLayerSequence,
-    build_transformer_layer_sequence
-)
-from mmcv.cnn import (
-    build_activation_layer,
-    build_conv_layer,
-    build_norm_layer,
-    xavier_init
-)
-from mmcv.cnn.bricks.registry import (
-    ATTENTION,TRANSFORMER_LAYER,
-    TRANSFORMER_LAYER_SEQUENCE
-)
-from mmcv.utils import (
-    ConfigDict,
-    build_from_cfg,
-    deprecated_api_warning,
-    to_2tuple
-)
-from mmdet.models.utils.builder import TRANSFORMER
+from .attention import FlashMHA
 
 
 @ATTENTION.register_module()
 class PETRMultiheadAttention(BaseModule):
     """A wrapper for ``torch.nn.MultiheadAttention``.
+
     This module implements MultiheadAttention with identity connection,
     and positional encoding  is also passed as input.
     Args:
@@ -55,15 +35,7 @@ class PETRMultiheadAttention(BaseModule):
              Default to False.
     """
 
-    def __init__(self,
-                 embed_dims,
-                 num_heads,
-                 attn_drop=0.,
-                 proj_drop=0.,
-                 dropout_layer=dict(type='Dropout', drop_prob=0.),
-                 init_cfg=None,
-                 batch_first=False,
-                 **kwargs):
+    def __init__(self, embed_dims, num_heads, attn_drop=0., proj_drop=0., dropout_layer=dict(type='Dropout', drop_prob=0.), init_cfg=None, batch_first=False, **kwargs):
         super(PETRMultiheadAttention, self).__init__(init_cfg)
         if 'dropout' in kwargs:
             warnings.warn(
@@ -78,26 +50,15 @@ class PETRMultiheadAttention(BaseModule):
         self.num_heads = num_heads
         self.batch_first = batch_first
 
-        self.attn = nn.MultiheadAttention(embed_dims, num_heads, attn_drop,
-                                          **kwargs)
+        self.attn = nn.MultiheadAttention(embed_dims, num_heads, attn_drop, **kwargs)
 
         self.proj_drop = nn.Dropout(proj_drop)
-        self.dropout_layer = build_dropout(
-            dropout_layer) if dropout_layer else nn.Identity()
+        self.dropout_layer = build_dropout(dropout_layer) if dropout_layer else nn.Identity()
 
-    @deprecated_api_warning({'residual': 'identity'},
-                            cls_name='MultiheadAttention')
-    def forward(self,
-                query,
-                key=None,
-                value=None,
-                identity=None,
-                query_pos=None,
-                key_pos=None,
-                attn_mask=None,
-                key_padding_mask=None,
-                **kwargs):
+    @deprecated_api_warning({'residual': 'identity'}, cls_name='MultiheadAttention')
+    def forward(self, query, key=None, value=None, identity=None, query_pos=None, key_pos=None, attn_mask=None, key_padding_mask=None, **kwargs):
         """Forward function for `MultiheadAttention`.
+
         **kwargs allow passing a more general data flow when combining
         with other operations in `transformerlayer`.
         Args:
@@ -164,12 +125,7 @@ class PETRMultiheadAttention(BaseModule):
             key = key.transpose(0, 1)
             value = value.transpose(0, 1)
 
-        out = self.attn(
-            query=query,
-            key=key,
-            value=value,
-            attn_mask=attn_mask,
-            key_padding_mask=key_padding_mask)[0]
+        out = self.attn(query=query, key=key, value=value, attn_mask=attn_mask, key_padding_mask=key_padding_mask)[0]
 
         if self.batch_first:
             out = out.transpose(0, 1)
@@ -177,11 +133,10 @@ class PETRMultiheadAttention(BaseModule):
         return identity + self.dropout_layer(self.proj_drop(out))
 
 
-from .attention import FlashMHA
-
 @ATTENTION.register_module()
 class PETRMultiheadFlashAttention(BaseModule):
     """A wrapper for ``torch.nn.MultiheadAttention``.
+
     This module implements MultiheadAttention with identity connection,
     and positional encoding  is also passed as input.
     Args:
@@ -200,15 +155,7 @@ class PETRMultiheadFlashAttention(BaseModule):
              Default to False.
     """
 
-    def __init__(self,
-                 embed_dims,
-                 num_heads,
-                 attn_drop=0.,
-                 proj_drop=0.,
-                 dropout_layer=dict(type='Dropout', drop_prob=0.),
-                 init_cfg=None,
-                 batch_first=True,
-                 **kwargs):
+    def __init__(self, embed_dims, num_heads, attn_drop=0., proj_drop=0., dropout_layer=dict(type='Dropout', drop_prob=0.), init_cfg=None, batch_first=True, **kwargs):
         super(PETRMultiheadFlashAttention, self).__init__(init_cfg)
         if 'dropout' in kwargs:
             warnings.warn(
@@ -223,26 +170,15 @@ class PETRMultiheadFlashAttention(BaseModule):
         self.num_heads = num_heads
         self.batch_first = True
 
-        self.attn = FlashMHA(embed_dims, num_heads, attn_drop, dtype=torch.float16, device='cuda',
-                                          **kwargs)
+        self.attn = FlashMHA(embed_dims, num_heads, attn_drop, dtype=torch.float16, device='cuda', **kwargs)
 
         self.proj_drop = nn.Dropout(proj_drop)
-        self.dropout_layer = build_dropout(
-            dropout_layer) if dropout_layer else nn.Identity()
+        self.dropout_layer = build_dropout(dropout_layer) if dropout_layer else nn.Identity()
 
-    @deprecated_api_warning({'residual': 'identity'},
-                            cls_name='MultiheadAttention')
-    def forward(self,
-                query,
-                key=None,
-                value=None,
-                identity=None,
-                query_pos=None,
-                key_pos=None,
-                attn_mask=None,
-                key_padding_mask=None,
-                **kwargs):
+    @deprecated_api_warning({'residual': 'identity'}, cls_name='MultiheadAttention')
+    def forward(self, query, key=None, value=None, identity=None, query_pos=None, key_pos=None, attn_mask=None, key_padding_mask=None, **kwargs):
         """Forward function for `MultiheadAttention`.
+
         **kwargs allow passing a more general data flow when combining
         with other operations in `transformerlayer`.
         Args:
@@ -308,12 +244,8 @@ class PETRMultiheadFlashAttention(BaseModule):
             query = query.transpose(0, 1)
             key = key.transpose(0, 1)
             value = value.transpose(0, 1)
-        
-        out = self.attn(
-            q=query,
-            k=key,
-            v=value,
-            key_padding_mask=None)[0]
+
+        out = self.attn(q=query, k=key, v=value, key_padding_mask=None)[0]
 
         if self.batch_first:
             out = out.transpose(0, 1)
@@ -324,23 +256,19 @@ class PETRMultiheadFlashAttention(BaseModule):
 @TRANSFORMER_LAYER_SEQUENCE.register_module()
 class PETRTransformerDecoder(TransformerLayerSequence):
     """Implements the decoder in DETR transformer.
+
     Args:
         return_intermediate (bool): Whether to return intermediate outputs.
         post_norm_cfg (dict): Config of last normalization layer. Default：
             `LN`.
     """
 
-    def __init__(self,
-                 *args,
-                 post_norm_cfg=dict(type='LN'),
-                 return_intermediate=False,
-                 **kwargs):
+    def __init__(self, *args, post_norm_cfg=dict(type='LN'), return_intermediate=False, **kwargs):
 
         super(PETRTransformerDecoder, self).__init__(*args, **kwargs)
         self.return_intermediate = return_intermediate
         if post_norm_cfg is not None:
-            self.post_norm = build_norm_layer(post_norm_cfg,
-                                              self.embed_dims)[1]
+            self.post_norm = build_norm_layer(post_norm_cfg, self.embed_dims)[1]
         else:
             self.post_norm = None
 
@@ -374,6 +302,7 @@ class PETRTransformerDecoder(TransformerLayerSequence):
 @TRANSFORMER_LAYER.register_module()
 class PETRTransformerDecoderLayer(BaseTransformerLayer):
     """Implements decoder layer in DETR transformer.
+
     Args:
         attn_cfgs (list[`mmcv.ConfigDict`] | list[dict] | dict )):
             Configs for self_attention or cross_attention, the order
@@ -413,56 +342,48 @@ class PETRTransformerDecoderLayer(BaseTransformerLayer):
             ffn_num_fcs=ffn_num_fcs,
             **kwargs)
         assert len(operation_order) == 6
-        assert set(operation_order) == set(
-            ['self_attn', 'norm', 'cross_attn', 'ffn'])
+        assert set(operation_order) == set(['self_attn', 'norm', 'cross_attn', 'ffn'])
         self.use_checkpoint = with_cp
-    
-    def _forward(self, 
-                query,
-                key=None,
-                value=None,
-                query_pos=None,
-                key_pos=None,
-                attn_masks=None,
-                query_key_padding_mask=None,
-                key_padding_mask=None,
-                ):
+
+    def _forward(
+        self,
+        query,
+        key=None,
+        value=None,
+        query_pos=None,
+        key_pos=None,
+        attn_masks=None,
+        query_key_padding_mask=None,
+        key_padding_mask=None,
+    ):
         """Forward function for `TransformerCoder`.
+
         Returns:
             Tensor: forwarded results with shape [num_query, bs, embed_dims].
         """
         x = super(PETRTransformerDecoderLayer, self).forward(
-                query,
-                key=key,
-                value=value,
-                query_pos=query_pos,
-                key_pos=key_pos,
-                attn_masks=attn_masks,
-                query_key_padding_mask=query_key_padding_mask,
-                key_padding_mask=key_padding_mask,
-                )
+            query,
+            key=key,
+            value=value,
+            query_pos=query_pos,
+            key_pos=key_pos,
+            attn_masks=attn_masks,
+            query_key_padding_mask=query_key_padding_mask,
+            key_padding_mask=key_padding_mask,
+        )
 
         return x
 
-    def forward(self, 
-                query,
-                key=None,
-                value=None,
-                query_pos=None,
-                key_pos=None,
-                attn_masks=None,
-                query_key_padding_mask=None,
-                key_padding_mask=None,
-                **kwargs
-                ):
+    def forward(self, query, key=None, value=None, query_pos=None, key_pos=None, attn_masks=None, query_key_padding_mask=None, key_padding_mask=None, **kwargs):
         """Forward function for `TransformerCoder`.
+
         Returns:
             Tensor: forwarded results with shape [num_query, bs, embed_dims].
         """
 
         if self.use_checkpoint and self.training:
             x = cp.checkpoint(
-                self._forward, 
+                self._forward,
                 query,
                 key,
                 value,
@@ -471,17 +392,16 @@ class PETRTransformerDecoderLayer(BaseTransformerLayer):
                 attn_masks,
                 query_key_padding_mask,
                 key_padding_mask,
-                )
+            )
         else:
             x = self._forward(
-            query,
-            key=key,
-            value=value,
-            query_pos=query_pos,
-            key_pos=key_pos,
-            attn_masks=attn_masks,
-            query_key_padding_mask=query_key_padding_mask,
-            key_padding_mask=key_padding_mask
-            )
-        
+                query,
+                key=key,
+                value=value,
+                query_pos=query_pos,
+                key_pos=key_pos,
+                attn_masks=attn_masks,
+                query_key_padding_mask=query_key_padding_mask,
+                key_padding_mask=key_padding_mask)
+
         return x

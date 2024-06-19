@@ -17,4 +17,3 @@ data:
 
 optimizer_config:
   cumulative_iters: 2
-

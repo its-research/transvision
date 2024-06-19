@@ -61,7 +61,7 @@ model:
         out_size_factor: 8
         voxel_size: ${voxel_size[:2]}
         code_size: 10
-      loss_cls: 
+      loss_cls:
         type: FocalLoss
         use_sigmoid: true
         gamma: 2.0

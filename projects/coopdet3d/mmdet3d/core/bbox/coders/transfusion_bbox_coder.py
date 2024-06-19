@@ -1,19 +1,20 @@
 import torch
-
 from mmdet.core.bbox import BaseBBoxCoder
 from mmdet.core.bbox.builder import BBOX_CODERS
 
 
 @BBOX_CODERS.register_module()
 class TransFusionBBoxCoder(BaseBBoxCoder):
-    def __init__(self,
-                 pc_range,
-                 out_size_factor,
-                 voxel_size,
-                 post_center_range=None,
-                 score_threshold=None,
-                 code_size=8,
-                 ):
+
+    def __init__(
+        self,
+        pc_range,
+        out_size_factor,
+        voxel_size,
+        post_center_range=None,
+        score_threshold=None,
+        code_size=8,
+    ):
         self.pc_range = pc_range
         self.out_size_factor = out_size_factor
         self.voxel_size = voxel_size
@@ -46,7 +47,7 @@ class TransFusionBBoxCoder(BaseBBoxCoder):
                 [B, 3, num_proposals].
             center (torch.Tensor): bev center of the boxes with the shape of
                 [B, 2, num_proposals]. (in feature map metric)
-            hieght (torch.Tensor): height of the boxes with the shape of
+            height (torch.Tensor): height of the boxes with the shape of
                 [B, 2, num_proposals]. (in real world metric)
             vel (torch.Tensor): Velocity with the shape of [B, 2, num_proposals].
             filter: if False, return all box without checking score and center_range
@@ -78,11 +79,7 @@ class TransFusionBBoxCoder(BaseBBoxCoder):
             boxes3d = final_box_preds[i]
             scores = final_scores[i]
             labels = final_preds[i]
-            predictions_dict = {
-                'bboxes': boxes3d,
-                'scores': scores,
-                'labels': labels
-            }
+            predictions_dict = {'bboxes': boxes3d, 'scores': scores, 'labels': labels}
             predictions_dicts.append(predictions_dict)
 
         if filter is False:
@@ -93,12 +90,9 @@ class TransFusionBBoxCoder(BaseBBoxCoder):
             thresh_mask = final_scores > self.score_threshold
 
         if self.post_center_range is not None:
-            self.post_center_range = torch.tensor(
-                self.post_center_range, device=heatmap.device)
-            mask = (final_box_preds[..., :3] >=
-                    self.post_center_range[:3]).all(2)
-            mask &= (final_box_preds[..., :3] <=
-                     self.post_center_range[3:]).all(2)
+            self.post_center_range = torch.tensor(self.post_center_range, device=heatmap.device)
+            mask = (final_box_preds[..., :3] >= self.post_center_range[:3]).all(2)
+            mask &= (final_box_preds[..., :3] <= self.post_center_range[3:]).all(2)
 
             predictions_dicts = []
             for i in range(heatmap.shape[0]):
@@ -109,16 +103,11 @@ class TransFusionBBoxCoder(BaseBBoxCoder):
                 boxes3d = final_box_preds[i, cmask]
                 scores = final_scores[i, cmask]
                 labels = final_preds[i, cmask]
-                predictions_dict = {
-                    'bboxes': boxes3d,
-                    'scores': scores,
-                    'labels': labels
-                }
+                predictions_dict = {'bboxes': boxes3d, 'scores': scores, 'labels': labels}
 
                 predictions_dicts.append(predictions_dict)
         else:
-            raise NotImplementedError(
-                'Need to reorganize output as a batch, only '
-                'support post_center_range is not None for now!')
+            raise NotImplementedError('Need to reorganize output as a batch, only '
+                                      'support post_center_range is not None for now!')
 
         return predictions_dicts

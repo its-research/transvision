@@ -3,9 +3,8 @@ from os import path as osp
 
 import mmcv
 import numpy as np
-from torch.utils.data import Dataset
-
 from mmdet.datasets import DATASETS
+from torch.utils.data import Dataset
 
 from ..core.bbox import get_box_type
 from .pipelines import Compose
@@ -49,7 +48,7 @@ class Custom3DDataset(Dataset):
         pipeline=None,
         classes=None,
         modality=None,
-        box_type_3d="LiDAR",
+        box_type_3d='LiDAR',
         filter_empty_gt=True,
         test_mode=False,
     ):
@@ -73,14 +72,14 @@ class Custom3DDataset(Dataset):
             self._set_group_flag()
 
         self.epoch = -1
-    
+
     def set_epoch(self, epoch):
         self.epoch = epoch
-        if hasattr(self, "pipeline"):
+        if hasattr(self, 'pipeline'):
             for transform in self.pipeline.transforms:
-                if hasattr(transform, "set_epoch"):
+                if hasattr(transform, 'set_epoch'):
                     transform.set_epoch(epoch)
-        
+
     def load_annotations(self, ann_file):
         """Load annotations from ann_file.
 
@@ -108,17 +107,15 @@ class Custom3DDataset(Dataset):
                 - ann_info (dict): Annotation info.
         """
         info = self.data_infos[index]
-        sample_idx = info["point_cloud"]["lidar_idx"]
-        lidar_path = osp.join(self.dataset_root, info["pts_path"])
+        sample_idx = info['point_cloud']['lidar_idx']
+        lidar_path = osp.join(self.dataset_root, info['pts_path'])
 
-        input_dict = dict(
-            lidar_path=lidar_path, sample_idx=sample_idx, file_name=lidar_path
-        )
+        input_dict = dict(lidar_path=lidar_path, sample_idx=sample_idx, file_name=lidar_path)
 
         if not self.test_mode:
             annos = self.get_ann_info(index)
-            input_dict["ann_info"] = annos
-            if self.filter_empty_gt and ~(annos["gt_labels_3d"] != -1).any():
+            input_dict['ann_info'] = annos
+            if self.filter_empty_gt and ~(annos['gt_labels_3d'] != -1).any():
                 return None
         return input_dict
 
@@ -138,15 +135,15 @@ class Custom3DDataset(Dataset):
                 - box_type_3d (str): 3D box type.
                 - box_mode_3d (str): 3D box mode.
         """
-        results["img_fields"] = []
-        results["bbox3d_fields"] = []
-        results["pts_mask_fields"] = []
-        results["pts_seg_fields"] = []
-        results["bbox_fields"] = []
-        results["mask_fields"] = []
-        results["seg_fields"] = []
-        results["box_type_3d"] = self.box_type_3d
-        results["box_mode_3d"] = self.box_mode_3d
+        results['img_fields'] = []
+        results['bbox3d_fields'] = []
+        results['pts_mask_fields'] = []
+        results['pts_seg_fields'] = []
+        results['bbox_fields'] = []
+        results['mask_fields'] = []
+        results['seg_fields'] = []
+        results['box_type_3d'] = self.box_type_3d
+        results['box_mode_3d'] = self.box_mode_3d
 
     def prepare_train_data(self, index):
         """Training data preparation.
@@ -162,9 +159,7 @@ class Custom3DDataset(Dataset):
             return None
         self.pre_pipeline(input_dict)
         example = self.pipeline(input_dict)
-        if self.filter_empty_gt and (
-            example is None or ~(example["gt_labels_3d"]._data != -1).any()
-        ):
+        if self.filter_empty_gt and (example is None or ~(example['gt_labels_3d']._data != -1).any()):
             return None
         return example
 
@@ -205,7 +200,7 @@ class Custom3DDataset(Dataset):
         elif isinstance(classes, (tuple, list)):
             class_names = classes
         else:
-            raise ValueError(f"Unsupported type {type(classes)} of classes.")
+            raise ValueError(f'Unsupported type {type(classes)} of classes.')
 
         return class_names
 
@@ -225,8 +220,8 @@ class Custom3DDataset(Dataset):
         """
         if pklfile_prefix is None:
             tmp_dir = tempfile.TemporaryDirectory()
-            pklfile_prefix = osp.join(tmp_dir.name, "results")
-            out = f"{pklfile_prefix}.pkl"
+            pklfile_prefix = osp.join(tmp_dir.name, 'results')
+            out = f'{pklfile_prefix}.pkl'
         mmcv.dump(outputs, out)
         return outputs, tmp_dir
 
@@ -244,7 +239,7 @@ class Custom3DDataset(Dataset):
             np.ndarray | torch.Tensor | list[np.ndarray | torch.Tensor]:
                 A single or a list of loaded data.
         """
-        assert pipeline is not None, "data loading pipeline is not provided"
+        assert pipeline is not None, 'data loading pipeline is not provided'
         # when we want to load ground-truth via pipeline (e.g. bbox, seg mask)
         # we need to set self.test_mode as False so that we have 'annos'
         if load_annos:
@@ -299,8 +294,6 @@ class Custom3DDataset(Dataset):
     def _set_group_flag(self):
         """Set flag according to image aspect ratio.
 
-        Images with aspect ratio greater than 1 will be set as group 1,
-        otherwise group 0. In 3D datasets, they are all the same, thus are all
-        zeros.
+        Images with aspect ratio greater than 1 will be set as group 1, otherwise group 0. In 3D datasets, they are all the same, thus are all zeros.
         """
         self.flag = np.zeros(len(self), dtype=np.uint8)

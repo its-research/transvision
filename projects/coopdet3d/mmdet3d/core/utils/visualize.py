@@ -9,44 +9,43 @@ from matplotlib import pyplot as plt
 
 from ..bbox import LiDARInstance3DBoxes
 
-__all__ = ["visualize_camera", "visualize_camera_combo", "visualize_lidar", "visualize_lidar_combo", "visualize_lidar_two", "visualize_lidar_two_combo", "visualize_map"]
-
+__all__ = ['visualize_camera', 'visualize_camera_combo', 'visualize_lidar', 'visualize_lidar_combo', 'visualize_lidar_two', 'visualize_lidar_two_combo', 'visualize_map']
 
 OBJECT_PALETTE = {
-    "car": (255, 158, 0),
-    "truck": (255, 99, 71),
-    "construction_vehicle": (233, 150, 70),
-    "bus": (255, 69, 0),
-    "trailer": (255, 140, 0),
-    "barrier": (112, 128, 144),
-    "motorcycle": (255, 61, 99),
-    "bicycle": (220, 20, 60),
-    "pedestrian": (0, 0, 230),
-    "traffic_cone": (47, 79, 79),
-    "CAR": (0, 204, 246),
-    "TRAILER": (90, 255, 126),
-    "TRUCK": (86, 255, 182),
-    "VAN": (235, 207, 54),
-    "PEDESTRIAN": (233, 118, 249),
-    "BUS": (217, 138, 134),
-    "MOTORCYCLE": (185, 164, 84),
-    "OTHER": (199, 199, 199),
-    "BICYCLE": (177, 140, 255),
-    "EMERGENCY_VEHICLE": (102, 107, 250)
+    'car': (255, 158, 0),
+    'truck': (255, 99, 71),
+    'construction_vehicle': (233, 150, 70),
+    'bus': (255, 69, 0),
+    'trailer': (255, 140, 0),
+    'barrier': (112, 128, 144),
+    'motorcycle': (255, 61, 99),
+    'bicycle': (220, 20, 60),
+    'pedestrian': (0, 0, 230),
+    'traffic_cone': (47, 79, 79),
+    'CAR': (0, 204, 246),
+    'TRAILER': (90, 255, 126),
+    'TRUCK': (86, 255, 182),
+    'VAN': (235, 207, 54),
+    'PEDESTRIAN': (233, 118, 249),
+    'BUS': (217, 138, 134),
+    'MOTORCYCLE': (185, 164, 84),
+    'OTHER': (199, 199, 199),
+    'BICYCLE': (177, 140, 255),
+    'EMERGENCY_VEHICLE': (102, 107, 250)
 }
 
 MAP_PALETTE = {
-    "drivable_area": (166, 206, 227),
-    "road_segment": (31, 120, 180),
-    "road_block": (178, 223, 138),
-    "lane": (51, 160, 44),
-    "ped_crossing": (251, 154, 153),
-    "walkway": (227, 26, 28),
-    "stop_line": (253, 191, 111),
-    "carpark_area": (255, 127, 0),
-    "road_divider": (202, 178, 214),
-    "lane_divider": (106, 61, 154),
-    "divider": (106, 61, 154),
+    'drivable_area': (166, 206, 227),
+    'road_segment': (31, 120, 180),
+    'road_block': (178, 223, 138),
+    'lane': (51, 160, 44),
+    'ped_crossing': (251, 154, 153),
+    'walkway': (227, 26, 28),
+    'stop_line': (253, 191, 111),
+    'carpark_area': (255, 127, 0),
+    'road_divider': (202, 178, 214),
+    'lane_divider': (106, 61, 154),
+    'divider': (106, 61, 154),
 }
 
 
@@ -68,13 +67,11 @@ def visualize_camera(
         corners = bboxes.corners
         num_bboxes = corners.shape[0]
 
-        coords = np.concatenate(
-            [corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1
-        )
-        
+        coords = np.concatenate([corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1)
+
         if transform.size < 16:
             transform = np.append(transform, [[0.0, 0.0, 0.0, 1.0]], axis=0)
-        
+
         transform = copy.deepcopy(transform).reshape(4, 4)
         coords = coords @ transform.T
         coords = coords.reshape(-1, 8, 4)
@@ -123,6 +120,7 @@ def visualize_camera(
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
     mmcv.imwrite(canvas, fpath)
 
+
 def visualize_camera_combo(
     fpath: str,
     image: np.ndarray,
@@ -143,13 +141,11 @@ def visualize_camera_combo(
         corners = gtbboxes.corners
         num_bboxes = corners.shape[0]
 
-        coords = np.concatenate(
-            [corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1
-        )
-        
+        coords = np.concatenate([corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1)
+
         if transform.size < 16:
             transform = np.append(transform, [[0.0, 0.0, 0.0, 1.0]], axis=0)
-        
+
         transform = copy.deepcopy(transform).reshape(4, 4)
         coords = coords @ transform.T
         coords = coords.reshape(-1, 8, 4)
@@ -198,13 +194,11 @@ def visualize_camera_combo(
         corners = bboxes.corners
         num_bboxes = corners.shape[0]
 
-        coords = np.concatenate(
-            [corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1
-        )
-        
+        coords = np.concatenate([corners.reshape(-1, 3), np.ones((num_bboxes * 8, 1))], axis=-1)
+
         if transform.size < 16:
             transform = np.append(transform, [[0.0, 0.0, 0.0, 1.0]], axis=0)
-        
+
         transform = copy.deepcopy(transform).reshape(4, 4)
         coords = coords @ transform.T
         coords = coords.reshape(-1, 8, 4)
@@ -255,17 +249,17 @@ def visualize_camera_combo(
 
 
 def visualize_lidar(
-    fpath: str,
-    lidar: Optional[np.ndarray] = None,
-    *,
-    bboxes: Optional[LiDARInstance3DBoxes] = None,
-    labels: Optional[np.ndarray] = None,
-    classes: Optional[List[str]] = None,
-    xlim: Tuple[float, float] = (-50, 50),
-    ylim: Tuple[float, float] = (-50, 50),
-    color: Optional[Tuple[int, int, int]] = None,
-    radius: float = 15,
-    thickness: float = 25,
+        fpath: str,
+        lidar: Optional[np.ndarray] = None,
+        *,
+        bboxes: Optional[LiDARInstance3DBoxes] = None,
+        labels: Optional[np.ndarray] = None,
+        classes: Optional[List[str]] = None,
+        xlim: Tuple[float, float] = (-50, 50),
+        ylim: Tuple[float, float] = (-50, 50),
+        color: Optional[Tuple[int, int, int]] = None,
+        radius: float = 15,
+        thickness: float = 25,
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
@@ -280,7 +274,7 @@ def visualize_lidar(
             lidar[:, 0],
             lidar[:, 1],
             s=radius,
-            c="white",
+            c='white',
         )
 
     if bboxes is not None and len(bboxes) > 0:
@@ -301,27 +295,28 @@ def visualize_lidar(
     fig.savefig(
         fpath,
         dpi=10,
-        facecolor="black",
-        format="png",
-        bbox_inches="tight",
+        facecolor='black',
+        format='png',
+        bbox_inches='tight',
         pad_inches=0,
     )
     plt.close()
 
+
 def visualize_lidar_combo(
-    fpath: str,
-    lidar: Optional[np.ndarray] = None,
-    *,
-    gtbboxes: Optional[LiDARInstance3DBoxes] = None,
-    bboxes: Optional[LiDARInstance3DBoxes] = None,
-    gtlabels: Optional[np.ndarray] = None,
-    labels: Optional[np.ndarray] = None,
-    classes: Optional[List[str]] = None,
-    xlim: Tuple[float, float] = (-50, 50),
-    ylim: Tuple[float, float] = (-50, 50),
-    color: Optional[Tuple[int, int, int]] = None,
-    radius: float = 15,
-    thickness: float = 25,
+        fpath: str,
+        lidar: Optional[np.ndarray] = None,
+        *,
+        gtbboxes: Optional[LiDARInstance3DBoxes] = None,
+        bboxes: Optional[LiDARInstance3DBoxes] = None,
+        gtlabels: Optional[np.ndarray] = None,
+        labels: Optional[np.ndarray] = None,
+        classes: Optional[List[str]] = None,
+        xlim: Tuple[float, float] = (-50, 50),
+        ylim: Tuple[float, float] = (-50, 50),
+        color: Optional[Tuple[int, int, int]] = None,
+        radius: float = 15,
+        thickness: float = 25,
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
@@ -336,9 +331,9 @@ def visualize_lidar_combo(
             lidar[:, 0],
             lidar[:, 1],
             s=radius,
-            c="white",
+            c='white',
         )
-    
+
     if gtbboxes is not None and len(gtbboxes) > 0:
         coords = gtbboxes.corners[:, [0, 3, 7, 4, 0], :2]
         for index in range(coords.shape[0]):
@@ -350,7 +345,6 @@ def visualize_lidar_combo(
                 color=np.array((255, 255, 255)) / 255,
             )
 
-
     if bboxes is not None and len(bboxes) > 0:
         coords = bboxes.corners[:, [0, 3, 7, 4, 0], :2]
         for index in range(coords.shape[0]):
@@ -361,31 +355,32 @@ def visualize_lidar_combo(
                 linewidth=thickness,
                 color=np.array(color or OBJECT_PALETTE[name]) / 255,
             )
-    
+
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
     fig.savefig(
         fpath,
         dpi=10,
-        facecolor="black",
-        format="png",
-        bbox_inches="tight",
+        facecolor='black',
+        format='png',
+        bbox_inches='tight',
         pad_inches=0,
     )
     plt.close()
+
 
 def visualize_lidar_two(
-    fpath: str,
-    v_lidar: Optional[np.ndarray] = None,
-    i_lidar: Optional[np.ndarray] = None,
-    *,
-    bboxes: Optional[LiDARInstance3DBoxes] = None,
-    labels: Optional[np.ndarray] = None,
-    classes: Optional[List[str]] = None,
-    xlim: Tuple[float, float] = (-50, 50),
-    ylim: Tuple[float, float] = (-50, 50),
-    color: Optional[Tuple[int, int, int]] = None,
-    radius: float = 15,
-    thickness: float = 25,
+        fpath: str,
+        v_lidar: Optional[np.ndarray] = None,
+        i_lidar: Optional[np.ndarray] = None,
+        *,
+        bboxes: Optional[LiDARInstance3DBoxes] = None,
+        labels: Optional[np.ndarray] = None,
+        classes: Optional[List[str]] = None,
+        xlim: Tuple[float, float] = (-50, 50),
+        ylim: Tuple[float, float] = (-50, 50),
+        color: Optional[Tuple[int, int, int]] = None,
+        radius: float = 15,
+        thickness: float = 25,
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
@@ -400,7 +395,7 @@ def visualize_lidar_two(
             v_lidar[:, 0],
             v_lidar[:, 1],
             s=radius,
-            c="white",
+            c='white',
         )
 
     if i_lidar is not None:
@@ -408,7 +403,7 @@ def visualize_lidar_two(
             i_lidar[:, 0],
             i_lidar[:, 1],
             s=radius,
-            c="red",
+            c='red',
         )
 
     if bboxes is not None and len(bboxes) > 0:
@@ -426,28 +421,29 @@ def visualize_lidar_two(
     fig.savefig(
         fpath,
         dpi=10,
-        facecolor="black",
-        format="png",
-        bbox_inches="tight",
+        facecolor='black',
+        format='png',
+        bbox_inches='tight',
         pad_inches=0,
     )
     plt.close()
 
+
 def visualize_lidar_two_combo(
-    fpath: str,
-    v_lidar: Optional[np.ndarray] = None,
-    i_lidar: Optional[np.ndarray] = None,
-    *,
-    gtbboxes: Optional[LiDARInstance3DBoxes] = None,
-    bboxes: Optional[LiDARInstance3DBoxes] = None,
-    gtlabels: Optional[np.ndarray] = None,
-    labels: Optional[np.ndarray] = None,
-    classes: Optional[List[str]] = None,
-    xlim: Tuple[float, float] = (-50, 50),
-    ylim: Tuple[float, float] = (-50, 50),
-    color: Optional[Tuple[int, int, int]] = None,
-    radius: float = 15,
-    thickness: float = 25,
+        fpath: str,
+        v_lidar: Optional[np.ndarray] = None,
+        i_lidar: Optional[np.ndarray] = None,
+        *,
+        gtbboxes: Optional[LiDARInstance3DBoxes] = None,
+        bboxes: Optional[LiDARInstance3DBoxes] = None,
+        gtlabels: Optional[np.ndarray] = None,
+        labels: Optional[np.ndarray] = None,
+        classes: Optional[List[str]] = None,
+        xlim: Tuple[float, float] = (-50, 50),
+        ylim: Tuple[float, float] = (-50, 50),
+        color: Optional[Tuple[int, int, int]] = None,
+        radius: float = 15,
+        thickness: float = 25,
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
@@ -462,7 +458,7 @@ def visualize_lidar_two_combo(
             v_lidar[:, 0],
             v_lidar[:, 1],
             s=radius,
-            c="white",
+            c='white',
         )
 
     if i_lidar is not None:
@@ -470,7 +466,7 @@ def visualize_lidar_two_combo(
             i_lidar[:, 0],
             i_lidar[:, 1],
             s=radius,
-            c="red",
+            c='red',
         )
 
     if bboxes is not None and len(bboxes) > 0:
@@ -499,19 +495,20 @@ def visualize_lidar_two_combo(
     fig.savefig(
         fpath,
         dpi=10,
-        facecolor="black",
-        format="png",
-        bbox_inches="tight",
+        facecolor='black',
+        format='png',
+        bbox_inches='tight',
         pad_inches=0,
     )
     plt.close()
 
+
 def visualize_map(
-    fpath: str,
-    masks: np.ndarray,
-    *,
-    classes: List[str],
-    background: Tuple[int, int, int] = (240, 240, 240),
+        fpath: str,
+        masks: np.ndarray,
+        *,
+        classes: List[str],
+        background: Tuple[int, int, int] = (240, 240, 240),
 ) -> None:
     assert masks.dtype == bool, masks.dtype
 

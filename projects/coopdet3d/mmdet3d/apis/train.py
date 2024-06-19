@@ -1,16 +1,6 @@
 import torch
 from mmcv.parallel import MMDistributedDataParallel
-from mmcv.runner import (
-    DistSamplerSeedHook,
-    EpochBasedRunner,
-    GradientCumulativeFp16OptimizerHook,
-    Fp16OptimizerHook,
-    OptimizerHook,
-    build_optimizer,
-    build_runner,
-)
-from mmdet3d.runner import CustomEpochBasedRunner
-
+from mmcv.runner import DistSamplerSeedHook, EpochBasedRunner, Fp16OptimizerHook, GradientCumulativeFp16OptimizerHook, OptimizerHook, build_optimizer, build_runner
 from mmdet3d.utils import get_root_logger
 from mmdet.core import DistEvalHook
 from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTensor
@@ -29,20 +19,17 @@ def train_model(
     # prepare data loaders
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
 
-    data_loaders = [
-        build_dataloader(
-            ds,
-            cfg.data.samples_per_gpu,
-            cfg.data.workers_per_gpu,
-            None,
-            dist=distributed,
-            seed=cfg.seed,
-        )
-        for ds in dataset
-    ]
+    data_loaders = [build_dataloader(
+        ds,
+        cfg.data.samples_per_gpu,
+        cfg.data.workers_per_gpu,
+        None,
+        dist=distributed,
+        seed=cfg.seed,
+    ) for ds in dataset]
 
     # put model on gpus
-    find_unused_parameters = cfg.get("find_unused_parameters", False)
+    find_unused_parameters = cfg.get('find_unused_parameters', False)
     # Sets the `find_unused_parameters` parameter in
     # torch.nn.parallel.DistributedDataParallel
     model = MMDistributedDataParallel(
@@ -65,25 +52,21 @@ def train_model(
             meta={},
         ),
     )
-    
-    if hasattr(runner, "set_dataset"):
+
+    if hasattr(runner, 'set_dataset'):
         runner.set_dataset(dataset)
 
     # an ugly workaround to make .log and .log.json filenames the same
     runner.infra_timestamp = timestamp
 
     # fp16 setting
-    fp16_cfg = cfg.get("fp16", None)
+    fp16_cfg = cfg.get('fp16', None)
     if fp16_cfg is not None:
-        if "cumulative_iters" in cfg.optimizer_config:
-            optimizer_config = GradientCumulativeFp16OptimizerHook(
-                **cfg.optimizer_config, **fp16_cfg, distributed=distributed
-            )
+        if 'cumulative_iters' in cfg.optimizer_config:
+            optimizer_config = GradientCumulativeFp16OptimizerHook(**cfg.optimizer_config, **fp16_cfg, distributed=distributed)
         else:
-            optimizer_config = Fp16OptimizerHook(
-                **cfg.optimizer_config, **fp16_cfg, distributed=distributed
-            )
-    elif distributed and "type" not in cfg.optimizer_config:
+            optimizer_config = Fp16OptimizerHook(**cfg.optimizer_config, **fp16_cfg, distributed=distributed)
+    elif distributed and 'type' not in cfg.optimizer_config:
         optimizer_config = OptimizerHook(**cfg.optimizer_config)
     else:
         optimizer_config = cfg.optimizer_config
@@ -94,7 +77,7 @@ def train_model(
         optimizer_config,
         cfg.checkpoint_config,
         cfg.log_config,
-        cfg.get("momentum_config", None),
+        cfg.get('momentum_config', None),
     )
     if isinstance(runner, EpochBasedRunner):
         runner.register_hook(DistSamplerSeedHook())
@@ -102,7 +85,7 @@ def train_model(
     # register eval hooks
     if validate:
         # Support batch_size > 1 in validation
-        val_samples_per_gpu = cfg.data.val.pop("samples_per_gpu", 1)
+        val_samples_per_gpu = cfg.data.val.pop('samples_per_gpu', 1)
         if val_samples_per_gpu > 1:
             # Replace 'ImageToTensor' to 'DefaultFormatBundle'
             cfg.data.val.pipeline = replace_ImageToTensor(cfg.data.val.pipeline)
@@ -114,8 +97,8 @@ def train_model(
             dist=distributed,
             shuffle=False,
         )
-        eval_cfg = cfg.get("evaluation", {})
-        eval_cfg["by_epoch"] = cfg.runner["type"] != "IterBasedRunner"
+        eval_cfg = cfg.get('evaluation', {})
+        eval_cfg['by_epoch'] = cfg.runner['type'] != 'IterBasedRunner'
         eval_hook = DistEvalHook
         runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
 
@@ -123,7 +106,8 @@ def train_model(
         runner.resume(cfg.resume_from)
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
-    runner.run(data_loaders, [("train", 1)])
+    runner.run(data_loaders, [('train', 1)])
+
 
 def train_model_coop(
     model,
@@ -139,20 +123,17 @@ def train_model_coop(
     # prepare data loaders
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
 
-    data_loaders = [
-        build_dataloader(
-            ds,
-            cfg.data.samples_per_gpu,
-            cfg.data.workers_per_gpu,
-            None,
-            dist=distributed,
-            seed=cfg.seed,
-        )
-        for ds in dataset
-    ]
+    data_loaders = [build_dataloader(
+        ds,
+        cfg.data.samples_per_gpu,
+        cfg.data.workers_per_gpu,
+        None,
+        dist=distributed,
+        seed=cfg.seed,
+    ) for ds in dataset]
 
     # put model on gpus
-    find_unused_parameters = cfg.get("find_unused_parameters", False)
+    find_unused_parameters = cfg.get('find_unused_parameters', False)
     # Sets the `find_unused_parameters` parameter in
     # torch.nn.parallel.DistributedDataParallel
     model = MMDistributedDataParallel(
@@ -165,16 +146,14 @@ def train_model_coop(
     optimizer = None
     # build runner
     if freeze:
-        print("Freeze backbone")
+        print('Freeze backbone')
         parameters = []
         for name, p in model.named_parameters():
-            if "vehicle" not in name and "infrastructure" not in name:
+            if 'vehicle' not in name and 'infrastructure' not in name:
                 parameters.append(p)
-        optimizer = torch.optim.AdamW(
-            parameters, lr=cfg.optimizer['lr'], weight_decay=cfg.optimizer['weight_decay']
-        )
+        optimizer = torch.optim.AdamW(parameters, lr=cfg.optimizer['lr'], weight_decay=cfg.optimizer['weight_decay'])
     else:
-        print("Normal builder")
+        print('Normal builder')
         optimizer = build_optimizer(model, cfg.optimizer)
 
     runner = build_runner(
@@ -187,25 +166,21 @@ def train_model_coop(
             meta={},
         ),
     )
-    
-    if hasattr(runner, "set_dataset"):
+
+    if hasattr(runner, 'set_dataset'):
         runner.set_dataset(dataset)
 
     # an ugly workaround to make .log and .log.json filenames the same
     runner.infra_timestamp = timestamp
 
     # fp16 setting
-    fp16_cfg = cfg.get("fp16", None)
+    fp16_cfg = cfg.get('fp16', None)
     if fp16_cfg is not None:
-        if "cumulative_iters" in cfg.optimizer_config:
-            optimizer_config = GradientCumulativeFp16OptimizerHook(
-                **cfg.optimizer_config, **fp16_cfg, distributed=distributed
-            )
+        if 'cumulative_iters' in cfg.optimizer_config:
+            optimizer_config = GradientCumulativeFp16OptimizerHook(**cfg.optimizer_config, **fp16_cfg, distributed=distributed)
         else:
-            optimizer_config = Fp16OptimizerHook(
-                **cfg.optimizer_config, **fp16_cfg, distributed=distributed
-            )
-    elif distributed and "type" not in cfg.optimizer_config:
+            optimizer_config = Fp16OptimizerHook(**cfg.optimizer_config, **fp16_cfg, distributed=distributed)
+    elif distributed and 'type' not in cfg.optimizer_config:
         optimizer_config = OptimizerHook(**cfg.optimizer_config)
     else:
         optimizer_config = cfg.optimizer_config
@@ -216,7 +191,7 @@ def train_model_coop(
         optimizer_config,
         cfg.checkpoint_config,
         cfg.log_config,
-        cfg.get("momentum_config", None),
+        cfg.get('momentum_config', None),
     )
     if isinstance(runner, EpochBasedRunner):
         runner.register_hook(DistSamplerSeedHook())
@@ -224,7 +199,7 @@ def train_model_coop(
     # register eval hooks
     if validate:
         # Support batch_size > 1 in validation
-        val_samples_per_gpu = cfg.data.val.pop("samples_per_gpu", 1)
+        val_samples_per_gpu = cfg.data.val.pop('samples_per_gpu', 1)
         if val_samples_per_gpu > 1:
             # Replace 'ImageToTensor' to 'DefaultFormatBundle'
             cfg.data.val.pipeline = replace_ImageToTensor(cfg.data.val.pipeline)
@@ -236,8 +211,8 @@ def train_model_coop(
             dist=distributed,
             shuffle=False,
         )
-        eval_cfg = cfg.get("evaluation", {})
-        eval_cfg["by_epoch"] = cfg.runner["type"] != "IterBasedRunner"
+        eval_cfg = cfg.get('evaluation', {})
+        eval_cfg['by_epoch'] = cfg.runner['type'] != 'IterBasedRunner'
         eval_hook = DistEvalHook
         runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
 
@@ -245,4 +220,4 @@ def train_model_coop(
         runner.resume(cfg.resume_from)
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
-    runner.run(data_loaders, [("train", 1)])
+    runner.run(data_loaders, [('train', 1)])

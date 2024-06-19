@@ -18,7 +18,7 @@ resume_from: null
 
 cudnn_benchmark: false
 fp16:
-  loss_scale: 
+  loss_scale:
     growth_interval: 2000
 
 max_epochs: 20
