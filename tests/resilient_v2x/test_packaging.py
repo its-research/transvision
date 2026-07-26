@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+from setuptools import Distribution, Extension
+from setuptools.command.build_ext import build_ext
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -228,10 +230,28 @@ def test_lazy_build_delegates_to_pytorch_compiler_lifecycle(monkeypatch: pytest.
     module, _ = _load_setup_module(monkeypatch)
     calls = []
 
-    class FakeBuildExtension:
-        @staticmethod
-        def build_extensions(command) -> None:
-            calls.append(command)
+    class FakeBuildExtension(build_ext):
+        def initialize_options(self) -> None:
+            super().initialize_options()
+            self.use_ninja = None
+            calls.append("initialize")
+
+        def finalize_options(self) -> None:
+            super().finalize_options()
+            self.use_ninja = True
+            calls.append("finalize")
+
+        def _check_abi(self) -> None:
+            calls.append("check_abi")
+
+        def build_extensions(self) -> None:
+            assert self.use_ninja is True
+            calls.append("build_extensions")
+
+        def run(self) -> None:
+            self._check_abi()
+            self.build_extensions()
+            calls.append("run")
 
     torch = types.ModuleType("torch")
     torch_utils = types.ModuleType("torch.utils")
@@ -240,15 +260,25 @@ def test_lazy_build_delegates_to_pytorch_compiler_lifecycle(monkeypatch: pytest.
     monkeypatch.setitem(sys.modules, "torch", torch)
     monkeypatch.setitem(sys.modules, "torch.utils", torch_utils)
     monkeypatch.setitem(sys.modules, "torch.utils.cpp_extension", torch_cpp_extension)
-    monkeypatch.setattr(module, "build_extensions", lambda: ["native-extension"])
+    extension = Extension("transvision.native", ["native.cpp"])
+    monkeypatch.setattr(module, "build_extensions", lambda: [extension])
 
-    command = object.__new__(module.LazyBuildExtension)
-    command.distribution = types.SimpleNamespace(ext_modules=[])
-    module.LazyBuildExtension.build_extensions(command)
+    distribution = Distribution(
+        {
+            "name": "transvision",
+            "ext_modules": [],
+            "cmdclass": {"build_ext": module.LazyBuildExtension},
+        }
+    )
+    command = distribution.get_command_obj("build_ext")
+    assert type(command) is FakeBuildExtension
 
-    assert command.extensions == ["native-extension"]
-    assert command.distribution.ext_modules == ["native-extension"]
-    assert calls == [command]
+    command.finalize_options()
+    assert command.extensions == [extension]
+    command.run()
+
+    assert command.distribution.ext_modules == [extension]
+    assert calls == ["initialize", "finalize", "check_abi", "build_extensions", "run"]
 
 
 def test_sdist_contains_runtime_metadata_and_all_native_sources(tmp_path: Path) -> None:

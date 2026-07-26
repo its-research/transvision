@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 from setuptools import Distribution, find_packages, setup
@@ -81,16 +82,15 @@ def build_extensions():
 
 class LazyDistribution(Distribution):
     def has_ext_modules(self):
-        return True
+        return "sdist" not in sys.argv[1:]
 
 
 class LazyBuildExtension(build_ext):
-    def build_extensions(self):
+    def __new__(cls, distribution):
         from torch.utils.cpp_extension import BuildExtension
 
-        self.extensions = build_extensions()
-        self.distribution.ext_modules = self.extensions
-        return BuildExtension.build_extensions(self)
+        distribution.ext_modules = build_extensions()
+        return BuildExtension(distribution)
 
 
 setup(
