@@ -1,0 +1,7 @@
+name: resilient-v2x-bootstrap
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10.14
+  - pip=23.3.2
+  - conda-lock=2.5.7
