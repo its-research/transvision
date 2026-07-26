@@ -267,6 +267,8 @@ def test_lazy_build_delegates_to_pytorch_compiler_lifecycle(monkeypatch: pytest.
         def finalize_options(self) -> None:
             super().finalize_options()
             self.use_ninja = True
+            if self.use_ninja:
+                self.force = True
             calls.append("delegate_finalize")
 
         def _check_abi(self) -> None:
@@ -305,10 +307,12 @@ def test_lazy_build_delegates_to_pytorch_compiler_lifecycle(monkeypatch: pytest.
     assert type(command) is module.LazyBuildExtension
     assert instances == []
 
-    command.force = True
     command.parallel = 7
     command.debug = True
     command.finalize_options()
+    assert command.force is None
+    assert command.parallel == 7
+    assert command.debug is True
     command.run()
 
     assert len(instances) == 1

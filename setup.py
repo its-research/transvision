@@ -102,17 +102,23 @@ def build_extensions():
 
 
 class LazyBuildExtension(build_ext):
+    def finalize_options(self):
+        self._delegate_options = {}
+        for option, _, _ in self.user_options:
+            name = option.rstrip("=").replace("-", "_")
+            value = getattr(self, name, None)
+            if value is not None:
+                self._delegate_options[name] = value
+        super().finalize_options()
+
     def run(self):
         from torch.utils.cpp_extension import BuildExtension
 
         self.distribution.ext_modules = build_extensions()
         delegate = BuildExtension(self.distribution)
-        for name in ("build_lib", "build_temp", "plat_name", "inplace", "debug", "force", "compiler", "parallel", "user"):
-            setattr(delegate, name, getattr(self, name))
+        for name, value in self._delegate_options.items():
+            setattr(delegate, name, value)
         delegate.ensure_finalized()
-        for name, value in self.__dict__.items():
-            if name not in {"distribution", "extensions", "_finalized"}:
-                setattr(delegate, name, value)
         delegate.extensions = self.distribution.ext_modules
         return delegate.run()
 
