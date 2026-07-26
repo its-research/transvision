@@ -879,8 +879,10 @@ baseline evaluation 明确分两阶段：
   method 再增加 24 runs，不重新训练。
 
 所以完成 val+test 后，每个 eligible multimodal method 共 72 evaluation runs，每个 eligible
-LiDAR-only method 共 48。upstream public checkpoint 只按其 manifest 声明的 split 生成
-cross-protocol plan，不计入上述 controlled counts。
+LiDAR-only method 共 48。upstream public checkpoint 只允许按 manifest 声明生成
+`split=val` 的 cross-protocol reference plan，不计入上述 controlled counts；
+`split=test` 无条件在 checkpoint、ground truth、dataloader、predictor 和 evaluator 访问前
+阻断，也不属于 reserved-test scope。
 
 ## 14. 评估、统计与证据
 
