@@ -25,6 +25,13 @@ from .causal_repair import (
     normalized_selected_rsu_delay,
 )
 from .ptf import HorizonConditionedPTF, PTFOutput
+from .routing import (
+    DepthwiseSeparableResidualBlock,
+    DynamicExpertRouter,
+    ModalityAggregate,
+    ModalityAggregator,
+    RoutingOutput,
+)
 
 __all__ = (
     "Agent",
@@ -49,4 +56,9 @@ __all__ = (
     "BranchDiagnostics",
     "RepairedBranch",
     "CausalBranchRepair",
+    "DepthwiseSeparableResidualBlock",
+    "ModalityAggregate",
+    "ModalityAggregator",
+    "RoutingOutput",
+    "DynamicExpertRouter",
 )

@@ -318,9 +318,14 @@ def test_package_exports_only_stable_core_api() -> None:
         "BranchDiagnostics",
         "RepairedBranch",
         "CausalBranchRepair",
+        "DepthwiseSeparableResidualBlock",
+        "ModalityAggregate",
+        "ModalityAggregator",
+        "RoutingOutput",
+        "DynamicExpertRouter",
     )
-    assert len(resilient_v2x.__all__) == 22
-    assert len(set(resilient_v2x.__all__)) == 22
+    assert len(resilient_v2x.__all__) == 27
+    assert len(set(resilient_v2x.__all__)) == 27
 
 
 def test_task_five_package_import_does_not_load_custom_ops() -> None:
