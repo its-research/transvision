@@ -1,0 +1,46 @@
+[
+  {
+    "frame_id": "100000",
+    "batch_id": "infrastructure-batch-a",
+    "image_path": "image/100000.jpg",
+    "pointcloud_path": "velodyne/100000.pcd",
+    "image_timestamp": "1030000",
+    "pointcloud_timestamp": "1010000",
+    "calib_camera_intrinsic_path": "calib/camera_intrinsic/100000.json",
+    "calib_virtuallidar_to_camera_path": "calib/virtuallidar_to_camera/100000.json",
+    "calib_virtuallidar_to_world_path": "calib/virtuallidar_to_world/100000.json"
+  },
+  {
+    "frame_id": "100001",
+    "batch_id": "infrastructure-batch-a",
+    "image_path": "image/100001.jpg",
+    "pointcloud_path": "velodyne/100001.pcd",
+    "image_timestamp": "1130000",
+    "pointcloud_timestamp": "1110000",
+    "calib_camera_intrinsic_path": "calib/camera_intrinsic/100001.json",
+    "calib_virtuallidar_to_camera_path": "calib/virtuallidar_to_camera/100001.json",
+    "calib_virtuallidar_to_world_path": "calib/virtuallidar_to_world/100001.json"
+  },
+  {
+    "frame_id": "100002",
+    "batch_id": "infrastructure-batch-a",
+    "image_path": "image/100002.jpg",
+    "pointcloud_path": "velodyne/100002.pcd",
+    "image_timestamp": "1230000",
+    "pointcloud_timestamp": "1210000",
+    "calib_camera_intrinsic_path": "calib/camera_intrinsic/100002.json",
+    "calib_virtuallidar_to_camera_path": "calib/virtuallidar_to_camera/100002.json",
+    "calib_virtuallidar_to_world_path": "calib/virtuallidar_to_world/100002.json"
+  },
+  {
+    "frame_id": "100003",
+    "batch_id": "infrastructure-batch-a",
+    "image_path": "image/100003.jpg",
+    "pointcloud_path": "velodyne/100003.pcd",
+    "image_timestamp": "1330000",
+    "pointcloud_timestamp": "1310000",
+    "calib_camera_intrinsic_path": "calib/camera_intrinsic/100003.json",
+    "calib_virtuallidar_to_camera_path": "calib/virtuallidar_to_camera/100003.json",
+    "calib_virtuallidar_to_world_path": "calib/virtuallidar_to_world/100003.json"
+  }
+]

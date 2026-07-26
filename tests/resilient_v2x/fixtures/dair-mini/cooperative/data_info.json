@@ -1,0 +1,34 @@
+[
+  {
+    "vehicle_image_path": "vehicle-side/image/000000.jpg",
+    "vehicle_pointcloud_path": "vehicle-side/velodyne/000000.pcd",
+    "infrastructure_image_path": "infrastructure-side/image/100000.jpg",
+    "infrastructure_pointcloud_path": "infrastructure-side/velodyne/100000.pcd",
+    "cooperative_label_path": "cooperative/label_world/000000.json",
+    "system_error_offset": ""
+  },
+  {
+    "vehicle_image_path": "vehicle-side/image/000001.jpg",
+    "vehicle_pointcloud_path": "vehicle-side/velodyne/000001.pcd",
+    "infrastructure_image_path": "infrastructure-side/image/100001.jpg",
+    "infrastructure_pointcloud_path": "infrastructure-side/velodyne/100001.pcd",
+    "cooperative_label_path": "cooperative/label_world/000001.json",
+    "system_error_offset": ""
+  },
+  {
+    "vehicle_image_path": "vehicle-side/image/000002.jpg",
+    "vehicle_pointcloud_path": "vehicle-side/velodyne/000002.pcd",
+    "infrastructure_image_path": "infrastructure-side/image/100002.jpg",
+    "infrastructure_pointcloud_path": "infrastructure-side/velodyne/100002.pcd",
+    "cooperative_label_path": "cooperative/label_world/000002.json",
+    "system_error_offset": ""
+  },
+  {
+    "vehicle_image_path": "vehicle-side/image/000003.jpg",
+    "vehicle_pointcloud_path": "vehicle-side/velodyne/000003.pcd",
+    "infrastructure_image_path": "infrastructure-side/image/100003.jpg",
+    "infrastructure_pointcloud_path": "infrastructure-side/velodyne/100003.pcd",
+    "cooperative_label_path": "cooperative/label_world/000003.json",
+    "system_error_offset": ""
+  }
+]

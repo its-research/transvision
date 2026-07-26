@@ -1,0 +1,50 @@
+[
+  {
+    "frame_id": "000000",
+    "batch_id": "vehicle-batch-a",
+    "image_path": "image/000000.jpg",
+    "pointcloud_path": "velodyne/000000.pcd",
+    "image_timestamp": "1020000",
+    "pointcloud_timestamp": "1000000",
+    "calib_camera_intrinsic_path": "calib/camera_intrinsic/000000.json",
+    "calib_lidar_to_camera_path": "calib/lidar_to_camera/000000.json",
+    "calib_lidar_to_novatel_path": "calib/lidar_to_novatel/000000.json",
+    "calib_novatel_to_world_path": "calib/novatel_to_world/000000.json"
+  },
+  {
+    "frame_id": "000001",
+    "batch_id": "vehicle-batch-a",
+    "image_path": "image/000001.jpg",
+    "pointcloud_path": "velodyne/000001.pcd",
+    "image_timestamp": "1120000",
+    "pointcloud_timestamp": "1100000",
+    "calib_camera_intrinsic_path": "calib/camera_intrinsic/000001.json",
+    "calib_lidar_to_camera_path": "calib/lidar_to_camera/000001.json",
+    "calib_lidar_to_novatel_path": "calib/lidar_to_novatel/000001.json",
+    "calib_novatel_to_world_path": "calib/novatel_to_world/000001.json"
+  },
+  {
+    "frame_id": "000002",
+    "batch_id": "vehicle-batch-a",
+    "image_path": "image/000002.jpg",
+    "pointcloud_path": "velodyne/000002.pcd",
+    "image_timestamp": "1220000",
+    "pointcloud_timestamp": "1200000",
+    "calib_camera_intrinsic_path": "calib/camera_intrinsic/000002.json",
+    "calib_lidar_to_camera_path": "calib/lidar_to_camera/000002.json",
+    "calib_lidar_to_novatel_path": "calib/lidar_to_novatel/000002.json",
+    "calib_novatel_to_world_path": "calib/novatel_to_world/000002.json"
+  },
+  {
+    "frame_id": "000003",
+    "batch_id": "vehicle-batch-a",
+    "image_path": "image/000003.jpg",
+    "pointcloud_path": "velodyne/000003.pcd",
+    "image_timestamp": "1320000",
+    "pointcloud_timestamp": "1300000",
+    "calib_camera_intrinsic_path": "calib/camera_intrinsic/000003.json",
+    "calib_lidar_to_camera_path": "calib/lidar_to_camera/000003.json",
+    "calib_lidar_to_novatel_path": "calib/lidar_to_novatel/000003.json",
+    "calib_novatel_to_world_path": "calib/novatel_to_world/000003.json"
+  }
+]
