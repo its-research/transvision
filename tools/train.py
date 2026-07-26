@@ -10,7 +10,7 @@ from mmengine.logging import print_log
 from mmengine.registry import RUNNERS
 from mmengine.runner import Runner
 
-import transvision  # noqa:F401
+from transvision import register_all_modules
 
 
 def parse_args():
@@ -51,6 +51,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    register_all_modules()
 
     # load config
     cfg = Config.fromfile(args.config)

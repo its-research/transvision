@@ -8,7 +8,7 @@ from mmengine.config import Config, DictAction
 from mmengine.registry import init_default_scope
 from mmengine.utils import ProgressBar, mkdir_or_exist
 
-import transvision  # noqa:F401
+from transvision import register_all_modules
 
 
 def parse_args():
@@ -79,6 +79,7 @@ def build_data_cfg(config_path, aug, cfg_options):
 
 def main():
     args = parse_args()
+    register_all_modules()
 
     if args.output_dir is not None:
         mkdir_or_exist(args.output_dir)

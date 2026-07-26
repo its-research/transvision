@@ -1,8 +1,4 @@
-from transvision.dataset.transforms.formating import Pack3DDetDAIRInputs
-from transvision.dataset.transforms.loading import LoadPointsFromFile_w_sensor_view
-from transvision.dataset.v2x_dataset import V2XDataset
-from transvision.evaluation.metrics.dair_v2x_metric import DAIRV2XMetric
-from transvision.models.data_preprocessors.data_preprocessor import Det3DDataDAIRPreprocessor
-from transvision.models.dense_heads import *
-from transvision.models.detectors import *
-from transvision.models.necks import *
+from .register import register_resilient_v2x_modules as register_all_modules
+from .version import __version__, git_version
+
+__all__ = ["__version__", "git_version", "register_all_modules"]

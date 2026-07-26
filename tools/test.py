@@ -8,7 +8,7 @@ from mmengine.config import Config, ConfigDict, DictAction
 from mmengine.registry import RUNNERS
 from mmengine.runner import Runner
 
-import transvision  # noqa:F401
+from transvision import register_all_modules
 
 
 # TODO: support fuse_conv_bn and format_only
@@ -79,6 +79,7 @@ def trigger_visualization_hook(cfg, args):
 
 def main():
     args = parse_args()
+    register_all_modules()
 
     # load config
     cfg = Config.fromfile(args.config)

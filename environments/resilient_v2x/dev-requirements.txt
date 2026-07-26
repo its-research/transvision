@@ -1,0 +1,11 @@
+pip==23.3.2
+setuptools==68.2.2
+wheel==0.41.3
+packaging==23.2
+numpy==1.24.4
+pytest==7.4.4
+jsonschema==4.23.0
+PyYAML==6.0.2
+zstandard==0.22.0
+pypcd4==1.4.3
+conda-lock==2.5.7

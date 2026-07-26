@@ -1,0 +1,21 @@
+name: resilient-v2x
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10.14
+  - pip=23.3.2
+  - cuda=11.8.0
+  - cuda-toolkit=11.8.0
+  - pip:
+      - -c constraints.txt
+      - torch==2.0.1
+      - torchvision==0.15.2
+      - mmengine==0.10.7
+      - mmcv==2.1.0
+      - mmdet==3.2.0
+      - mmdet3d==1.3.0
+      - fvcore==0.1.5.post20221221
+      - zstandard==0.22.0
+      - pypcd4==1.4.3
