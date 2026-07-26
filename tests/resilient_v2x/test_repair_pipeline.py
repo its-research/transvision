@@ -765,6 +765,101 @@ def test_supported_source_contract_fails_before_ptf_query(
 @pytest.mark.parametrize(
     ("field", "value"),
     [
+        ("packet_id", 3),
+        ("arrival_tau_ms", 900.5),
+        ("arrival_tau_ms", True),
+        ("arrival_tau_ms", None),
+        ("arrival_tau_ms", 799),
+        ("payload_valid", False),
+        ("payload_valid", 1),
+        ("timestamp_valid", False),
+        ("timestamp_valid", 1),
+        ("pose_valid", False),
+        ("pose_valid", 1),
+        ("calibration_valid", False),
+        ("calibration_valid", 1),
+        ("faulted", True),
+        ("faulted", 0),
+    ],
+    ids=[
+        "packet-id-type",
+        "arrival-noninteger",
+        "arrival-boolean",
+        "rsu-arrival-null",
+        "rsu-negative-delay",
+        "payload-invalid",
+        "payload-nonboolean",
+        "timestamp-invalid",
+        "timestamp-nonboolean",
+        "pose-invalid",
+        "pose-nonboolean",
+        "calibration-invalid",
+        "calibration-nonboolean",
+        "faulted",
+        "faulted-nonboolean",
+    ],
+)
+def test_supported_source_local_invariants_fail_before_geometry_and_ptf(
+    field: str,
+    value: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selection = supported(Agent.RSU, Modality.LIDAR, 2)
+    assert selection.source is not None
+    object.__setattr__(selection.source, field, value)
+    spy = SpyPTF()
+    alignment_calls = 0
+    real_alignment = causal_repair_module.align_bev_to_target
+
+    def counted_alignment(
+        source: torch.Tensor,
+        source_to_target: torch.Tensor,
+        spec: BEVGridSpec,
+    ) -> torch.Tensor:
+        nonlocal alignment_calls
+        alignment_calls += 1
+        return real_alignment(source, source_to_target, spec)
+
+    monkeypatch.setattr(
+        causal_repair_module,
+        "align_bev_to_target",
+        counted_alignment,
+    )
+
+    with pytest.raises(ProtocolInvariantError):
+        run_repair(make_repair(), spy, base_inputs((selection,)))
+
+    assert alignment_calls == 0
+    assert spy.query_count == 0
+
+
+def test_supported_source_preserves_task_three_compatible_local_boundaries() -> None:
+    ego = supported(Agent.EGO, Modality.LIDAR, 0)
+    rsu = supported(Agent.RSU, Modality.LIDAR, 2)
+    assert ego.source is not None
+    assert rsu.source is not None
+    object.__setattr__(ego.source, "packet_id", "")
+    object.__setattr__(ego.source, "arrival_tau_ms", None)
+    object.__setattr__(
+        rsu.source,
+        "arrival_tau_ms",
+        rsu.source.tau_s_ms,
+    )
+    spy = SpyPTF()
+
+    output = run_repair(
+        make_repair(),
+        spy,
+        base_inputs((ego, rsu)),
+    )
+
+    assert output.support.tolist() == [True, True]
+    assert spy.query_count == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
         ("observed", 0),
         ("propagated", 0),
         ("reason", "bad-reason"),
@@ -806,6 +901,23 @@ def test_supported_nonfinite_and_singular_inputs_fail_closed() -> None:
     transform[0, 0, 0] = math.nan
     with pytest.raises(ValueError, match="finite"):
         run_repair(make_repair(), SpyPTF(), inputs)
+
+
+def test_supported_nonfinite_feature_fails_before_out_of_bounds_alignment_masks_it() -> None:
+    selection = supported(Agent.EGO, Modality.LIDAR, 0)
+    inputs = base_inputs((selection,))
+    feature = inputs["selected_feature"]
+    transform = inputs["source_to_target"]
+    assert isinstance(feature, torch.Tensor)
+    assert isinstance(transform, torch.Tensor)
+    feature.fill_(math.nan)
+    transform[0, 0, 3] = 1_000_000.0
+    spy = SpyPTF()
+
+    with pytest.raises(RuntimeError, match="feature.*finite"):
+        run_repair(make_repair(), spy, inputs)
+
+    assert spy.query_count == 0
 
 
 def valid_ptf_output(context: torch.Tensor) -> PTFOutput:

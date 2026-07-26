@@ -620,6 +620,65 @@ class CausalBranchRepair(nn.Module):
             normalized_selections,
         )
 
+    @staticmethod
+    def _validate_supported_source(
+        selection: BranchSelection,
+    ) -> None:
+        source = selection.source
+        if not isinstance(source, SourceCandidate):
+            raise ProtocolInvariantError(
+                "supported selection source must be a SourceCandidate"
+            )
+        if not isinstance(source.packet_id, str):
+            raise ProtocolInvariantError(
+                "supported selection source packet_id must be a string"
+            )
+        _require_integer(source.n_s, "selection source n_s")
+        source_tau_ms = _require_integer(
+            source.tau_s_ms,
+            "selection source tau_s_ms",
+        )
+        arrival_tau_ms = source.arrival_tau_ms
+        if arrival_tau_ms is not None:
+            arrival_tau_ms = _require_integer(
+                arrival_tau_ms,
+                "selection source arrival_tau_ms",
+            )
+
+        for name in (
+            "payload_valid",
+            "timestamp_valid",
+            "pose_valid",
+            "calibration_valid",
+            "faulted",
+        ):
+            if not isinstance(getattr(source, name), bool):
+                raise ProtocolInvariantError(
+                    f"selection source {name} must be boolean"
+                )
+        if not (
+            source.payload_valid
+            and source.timestamp_valid
+            and source.pose_valid
+            and source.calibration_valid
+        ):
+            raise ProtocolInvariantError(
+                "supported selection source validity flags must all be true"
+            )
+        if source.faulted:
+            raise ProtocolInvariantError(
+                "supported selection source must not be faulted"
+            )
+        if selection.agent is Agent.RSU:
+            if arrival_tau_ms is None:
+                raise ProtocolInvariantError(
+                    "supported RSU source requires arrival_tau_ms"
+                )
+            if arrival_tau_ms < source_tau_ms:
+                raise ProtocolInvariantError(
+                    "supported RSU source arrival cannot precede source time"
+                )
+
     def _collect_supported(
         self,
         selections: tuple[BranchSelection, ...],
@@ -678,16 +737,7 @@ class CausalBranchRepair(nn.Module):
                 raise ProtocolInvariantError(
                     "selection observed/propagated semantics are inconsistent"
                 )
-            source = selection.source
-            if not isinstance(source, SourceCandidate):
-                raise ProtocolInvariantError(
-                    "supported selection source must be a SourceCandidate"
-                )
-            _require_integer(source.n_s, "selection source n_s")
-            _require_integer(
-                source.tau_s_ms,
-                "selection source tau_s_ms",
-            )
+            self._validate_supported_source(selection)
             if selection.reason is not None:
                 raise ProtocolInvariantError(
                     "supported selection forbids a reason"
@@ -909,6 +959,10 @@ class CausalBranchRepair(nn.Module):
             device=selected_feature.device,
         )
 
+        self._require_runtime_finite(
+            supported_feature,
+            "selected feature",
+        )
         if not self._all_finite(supported_context):
             raise ValueError(
                 "supported ptf_context must contain only finite values"
