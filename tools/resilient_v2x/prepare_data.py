@@ -1430,7 +1430,7 @@ def _preflight_records(
     )
 
 
-def prepare_manifest(
+def _prepare_manifest_impl(
     data_root: Path,
     split_path: Path,
     output_path: Path,
@@ -1578,6 +1578,39 @@ def prepare_manifest(
     raw_manifest = canonical_json_bytes(payload)
     _publish_immutable_bytes(output_path, raw_manifest)
     return manifest
+
+
+def prepare_manifest(
+    data_root: Path,
+    split_path: Path,
+    output_path: Path,
+    expected_split_sha256: str,
+    protocol_scope: Literal["controlled", "fixture"],
+    delta_t_ms: int,
+    history_limit: int,
+    interval_min_ms: int,
+    interval_max_ms: int,
+    max_capture_skew_ms: int,
+) -> TemporalManifest:
+    try:
+        return _prepare_manifest_impl(
+            data_root=data_root,
+            split_path=split_path,
+            output_path=output_path,
+            expected_split_sha256=expected_split_sha256,
+            protocol_scope=protocol_scope,
+            delta_t_ms=delta_t_ms,
+            history_limit=history_limit,
+            interval_min_ms=interval_min_ms,
+            interval_max_ms=interval_max_ms,
+            max_capture_skew_ms=max_capture_skew_ms,
+        )
+    except OSError as error:
+        detail = error.strerror or str(error) or type(error).__name__
+        one_line_detail = " ".join(detail.splitlines())
+        raise ValueError(
+            f"filesystem error preparing manifest: {one_line_detail}"
+        ) from error
 
 
 def _parser() -> argparse.ArgumentParser:

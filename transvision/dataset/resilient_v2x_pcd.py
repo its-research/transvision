@@ -4,9 +4,9 @@ import errno
 import hashlib
 import io
 import os
+import secrets
 import stat
 import struct
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -37,22 +37,253 @@ class PreparedPointCloud:
     ]
 
 
-def _read_stable_regular_bytes(path: Path) -> bytes:
+_EntryIdentity = tuple[int, int, int]
+
+
+def _entry_identity(metadata: os.stat_result) -> _EntryIdentity:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        stat.S_IFMT(metadata.st_mode),
+    )
+
+
+def _directory_open_flags() -> int:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    return flags
+
+
+def _regular_open_flags() -> int:
     flags = os.O_RDONLY
     if hasattr(os, "O_CLOEXEC"):
         flags |= os.O_CLOEXEC
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
+    return flags
+
+
+@dataclass
+class _AnchoredParent:
+    path: Path
+    component_names: tuple[str, ...]
+    descriptors: list[int]
+    identities: list[_EntryIdentity]
+    leaf_name: str
+
+    @property
+    def descriptor(self) -> int:
+        return self.descriptors[-1]
+
+    def verify(self) -> None:
+        for descriptor, expected in zip(
+            self.descriptors,
+            self.identities,
+        ):
+            if _entry_identity(os.fstat(descriptor)) != expected:
+                raise ValueError(
+                    f"directory chain changed during operation: {self.path}"
+                )
+        for index, component in enumerate(self.component_names):
+            try:
+                current = os.stat(
+                    component,
+                    dir_fd=self.descriptors[index],
+                    follow_symlinks=False,
+                )
+            except OSError as error:
+                raise ValueError(
+                    f"directory chain changed during operation: {self.path}"
+                ) from error
+            if (
+                stat.S_ISLNK(current.st_mode)
+                or _entry_identity(current) != self.identities[index + 1]
+            ):
+                raise ValueError(
+                    f"directory chain changed during operation: {self.path}"
+                )
+
+    def close(self) -> None:
+        first_error: OSError | None = None
+        for descriptor in reversed(self.descriptors):
+            try:
+                os.close(descriptor)
+            except OSError as error:
+                if first_error is None:
+                    first_error = error
+        self.descriptors.clear()
+        if first_error is not None:
+            raise first_error
+
+
+def _path_components(path: Path) -> tuple[str, tuple[str, ...], str]:
+    path = Path(path)
+    parts = path.parts
+    if not parts:
+        raise ValueError(f"path must name a file: {path}")
+    if path.is_absolute():
+        anchor = os.sep
+        relative_parts = parts[1:]
+    else:
+        anchor = "."
+        relative_parts = parts
+    if (
+        not relative_parts
+        or relative_parts[-1] in {"", ".", ".."}
+        or any(part in {"", ".", ".."} for part in relative_parts[:-1])
+    ):
+        raise ValueError(f"path must not contain ambiguous components: {path}")
+    return anchor, tuple(relative_parts[:-1]), relative_parts[-1]
+
+
+def _open_anchored_parent(
+    path: Path,
+    *,
+    create: bool,
+) -> _AnchoredParent:
+    path = Path(path)
+    anchor, component_names, leaf_name = _path_components(path)
+    descriptors: list[int] = []
+    identities: list[_EntryIdentity] = []
+    successful = False
     try:
-        descriptor = os.open(path, flags)
+        descriptor = os.open(anchor, _directory_open_flags())
+        descriptors.append(descriptor)
+        identities.append(_entry_identity(os.fstat(descriptor)))
+        for component in component_names:
+            try:
+                before = os.stat(
+                    component,
+                    dir_fd=descriptor,
+                    follow_symlinks=False,
+                )
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(component, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+                before = os.stat(
+                    component,
+                    dir_fd=descriptor,
+                    follow_symlinks=False,
+                )
+            if stat.S_ISLNK(before.st_mode):
+                raise ValueError(
+                    f"path ancestor must not be a symlink: {path}"
+                )
+            if not stat.S_ISDIR(before.st_mode):
+                error = NotADirectoryError(
+                    errno.ENOTDIR,
+                    os.strerror(errno.ENOTDIR),
+                    str(path),
+                )
+                raise ValueError(
+                    f"path ancestor must be a directory: {path}"
+                ) from error
+            try:
+                child = os.open(
+                    component,
+                    _directory_open_flags(),
+                    dir_fd=descriptor,
+                )
+            except OSError as error:
+                raise ValueError(
+                    f"path ancestor is not a stable directory: {path}"
+                ) from error
+            descriptors.append(child)
+            opened = os.fstat(child)
+            after = os.stat(
+                component,
+                dir_fd=descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                stat.S_ISLNK(after.st_mode)
+                or _entry_identity(before) != _entry_identity(opened)
+                or _entry_identity(opened) != _entry_identity(after)
+            ):
+                raise ValueError(
+                    f"path ancestor changed while opening: {path}"
+                )
+            identities.append(_entry_identity(opened))
+            descriptor = child
+        parent = _AnchoredParent(
+            path=path,
+            component_names=component_names,
+            descriptors=descriptors,
+            identities=identities,
+            leaf_name=leaf_name,
+        )
+        parent.verify()
+        successful = True
+        return parent
+    finally:
+        if not successful:
+            first_error: OSError | None = None
+            for opened_descriptor in reversed(descriptors):
+                try:
+                    os.close(opened_descriptor)
+                except OSError as error:
+                    if first_error is None:
+                        first_error = error
+            if first_error is not None:
+                raise first_error
+
+
+def _read_opened_regular_bytes(
+    parent: _AnchoredParent,
+    *,
+    role: str,
+) -> bytes:
+    parent.verify()
+    try:
+        before_entry = os.stat(
+            parent.leaf_name,
+            dir_fd=parent.descriptor,
+            follow_symlinks=False,
+        )
+    except FileNotFoundError:
+        raise
+    if stat.S_ISLNK(before_entry.st_mode):
+        raise ValueError(f"{role} must not be a symlink: {parent.path}")
+    if not stat.S_ISREG(before_entry.st_mode):
+        raise ValueError(f"{role} must be a regular file: {parent.path}")
+    try:
+        descriptor = os.open(
+            parent.leaf_name,
+            _regular_open_flags(),
+            dir_fd=parent.descriptor,
+        )
     except OSError as error:
         if error.errno in (errno.ELOOP, errno.EMLINK):
-            raise ValueError(f"source must not be a symlink: {path}") from error
-        raise ValueError(f"cannot open regular file: {path}") from error
+            raise ValueError(
+                f"{role} must not be a symlink: {parent.path}"
+            ) from error
+        raise
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
-            raise ValueError(f"source must be a regular file: {path}")
+            raise ValueError(
+                f"{role} must be a regular file: {parent.path}"
+            )
+        after_open_entry = os.stat(
+            parent.leaf_name,
+            dir_fd=parent.descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            _entry_identity(before_entry) != _entry_identity(before)
+            or _entry_identity(before) != _entry_identity(after_open_entry)
+        ):
+            raise ValueError(f"{role} changed while opening: {parent.path}")
+        parent.verify()
         chunks: list[bytes] = []
         while True:
             chunk = os.read(descriptor, _READ_CHUNK_SIZE)
@@ -76,10 +307,48 @@ def _read_stable_regular_bytes(path: Path) -> bytes:
         )
         raw = b"".join(chunks)
         if identity_before != identity_after or len(raw) != after.st_size:
-            raise ValueError(f"source changed while reading: {path}")
+            raise ValueError(f"{role} changed while reading: {parent.path}")
+        after_read_entry = os.stat(
+            parent.leaf_name,
+            dir_fd=parent.descriptor,
+            follow_symlinks=False,
+        )
+        if _entry_identity(after_read_entry) != _entry_identity(after):
+            raise ValueError(f"{role} changed while reading: {parent.path}")
+        parent.verify()
         return raw
     finally:
         os.close(descriptor)
+
+
+def _filesystem_value_error(
+    operation: str,
+    path: Path,
+    error: OSError,
+) -> ValueError:
+    detail = error.strerror or str(error) or type(error).__name__
+    one_line_detail = " ".join(detail.splitlines())
+    return ValueError(
+        f"filesystem error {operation} {path}: {one_line_detail}"
+    )
+
+
+def _read_stable_regular_bytes_impl(path: Path) -> bytes:
+    parent: _AnchoredParent | None = None
+    try:
+        parent = _open_anchored_parent(path, create=False)
+        return _read_opened_regular_bytes(parent, role="source")
+    finally:
+        if parent is not None:
+            parent.close()
+
+
+def _read_stable_regular_bytes(path: Path) -> bytes:
+    path = Path(path)
+    try:
+        return _read_stable_regular_bytes_impl(path)
+    except OSError as error:
+        raise _filesystem_value_error("reading", path, error) from error
 
 
 def _header(raw: bytes) -> tuple[dict[str, tuple[str, ...]], int]:
@@ -218,43 +487,60 @@ def _pcd_output(raw: bytes) -> tuple[bytes, int]:
     return output, expected_points
 
 
-def _directory_fsync(directory: Path) -> None:
-    flags = os.O_RDONLY
-    if hasattr(os, "O_DIRECTORY"):
-        flags |= os.O_DIRECTORY
-    descriptor = os.open(directory, flags)
+def _existing_bytes(parent: _AnchoredParent) -> bytes | None:
     try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _existing_bytes(path: Path) -> bytes | None:
-    try:
-        return _read_stable_regular_bytes(path)
+        return _read_opened_regular_bytes(parent, role="destination")
+    except FileNotFoundError:
+        return None
     except ValueError as error:
-        if not path.exists() and not path.is_symlink():
-            return None
-        raise ValueError(f"destination conflict: {path}") from error
+        raise ValueError(f"destination conflict: {parent.path}") from error
 
 
-def _publish_immutable_bytes(destination: Path, data: bytes) -> None:
-    destination = Path(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    existing = _existing_bytes(destination)
-    if existing is not None:
-        if existing == data:
-            return
-        raise ValueError(f"destination conflict: {destination}")
-
-    descriptor = -1
-    temporary_path: Path | None = None
-    try:
-        descriptor, raw_temporary_path = tempfile.mkstemp(
-            prefix=f".{destination.name}.tmp-",
-            dir=destination.parent,
+def _open_exclusive_temporary(
+    parent_descriptor: int,
+    destination_name: str,
+) -> tuple[int, str]:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    for _ in range(128):
+        temporary_name = (
+            f".{destination_name}.tmp-{secrets.token_hex(12)}"
         )
-        temporary_path = Path(raw_temporary_path)
+        try:
+            return (
+                os.open(
+                    temporary_name,
+                    flags,
+                    0o600,
+                    dir_fd=parent_descriptor,
+                ),
+                temporary_name,
+            )
+        except FileExistsError:
+            continue
+    raise OSError("could not allocate a unique temporary file")
+
+
+def _publish_immutable_bytes_impl(destination: Path, data: bytes) -> None:
+    destination = Path(destination)
+    parent: _AnchoredParent | None = None
+    descriptor = -1
+    temporary_name: str | None = None
+    try:
+        parent = _open_anchored_parent(destination, create=True)
+        existing = _existing_bytes(parent)
+        if existing is not None:
+            if existing == data:
+                return
+            raise ValueError(f"destination conflict: {destination}")
+
+        descriptor, temporary_name = _open_exclusive_temporary(
+            parent.descriptor,
+            parent.leaf_name,
+        )
         with os.fdopen(descriptor, "wb", closefd=True) as stream:
             descriptor = -1
             written = stream.write(data)
@@ -264,21 +550,68 @@ def _publish_immutable_bytes(destination: Path, data: bytes) -> None:
                 )
             stream.flush()
             os.fsync(stream.fileno())
+        temporary_parent = _AnchoredParent(
+            path=destination.with_name(temporary_name),
+            component_names=parent.component_names,
+            descriptors=parent.descriptors,
+            identities=parent.identities,
+            leaf_name=temporary_name,
+        )
+        if _read_opened_regular_bytes(
+            temporary_parent,
+            role="temporary file",
+        ) != data:
+            raise ValueError(
+                f"temporary file verification failed: {destination}"
+            )
+        parent.verify()
         try:
-            os.link(temporary_path, destination)
+            os.link(
+                temporary_name,
+                parent.leaf_name,
+                src_dir_fd=parent.descriptor,
+                dst_dir_fd=parent.descriptor,
+                follow_symlinks=False,
+            )
         except FileExistsError:
-            raced = _existing_bytes(destination)
+            raced = _existing_bytes(parent)
             if raced != data:
                 raise ValueError(f"destination conflict: {destination}")
-        _directory_fsync(destination.parent)
+        parent.verify()
+        if _existing_bytes(parent) != data:
+            raise ValueError(
+                f"published file verification failed: {destination}"
+            )
+        os.fsync(parent.descriptor)
     finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink()
-            except FileNotFoundError:
-                pass
+        try:
+            if descriptor >= 0:
+                os.close(descriptor)
+        finally:
+            if parent is not None:
+                try:
+                    if temporary_name is not None:
+                        try:
+                            os.unlink(
+                                temporary_name,
+                                dir_fd=parent.descriptor,
+                            )
+                        except FileNotFoundError:
+                            pass
+                finally:
+                    parent.close()
+
+
+def _publish_immutable_bytes(destination: Path, data: bytes) -> None:
+    destination = Path(destination)
+    try:
+        _publish_immutable_bytes_impl(destination, data)
+    except OSError as error:
+        raise _filesystem_value_error(
+            "publishing",
+            destination,
+            error,
+        ) from error
 
 
 def convert_pcd_to_bin(

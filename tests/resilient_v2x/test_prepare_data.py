@@ -188,7 +188,11 @@ def _inject_atomic_failure(
         raise OSError(f"injected {stage} failure")
 
     if stage == "temp":
-        monkeypatch.setattr(pcd_module.tempfile, "mkstemp", failure)
+        monkeypatch.setattr(
+            pcd_module,
+            "_open_exclusive_temporary",
+            failure,
+        )
         return
     if stage == "write":
         original_fdopen = pcd_module.os.fdopen
@@ -238,17 +242,20 @@ def _inject_atomic_failure(
         monkeypatch.setattr(pcd_module.os, "link", failure)
         return
     if stage == "cleanup":
-        original_unlink = Path.unlink
+        original_unlink = pcd_module.os.unlink
 
-        def failing_unlink(path: Path, *args: object, **kwargs: object) -> None:
-            if (
-                path.name.startswith(f".{destination_name}.tmp-")
-                and path.parent.name
+        def failing_unlink(
+            path: object,
+            *args: object,
+            **kwargs: object,
+        ) -> None:
+            if Path(path).name.startswith(
+                f".{destination_name}.tmp-"
             ):
                 raise OSError("injected cleanup failure")
             original_unlink(path, *args, **kwargs)
 
-        monkeypatch.setattr(Path, "unlink", failing_unlink)
+        monkeypatch.setattr(pcd_module.os, "unlink", failing_unlink)
         return
     raise AssertionError(f"unknown stage {stage}")
 
@@ -498,6 +505,187 @@ def test_pcd_refuses_symlink_source_and_conflicting_destination(
         for path in tmp_path.iterdir()
         if path.name.startswith(f".{destination.name}.tmp-")
     ]
+
+
+def test_pcd_rejects_source_with_symlinked_ancestor(
+    tmp_path: Path,
+) -> None:
+    pcd_module = importlib.import_module(
+        "transvision.dataset.resilient_v2x_pcd"
+    )
+    real_parent = tmp_path / "real-parent"
+    real_parent.mkdir()
+    source = real_parent / "source.pcd"
+    source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
+    linked_parent = tmp_path / "linked-parent"
+    linked_parent.symlink_to(real_parent, target_is_directory=True)
+    destination = tmp_path / "prepared.bin"
+
+    with pytest.raises(ValueError, match="symlink"):
+        pcd_module.convert_pcd_to_bin(
+            linked_parent / source.name,
+            destination,
+        )
+
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize(
+    "linked_relative",
+    ("prepared", "prepared/resilient_v2x"),
+)
+def test_prepare_rejects_symlinked_prepared_ancestor(
+    tmp_path: Path,
+    linked_relative: str,
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    output = tmp_path / "manifest.json"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    linked = root / linked_relative
+    linked.parent.mkdir(parents=True, exist_ok=True)
+    linked.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        module.prepare_manifest(**_fixture_kwargs(root, output))
+
+    assert not output.exists()
+    assert not list(outside.rglob("*.bin"))
+
+
+def test_prepare_rejects_symlinked_output_parent(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    linked_parent = tmp_path / "linked-output"
+    linked_parent.symlink_to(outside, target_is_directory=True)
+    output = linked_parent / "manifest.json"
+
+    with pytest.raises(ValueError, match="symlink"):
+        module.prepare_manifest(**_fixture_kwargs(root, output))
+
+    assert not (outside / output.name).exists()
+
+
+def test_pcd_parent_replacement_cannot_redirect_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pcd_module = importlib.import_module(
+        "transvision.dataset.resilient_v2x_pcd"
+    )
+    source = tmp_path / "source.pcd"
+    source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
+    parent = tmp_path / "publish-parent"
+    parent.mkdir()
+    destination = parent / "prepared.bin"
+    displaced = tmp_path / "displaced-parent"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    original_link = pcd_module.os.link
+    replaced = False
+
+    def replace_parent_then_link(
+        source_name: object,
+        destination_name: object,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        nonlocal replaced
+        if not replaced:
+            replaced = True
+            parent.rename(displaced)
+            parent.symlink_to(outside, target_is_directory=True)
+            (outside / Path(source_name).name).write_bytes(
+                np.asarray(XYZI, dtype="<f4", order="C").tobytes()
+            )
+        original_link(
+            source_name,
+            destination_name,
+            *args,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(pcd_module.os, "link", replace_parent_then_link)
+
+    with pytest.raises(ValueError, match="changed"):
+        pcd_module.convert_pcd_to_bin(source, destination)
+
+    assert not destination.exists()
+    assert not (outside / destination.name).exists()
+
+
+@pytest.mark.parametrize("kind", ("symlink", "directory"))
+def test_pcd_final_symlink_or_directory_is_a_conflict(
+    tmp_path: Path,
+    kind: str,
+) -> None:
+    pcd_module = importlib.import_module(
+        "transvision.dataset.resilient_v2x_pcd"
+    )
+    source = tmp_path / "source.pcd"
+    source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
+    destination = tmp_path / "prepared.bin"
+    target = tmp_path / "target.bin"
+    target.write_bytes(b"sentinel")
+    if kind == "symlink":
+        destination.symlink_to(target)
+    else:
+        destination.mkdir()
+
+    with pytest.raises(ValueError, match="conflict"):
+        pcd_module.convert_pcd_to_bin(source, destination)
+
+    assert target.read_bytes() == b"sentinel"
+    if kind == "directory":
+        assert list(destination.iterdir()) == []
+
+
+@pytest.mark.parametrize("kind", ("symlink", "directory"))
+def test_pcd_final_symlink_or_directory_replacement_is_a_conflict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    pcd_module = importlib.import_module(
+        "transvision.dataset.resilient_v2x_pcd"
+    )
+    source = tmp_path / "source.pcd"
+    source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
+    destination = tmp_path / "prepared.bin"
+    target = tmp_path / "target.bin"
+    target.write_bytes(b"sentinel")
+    original_link = pcd_module.os.link
+
+    def replace_final_then_link(
+        source_name: object,
+        destination_name: object,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        if kind == "symlink":
+            destination.symlink_to(target)
+        else:
+            destination.mkdir()
+        original_link(
+            source_name,
+            destination_name,
+            *args,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(pcd_module.os, "link", replace_final_then_link)
+
+    with pytest.raises(ValueError, match="conflict"):
+        pcd_module.convert_pcd_to_bin(source, destination)
+
+    assert target.read_bytes() == b"sentinel"
+    if kind == "directory":
+        assert list(destination.iterdir()) == []
 
 
 def test_protocol_sequences_build_exact_history_and_stable_identifiers() -> None:
@@ -1267,6 +1455,79 @@ def test_cli_success_error_and_argparse_exit_contracts(
     assert usage_exit.value.code == 2
 
 
+def test_cli_filesystem_error_is_one_line_without_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    split = root / "split.json"
+    argv = [
+        "--data-root",
+        str(root),
+        "--split-file",
+        str(split),
+        "--expected-split-sha256",
+        hashlib.sha256(split.read_bytes()).hexdigest(),
+        "--protocol-scope",
+        "fixture",
+        "--output",
+        "/dev/null/manifest.json",
+        "--delta-t-ms",
+        "100",
+        "--history-limit",
+        "3",
+        "--interval-min-ms",
+        "50",
+        "--interval-max-ms",
+        "150",
+        "--max-capture-skew-ms",
+        "50",
+    ]
+
+    assert module.main(argv) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert len(captured.err.strip().splitlines()) == 1
+    assert "traceback" not in captured.err.lower()
+
+
+def test_prepare_manifest_filesystem_error_has_oserror_cause(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+
+    with pytest.raises(ValueError, match="directory") as raised:
+        module.prepare_manifest(
+            **_fixture_kwargs(root, Path("/dev/null/manifest.json"))
+        )
+
+    assert isinstance(raised.value.__cause__, OSError)
+
+
+def test_public_library_filesystem_error_is_value_error_with_cause(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pcd_module = importlib.import_module(
+        "transvision.dataset.resilient_v2x_pcd"
+    )
+    source = tmp_path / "source.pcd"
+    source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
+    destination = tmp_path / "prepared.bin"
+
+    def failing_fsync(descriptor: int) -> None:
+        raise OSError("injected public boundary failure")
+
+    monkeypatch.setattr(pcd_module.os, "fsync", failing_fsync)
+
+    with pytest.raises(ValueError, match="filesystem") as raised:
+        pcd_module.convert_pcd_to_bin(source, destination)
+
+    assert isinstance(raised.value.__cause__, OSError)
+
+
 def test_plain_imports_do_not_load_forbidden_runtime_modules() -> None:
     code = r"""
 import sys
@@ -1366,8 +1627,9 @@ def test_prepared_atomic_publication_faults_are_absent_or_complete(
         destination.name,
     )
 
-    with pytest.raises(OSError, match="injected"):
+    with pytest.raises(ValueError, match="injected") as raised:
         pcd_module.convert_pcd_to_bin(source, destination)
+    assert isinstance(raised.value.__cause__, OSError)
 
     final_expected = stage in {"directory_fsync", "cleanup"}
     assert destination.exists() is final_expected
@@ -1431,8 +1693,9 @@ def test_atomic_short_write_never_publishes_a_truncated_final(
         ),
     )
 
-    with pytest.raises(OSError, match="short write"):
+    with pytest.raises(ValueError, match="short write") as raised:
         pcd_module.convert_pcd_to_bin(source, destination)
+    assert isinstance(raised.value.__cause__, OSError)
 
     assert not destination.exists()
     assert not [
@@ -1475,8 +1738,9 @@ def test_manifest_atomic_publication_faults_are_absent_or_complete(
     sentinel.write_bytes(b"sentinel")
     _inject_atomic_failure(monkeypatch, pcd_module, stage, target.name)
 
-    with pytest.raises(OSError, match="injected"):
+    with pytest.raises(ValueError, match="injected") as raised:
         module.prepare_manifest(**kwargs)
+    assert isinstance(raised.value.__cause__, OSError)
 
     final_expected = stage in {"directory_fsync", "cleanup"}
     assert target.exists() is final_expected
