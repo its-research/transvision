@@ -1,9 +1,11 @@
 from .contracts import (
     Agent,
+    BranchDiagnostics,
     BranchSelection,
     Modality,
     ProtocolInvariantError,
     RejectedCandidate,
+    RepairedBranch,
     SourceCandidate,
     UnsupportedReason,
 )
@@ -15,6 +17,7 @@ from .geometry import (
     warp_with_displacement,
 )
 from .causal_repair import (
+    CausalBranchRepair,
     arrived_candidates,
     select_causal_source,
     age_decay,
@@ -43,4 +46,7 @@ __all__ = (
     "normalized_selected_rsu_delay",
     "PTFOutput",
     "HorizonConditionedPTF",
+    "BranchDiagnostics",
+    "RepairedBranch",
+    "CausalBranchRepair",
 )

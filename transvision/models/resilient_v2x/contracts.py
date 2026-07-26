@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from torch import Tensor
+
 
 class Agent(str, Enum):
     EGO = "ego"
@@ -103,3 +105,34 @@ class BranchSelection:
             rejected=rejected,
             reason=reason,
         )
+
+
+@dataclass(frozen=True)
+class BranchDiagnostics:
+    agent: Agent
+    modality: Modality
+    supported: bool
+    source_tick: int | None
+    source_tau_ms: int | None
+    horizon: int | None
+    observed: bool
+    propagated: bool
+    gamma: float | None
+    reliability: float
+    ptf_queried: bool
+    displacement: Tensor | None
+    confidence: Tensor | None
+    reason: UnsupportedReason | None
+
+
+@dataclass
+class RepairedBranch:
+    feature: Tensor
+    reliability: Tensor
+    support: Tensor
+    observed: Tensor
+    propagated: Tensor
+    normalized_age: Tensor
+    displacement: Tensor | None
+    confidence: Tensor | None
+    diagnostics: tuple[BranchDiagnostics, ...]

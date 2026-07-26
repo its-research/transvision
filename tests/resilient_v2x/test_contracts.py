@@ -1,17 +1,25 @@
+import subprocess
+import sys
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 
 import pytest
+import torch
 
 import transvision.models.resilient_v2x as resilient_v2x
 from transvision.models.resilient_v2x.contracts import (
     Agent,
+    BranchDiagnostics,
     BranchSelection,
     Modality,
     ProtocolInvariantError,
     RejectedCandidate,
+    RepairedBranch,
     SourceCandidate,
     UnsupportedReason,
 )
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _candidate() -> SourceCandidate:
@@ -76,6 +84,61 @@ def test_branch_selection_is_immutable() -> None:
 
     with pytest.raises(FrozenInstanceError):
         selection.horizon = 1
+
+
+def test_branch_diagnostics_is_immutable() -> None:
+    diagnostics = BranchDiagnostics(
+        agent=Agent.EGO,
+        modality=Modality.LIDAR,
+        supported=False,
+        source_tick=None,
+        source_tau_ms=None,
+        horizon=None,
+        observed=False,
+        propagated=False,
+        gamma=None,
+        reliability=0.0,
+        ptf_queried=False,
+        displacement=None,
+        confidence=None,
+        reason=UnsupportedReason.EMPTY_MODALITY_HISTORY,
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        diagnostics.reliability = 1.0
+
+
+def test_repaired_branch_keeps_tensor_and_diagnostics_contract() -> None:
+    diagnostics = BranchDiagnostics(
+        agent=Agent.RSU,
+        modality=Modality.CAMERA,
+        supported=False,
+        source_tick=None,
+        source_tau_ms=None,
+        horizon=None,
+        observed=False,
+        propagated=False,
+        gamma=None,
+        reliability=0.0,
+        ptf_queried=False,
+        displacement=None,
+        confidence=None,
+        reason=UnsupportedReason.EMPTY_ARRIVAL_SET,
+    )
+    output = RepairedBranch(
+        feature=torch.zeros(1, 256, 2, 2),
+        reliability=torch.zeros(1),
+        support=torch.zeros(1, dtype=torch.bool),
+        observed=torch.zeros(1, dtype=torch.bool),
+        propagated=torch.zeros(1, dtype=torch.bool),
+        normalized_age=torch.zeros(1),
+        displacement=None,
+        confidence=None,
+        diagnostics=(diagnostics,),
+    )
+
+    assert output.feature.shape == (1, 256, 2, 2)
+    assert output.diagnostics == (diagnostics,)
 
 
 @pytest.mark.parametrize(
@@ -252,4 +315,19 @@ def test_package_exports_only_stable_core_api() -> None:
         "normalized_selected_rsu_delay",
         "PTFOutput",
         "HorizonConditionedPTF",
+        "BranchDiagnostics",
+        "RepairedBranch",
+        "CausalBranchRepair",
     )
+    assert len(resilient_v2x.__all__) == 22
+    assert len(set(resilient_v2x.__all__)) == 22
+
+
+def test_task_five_package_import_does_not_load_custom_ops() -> None:
+    code = (
+        "import sys; "
+        "from transvision.models.resilient_v2x import CausalBranchRepair; "
+        "assert 'transvision.models.bev_pool' not in sys.modules; "
+        "assert 'transvision.models.voxel.voxel_layer' not in sys.modules"
+    )
+    subprocess.run([sys.executable, "-c", code], cwd=ROOT, check=True)
