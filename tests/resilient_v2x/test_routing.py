@@ -38,6 +38,14 @@ class _PretendDynamicMode:
         return other == "dynamic"
 
 
+class _SpoofedRoutingMode(str):
+    def __new__(cls) -> "_SpoofedRoutingMode":
+        return super().__new__(cls, "adaptive")
+
+    def __eq__(self, other: object) -> bool:
+        return other in ("dynamic", "uniform")
+
+
 def make_router() -> DynamicExpertRouter:
     return DynamicExpertRouter(channels=256, hidden_channels=256)
 
@@ -1196,6 +1204,47 @@ def test_router_rejects_invalid_mode_and_non_boolean_switches(
 
     with pytest.raises(ValueError):
         make_router()(**inputs)
+
+
+def test_router_rejects_string_subclass_before_expert_or_gate_computation() -> None:
+    router = make_router()
+    inputs = router_inputs()
+    inputs["routing_mode"] = _SpoofedRoutingMode()
+
+    def forbid_computation(
+        _module: nn.Module,
+        _inputs: tuple[torch.Tensor, ...],
+    ) -> None:
+        raise AssertionError(
+            "routing mode validation must precede expert and gate computation"
+        )
+
+    handles = [
+        module.register_forward_pre_hook(forbid_computation)
+        for module in (
+            router.lidar_expert,
+            router.camera_expert,
+            router.synergy_stem,
+            router.synergy_expert,
+            router.gate,
+        )
+    ]
+    try:
+        with pytest.raises(ValueError, match="routing_mode"):
+            router(**inputs)
+    finally:
+        for handle in handles:
+            handle.remove()
+
+
+@pytest.mark.parametrize("mode", ["dynamic", "static", "uniform"])
+def test_router_accepts_only_each_builtin_routing_mode(mode: str) -> None:
+    inputs = router_inputs()
+    inputs["routing_mode"] = mode
+
+    output = make_router().eval()(**inputs)
+
+    assert output.weights.shape == (2, 3)
 
 
 @pytest.mark.parametrize(

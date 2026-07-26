@@ -495,7 +495,7 @@ class DynamicExpertRouter(nn.Module):
             (batch, 1),
             lidar_feature,
         )
-        if not isinstance(routing_mode, str) or routing_mode not in (
+        if type(routing_mode) is not str or routing_mode not in (
             "dynamic",
             "static",
             "uniform",
