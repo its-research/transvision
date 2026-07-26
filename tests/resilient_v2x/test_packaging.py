@@ -45,6 +45,32 @@ def test_setup_metadata_does_not_rewrite_tracked_version_file() -> None:
     assert after == before
 
 
+def test_clean_sdist_egg_info_does_not_require_torch(tmp_path: Path) -> None:
+    source_tree = tmp_path / "source"
+    shutil.copytree(
+        ROOT,
+        source_tree,
+        ignore=shutil.ignore_patterns(".git", ".venv", "build", "dist", "*.egg-info", "__pycache__"),
+    )
+    dist_dir = tmp_path / "dist"
+    subprocess.run([sys.executable, "setup.py", "sdist", "--dist-dir", str(dist_dir)], cwd=source_tree, check=True, capture_output=True, text=True)
+    with tarfile.open(next(dist_dir.glob("*.tar.gz"))) as tar:
+        tar.extractall(tmp_path / "extracted")
+
+    extracted = tmp_path / "extracted" / "transvision-0.1.0"
+    egg_base = tmp_path / "egg-info"
+    egg_base.mkdir()
+    subprocess.run(
+        [sys.executable, "setup.py", "egg_info", "--egg-base", str(egg_base)],
+        cwd=extracted,
+        env={"PATH": str(Path(sys.executable).parent), "PYTHONPATH": ""},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert (egg_base / "transvision.egg-info" / "PKG-INFO").is_file()
+
+
 def test_core_import_does_not_import_custom_ops() -> None:
     code = (
         "import sys; "
@@ -229,29 +255,34 @@ def _load_setup_module(monkeypatch: pytest.MonkeyPatch):
 def test_lazy_build_delegates_to_pytorch_compiler_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
     module, _ = _load_setup_module(monkeypatch)
     calls = []
+    instances = []
 
     class FakeBuildExtension(build_ext):
         def initialize_options(self) -> None:
             super().initialize_options()
             self.use_ninja = None
-            calls.append("initialize")
+            instances.append(self)
+            calls.append("delegate_initialize")
 
         def finalize_options(self) -> None:
             super().finalize_options()
             self.use_ninja = True
-            calls.append("finalize")
+            calls.append("delegate_finalize")
 
         def _check_abi(self) -> None:
-            calls.append("check_abi")
+            calls.append("delegate_check_abi")
 
         def build_extensions(self) -> None:
             assert self.use_ninja is True
-            calls.append("build_extensions")
+            calls.append("delegate_build_extensions")
 
         def run(self) -> None:
+            assert self.force is True
+            assert self.parallel == 7
+            assert self.debug is True
             self._check_abi()
             self.build_extensions()
-            calls.append("run")
+            calls.append("delegate_run")
 
     torch = types.ModuleType("torch")
     torch_utils = types.ModuleType("torch.utils")
@@ -271,14 +302,26 @@ def test_lazy_build_delegates_to_pytorch_compiler_lifecycle(monkeypatch: pytest.
         }
     )
     command = distribution.get_command_obj("build_ext")
-    assert type(command) is FakeBuildExtension
+    assert type(command) is module.LazyBuildExtension
+    assert instances == []
 
+    command.force = True
+    command.parallel = 7
+    command.debug = True
     command.finalize_options()
-    assert command.extensions == [extension]
     command.run()
 
-    assert command.distribution.ext_modules == [extension]
-    assert calls == ["initialize", "finalize", "check_abi", "build_extensions", "run"]
+    assert len(instances) == 1
+    assert type(instances[0]) is FakeBuildExtension
+    assert instances[0].extensions == [extension]
+    assert instances[0].distribution.ext_modules == [extension]
+    assert calls == [
+        "delegate_initialize",
+        "delegate_finalize",
+        "delegate_check_abi",
+        "delegate_build_extensions",
+        "delegate_run",
+    ]
 
 
 def test_sdist_contains_runtime_metadata_and_all_native_sources(tmp_path: Path) -> None:

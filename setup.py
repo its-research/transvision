@@ -1,8 +1,7 @@
 import os
-import sys
 from pathlib import Path
 
-from setuptools import Distribution, find_packages, setup
+from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 
 
@@ -59,6 +58,28 @@ def make_cuda_ext(name, module, sources, sources_cuda=(), extra_args=(), extra_i
     )
 
 
+def native_extension_metadata():
+    return [
+        Extension(
+            name="transvision.models.voxel.voxel_layer",
+            sources=[
+                "transvision/models/voxel/src/voxelization.cpp",
+                "transvision/models/voxel/src/scatter_points_cpu.cpp",
+                "transvision/models/voxel/src/scatter_points_cuda.cu",
+                "transvision/models/voxel/src/voxelization_cpu.cpp",
+                "transvision/models/voxel/src/voxelization_cuda.cu",
+            ],
+        ),
+        Extension(
+            name="transvision.models.bev_pool.bev_pool_ext",
+            sources=[
+                "transvision/models/bev_pool/src/bev_pool.cpp",
+                "transvision/models/bev_pool/src/bev_pool_cuda.cu",
+            ],
+        ),
+    ]
+
+
 def build_extensions():
     return [
         make_cuda_ext(
@@ -80,17 +101,20 @@ def build_extensions():
     ]
 
 
-class LazyDistribution(Distribution):
-    def has_ext_modules(self):
-        return "sdist" not in sys.argv[1:]
-
-
 class LazyBuildExtension(build_ext):
-    def __new__(cls, distribution):
+    def run(self):
         from torch.utils.cpp_extension import BuildExtension
 
-        distribution.ext_modules = build_extensions()
-        return BuildExtension(distribution)
+        self.distribution.ext_modules = build_extensions()
+        delegate = BuildExtension(self.distribution)
+        for name in ("build_lib", "build_temp", "plat_name", "inplace", "debug", "force", "compiler", "parallel", "user"):
+            setattr(delegate, name, getattr(self, name))
+        delegate.ensure_finalized()
+        for name, value in self.__dict__.items():
+            if name not in {"distribution", "extensions", "_finalized"}:
+                setattr(delegate, name, value)
+        delegate.extensions = self.distribution.ext_modules
+        return delegate.run()
 
 
 setup(
@@ -102,8 +126,7 @@ setup(
     packages=find_packages(exclude=("configs", "tests")),
     install_requires=parse_requirements(),
     python_requires=">=3.10,<3.11",
-    ext_modules=[],
+    ext_modules=native_extension_metadata(),
     cmdclass={"build_ext": LazyBuildExtension},
-    distclass=LazyDistribution,
     zip_safe=False,
 )
