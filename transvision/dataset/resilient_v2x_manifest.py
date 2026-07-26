@@ -7,6 +7,7 @@ import os
 import stat
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass
+from fractions import Fraction
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Literal
@@ -294,6 +295,23 @@ def _determinant_3x3(matrix: tuple[tuple[float, ...], ...]) -> float:
     )
 
 
+def _exact_determinant_3x3(
+    matrix: tuple[tuple[float, ...], ...],
+) -> Fraction:
+    exact = tuple(
+        tuple(Fraction(value) for value in row)
+        for row in matrix
+    )
+    return (
+        exact[0][0]
+        * (exact[1][1] * exact[2][2] - exact[1][2] * exact[2][1])
+        - exact[0][1]
+        * (exact[1][0] * exact[2][2] - exact[1][2] * exact[2][0])
+        + exact[0][2]
+        * (exact[1][0] * exact[2][1] - exact[1][1] * exact[2][0])
+    )
+
+
 def _rigid_matrix(value: object, context: str) -> tuple[tuple[float, ...], ...]:
     matrix = _matrix(value, 4, 4, context)
     for actual, expected in zip(matrix[3], (0.0, 0.0, 0.0, 1.0)):
@@ -321,7 +339,7 @@ def _camera_matrix(
     matrix = _matrix(value, 3, 3, context)
     if matrix[0][0] <= 0.0 or matrix[1][1] <= 0.0:
         raise ManifestError(f"{context} focal lengths must be positive")
-    if _determinant_3x3(matrix) == 0.0:
+    if _exact_determinant_3x3(matrix) == 0:
         raise ManifestError(f"{context} must be nonsingular")
     return matrix
 
@@ -912,29 +930,199 @@ def release_inventory_sha256(
     return hashlib.sha256(canonical_json_bytes(plain)).hexdigest()
 
 
-def _hash_open_regular_file(
-    path: Path,
-    expected_lstat: os.stat_result,
-) -> tuple[int, str]:
-    flags = os.O_RDONLY
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
+def _entry_identity(metadata: os.stat_result) -> tuple[int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        stat.S_IFMT(metadata.st_mode),
+    )
+
+
+def _file_identity(
+    metadata: os.stat_result,
+) -> tuple[int, int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def _directory_open_flags() -> int:
+    return os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def _file_open_flags() -> int:
+    return os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def _stat_directory_entry(
+    parent_descriptor: int,
+    name: str,
+    context: str,
+) -> os.stat_result:
     try:
-        descriptor = os.open(path, flags)
+        metadata = os.stat(
+            name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
     except OSError as error:
-        raise ManifestError(f"unable to open inventory file: {path}") from error
+        raise ManifestError(f"inventory path changed: {context}") from error
+    if stat.S_ISLNK(metadata.st_mode):
+        raise ManifestError(f"inventory path contains a symlink: {context}")
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ManifestError(
+            f"inventory directory component is not a directory: {context}"
+        )
+    return metadata
+
+
+def _open_directory_entry(
+    parent_descriptor: int,
+    name: str,
+    context: str,
+) -> tuple[int, tuple[int, int, int]]:
+    entry_before = _stat_directory_entry(
+        parent_descriptor,
+        name,
+        context,
+    )
+    try:
+        descriptor = os.open(
+            name,
+            _directory_open_flags(),
+            dir_fd=parent_descriptor,
+        )
+    except OSError as error:
+        raise ManifestError(
+            f"unable to open inventory directory: {context}"
+        ) from error
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISDIR(opened.st_mode):
+            raise ManifestError(
+                f"inventory directory component is not a directory: {context}"
+            )
+        identity = _entry_identity(opened)
+        if identity != _entry_identity(entry_before):
+            raise ManifestError(
+                f"inventory directory entry changed before open: {context}"
+            )
+        entry_after = _stat_directory_entry(
+            parent_descriptor,
+            name,
+            context,
+        )
+        if identity != _entry_identity(entry_after):
+            raise ManifestError(
+                f"inventory directory entry changed during open: {context}"
+            )
+        return descriptor, identity
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _verify_directory_chain(
+    anchor_descriptor: int,
+    anchor_identity: tuple[int, int, int],
+    links: Sequence[
+        tuple[int, str, int, tuple[int, int, int], str]
+    ],
+) -> None:
+    anchor = os.fstat(anchor_descriptor)
+    if (
+        not stat.S_ISDIR(anchor.st_mode)
+        or _entry_identity(anchor) != anchor_identity
+    ):
+        raise ManifestError("inventory anchor directory changed")
+    for (
+        parent_descriptor,
+        name,
+        child_descriptor,
+        identity,
+        context,
+    ) in links:
+        opened = os.fstat(child_descriptor)
+        if (
+            not stat.S_ISDIR(opened.st_mode)
+            or _entry_identity(opened) != identity
+        ):
+            raise ManifestError(
+                f"inventory directory descriptor changed: {context}"
+            )
+        try:
+            current = _stat_directory_entry(
+                parent_descriptor,
+                name,
+                context,
+            )
+        except ManifestError as error:
+            raise ManifestError(
+                f"inventory directory entry changed: {context}"
+            ) from error
+        if _entry_identity(current) != identity:
+            raise ManifestError(
+                f"inventory directory entry changed: {context}"
+            )
+
+
+def _hash_open_regular_file(
+    parent_descriptor: int,
+    name: str,
+    relative_path: str,
+    anchor_descriptor: int,
+    anchor_identity: tuple[int, int, int],
+    directory_links: Sequence[
+        tuple[int, str, int, tuple[int, int, int], str]
+    ],
+) -> tuple[int, str]:
+    try:
+        entry_before = os.stat(
+            name,
+            dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+    except OSError as error:
+        raise ManifestError(
+            f"inventory path does not exist: {relative_path}"
+        ) from error
+    if stat.S_ISLNK(entry_before.st_mode):
+        raise ManifestError(
+            f"inventory path contains a symlink: {relative_path}"
+        )
+    if not stat.S_ISREG(entry_before.st_mode):
+        raise ManifestError(
+            f"inventory path is not a regular file: {relative_path}"
+        )
+    try:
+        descriptor = os.open(
+            name,
+            _file_open_flags(),
+            dir_fd=parent_descriptor,
+        )
+    except OSError as error:
+        raise ManifestError(
+            f"unable to open inventory file: {relative_path}"
+        ) from error
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
-            raise ManifestError(f"inventory path is not a regular file: {path}")
-        if (
-            before.st_dev,
-            before.st_ino,
-        ) != (
-            expected_lstat.st_dev,
-            expected_lstat.st_ino,
-        ):
-            raise ManifestError(f"inventory file changed before hashing: {path}")
+            raise ManifestError(
+                f"inventory path is not a regular file: {relative_path}"
+            )
+        if _entry_identity(before) != _entry_identity(entry_before):
+            raise ManifestError(
+                f"inventory file changed before hashing: {relative_path}"
+            )
+        _verify_directory_chain(
+            anchor_descriptor,
+            anchor_identity,
+            directory_links,
+        )
         digest = hashlib.sha256()
         while True:
             chunk = os.read(descriptor, 1024 * 1024)
@@ -942,37 +1130,33 @@ def _hash_open_regular_file(
                 break
             digest.update(chunk)
         after = os.fstat(descriptor)
-        before_identity = (
-            before.st_dev,
-            before.st_ino,
-            before.st_size,
-            before.st_mtime_ns,
-            before.st_ctime_ns,
-        )
-        after_identity = (
-            after.st_dev,
-            after.st_ino,
-            after.st_size,
-            after.st_mtime_ns,
-            after.st_ctime_ns,
-        )
-        if before_identity != after_identity:
-            raise ManifestError(f"inventory file changed while hashing: {path}")
+        if _file_identity(before) != _file_identity(after):
+            raise ManifestError(
+                f"inventory file changed while hashing: {relative_path}"
+            )
         try:
-            final_lstat = path.lstat()
+            final_entry = os.stat(
+                name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
         except OSError as error:
             raise ManifestError(
-                f"inventory file changed while hashing: {path}"
+                f"inventory file changed while hashing: {relative_path}"
             ) from error
-        final_identity = (
-            final_lstat.st_dev,
-            final_lstat.st_ino,
-            final_lstat.st_size,
-            final_lstat.st_mtime_ns,
-            final_lstat.st_ctime_ns,
+        if (
+            stat.S_ISLNK(final_entry.st_mode)
+            or not stat.S_ISREG(final_entry.st_mode)
+            or _file_identity(final_entry) != _file_identity(after)
+        ):
+            raise ManifestError(
+                f"inventory file changed while hashing: {relative_path}"
+            )
+        _verify_directory_chain(
+            anchor_descriptor,
+            anchor_identity,
+            directory_links,
         )
-        if stat.S_ISLNK(final_lstat.st_mode) or final_identity != after_identity:
-            raise ManifestError(f"inventory file changed while hashing: {path}")
         return before.st_size, digest.hexdigest()
     finally:
         os.close(descriptor)
@@ -983,24 +1167,6 @@ def build_release_inventory(
     relative_paths: Iterable[str],
 ) -> tuple[ReleaseInventoryEntry, ...]:
     root_path = Path(os.path.abspath(os.fspath(root)))
-    try:
-        current = Path(root_path.anchor)
-        root_lstat = current.lstat()
-        for part in root_path.parts[1:]:
-            current = current / part
-            root_lstat = current.lstat()
-            if stat.S_ISLNK(root_lstat.st_mode):
-                raise ManifestError(
-                    "inventory root path must not contain symlinks"
-                )
-    except ManifestError:
-        raise
-    except OSError as error:
-        raise ManifestError("inventory root does not exist") from error
-    if not stat.S_ISDIR(root_lstat.st_mode):
-        raise ManifestError("inventory root must be a real directory")
-    root_resolved = root_path.resolve(strict=True)
-
     canonical_paths: list[str] = []
     seen: set[str] = set()
     for index, value in enumerate(relative_paths):
@@ -1010,43 +1176,124 @@ def build_release_inventory(
         seen.add(relative)
         canonical_paths.append(relative)
 
-    result: list[ReleaseInventoryEntry] = []
-    for relative in sorted(canonical_paths):
-        candidate = root_path
+    descriptors: list[int] = []
+    root_links: list[
+        tuple[int, str, int, tuple[int, int, int], str]
+    ] = []
+    try:
         try:
-            for part in relative.split("/"):
-                candidate = candidate / part
-                metadata = candidate.lstat()
-                if stat.S_ISLNK(metadata.st_mode):
-                    raise ManifestError(
-                        f"inventory path contains a symlink: {relative}"
-                    )
-        except ManifestError:
-            raise
+            anchor_descriptor = os.open(
+                root_path.anchor,
+                _directory_open_flags(),
+            )
         except OSError as error:
             raise ManifestError(
-                f"inventory path does not exist: {relative}"
+                "inventory root anchor does not exist"
             ) from error
-        if not stat.S_ISREG(metadata.st_mode):
-            raise ManifestError(
-                f"inventory path is not a regular file: {relative}"
+        descriptors.append(anchor_descriptor)
+        anchor_stat = os.fstat(anchor_descriptor)
+        if not stat.S_ISDIR(anchor_stat.st_mode):
+            raise ManifestError("inventory root anchor is not a directory")
+        anchor_identity = _entry_identity(anchor_stat)
+
+        root_descriptor = anchor_descriptor
+        root_context_parts: list[str] = []
+        for part in root_path.parts[1:]:
+            root_context_parts.append(part)
+            context = f"root path {'/'.join(root_context_parts)}"
+            try:
+                child_descriptor, identity = _open_directory_entry(
+                    root_descriptor,
+                    part,
+                    context,
+                )
+            except ManifestError as error:
+                raise ManifestError(
+                    "inventory root path changed, contains a symlink, "
+                    "or is not a real directory"
+                ) from error
+            descriptors.append(child_descriptor)
+            root_links.append(
+                (
+                    root_descriptor,
+                    part,
+                    child_descriptor,
+                    identity,
+                    context,
+                )
             )
-        try:
-            resolved = candidate.resolve(strict=True)
-            resolved.relative_to(root_resolved)
-        except (OSError, ValueError) as error:
-            raise ManifestError(
-                f"inventory path escapes root: {relative}"
-            ) from error
-        size, digest = _hash_open_regular_file(candidate, metadata)
-        result.append(
-            ReleaseInventoryEntry(
-                relative_path=relative,
-                size=size,
-                sha256=digest,
-            )
+            root_descriptor = child_descriptor
+        _verify_directory_chain(
+            anchor_descriptor,
+            anchor_identity,
+            root_links,
         )
-    return tuple(result)
+
+        result: list[ReleaseInventoryEntry] = []
+        for relative in sorted(canonical_paths):
+            parts = relative.split("/")
+            parent_descriptor = root_descriptor
+            relative_descriptors: list[int] = []
+            relative_links: list[
+                tuple[int, str, int, tuple[int, int, int], str]
+            ] = []
+            try:
+                context_parts: list[str] = []
+                for part in parts[:-1]:
+                    context_parts.append(part)
+                    context = "/".join(context_parts)
+                    child_descriptor, identity = _open_directory_entry(
+                        parent_descriptor,
+                        part,
+                        context,
+                    )
+                    relative_descriptors.append(child_descriptor)
+                    relative_links.append(
+                        (
+                            parent_descriptor,
+                            part,
+                            child_descriptor,
+                            identity,
+                            context,
+                        )
+                    )
+                    parent_descriptor = child_descriptor
+                size, digest = _hash_open_regular_file(
+                    parent_descriptor,
+                    parts[-1],
+                    relative,
+                    anchor_descriptor,
+                    anchor_identity,
+                    (*root_links, *relative_links),
+                )
+                result.append(
+                    ReleaseInventoryEntry(
+                        relative_path=relative,
+                        size=size,
+                        sha256=digest,
+                    )
+                )
+            except ManifestError:
+                raise
+            except OSError as error:
+                raise ManifestError(
+                    f"inventory path changed: {relative}"
+                ) from error
+            finally:
+                for descriptor in reversed(relative_descriptors):
+                    os.close(descriptor)
+        _verify_directory_chain(
+            anchor_descriptor,
+            anchor_identity,
+            root_links,
+        )
+        return tuple(result)
+    finally:
+        for descriptor in reversed(descriptors):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
 
 
 def _parse_raw_slice(value: object, context: str) -> RawSliceRecord:
@@ -1219,16 +1466,7 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
     }
     prepared_by_source: dict[str, PreparedArtifactRecord] = {}
     prepared_destinations: set[str] = set()
-    previous_prepared_source: str | None = None
     for prepared in manifest.prepared_artifacts:
-        if (
-            previous_prepared_source is not None
-            and prepared.source_relative_path <= previous_prepared_source
-        ):
-            raise ManifestError(
-                "prepared_artifacts must be strictly source-path-sorted"
-            )
-        previous_prepared_source = prepared.source_relative_path
         if prepared.source_relative_path in prepared_by_source:
             raise ManifestError("duplicate prepared source path")
         if prepared.prepared_relative_path in prepared_destinations:

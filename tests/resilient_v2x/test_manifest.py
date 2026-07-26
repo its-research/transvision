@@ -865,6 +865,107 @@ def test_build_release_inventory_rejects_file_changed_while_hashing(
         module.build_release_inventory(tmp_path, ["data.bin"])
 
 
+def test_build_release_inventory_rejects_root_directory_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _module()
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "data.bin").write_bytes(b"trusted")
+    replacement = tmp_path / "replacement"
+    replacement.mkdir()
+    (replacement / "data.bin").write_bytes(b"substituted")
+    displaced = tmp_path / "displaced-root"
+    real_lstat = Path.lstat
+    real_open = os.open
+    replaced = False
+
+    def replace_root() -> None:
+        nonlocal replaced
+        if replaced:
+            return
+        replaced = True
+        root.rename(displaced)
+        replacement.rename(root)
+
+    def racing_lstat(path: Path):
+        if path == root / "data.bin":
+            replace_root()
+        return real_lstat(path)
+
+    def racing_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if os.fspath(path) == "data.bin":
+            replace_root()
+        if dir_fd is None:
+            return real_open(path, flags, mode)  # type: ignore[arg-type]
+        return real_open(path, flags, mode, dir_fd=dir_fd)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "lstat", racing_lstat)
+    monkeypatch.setattr(module.os, "open", racing_open)
+
+    with pytest.raises(module.ManifestError, match="changed"):
+        module.build_release_inventory(root, ["data.bin"])
+    assert replaced
+
+
+def test_build_release_inventory_rejects_inner_directory_symlink_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _module()
+    root = tmp_path / "root"
+    inner = root / "inner"
+    inner.mkdir(parents=True)
+    (inner / "data.bin").write_bytes(b"trusted")
+    substitute = root / "substitute"
+    substitute.mkdir()
+    (substitute / "data.bin").write_bytes(b"substituted")
+    displaced = root / "displaced-inner"
+    real_lstat = Path.lstat
+    real_open = os.open
+    replaced = False
+
+    def replace_inner() -> None:
+        nonlocal replaced
+        if replaced:
+            return
+        replaced = True
+        inner.rename(displaced)
+        inner.symlink_to(substitute, target_is_directory=True)
+
+    def racing_lstat(path: Path):
+        if path == inner / "data.bin":
+            replace_inner()
+        return real_lstat(path)
+
+    def racing_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if os.fspath(path) == "data.bin":
+            replace_inner()
+        if dir_fd is None:
+            return real_open(path, flags, mode)  # type: ignore[arg-type]
+        return real_open(path, flags, mode, dir_fd=dir_fd)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "lstat", racing_lstat)
+    monkeypatch.setattr(module.os, "open", racing_open)
+
+    with pytest.raises(module.ManifestError, match="changed"):
+        module.build_release_inventory(root, ["inner/data.bin"])
+    assert replaced
+
+
 @pytest.mark.parametrize("interval_us", (50_000, 150_000))
 def test_temporal_interval_inclusive_boundaries_pass(
     tmp_path: Path,
@@ -1276,6 +1377,57 @@ def test_rigid_matrix_tolerance_and_proper_rotation_pass(tmp_path: Path) -> None
     ).samples
 
 
+def test_camera_intrinsic_accepts_tiny_exact_nonsingular_diagonal(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    payload = _valid_payload()
+    intrinsic = [
+        [1e-200, 0.0, 0.0],
+        [0.0, 1e-200, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+    for sample in payload["samples"]:  # type: ignore[union-attr]
+        for source in sample["source_slices"]:
+            if source["modality"] == "camera":
+                source["camera_intrinsic"] = copy.deepcopy(intrinsic)
+    _rehash(payload)
+
+    loaded = module.load_temporal_manifest(
+        _write_payload(tmp_path, payload),
+        expected_split_hash=FIXTURE_SPLIT_SHA256,
+        allow_fixture=True,
+    )
+
+    assert loaded.samples[0].source_slices[2].camera_intrinsic == tuple(
+        tuple(row) for row in intrinsic
+    )
+
+
+def test_camera_intrinsic_rejects_duplicate_huge_rows_without_nan_escape(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    payload = _valid_payload()
+    singular = [
+        [1e308, 1e308, 0.0],
+        [1e308, 1e308, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+    for sample in payload["samples"]:  # type: ignore[union-attr]
+        for source in sample["source_slices"]:
+            if source["modality"] == "camera":
+                source["camera_intrinsic"] = copy.deepcopy(singular)
+    _rehash(payload)
+
+    with pytest.raises(module.ManifestError, match="nonsingular"):
+        module.load_temporal_manifest(
+            _write_payload(tmp_path, payload),
+            expected_split_hash=FIXTURE_SPLIT_SHA256,
+            allow_fixture=True,
+        )
+
+
 @pytest.mark.parametrize(
     ("mutation", "passes"),
     (
@@ -1393,6 +1545,28 @@ def test_prepared_artifact_exact_coverage_and_schema(
             expected_split_hash=FIXTURE_SPLIT_SHA256,
             allow_fixture=True,
         )
+
+
+def test_loader_accepts_reversed_prepared_artifact_order(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    payload = _valid_payload()
+    payload["prepared_artifacts"].reverse()  # type: ignore[union-attr]
+    _rehash(payload)
+
+    manifest = module.load_temporal_manifest(
+        _write_payload(tmp_path, payload),
+        expected_split_hash=FIXTURE_SPLIT_SHA256,
+        allow_fixture=True,
+    )
+
+    assert tuple(
+        item.source_relative_path for item in manifest.prepared_artifacts
+    ) == tuple(
+        item["source_relative_path"]
+        for item in payload["prepared_artifacts"]  # type: ignore[union-attr]
+    )
 
 
 @pytest.mark.parametrize(
