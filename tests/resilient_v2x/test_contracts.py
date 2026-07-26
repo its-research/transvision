@@ -245,4 +245,9 @@ def test_package_exports_only_stable_core_api() -> None:
         "build_backward_grid",
         "align_bev_to_target",
         "warp_with_displacement",
+        "arrived_candidates",
+        "select_causal_source",
+        "age_decay",
+        "branch_reliability",
+        "normalized_selected_rsu_delay",
     )
