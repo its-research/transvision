@@ -250,4 +250,6 @@ def test_package_exports_only_stable_core_api() -> None:
         "age_decay",
         "branch_reliability",
         "normalized_selected_rsu_delay",
+        "PTFOutput",
+        "HorizonConditionedPTF",
     )

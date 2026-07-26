@@ -21,6 +21,7 @@ from .causal_repair import (
     branch_reliability,
     normalized_selected_rsu_delay,
 )
+from .ptf import HorizonConditionedPTF, PTFOutput
 
 __all__ = (
     "Agent",
@@ -40,4 +41,6 @@ __all__ = (
     "age_decay",
     "branch_reliability",
     "normalized_selected_rsu_delay",
+    "PTFOutput",
+    "HorizonConditionedPTF",
 )
