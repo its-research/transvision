@@ -231,7 +231,7 @@ def test_unsupported_selection_rejects_supported_shape_fields(
         BranchSelection(**values)
 
 
-def test_package_exports_only_stable_task_one_api() -> None:
+def test_package_exports_only_stable_core_api() -> None:
     assert resilient_v2x.__all__ == (
         "Agent",
         "Modality",
@@ -240,4 +240,9 @@ def test_package_exports_only_stable_task_one_api() -> None:
         "RejectedCandidate",
         "BranchSelection",
         "ProtocolInvariantError",
+        "BEVGridSpec",
+        "compose_source_to_target",
+        "build_backward_grid",
+        "align_bev_to_target",
+        "warp_with_displacement",
     )

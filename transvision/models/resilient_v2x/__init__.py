@@ -7,6 +7,13 @@ from .contracts import (
     SourceCandidate,
     UnsupportedReason,
 )
+from .geometry import (
+    BEVGridSpec,
+    align_bev_to_target,
+    build_backward_grid,
+    compose_source_to_target,
+    warp_with_displacement,
+)
 
 __all__ = (
     "Agent",
@@ -16,4 +23,9 @@ __all__ = (
     "RejectedCandidate",
     "BranchSelection",
     "ProtocolInvariantError",
+    "BEVGridSpec",
+    "compose_source_to_target",
+    "build_backward_grid",
+    "align_bev_to_target",
+    "warp_with_displacement",
 )
