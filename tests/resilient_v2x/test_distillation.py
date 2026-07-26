@@ -150,6 +150,26 @@ def test_extreme_logits_have_finite_loss_and_student_gradient_only() -> None:
     assert torch.isfinite(student.grad).all()
 
 
+def test_tiny_valid_epsilon_keeps_extreme_kl_and_gradient_finite() -> None:
+    teacher = torch.tensor([[-1000.0, 1000.0]])
+    student = torch.tensor(
+        [[1000.0, -1000.0]],
+        requires_grad=True,
+    )
+
+    loss = bernoulli_kl_from_logits(
+        teacher,
+        student,
+        temperature=1.0,
+        epsilon=1e-12,
+    )
+    loss.backward()
+
+    assert torch.isfinite(loss)
+    assert student.grad is not None
+    assert torch.isfinite(student.grad).all()
+
+
 def test_feature_loss_uses_per_sample_element_mean_then_valid_mean() -> None:
     teacher_feature = torch.zeros(2, 2, 2, 2)
     student_feature = torch.stack(
@@ -176,6 +196,46 @@ def test_feature_loss_uses_per_sample_element_mean_then_valid_mean() -> None:
         losses.bernoulli,
         torch.zeros_like(losses.bernoulli),
     )
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+def test_cpu_low_precision_feature_loss_uses_float32_and_backpropagates(
+    dtype: torch.dtype,
+) -> None:
+    teacher_feature = torch.randn(2, 2, 2, 2, dtype=dtype)
+    student_feature = torch.randn(
+        2,
+        2,
+        2,
+        2,
+        dtype=dtype,
+        requires_grad=True,
+    )
+    logits = torch.zeros(2, 1, 1, 1)
+
+    losses = distillation_losses(
+        teacher_feature=teacher_feature,
+        student_feature=student_feature,
+        teacher_logits=logits,
+        student_logits=logits,
+        temperature=4.0,
+        lambda_feature=1.0,
+        lambda_logit=1.0,
+        valid_sample_mask=torch.tensor([True, False]),
+    )
+    losses.total.backward()
+
+    expected = (
+        (student_feature.detach()[0].float() - teacher_feature[0].float())
+        .square()
+        .mean()
+    )
+    assert losses.feature.dtype == torch.float32
+    torch.testing.assert_close(losses.feature, expected)
+    assert student_feature.grad is not None
+    assert torch.isfinite(student_feature.grad).all()
+    assert torch.count_nonzero(student_feature.grad[0]).item() > 0
+    assert torch.count_nonzero(student_feature.grad[1]).item() == 0
 
 
 def test_dense_background_elements_contribute_to_bernoulli_mean() -> None:
@@ -205,16 +265,19 @@ def test_dense_background_elements_contribute_to_bernoulli_mean() -> None:
     torch.testing.assert_close(losses.bernoulli, one_element / 4.0)
 
 
-def test_invalid_poison_rows_do_not_change_losses_or_valid_gradients() -> None:
+@pytest.mark.parametrize("poison", [math.nan, 1e20], ids=["nan", "huge"])
+def test_invalid_poison_rows_do_not_change_losses_or_valid_gradients(
+    poison: float,
+) -> None:
     teacher_feature = torch.randn(2, 2, 2, 2)
     student_feature = torch.randn(2, 2, 2, 2, requires_grad=True)
     teacher_logits = torch.randn(2, 1, 2, 2)
     student_logits = torch.randn(2, 1, 2, 2, requires_grad=True)
-    teacher_feature[1].fill_(math.nan)
-    teacher_logits[1].fill_(math.nan)
+    teacher_feature[1].fill_(poison)
+    teacher_logits[1].fill_(poison)
     with torch.no_grad():
-        student_feature[1].fill_(math.nan)
-        student_logits[1].fill_(math.nan)
+        student_feature[1].fill_(poison)
+        student_logits[1].fill_(poison)
 
     masked = distillation_losses(
         teacher_feature=teacher_feature,

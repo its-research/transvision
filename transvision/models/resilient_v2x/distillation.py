@@ -126,6 +126,20 @@ def _require_finite_output(value: Tensor, name: str) -> None:
         raise RuntimeError(f"{name} must be a finite floating scalar")
 
 
+def _clamp_float32_probability(value: Tensor, epsilon: float) -> Tensor:
+    zero = value.new_tensor(0.0)
+    one = value.new_tensor(1.0)
+    lower = torch.maximum(
+        value.new_tensor(epsilon),
+        torch.nextafter(zero, one),
+    )
+    upper = torch.minimum(
+        value.new_tensor(1.0 - epsilon),
+        torch.nextafter(one, zero),
+    )
+    return value.clamp(min=lower, max=upper)
+
+
 @dataclass(frozen=True)
 class DistillationLosses:
     feature: Tensor
@@ -165,12 +179,16 @@ def bernoulli_kl_from_logits(
     temperature = _require_positive_scalar(temperature, "temperature")
     epsilon = _require_epsilon(epsilon)
 
-    teacher_probability = torch.sigmoid(
-        teacher_logits.detach().to(torch.float32) / temperature
-    ).clamp(epsilon, 1.0 - epsilon)
-    student_probability = torch.sigmoid(
-        student_logits.to(torch.float32) / temperature
-    ).clamp(epsilon, 1.0 - epsilon)
+    teacher_probability = _clamp_float32_probability(
+        torch.sigmoid(
+            teacher_logits.detach().to(torch.float32) / temperature
+        ),
+        epsilon,
+    )
+    student_probability = _clamp_float32_probability(
+        torch.sigmoid(student_logits.to(torch.float32) / temperature),
+        epsilon,
+    )
     positive = teacher_probability * (
         teacher_probability.log() - student_probability.log()
     )
@@ -243,8 +261,8 @@ def distillation_losses(
         _require_finite(value, name)
 
     feature = F.mse_loss(
-        valid_student_feature,
-        valid_teacher_feature,
+        valid_student_feature.to(torch.float32),
+        valid_teacher_feature.to(torch.float32),
         reduction="none",
     ).flatten(start_dim=1).mean(dim=1).mean()
     bernoulli = bernoulli_kl_from_logits(
