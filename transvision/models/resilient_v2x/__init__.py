@@ -32,6 +32,13 @@ from .routing import (
     ModalityAggregator,
     RoutingOutput,
 )
+from .distillation import (
+    DistillationLosses,
+    assert_teacher_frozen,
+    bernoulli_kl_from_logits,
+    distillation_losses,
+    freeze_teacher,
+)
 
 __all__ = (
     "Agent",
@@ -61,4 +68,9 @@ __all__ = (
     "ModalityAggregator",
     "RoutingOutput",
     "DynamicExpertRouter",
+    "DistillationLosses",
+    "freeze_teacher",
+    "assert_teacher_frozen",
+    "bernoulli_kl_from_logits",
+    "distillation_losses",
 )

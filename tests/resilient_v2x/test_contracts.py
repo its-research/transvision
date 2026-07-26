@@ -323,9 +323,14 @@ def test_package_exports_only_stable_core_api() -> None:
         "ModalityAggregator",
         "RoutingOutput",
         "DynamicExpertRouter",
+        "DistillationLosses",
+        "freeze_teacher",
+        "assert_teacher_frozen",
+        "bernoulli_kl_from_logits",
+        "distillation_losses",
     )
-    assert len(resilient_v2x.__all__) == 27
-    assert len(set(resilient_v2x.__all__)) == 27
+    assert len(resilient_v2x.__all__) == 32
+    assert len(set(resilient_v2x.__all__)) == 32
 
 
 def test_task_five_package_import_does_not_load_custom_ops() -> None:
