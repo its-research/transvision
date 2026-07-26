@@ -85,12 +85,12 @@ class LazyDistribution(Distribution):
 
 
 class LazyBuildExtension(build_ext):
-    def run(self):
+    def build_extensions(self):
         from torch.utils.cpp_extension import BuildExtension
 
         self.extensions = build_extensions()
         self.distribution.ext_modules = self.extensions
-        return BuildExtension.run(self)
+        return BuildExtension.build_extensions(self)
 
 
 setup(
