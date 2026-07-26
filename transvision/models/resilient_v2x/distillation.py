@@ -260,9 +260,13 @@ def distillation_losses(
     ):
         _require_finite(value, name)
 
+    feature_dtype = torch.promote_types(
+        valid_student_feature.dtype,
+        torch.float32,
+    )
     feature = F.mse_loss(
-        valid_student_feature.to(torch.float32),
-        valid_teacher_feature.to(torch.float32),
+        valid_student_feature.to(feature_dtype),
+        valid_teacher_feature.to(feature_dtype),
         reduction="none",
     ).flatten(start_dim=1).mean(dim=1).mean()
     bernoulli = bernoulli_kl_from_logits(

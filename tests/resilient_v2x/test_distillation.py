@@ -238,6 +238,37 @@ def test_cpu_low_precision_feature_loss_uses_float32_and_backpropagates(
     assert torch.count_nonzero(student_feature.grad[1]).item() == 0
 
 
+def test_float64_feature_loss_preserves_small_difference_and_gradient() -> None:
+    teacher_feature = torch.ones(1, 1, 1, 1, dtype=torch.float64)
+    student_feature = torch.tensor(
+        [[[[1.0 + 1e-8]]]],
+        dtype=torch.float64,
+        requires_grad=True,
+    )
+    logits = torch.zeros(1, 1, 1, 1)
+
+    losses = distillation_losses(
+        teacher_feature=teacher_feature,
+        student_feature=student_feature,
+        teacher_logits=logits,
+        student_logits=logits,
+        temperature=4.0,
+        lambda_feature=1.0,
+        lambda_logit=0.0,
+        valid_sample_mask=torch.tensor([True]),
+    )
+    losses.total.backward()
+
+    expected = (student_feature.detach() - teacher_feature).square().mean()
+    assert losses.feature.dtype == torch.float64
+    assert losses.feature.item() == pytest.approx(1e-16, rel=1e-7)
+    torch.testing.assert_close(losses.feature, expected)
+    assert student_feature.grad is not None
+    assert student_feature.grad.dtype == torch.float64
+    assert torch.isfinite(student_feature.grad).all()
+    assert torch.count_nonzero(student_feature.grad).item() == 1
+
+
 def test_dense_background_elements_contribute_to_bernoulli_mean() -> None:
     teacher_feature = torch.zeros(1, 1, 1, 1)
     student_feature = torch.zeros_like(teacher_feature)
