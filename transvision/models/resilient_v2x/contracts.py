@@ -144,9 +144,13 @@ class RepairedBranch:
 
 
 def _require_trimmed_text(value: object, name: str) -> str:
-    if type(value) is not str or not value.strip():
+    if (
+        type(value) is not str
+        or not value
+        or value != value.strip()
+    ):
         raise ProtocolInvariantError(
-            f"{name} must be a non-empty, non-whitespace string"
+            f"{name} must be a non-empty string without surrounding whitespace"
         )
     return value
 

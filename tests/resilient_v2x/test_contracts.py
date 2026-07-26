@@ -657,6 +657,23 @@ def test_sample_diagnostics_rejects_invalid_top_level_fields(
         replace(_sample_diagnostics("sample-1"), **{field: value})
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("sample_id", " sample-1"),
+        ("sample_id", "sample-1 "),
+        ("method", " resilient"),
+        ("method", "resilient "),
+    ],
+)
+def test_sample_diagnostics_rejects_noncanonical_trimmed_text(
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(ProtocolInvariantError, match=field):
+        replace(_sample_diagnostics("sample-1"), **{field: value})
+
+
 INCORRECT_BRANCH_PERMUTATIONS = tuple(
     permutation
     for permutation in itertools.permutations(range(4))
@@ -920,6 +937,19 @@ def test_resilient_feature_batch_requires_unique_sample_ids() -> None:
 
     with pytest.raises(ProtocolInvariantError, match="unique|sample"):
         replace(batch, diagnostics=(batch.diagnostics[0], duplicate))
+
+
+@pytest.mark.parametrize("noncanonical_duplicate", [" id", "id "])
+def test_resilient_feature_batch_rejects_canonical_duplicate_sample_ids(
+    noncanonical_duplicate: str,
+) -> None:
+    batch = _feature_batch()
+    first = replace(batch.diagnostics[0], sample_id="id")
+    second = batch.diagnostics[1]
+    object.__setattr__(second, "sample_id", noncanonical_duplicate)
+
+    with pytest.raises(ProtocolInvariantError, match="sample_id|unique"):
+        replace(batch, diagnostics=(first, second))
 
 
 @pytest.mark.parametrize("field", ["descriptor", "weights"])
