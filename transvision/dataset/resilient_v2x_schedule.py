@@ -602,6 +602,11 @@ def _fault_sort_key(
 
 
 def _transport_records(plan: TransportPlan) -> tuple[TransportOverlayRecord, ...]:
+    if any(
+        not any(source.agent == "rsu" for source in sample.source_slices)
+        for sample in plan.samples
+    ):
+        raise ScheduleError("transport samples require RSU packet coverage")
     records: list[TransportOverlayRecord] = []
     epochs: tuple[int | None, ...] = (
         tuple(plan.epochs) if plan.mode == "train_random" else (None,)
@@ -1011,7 +1016,8 @@ def _select_latest_source(
     arrival_by_packet: Mapping[str, int],
     excluded_n_s: int | None = None,
 ) -> int | None:
-    for source in reversed(sample.source_slices):
+    selected: int | None = None
+    for source in sample.source_slices:
         if (source.agent, source.modality) != (agent, modality):
             continue
         if source.n_s == excluded_n_s:
@@ -1020,8 +1026,9 @@ def _select_latest_source(
             arrival = arrival_by_packet.get(source.packet_id)
             if arrival is None or arrival > sample.tau_t_ms:
                 continue
-        return source.n_s
-    return None
+        if selected is None or source.n_s > selected:
+            selected = source.n_s
+    return selected
 
 
 def write_arrival_relative_fault_overlay(

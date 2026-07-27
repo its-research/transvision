@@ -250,15 +250,16 @@ def _select_latest(
         for record in fault_records
         if record["masked"]
     }
-    for source in reversed(sample.source_slices):
+    eligible: list[int] = []
+    for source in sample.source_slices:
         if (source.agent, source.modality) != (agent, modality):
             continue
         if (agent, modality, source.n_s) in masked:
             continue
         if agent == "rsu" and arrival_by_packet[source.packet_id] > sample.tau_t_ms:
             continue
-        return source.n_s
-    return None
+        eligible.append(source.n_s)
+    return max(eligible, default=None)
 
 
 def test_stable_hash_fixed_vector() -> None:
@@ -592,6 +593,24 @@ def test_transport_overlay_has_exact_rsu_packet_coverage_and_shared_tick_delay(
         )
 
 
+def test_transport_writer_rejects_empty_rsu_coverage_before_publication(
+    tmp_path: Path,
+) -> None:
+    sample = _samples("test")[-1]
+    ego_only = replace(
+        sample,
+        source_slices=tuple(
+            source for source in sample.source_slices if source.agent == "ego"
+        ),
+    )
+    output = tmp_path / "empty-transport.zst"
+
+    with pytest.raises(ScheduleError, match="RSU"):
+        write_transport_overlay(_transport_plan(ego_only), output)
+
+    assert not output.exists()
+
+
 def test_transport_and_fault_randomness_ignore_sample_and_epoch_iteration_order(
     tmp_path: Path,
 ) -> None:
@@ -823,6 +842,47 @@ def test_arrival_relative_fault_masks_selected_source_once_then_falls_back_once(
     )
     if expected_fallback is not None:
         assert all(record["n_s"] != expected_fallback for record in records)
+
+
+def test_arrival_selection_uses_maximum_eligible_tick_for_shuffled_sources() -> None:
+    import transvision.dataset.resilient_v2x_schedule as schedule
+
+    sample = _samples("test")[-1]
+    shuffled = replace(
+        sample,
+        source_slices=tuple(
+            sorted(
+                sample.source_slices,
+                key=lambda source: source.n_s,
+                reverse=True,
+            )
+        ),
+    )
+    arrivals = {
+        source.packet_id: source.tau_s_ms
+        for source in shuffled.source_slices
+        if source.agent == "rsu"
+    }
+
+    assert (
+        schedule._select_latest_source(
+            shuffled,
+            "rsu",
+            "lidar",
+            arrivals,
+        )
+        == 3
+    )
+    assert (
+        schedule._select_latest_source(
+            shuffled,
+            "rsu",
+            "lidar",
+            arrivals,
+            excluded_n_s=3,
+        )
+        == 2
+    )
 
 
 @pytest.mark.parametrize("mutation", ["ego", "ego-delay", "omit", "duplicate"])
