@@ -5,19 +5,19 @@
 # available, unless you explicitly update the lock file.
 #
 # Install this environment as "YOURENV" with:
-#     conda-lock install -n YOURENV .environment-linux-64.lock.yml.2143ks6u.seed
+#     conda-lock install -n YOURENV .environment-linux-64.lock.yml.cgvrntu8.seed
 # To update a single package to the latest version compatible with the version constraints in the source:
-#     conda-lock lock  --lockfile .environment-linux-64.lock.yml.2143ks6u.seed --update PACKAGE
+#     conda-lock lock  --lockfile .environment-linux-64.lock.yml.cgvrntu8.seed --update PACKAGE
 # To re-solve the entire environment, e.g. after changing a version constraint in the source file:
-#     conda-lock -f environment.yml --lockfile .environment-linux-64.lock.yml.2143ks6u.seed
+#     conda-lock -f environment.yml -f ../workspace/transvision/environments/resilient_v2x/environment.yml --lockfile .environment-linux-64.lock.yml.cgvrntu8.seed
 version: 1
 metadata:
   content_hash:
-    linux-64: 3c298ab9a83173125a41160c1cf049ec06790ee4cd7d7ef75a4681796c89f3e4
+    linux-64: 8d29fa2f7c9693483208ffe2d52617f3304ca030104fd6dfe50816df9694500f
   channels:
   - url: pytorch
     used_env_vars: []
-  - url: nvidia
+  - url: nvidia/label/cuda-11.8.0
     used_env_vars: []
   - url: conda-forge
     used_env_vars: []
@@ -25,6 +25,7 @@ metadata:
   - linux-64
   sources:
   - environment.yml
+  - ../workspace/transvision/environments/resilient_v2x/environment.yml
 package:
 - name: _openmp_mutex
   version: '4.5'
@@ -39,44 +40,6 @@ package:
     sha256: 1dd3fffd892081df9726d7eb7e0dea6198962ba775bd88842135a4ddb4deb3c9
   category: main
   optional: false
-- name: binutils
-  version: 2.46.1
-  manager: conda
-  platform: linux-64
-  dependencies:
-    binutils_impl_linux-64: '>=2.46.1,<2.46.2.0a0'
-  url: https://conda.anaconda.org/conda-forge/linux-64/binutils-2.46.1-default_h4852527_102.conda
-  hash:
-    md5: e8452fe381cac5fff20563a07722dfa5
-    sha256: 659c367ef49df7741749a2ad240b007d7df51b4f210505a78543deafb001e44c
-  category: main
-  optional: false
-- name: binutils_impl_linux-64
-  version: 2.46.1
-  manager: conda
-  platform: linux-64
-  dependencies:
-    ld_impl_linux-64: 2.46.1
-    sysroot_linux-64: ''
-    zstd: '>=1.5.7,<1.6.0a0'
-  url: https://conda.anaconda.org/conda-forge/linux-64/binutils_impl_linux-64-2.46.1-default_hfdba357_102.conda
-  hash:
-    md5: a0c5e0b7f58c8ceeb08e5bc41251d5a2
-    sha256: fb7bf36984a37ce7e4714d1d1da0bd0e3bfc679520f5cdc184afc676fd4b5da2
-  category: main
-  optional: false
-- name: binutils_linux-64
-  version: 2.46.1
-  manager: conda
-  platform: linux-64
-  dependencies:
-    binutils_impl_linux-64: 2.46.1
-  url: https://conda.anaconda.org/conda-forge/linux-64/binutils_linux-64-2.46.1-default_h4852527_102.conda
-  hash:
-    md5: 32fd07abe84eb14f17c7f5cc6fa8df82
-    sha256: 08d7238663fc408ba2ab60b02fa3d06a7ca9d872962e03e90c7e0fdecb7ed1d0
-  category: main
-  optional: false
 - name: bzip2
   version: 1.0.8
   manager: conda
@@ -88,20 +51,6 @@ package:
   hash:
     md5: d2ffd7602c02f2b316fd921d39876885
     sha256: 0b75d45f0bba3e95dc693336fa51f40ea28c980131fec438afb7ce6118ed05f6
-  category: main
-  optional: false
-- name: c-compiler
-  version: 1.11.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    binutils: ''
-    gcc: ''
-    gcc_linux-64: 14.*
-  url: https://conda.anaconda.org/conda-forge/linux-64/c-compiler-1.11.0-h4d9bdce_0.conda
-  hash:
-    md5: abd85120de1187b0d1ec305c2173c71b
-    sha256: 8e7a40f16400d7839c82581410aa05c1f8324a693c9d50079f8c50dc9fb241f0
   category: main
   optional: false
 - name: ca-certificates
@@ -124,772 +73,340 @@ package:
     cuda-demo-suite: '>=11.8.86'
     cuda-runtime: '>=11.8.0'
     cuda-toolkit: '>=11.8.0'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-11.8.0-0.tar.bz2
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-11.8.0-0.tar.bz2
   hash:
     md5: f274f527ae9d4393e93768c33d8e0058
-    sha256: 891e934e7ef79d7335a97bed60cc2e43edf75cfd29bfe6b0e11c1430393398f1
   category: main
   optional: false
-- name: cuda-cccl_linux-64
-  version: 13.3.3.4.1
+- name: cuda-cccl
+  version: 11.8.89
   manager: conda
   platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-cccl_linux-64-13.3.3.4.1-0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-cccl-11.8.89-0.tar.bz2
   hash:
-    md5: 0169ff62fb70572913212cd6e9219633
-    sha256: 4fc81a828aa2d98d7cccce02a15111462d5236a6505eef69991a350cb6853738
+    md5: 9c48a93deca9c86ab9393c717b55c89d
   category: main
   optional: false
 - name: cuda-command-line-tools
-  version: 13.3.1
+  version: 11.8.0
   manager: conda
   platform: linux-64
   dependencies:
-    cuda-cupti-dev: 13.3.75.*
-    cuda-gdb: 13.3.73.*
-    cuda-nvdisasm: 13.3.73.*
-    cuda-nvtx: 13.3.29.*
-    cuda-sanitizer-api: 13.3.75.*
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-command-line-tools-13.3.1-0.conda
+    cuda-cupti: '>=11.8.87'
+    cuda-gdb: '>=11.8.86'
+    cuda-memcheck: '>=11.8.86'
+    cuda-nvdisasm: '>=11.8.86'
+    cuda-nvprof: '>=11.8.87'
+    cuda-nvtx: '>=11.8.86'
+    cuda-sanitizer-api: '>=11.8.86'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-command-line-tools-11.8.0-0.tar.bz2
   hash:
-    md5: 646bb3b095c4a7c05e3a03a8cbbf7f6e
-    sha256: 109eff5c381255421ed100675b81e58b3ff6ff0b1213e97fc76596f5c20d81cd
+    md5: b782d1e340ffbb8940633bf57e38ea91
   category: main
   optional: false
 - name: cuda-compiler
-  version: 13.3.1
+  version: 11.8.0
   manager: conda
   platform: linux-64
   dependencies:
-    __linux: ''
-    c-compiler: ''
-    cuda-ctadvisor: 13.3.33.*
-    cuda-cuobjdump: 13.3.73.*
-    cuda-cuxxfilt: 13.3.29.*
-    cuda-nvcc: 13.3.73.*
-    cuda-nvprune: 13.3.29.*
-    cuda-tileiras: 13.3.36.*
-    cxx-compiler: ''
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-compiler-13.3.1-hf39a9c1_0.conda
+    cuda-cuobjdump: '>=11.8.86'
+    cuda-cuxxfilt: '>=11.8.86'
+    cuda-nvcc: '>=11.8.89'
+    cuda-nvprune: '>=11.8.86'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-compiler-11.8.0-0.tar.bz2
   hash:
-    md5: c4b47e5e2abc55e30e7c7e8f608d3c6f
-    sha256: 0ca6edee05e965ac37f96cd0d0606591179be8dda24af365a5e9e5b205ea0e12
-  category: main
-  optional: false
-- name: cuda-crt-dev_linux-64
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-crt-dev_linux-64-13.3.73-0.conda
-  hash:
-    md5: 38073c3adcabef958437acf0efe1848f
-    sha256: 4cb9a8daedda92b1b6712f6106638a04ce4555a9c015606b69e372b52a4ba056
-  category: main
-  optional: false
-- name: cuda-crt-tools
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-crt-tools-13.3.73-0.conda
-  hash:
-    md5: abb3bd325c115df7968894b0e740e731
-    sha256: 4084e082ae3d9ef072e2863ebd49cbe8b83885c5753bdda20126b3a98bcffb8a
-  category: main
-  optional: false
-- name: cuda-ctadvisor
-  version: 13.3.33
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-ctadvisor-13.3.33-hfa86176_0.conda
-  hash:
-    md5: 2ec3815920b4bda3d66ba54fa9e6c827
-    sha256: 8852b933a41ab3d62e0fc67bb370a8add710f4d7778932ca4ad77b51fd99fb01
+    md5: 37f4f099ae0801d57c8547c0f3af6b8f
   category: main
   optional: false
 - name: cuda-cudart
-  version: 13.3.29
+  version: 11.8.89
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-cudart_linux-64: 13.3.29
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-cudart-13.3.29-h159e8ec_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-cudart-11.8.89-0.tar.bz2
   hash:
-    md5: 6229c902d00c3da65f2c8df4e139fb41
-    sha256: 1b092d6a20238e97f421137d524d7a94b511cca4fad432e1c30d927d02377def
+    md5: b68c7ef3eda01e95d5903fb508c5e440
   category: main
   optional: false
 - name: cuda-cudart-dev
-  version: 13.3.29
+  version: 11.8.89
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-cudart: 13.3.29
-    cuda-cudart-dev_linux-64: 13.3.29
-    cuda-cudart-static: 13.3.29
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-cudart-dev-13.3.29-hfa86176_0.conda
+    cuda-cccl: ''
+    cuda-cudart: '>=11.8.89'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-cudart-dev-11.8.89-0.tar.bz2
   hash:
-    md5: 87d02e5bd572a701e55709a7c02411a7
-    sha256: 7954b73b234d187ab8da8e3ea37e140268906062e4099de92ca2d8c77f39f9e4
-  category: main
-  optional: false
-- name: cuda-cudart-dev_linux-64
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-cccl_linux-64: ''
-    cuda-cudart-static_linux-64: ''
-    cuda-cudart_linux-64: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-cudart-dev_linux-64-13.3.29-h74be60c_0.conda
-  hash:
-    md5: 68e2ef5b4f4e6b6f72d8b98be83f9b7c
-    sha256: ebe454868ee45c1b8942b4b635547faeaaddf4d43ce93a65774a2f310b42176c
-  category: main
-  optional: false
-- name: cuda-cudart-static
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-cudart-static_linux-64: 13.3.29
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-cudart-static-13.3.29-hfa86176_0.conda
-  hash:
-    md5: 30d9c491c44b53fd22f94c3270079442
-    sha256: 6c25e945cb4f4fee7403d3d31400dc6042a1c719fed5ebcdd84812939137178a
-  category: main
-  optional: false
-- name: cuda-cudart-static_linux-64
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-cudart-static_linux-64-13.3.29-h74be60c_0.conda
-  hash:
-    md5: 7d709dc1eec09651181fb24e171f43ef
-    sha256: 140a661763b4fd65b6fde115c5afb43a3ea22fc48d1b147ece6c36efff75c6a8
-  category: main
-  optional: false
-- name: cuda-cudart_linux-64
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-cudart_linux-64-13.3.29-h32d0467_0.conda
-  hash:
-    md5: a875e17cf63b67480a880c2050a04fa5
-    sha256: 76263c5b403081527c76b2303bf6ee04afb15eb295c3c7d1fe59aa5c65833704
-  category: main
-  optional: false
-- name: cuda-culibos-static
-  version: 13.3.33
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-culibos-static-13.3.33-hfa86176_0.conda
-  hash:
-    md5: 2a58c20f9af8fb86308a063145660109
-    sha256: a2ecb3cdab1290409040d7cb6c2bd0e023584f61e11299d8d49ef132f461984c
+    md5: fda2522594365c493121c517d3cc5a29
   category: main
   optional: false
 - name: cuda-cuobjdump
-  version: 13.3.73
+  version: 11.8.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-nvdisasm: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-cuobjdump-13.3.73-h575d2f3_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-cuobjdump-11.8.86-0.tar.bz2
   hash:
-    md5: 088538e2a7de24c2b8c63a48d2822dd3
-    sha256: 9a4a3683d5564bc6f69467747711cec1037f6d14eb0728936409a74b6310bb60
+    md5: 9983898404071b86e93f5411e9ce73d5
   category: main
   optional: false
 - name: cuda-cupti
-  version: 13.3.75
+  version: 11.8.87
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-cupti-13.3.75-hfa86176_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-cupti-11.8.87-0.tar.bz2
   hash:
-    md5: d9fefb11ebf690d82da0497c45ea3b68
-    sha256: a22cc912fdc9aee852223f20362e80efb057cfec77d767a0e7fa1653df3b4124
-  category: main
-  optional: false
-- name: cuda-cupti-dev
-  version: 13.3.75
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-cupti: 13.3.75
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-cupti-dev-13.3.75-h2e553d9_0.conda
-  hash:
-    md5: 43139732f621243fca1d85fc972ff1ed
-    sha256: 01c305c26ac6171cc6c340116b3bb5422f0079662bee348a77491fd7159bdd59
+    md5: 2f4b4933285400137cf029fef9a7daa6
   category: main
   optional: false
 - name: cuda-cuxxfilt
-  version: 13.3.29
+  version: 11.8.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-cuxxfilt-13.3.29-h159e8ec_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-cuxxfilt-11.8.86-0.tar.bz2
   hash:
-    md5: f76ba0746aff257e3fcd59562d482c99
-    sha256: ce4ba876e6aefd97212db18e4d78596fd3bcab92e594cb492a4101fcca0639e8
+    md5: d5e2aa288a115bf8ed23116987b56a9a
   category: main
   optional: false
 - name: cuda-demo-suite
-  version: 12.4.127
+  version: 11.8.86
   manager: conda
   platform: linux-64
   dependencies: {}
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-demo-suite-12.4.127-0.tar.bz2
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-demo-suite-11.8.86-0.tar.bz2
   hash:
-    md5: 0bf7640c413c2f32512a3430505998dd
-    sha256: c7a917fe39f779d049eec2c1fca4c460b19ebfc991f0df33cd30c346f42e7b19
+    md5: 07bdbd4de564326cc7c7677df92d5657
   category: main
   optional: false
 - name: cuda-documentation
-  version: 12.4.127
+  version: 11.8.86
   manager: conda
   platform: linux-64
   dependencies: {}
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-documentation-12.4.127-0.tar.bz2
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-documentation-11.8.86-0.tar.bz2
   hash:
-    md5: 1410656e3b0350b35549c922c5dfdb53
-    sha256: 57887b72711c637f7dd34853cdd1caccb0d1db757a5a1872155c16182b95baa0
+    md5: f3d58829354915696a6cde600382684d
   category: main
   optional: false
 - name: cuda-driver-dev
-  version: 13.3.29
+  version: 11.8.89
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-driver-dev_linux-64: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-driver-dev-13.3.29-hfa86176_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-driver-dev-11.8.89-0.tar.bz2
   hash:
-    md5: 0cb4aa81dbdb1c03d11cb85f6ee0642b
-    sha256: f94c09298e4dcc79c808319be171b0b08be4dc97fd78cb1d313dcf552a8056d9
-  category: main
-  optional: false
-- name: cuda-driver-dev_linux-64
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-driver-dev_linux-64-13.3.29-h74be60c_0.conda
-  hash:
-    md5: c99a21f56c8edc23a0374637e55ded00
-    sha256: b6e379f4c1a9cf290cc4c87ed6dbcbca519a3938d718b0b75bb4ab86849ad4aa
+    md5: afd39b647ee4eca8a36dc996da4915c4
   category: main
   optional: false
 - name: cuda-gdb
-  version: 13.3.73
+  version: 11.8.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    gmp: '>=6.3.0,<7.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-gdb-13.3.73-hfa86176_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-gdb-11.8.86-0.tar.bz2
   hash:
-    md5: 12f92c3dbd58441391a76d14d7fd7a7c
-    sha256: b4eccf0955f92d789d397473963ee978f065eb3d38b878e2b47026580146392a
+    md5: 0190089d9f2d7f16d2daadbbba38b678
   category: main
   optional: false
 - name: cuda-libraries
-  version: 13.3.1
+  version: 11.8.0
   manager: conda
   platform: linux-64
   dependencies:
-    cuda-cudart: 13.3.29.*
-    cuda-nvrtc: 13.3.33.*
-    cuda-opencl: 13.3.27.*
-    libcublas: 13.6.0.2.*
-    libcufft: 12.3.0.29.*
-    libcufile: 1.18.1.6.*
-    libcuobjclient: 1.2.0.68.*
-    libcurand: 10.4.3.29.*
-    libcusolver: 12.2.6.9.*
-    libcusparse: 12.8.2.51.*
-    libnpp: 13.1.2.81.*
-    libnvfatbin: 13.3.29.*
-    libnvjitlink: 13.3.33.*
-    libnvjpeg: 13.2.1.68.*
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-libraries-13.3.1-0.conda
+    cuda-cudart: '>=11.8.89'
+    cuda-nvrtc: '>=11.8.89'
+    libcublas: '>=11.11.3.6'
+    libcufft: '>=10.9.0.58'
+    libcufile: '>=1.4.0.31'
+    libcurand: '>=10.3.0.86'
+    libcusolver: '>=11.4.1.48'
+    libcusparse: '>=11.7.5.86'
+    libnpp: '>=11.8.0.86'
+    libnvjpeg: '>=11.9.0.86'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-libraries-11.8.0-0.tar.bz2
   hash:
-    md5: c3e7c3823779644458dbbc484f7b2e95
-    sha256: 48709a94589c075c5232918b2020ebd763188b782fc900b91fd080332aa730aa
+    md5: 3a43d100104e52ac8209a834c82ab231
   category: main
   optional: false
 - name: cuda-libraries-dev
-  version: 13.3.1
+  version: 11.8.0
   manager: conda
   platform: linux-64
   dependencies:
-    cuda-cccl_linux-64: 13.3.3.4.1.*
-    cuda-cudart-dev: 13.3.29.*
-    cuda-driver-dev: 13.3.29.*
-    cuda-nvrtc-dev: 13.3.33.*
-    cuda-opencl-dev: 13.3.27.*
-    cuda-profiler-api: 13.3.27.*
-    libcublas-dev: 13.6.0.2.*
-    libcufft-dev: 12.3.0.29.*
-    libcufile-dev: 1.18.1.6.*
-    libcuobjclient-dev: 1.2.0.68.*
-    libcurand-dev: 10.4.3.29.*
-    libcusolver-dev: 12.2.6.9.*
-    libcusparse-dev: 12.8.2.51.*
-    libnpp-dev: 13.1.2.81.*
-    libnvfatbin-dev: 13.3.29.*
-    libnvjitlink-dev: 13.3.33.*
-    libnvjpeg-dev: 13.2.1.68.*
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-libraries-dev-13.3.1-0.conda
+    cuda-cccl: '>=11.8.89'
+    cuda-cudart-dev: '>=11.8.89'
+    cuda-driver-dev: '>=11.8.89'
+    cuda-nvrtc-dev: '>=11.8.89'
+    cuda-profiler-api: '>=11.8.86'
+    libcublas-dev: '>=11.11.3.6'
+    libcufft-dev: '>=10.9.0.58'
+    libcufile-dev: '>=1.4.0.31'
+    libcurand-dev: '>=10.3.0.86'
+    libcusolver-dev: '>=11.4.1.48'
+    libcusparse-dev: '>=11.7.5.86'
+    libnpp-dev: '>=11.8.0.86'
+    libnvjpeg-dev: '>=11.9.0.86'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-libraries-dev-11.8.0-0.tar.bz2
   hash:
-    md5: a5af66b3475c9876648dbf8041ed0b8c
-    sha256: e10ca70d8d47e52fc32b5f36891bb56436bd93e7c4ded928273cc230fd2b57b8
+    md5: 5428619702b20a8353bff9f3b152bb2f
   category: main
   optional: false
-- name: cuda-libraries-static
-  version: 13.3.1
+- name: cuda-memcheck
+  version: 11.8.86
   manager: conda
   platform: linux-64
-  dependencies:
-    cuda-cudart-static: 13.3.29.*
-    cuda-culibos-static: 13.3.33.*
-    cuda-nvrtc-static: 13.3.33.*
-    libcublas-static: 13.6.0.2.*
-    libcufft-static: 12.3.0.29.*
-    libcufile-static: 1.18.1.6.*
-    libcurand-static: 10.4.3.29.*
-    libcusolver-static: 12.2.6.9.*
-    libcusparse-static: 12.8.2.51.*
-    libnpp-static: 13.1.2.81.*
-    libnvfatbin-static: 13.3.29.*
-    libnvjitlink-static: 13.3.33.*
-    libnvjpeg-static: 13.2.1.68.*
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-libraries-static-13.3.1-0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-memcheck-11.8.86-0.tar.bz2
   hash:
-    md5: 1da30ff8d717290e626193bf70ca625e
-    sha256: d2f4e7cb5f413466ad29113f8d3a40c34e7f19be71fd68417f4bc3b42199f537
+    md5: 0d658b7c0e0799af3a981eff1c33771c
   category: main
   optional: false
 - name: cuda-nsight
-  version: 12.4.127
+  version: 11.8.86
   manager: conda
   platform: linux-64
   dependencies: {}
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nsight-12.4.127-0.tar.bz2
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nsight-11.8.86-0.tar.bz2
   hash:
-    md5: 031e25cc0010cecfa62249acc3939ee6
-    sha256: 809499163a96812af3a2a4058cdf7affc1c638eabf255e6f39efdcd75a67f3eb
+    md5: f6395abb8428ada738738fd558eba798
   category: main
   optional: false
 - name: cuda-nsight-compute
-  version: 12.4.1
+  version: 11.8.0
   manager: conda
   platform: linux-64
   dependencies:
-    nsight-compute: '>=2024.1.1.4'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nsight-compute-12.4.1-0.tar.bz2
+    nsight-compute: '>=2022.3.0.22'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nsight-compute-11.8.0-0.tar.bz2
   hash:
-    md5: 72b772f260afa08d99ef2fd15f035739
-    sha256: 669cd54c2cca10d3c47c5ed1ca9d9d0fce03c081bbc8af2ba695f1f589284ea7
+    md5: 2321698a7ca3b20cc8a5fdcdcd9f8aae
   category: main
   optional: false
 - name: cuda-nvcc
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-nvcc_linux-64: 13.3.73.*
-    gcc_linux-64: ''
-    gxx_linux-64: ''
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvcc-13.3.73-h36385b3_0.conda
-  hash:
-    md5: c9e9abbc76f62d355a263559fb7d1645
-    sha256: 9a0a428927ed0f76f6548d1d053fea1eefdbd69629391aa42ea6f4a95de3f52f
-  category: main
-  optional: false
-- name: cuda-nvcc-dev_linux-64
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-crt-dev_linux-64: 13.3.73
-    cuda-nvvm-dev_linux-64: 13.3.73
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=6'
-    libnvptxcompiler-dev_linux-64: 13.3.73
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-nvcc-dev_linux-64-13.3.73-0.conda
-  hash:
-    md5: eae27734fa5ac55f29afcfe8b8ad6799
-    sha256: aa5fef253a33b1381a086a991040d8a2b618a48cdf745616b270574a00ee5cfe
-  category: main
-  optional: false
-- name: cuda-nvcc-impl
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-cudart: '>=13.3.29,<14.0a0'
-    cuda-cudart-dev: ''
-    cuda-nvcc-dev_linux-64: 13.3.73
-    cuda-nvcc-tools: 13.3.73
-    cuda-nvvm-impl: 13.3.73
-    cuda-version: '>=13.3,<13.4.0a0'
-    libnvptxcompiler-dev: 13.3.73
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvcc-impl-13.3.73-h74be60c_0.conda
-  hash:
-    md5: cc77d22108fb4530524ed6b25db36170
-    sha256: 379524fa6620d393a7c31729e5b02a43e23b4286192d2a9262f61a121b7e43f7
-  category: main
-  optional: false
-- name: cuda-nvcc-tools
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-crt-tools: 13.3.73
-    cuda-nvvm-tools: 13.3.73
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvcc-tools-13.3.73-hfa86176_0.conda
-  hash:
-    md5: 7bf27f747fe7820808b134a9d24b2e33
-    sha256: 417196cf7c3e46709f7dd407736223082083aa191f15e3fdd3696f2dc5265e8c
-  category: main
-  optional: false
-- name: cuda-nvcc_linux-64
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-cudart-dev_linux-64: 13.3.*
-    cuda-driver-dev_linux-64: 13.3.*
-    cuda-nvcc-dev_linux-64: 13.3.73.*
-    cuda-nvcc-impl: 13.3.73.*
-    cuda-nvcc-tools: 13.3.73.*
-    sysroot_linux-64: '>=2.28,<3.0a0'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvcc_linux-64-13.3.73-h7001b23_0.conda
-  hash:
-    md5: a7f57388cfc2feeb6c606a786b3922f7
-    sha256: b505f5d6646ded51a80eae115fd6738839630ff4b9e820c534a27395b5a7d2ac
-  category: main
-  optional: false
-- name: cuda-nvdisasm
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvdisasm-13.3.73-h575d2f3_0.conda
-  hash:
-    md5: e5ab9efcecfc557825906c974c5bfb12
-    sha256: 2705b539ce0a886fcb693d5b0305b25f8d93b7803cbe0acee6e7606f90ee16e4
-  category: main
-  optional: false
-- name: cuda-nvml-dev
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvml-dev-13.3.29-h159e8ec_0.conda
-  hash:
-    md5: 352d676e489a8942892da0885f94ac8f
-    sha256: 56d5bba2e01f4b52f4f9bde0c3c0ee1e9950d99823f7edd670a8b6c1813a53d0
-  category: main
-  optional: false
-- name: cuda-nvprof
-  version: 12.4.127
+  version: 11.8.89
   manager: conda
   platform: linux-64
   dependencies: {}
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvprof-12.4.127-0.tar.bz2
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvcc-11.8.89-0.tar.bz2
   hash:
-    md5: bfdbdb5a65e35ef10ca14723de7fd9b5
-    sha256: 75597b69222f52c0de92e72f0431b133a2ac6945dc3456f3a4c2c9da4681f0f3
+    md5: 33f9af6dac16b94a7dc1111a18fd19bf
+  category: main
+  optional: false
+- name: cuda-nvdisasm
+  version: 11.8.86
+  manager: conda
+  platform: linux-64
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvdisasm-11.8.86-0.tar.bz2
+  hash:
+    md5: 47de8e90d674c06001a82c1e1502532a
+  category: main
+  optional: false
+- name: cuda-nvml-dev
+  version: 11.8.86
+  manager: conda
+  platform: linux-64
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvml-dev-11.8.86-0.tar.bz2
+  hash:
+    md5: 0dc7aaa44f459088c5286801d76034c5
+  category: main
+  optional: false
+- name: cuda-nvprof
+  version: 11.8.87
+  manager: conda
+  platform: linux-64
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvprof-11.8.87-0.tar.bz2
+  hash:
+    md5: a58bfa5a7332b1b71ed88d555a2b934a
   category: main
   optional: false
 - name: cuda-nvprune
-  version: 13.3.29
+  version: 11.8.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvprune-13.3.29-h159e8ec_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvprune-11.8.86-0.tar.bz2
   hash:
-    md5: 483373261a92b36a9c6830a370b80e76
-    sha256: 69a84d677fdfd4e995c0b712e8538f90be773fa81b7774cd1aa2af17ce498e7d
+    md5: 6f1478d39023065741930e23580c9f75
   category: main
   optional: false
 - name: cuda-nvrtc
-  version: 13.3.33
+  version: 11.8.89
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvrtc-13.3.33-h8187d64_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvrtc-11.8.89-0.tar.bz2
   hash:
-    md5: a6ea49153c0b65f5c2fce35be0f53590
-    sha256: ce7821cb90c7fa80cc39f27d9bae3d197a6c20ce5e2df6d577375bb3f1ee4549
+    md5: f4af75ee32661708c979630cdb8f4987
   category: main
   optional: false
 - name: cuda-nvrtc-dev
-  version: 13.3.33
+  version: 11.8.89
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-nvrtc: 13.3.33
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvrtc-dev-13.3.33-h8187d64_0.conda
+    cuda-nvrtc: '>=11.8.89'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvrtc-dev-11.8.89-0.tar.bz2
   hash:
-    md5: efadee961dad343650cb5d654dc10342
-    sha256: fc7515b8d024bcb59c46ad6116f709c1b85d0f5ee8db098fb7a30173137a7a92
-  category: main
-  optional: false
-- name: cuda-nvrtc-static
-  version: 13.3.33
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvrtc-static-13.3.33-hfa86176_0.conda
-  hash:
-    md5: 3d731594ceae439160f3e9e5a30f8f28
-    sha256: 8a1743d634d65a3f9de10d0fa04ff48cb37d5224d832386d3e60b7e0c0bf268e
+    md5: 953e857784524bf97f58a478cb05f2ac
   category: main
   optional: false
 - name: cuda-nvtx
-  version: 13.3.29
+  version: 11.8.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvtx-13.3.29-hfa86176_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvtx-11.8.86-0.tar.bz2
   hash:
-    md5: 1b1b059ffec7536e0e65e372c039384b
-    sha256: 977ecbcb998e07b892a2d49fd7d7c6c92c4b5aafb23c357fe9c947d4d381e601
-  category: main
-  optional: false
-- name: cuda-nvvm-dev_linux-64
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-nvvm-dev_linux-64-13.3.73-0.conda
-  hash:
-    md5: c10cd1d0794d7b0a093deadee920c02b
-    sha256: f3fc2a390a1075b71cfe856124e9228955a85fb85d215871beff3f9adabbd5b1
-  category: main
-  optional: false
-- name: cuda-nvvm-impl
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvvm-impl-13.3.73-h5a35853_0.conda
-  hash:
-    md5: 00b6166321ac8ab6b134a5254fc9c0d2
-    sha256: 23936217429c0dd8ff711130fcf6ea2fac6e26bfa700af849bbaa19912a6f89d
-  category: main
-  optional: false
-- name: cuda-nvvm-tools
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvvm-tools-13.3.73-h5a35853_0.conda
-  hash:
-    md5: 388e4ad0701409e249f77ac0560008a4
-    sha256: 6c76abb3736fac4bb738d4bd34083fe6677c5d62bec2e151537f5ea6cbbf2d7d
+    md5: 1825ffc3feb608f2752073935e90bb49
   category: main
   optional: false
 - name: cuda-nvvp
-  version: 12.4.127
+  version: 11.8.87
   manager: conda
   platform: linux-64
   dependencies:
     cuda-nvdisasm: ''
     cuda-nvprof: ''
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-nvvp-12.4.127-0.tar.bz2
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-nvvp-11.8.87-0.tar.bz2
   hash:
-    md5: fe0f1f926bd04b7468df9d6c991d7b77
-    sha256: dad5b6a981d34ea7886928e62ee860d82274d996c824ac9ce0e0682bfc138da0
-  category: main
-  optional: false
-- name: cuda-opencl
-  version: 13.3.27
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-    ocl-icd: '>=2.3.3,<3.0a0'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-opencl-13.3.27-hfa86176_0.conda
-  hash:
-    md5: 7106a652e85fa74a631d328036ff6b07
-    sha256: b78404be0d00f45ddc62a110cfb5be55802a4d54145d0cf141890ee45f02e283
-  category: main
-  optional: false
-- name: cuda-opencl-dev
-  version: 13.3.27
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-opencl: 13.3.27
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-opencl-dev-13.3.27-hfa86176_0.conda
-  hash:
-    md5: b16b2de48cef903d3c0f5283b641e839
-    sha256: 31685501b54c2a33d4840a7f631bc1b7b970d99ed072dda287e3aa1511a5a34a
+    md5: e9df05575a736ab3c8f89853bdac736a
   category: main
   optional: false
 - name: cuda-profiler-api
-  version: 13.3.27
+  version: 11.8.86
   manager: conda
   platform: linux-64
-  dependencies:
-    cuda-cudart-dev: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-profiler-api-13.3.27-h17d8f88_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-profiler-api-11.8.86-0.tar.bz2
   hash:
-    md5: 8f3ebda2014bbc8e99742cfb67b63b04
-    sha256: 58850ea014f7283aa813347cfe4cbd57ad8cad7255c030d6ad070e87651657ad
+    md5: a41d5bd148ab7f9e7cc81bed84349d5f
   category: main
   optional: false
 - name: cuda-runtime
-  version: 13.3.1
+  version: 11.8.0
   manager: conda
   platform: linux-64
   dependencies:
-    __linux: ''
-    cuda-libraries: 13.3.1.*
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-runtime-13.3.1-ha63b06e_0.conda
+    cuda-libraries: '>=11.8.0'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-runtime-11.8.0-0.tar.bz2
   hash:
-    md5: 7db6275c318b7d06c560854e6b2b6042
-    sha256: 147b1703912e9973d071d33b20ef92ebc72b489bd8b246fbe85a83266ed0b1cc
+    md5: 3ca379d762f8d7bd727df9e2c9b30664
   category: main
   optional: false
 - name: cuda-sanitizer-api
-  version: 13.3.75
+  version: 11.8.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-sanitizer-api-13.3.75-h2e553d9_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-sanitizer-api-11.8.86-0.tar.bz2
   hash:
-    md5: 539a8b493839d5f3d670d1fc3e7fea51
-    sha256: 14bb4fb8d5ee93cd05fbde2c1febc585baa3708cf98a74dfe0fdf5b741d4b5a3
-  category: main
-  optional: false
-- name: cuda-tileiras
-  version: 13.3.36
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-nvcc-tools: ''
-    cuda-nvvm-impl: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-tileiras-13.3.36-hfa86176_1.conda
-  hash:
-    md5: 187a772efd54bca9f32582cc6a8af65d
-    sha256: 97126222c3862f32e2b59af0b1155cae75e8c60d9d14d3bafbadd7f1103f8b5d
+    md5: f0f85d83cfb619d64e4fb3d00bd6b52a
   category: main
   optional: false
 - name: cuda-toolkit
@@ -903,179 +420,48 @@ package:
     cuda-libraries-dev: '>=11.8.0'
     cuda-nvml-dev: '>=11.8.86'
     cuda-tools: '>=11.8.0'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-toolkit-11.8.0-0.tar.bz2
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-toolkit-11.8.0-0.tar.bz2
   hash:
     md5: c8daa030f9548d834f5c61b401f262fc
-    sha256: 285c012360795ec1b85620987aca60f143cf70de62341beafb2eb52193e3b5bb
   category: main
   optional: false
 - name: cuda-tools
-  version: 12.4.1
+  version: 11.8.0
   manager: conda
   platform: linux-64
   dependencies:
-    cuda-command-line-tools: '>=12.4.1'
-    cuda-visual-tools: '>=12.4.1'
-    gds-tools: '>=1.9.1.3'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-tools-12.4.1-0.tar.bz2
+    cuda-command-line-tools: '>=11.8.0'
+    cuda-visual-tools: '>=11.8.0'
+    gds-tools: '>=1.4.0.31'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-tools-11.8.0-0.tar.bz2
   hash:
-    md5: e7ee943734af40a503ae101f32e80684
-    sha256: 8c3ada6fc9b23dc591220fbaf79d3d55e4b1fc3e1fdd38fc939a0c343152340f
-  category: main
-  optional: false
-- name: cuda-version
-  version: '13.3'
-  manager: conda
-  platform: linux-64
-  dependencies: {}
-  url: https://conda.anaconda.org/nvidia/noarch/cuda-version-13.3-hcbadf70_4.conda
-  hash:
-    md5: e834e2ab8cec7873334b0e3123d61b2f
-    sha256: 21766f4ff8d288337b5d5dee70282a51ba27c96dfda88d0d479b31d0f1625568
+    md5: 75bb667ae9c91a2d37ee97d3f99cbae2
   category: main
   optional: false
 - name: cuda-visual-tools
-  version: 12.4.1
+  version: 11.8.0
   manager: conda
   platform: linux-64
   dependencies:
-    cuda-libraries-dev: '>=12.4.1'
-    cuda-libraries-static: '>=12.4.1'
-    cuda-nsight: '>=12.4.127'
-    cuda-nsight-compute: '>=12.4.1'
-    cuda-nvml-dev: '>=12.4.127'
-    cuda-nvvp: '>=12.4.127'
-  url: https://conda.anaconda.org/nvidia/linux-64/cuda-visual-tools-12.4.1-0.tar.bz2
+    cuda-libraries-dev: '>=11.8.0'
+    cuda-nsight: '>=11.8.86'
+    cuda-nsight-compute: '>=11.8.0'
+    cuda-nvml-dev: '>=11.8.86'
+    cuda-nvvp: '>=11.8.87'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/cuda-visual-tools-11.8.0-0.tar.bz2
   hash:
-    md5: acd85fcaa9c781ef505b335556ab420b
-    sha256: 91ed82c61517630fbddcb9c9d5db2171aca59dfb2af0338b8c543e39141b3af4
-  category: main
-  optional: false
-- name: cxx-compiler
-  version: 1.11.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    c-compiler: 1.11.0
-    gxx: ''
-    gxx_linux-64: 14.*
-  url: https://conda.anaconda.org/conda-forge/linux-64/cxx-compiler-1.11.0-hfcd1e18_0.conda
-  hash:
-    md5: 5da8c935dca9186673987f79cef0b2a5
-    sha256: 3fcc97ae3e89c150401a50a4de58794ffc67b1ed0e1851468fcc376980201e25
-  category: main
-  optional: false
-- name: gcc
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    gcc_impl_linux-64: 14.3.0
-  url: https://conda.anaconda.org/conda-forge/linux-64/gcc-14.3.0-hb7a6aa6_20.conda
-  hash:
-    md5: 9a1099bd27f1e0140dc884fca7899876
-    sha256: 887c7458819098d3dd95f7cfc332963e98862b1a81cb272dbc73cf3bfac6b017
-  category: main
-  optional: false
-- name: gcc_impl_linux-64
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    binutils_impl_linux-64: '>=2.46.1'
-    libgcc: '>=14.3.0'
-    libgcc-devel_linux-64: 14.3.0
-    libgomp: '>=14.3.0'
-    libsanitizer: 14.3.0
-    libstdcxx: '>=14.3.0'
-    libstdcxx-devel_linux-64: 14.3.0
-    sysroot_linux-64: ''
-  url: https://conda.anaconda.org/conda-forge/linux-64/gcc_impl_linux-64-14.3.0-h054831b_20.conda
-  hash:
-    md5: 3dea03c0b8e4347049c729287bce1d49
-    sha256: 09bb9b0d54b012c36a115e3ecebc80276df261555e847afbb3fbc7ab5566408c
-  category: main
-  optional: false
-- name: gcc_linux-64
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    gcc_impl_linux-64: 14.3.0.*
-    binutils_linux-64: ''
-    sysroot_linux-64: ''
-  url: https://conda.anaconda.org/conda-forge/linux-64/gcc_linux-64-14.3.0-h50e9bb6_27.conda
-  hash:
-    md5: 90369fa27fae2f7bf7eaaccc34c793e2
-    sha256: d7f427d6db94a5eed2a43b186f8dc17cc1fbeb03517442390a36f1cde02548b0
+    md5: 4dff31d4235b8b13870ede083de222be
   category: main
   optional: false
 - name: gds-tools
-  version: 1.9.1.3
+  version: 1.4.0.31
   manager: conda
   platform: linux-64
   dependencies:
-    libcufile: '>=1.9.1.3'
-  url: https://conda.anaconda.org/nvidia/linux-64/gds-tools-1.9.1.3-0.tar.bz2
+    libcufile: '>=1.4.0.31'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/gds-tools-1.4.0.31-0.tar.bz2
   hash:
-    md5: c434e7cafa6663ecf3953f00a099ac23
-    sha256: 786e251ef09733a120829baa842ba9ba60d1598f10475a2962c5a7597426ae55
-  category: main
-  optional: false
-- name: gmp
-  version: 6.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    libgcc-ng: '>=12'
-    libstdcxx-ng: '>=12'
-  url: https://conda.anaconda.org/conda-forge/linux-64/gmp-6.3.0-hac33072_2.conda
-  hash:
-    md5: c94a5994ef49749880a8139cf9afcbe1
-    sha256: 309cf4f04fec0c31b6771a5809a1909b4b3154a2208f52351e1ada006f4c750c
-  category: main
-  optional: false
-- name: gxx
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    gcc: 14.3.0
-    gxx_impl_linux-64: 14.3.0
-  url: https://conda.anaconda.org/conda-forge/linux-64/gxx-14.3.0-hd47ba16_20.conda
-  hash:
-    md5: 19210c7f2a4a3efeffd4a6b371f4a594
-    sha256: da5b75c145dbe8d88c77dee05075c042619c38d025c1a01b72006a0ca1aa5dfc
-  category: main
-  optional: false
-- name: gxx_impl_linux-64
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    gcc_impl_linux-64: 14.3.0
-    libstdcxx-devel_linux-64: 14.3.0
-    sysroot_linux-64: ''
-    tzdata: ''
-  url: https://conda.anaconda.org/conda-forge/linux-64/gxx_impl_linux-64-14.3.0-h99ea42b_20.conda
-  hash:
-    md5: 87c70ebae07297b78b4ae1a9438944e6
-    sha256: 8cd46d6f94a5a34181492549e1e56e5795337007289e6ca30d9ff1864f0e33c1
-  category: main
-  optional: false
-- name: gxx_linux-64
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    gxx_impl_linux-64: 14.3.0.*
-    gcc_linux-64: ==14.3.0
-    binutils_linux-64: ''
-    sysroot_linux-64: ''
-  url: https://conda.anaconda.org/conda-forge/linux-64/gxx_linux-64-14.3.0-hd240bd5_27.conda
-  hash:
-    md5: 41fae38a424bbc78438cfec6a4fde187
-    sha256: cf5a44d14732b79e3c2bc6ebe1dba4f6b9077939f3093c75e36ad340737b5c15
+    md5: 94165b72994808d935d15cc3667100c9
   category: main
   optional: false
 - name: icu
@@ -1092,17 +478,6 @@ package:
     sha256: d7c260b7e1cf22ce04d6ba8a86eabf4e6c50bc96a5c27fe2ecb32298af3e88eb
   category: main
   optional: false
-- name: kernel-headers_linux-64
-  version: 4.18.0
-  manager: conda
-  platform: linux-64
-  dependencies: {}
-  url: https://conda.anaconda.org/conda-forge/noarch/kernel-headers_linux-64-4.18.0-he073ed8_9.conda
-  hash:
-    md5: 86d9cba083cd041bfbf242a01a7a1999
-    sha256: 41557eeadf641de6aeae49486cef30d02a6912d8da98585d687894afd65b356a
-  category: main
-  optional: false
 - name: ld_impl_linux-64
   version: 2.46.1
   manager: conda
@@ -1116,338 +491,130 @@ package:
     sha256: 27d83f1188cd19bcb7754a078b3fa7f4cfb8527f8eb2fde54dd01fc529d1adec
   category: main
   optional: false
-- name: libcap
-  version: '2.78'
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libgcc: '>=14'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libcap-2.78-hd0affe5_0.conda
-  hash:
-    md5: f9f17eab7f3df1c6fd4b1a548a2f683a
-    sha256: cc8c9fc6ddf0fbd3d1275b558ae9abad6cda23bced268732e2da21a87bb358cd
-  category: main
-  optional: false
 - name: libcublas
-  version: 13.6.0.2
+  version: 11.11.3.6
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-nvrtc: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcublas-13.6.0.2-h2ef3463_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcublas-11.11.3.6-0.tar.bz2
   hash:
-    md5: ee97cfaba4a852268d23cef022e8b2c6
-    sha256: 55107f21123c30cbb47add0ab42b98ed481b85fa881fdae8f2c97a9afa953f7b
+    md5: 7700a48c99151d2b77e7838aa0852da9
   category: main
   optional: false
 - name: libcublas-dev
-  version: 13.6.0.2
+  version: 11.11.3.6
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-crt-dev_linux-64: ''
-    cuda-cudart-dev_linux-64: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcublas: 13.6.0.2
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcublas-dev-13.6.0.2-h2ef3463_0.conda
+    libcublas: '>=11.11.3.6'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcublas-dev-11.11.3.6-0.tar.bz2
   hash:
-    md5: 189492ff0515d6349f86080e2f50dea7
-    sha256: e5ca0eaf07ac8e7d91f17a5991aa3d12a8de2c95a8969b9515faf8ab100f4b18
-  category: main
-  optional: false
-- name: libcublas-static
-  version: 13.6.0.2
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-nvrtc: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcublas-static-13.6.0.2-hfa86176_0.conda
-  hash:
-    md5: 714e1043273621cf28763d76789d1237
-    sha256: edc563c71eb5a8c01526d6dd3de394ff0579e8ec45fa228c132ac92f6641b19b
+    md5: d2097d064d1437dbbcce39c3e8018a4e
   category: main
   optional: false
 - name: libcufft
-  version: 12.3.0.29
+  version: 10.9.0.58
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcufft-12.3.0.29-h919cf08_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcufft-10.9.0.58-0.tar.bz2
   hash:
-    md5: cc644d3106c69ea4f0fb0802d695e39a
-    sha256: bc6840ad7a03baa6a57f0869e38628d7aa648db85dbc2304cf654c99523b4951
+    md5: dbb21687334ce5f8e6a233cb18ee406b
   category: main
   optional: false
 - name: libcufft-dev
-  version: 12.3.0.29
+  version: 10.9.0.58
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcufft: 12.3.0.29
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcufft-dev-12.3.0.29-h919cf08_0.conda
+    libcufft: '>=10.9.0.58'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcufft-dev-10.9.0.58-0.tar.bz2
   hash:
-    md5: 6023bc5428b277fb2cb918bbcc647320
-    sha256: d5a38bc64fa9284f6a731652805200363c20b2ad889dfec597ea268b94c28f3b
-  category: main
-  optional: false
-- name: libcufft-static
-  version: 12.3.0.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcufft-static-12.3.0.29-hfa86176_0.conda
-  hash:
-    md5: e137b8561e295a63726245a60bc66d1a
-    sha256: b543f18000ce3933d607814c2b4396fb359b70316d9a77b1380acf1305b68304
+    md5: bd0ef1722efed6b4d689043a1bbd72fc
   category: main
   optional: false
 - name: libcufile
-  version: 1.18.1.6
+  version: 1.4.0.31
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-    rdma-core: '>=61.0'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcufile-1.18.1.6-hfa86176_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcufile-1.4.0.31-0.tar.bz2
   hash:
-    md5: 76efc947b889575f762df374a7d873fa
-    sha256: 87020ba612bd905aea5b70c25e818d3b96f95e4533bb13ff6ad28e0c1a5151f6
+    md5: eacba45944720ae98bea25f468a11ca7
   category: main
   optional: false
 - name: libcufile-dev
-  version: 1.18.1.6
+  version: 1.4.0.31
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcufile: 1.18.1.6
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcufile-dev-1.18.1.6-h7f349df_0.conda
+    libcufile: '>=1.4.0.31'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcufile-dev-1.4.0.31-0.tar.bz2
   hash:
-    md5: 934a874cb84c74aa14e9fe5ea8211533
-    sha256: 3365b143444313153f641cff209bb95372d6b47f1ee887fbaccafaad5bf5d35d
-  category: main
-  optional: false
-- name: libcufile-static
-  version: 1.18.1.6
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcufile-static-1.18.1.6-hfa86176_0.conda
-  hash:
-    md5: 920e31750fb44488e3edc8e266a38607
-    sha256: cbdff543c1d706833ab757356d067ed0f643e9c6e1adb52fb74636d5f85e143f
-  category: main
-  optional: false
-- name: libcuobjclient
-  version: 1.2.0.68
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcufile: '>=1.18.1.6,<1.19.0a0'
-    libgcc: '>=14'
-    libnuma: '>=2.0.18,<3.0a0'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libcuobjclient-1.2.0.68-hecca717_0.conda
-  hash:
-    md5: de178021a2b22348dbf4bb7cb070f822
-    sha256: 889c8354d6052d5cd02369e4ede7f99b6176e888e982754dbdfedf74cc3fb173
-  category: main
-  optional: false
-- name: libcuobjclient-dev
-  version: 1.2.0.68
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcuobjclient: 1.2.0.68
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libcuobjclient-dev-1.2.0.68-hecca717_0.conda
-  hash:
-    md5: 4e90722c5a8f6c876fe9b9c8c8831751
-    sha256: 9be108ac0a2f834f97f6d97618525fcdf70833a3eec38cf72dd10d787e989049
+    md5: a8dfd661b50be828ea8e58d6fdd01363
   category: main
   optional: false
 - name: libcurand
-  version: 10.4.3.29
+  version: 10.3.0.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcurand-10.4.3.29-h7a5d6f9_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcurand-10.3.0.86-0.tar.bz2
   hash:
-    md5: 4aa3289e05c4532f98d4388a40a09534
-    sha256: 440c0cc73b45b53ef912e50726539b2db20d80bd740aba7104f2220be533f743
+    md5: e0358f66f787e409b29becd898d5983f
   category: main
   optional: false
 - name: libcurand-dev
-  version: 10.4.3.29
+  version: 10.3.0.86
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcurand: 10.4.3.29
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcurand-dev-10.4.3.29-h7a5d6f9_0.conda
+    libcurand: '>=10.3.0.86'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcurand-dev-10.3.0.86-0.tar.bz2
   hash:
-    md5: 8aea649a6ddbbbd798918f399d3c8a54
-    sha256: bda0160f2539297f0ea7b1442065b6a49afc39c79baebc110232a5d7b96dda6a
-  category: main
-  optional: false
-- name: libcurand-static
-  version: 10.4.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcurand-static-10.4.3.29-hfa86176_0.conda
-  hash:
-    md5: 2c8d4e102db572d965d5b08c714b95f7
-    sha256: 2cf4878481f992f74d7cb759b6840a6b6c748f4e52c7e3f838b2505bb2f99259
+    md5: 5639b483c7c51ce2acb578444c0e10ce
   category: main
   optional: false
 - name: libcusolver
-  version: 12.2.6.9
+  version: 11.4.1.48
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcublas: ''
-    libcusparse: ''
-    libgcc: '>=14'
-    libnvjitlink: ''
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcusolver-12.2.6.9-ha24d984_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcusolver-11.4.1.48-0.tar.bz2
   hash:
-    md5: 10e4dff87497e20f4afe878702f4fcc7
-    sha256: 8060cc8f26f55aa28a9264a4f0840f2c0ba44c12872ea62c43b87238bc6daf9d
+    md5: a497123295be4e0bd221da5bf215f8b8
   category: main
   optional: false
 - name: libcusolver-dev
-  version: 12.2.6.9
+  version: 11.4.1.48
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcusolver: 12.2.6.9
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcusolver-dev-12.2.6.9-ha24d984_0.conda
+    libcusolver: '>=11.4.1.48'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcusolver-dev-11.4.1.48-0.tar.bz2
   hash:
-    md5: f989fef897e00140d201277811b3e012
-    sha256: c3c6ffc8ec34e350c6083d1e4d6f078748274ad2b1b1fcd1f455a36fef16647a
-  category: main
-  optional: false
-- name: libcusolver-static
-  version: 12.2.6.9
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcublas-static: ''
-    libcusparse-static: ''
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcusolver-static-12.2.6.9-hfa86176_0.conda
-  hash:
-    md5: 16ed0ce2eee7b892125f01b44e1d6955
-    sha256: dd93f91a98c78e171be19d8c50fdc7eb47b68f31248a2e282f3a129aa2d30e26
+    md5: eef8b2209666925de40dc52dc2bd0036
   category: main
   optional: false
 - name: libcusparse
-  version: 12.8.2.51
+  version: 11.7.5.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libnvjitlink: ''
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcusparse-12.8.2.51-hf6fa245_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcusparse-11.7.5.86-0.tar.bz2
   hash:
-    md5: 14eb7219a5b11042c384baf4e3a6201f
-    sha256: fdec80ff5f2ee381522939b58fdd416f84c12601be8932c0d8fd1c184ce7772f
+    md5: 853c37fabd07b5b91d3007afc82c3ed4
   category: main
   optional: false
 - name: libcusparse-dev
-  version: 12.8.2.51
+  version: 11.7.5.86
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libcusparse: 12.8.2.51
-    libgcc: '>=14'
-    libnvjitlink: ''
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcusparse-dev-12.8.2.51-hf6fa245_0.conda
+    libcusparse: '>=11.7.5.86'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libcusparse-dev-11.7.5.86-0.tar.bz2
   hash:
-    md5: 8c4d2a1148879546629afc5f10fd78ed
-    sha256: 8efe61d386635684e8522631247d6254edd3bd27e8f03bce852d4682ec6ec223
-  category: main
-  optional: false
-- name: libcusparse-static
-  version: 12.8.2.51
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libcusparse-static-12.8.2.51-hfa86176_0.conda
-  hash:
-    md5: 1594e24b38e1e22123c556e091774315
-    sha256: eb8209b29d5a31f668d407658177c77113eadffce221813bee6610eb1522cbef
+    md5: e0c8805b9b08087d1cce37bcc270a3e4
   category: main
   optional: false
 - name: libffi
@@ -1474,18 +641,6 @@ package:
   hash:
     md5: 3533de187cf7283f96bfdb28ad73e2bc
     sha256: e3b7bb287d1685b15781a6d9e3408d6ddaff23f5a1d0d6c0140619dd3950fe72
-  category: main
-  optional: false
-- name: libgcc-devel_linux-64
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __unix: ''
-  url: https://conda.anaconda.org/conda-forge/noarch/libgcc-devel_linux-64-14.3.0-hf649bbc_120.conda
-  hash:
-    md5: a19545f77b60b60b10385b6a654e3943
-    sha256: 9e2a3e7de26fc149707f9ff3988dc3e6a0b9534aea1bedcaa6ec9ba93dfdd013
   category: main
   optional: false
 - name: libgcc-ng
@@ -1539,63 +694,25 @@ package:
     sha256: 7858f6a173206bc8a5bdc8e75690483bb66c0dcc3809ac1cb43c561a4723623a
   category: main
   optional: false
-- name: libnl
-  version: 3.11.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libgcc: '>=13'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libnl-3.11.0-hb9d3cd8_0.conda
-  hash:
-    md5: db63358239cbe1ff86242406d440e44a
-    sha256: ba7c5d294e3d80f08ac5a39564217702d1a752e352e486210faff794ac5001b4
-  category: main
-  optional: false
 - name: libnpp
-  version: 13.1.2.81
+  version: 11.8.0.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnpp-13.1.2.81-h23d7a1b_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libnpp-11.8.0.86-0.tar.bz2
   hash:
-    md5: a072513511c65a2a2c9c51dccd8089ec
-    sha256: 06341ada2b0e71b38a87fdebb1ef5738f0f767ccc26a633b19dd9e68bf11ef0f
+    md5: 03822c4b5dae5988ba9dcb7eae837345
   category: main
   optional: false
 - name: libnpp-dev
-  version: 13.1.2.81
+  version: 11.8.0.86
   manager: conda
   platform: linux-64
   dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libnpp: 13.1.2.81
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnpp-dev-13.1.2.81-h23d7a1b_0.conda
+    libnpp: '>=11.8.0.86'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libnpp-dev-11.8.0.86-0.tar.bz2
   hash:
-    md5: b10ae25c7bcdf218289136c92af825c4
-    sha256: e54b6a34a40893d9d5148e8e208a4cc4d822fa774a17f5dd26d67a269a778791
-  category: main
-  optional: false
-- name: libnpp-static
-  version: 13.1.2.81
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnpp-static-13.1.2.81-hfa86176_0.conda
-  hash:
-    md5: 98ac0ace1d574f47003f6e45e0e79a8a
-    sha256: 3c2539ca0e50d14301b2c16deaa264b9b56f6b9a65ff0ab883b461279addb6d3
+    md5: dde377399a27bb87e124db9c8b898e32
   category: main
   optional: false
 - name: libnsl
@@ -1611,189 +728,25 @@ package:
     sha256: 927fe72b054277cde6cb82597d0fcf6baf127dcbce2e0a9d8925a68f1265eef5
   category: main
   optional: false
-- name: libnuma
-  version: 2.0.18
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libgcc: '>=14'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libnuma-2.0.18-hb03c661_3.conda
-  hash:
-    md5: 672fad24c7fedff73c684c3e9e9848b3
-    sha256: 17d72848a6480f0b0708f2b2f64292b5fa0e0996ce56f26fc26e4aebb5a9ca81
-  category: main
-  optional: false
-- name: libnvfatbin
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvfatbin-13.3.29-h159e8ec_0.conda
-  hash:
-    md5: 2788958713d9ac2ce84b24fc79c0066d
-    sha256: 2ee7bee791dc1613866529e7cd7ec274a7879a1070080e2f6911d2a9d753c9f9
-  category: main
-  optional: false
-- name: libnvfatbin-dev
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libnvfatbin: 13.3.29
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvfatbin-dev-13.3.29-h159e8ec_0.conda
-  hash:
-    md5: ca2a86951855dc58d69889d764e90e79
-    sha256: e18295ae86bc8bd59ae501c6bca5a6debcbf97454ad46a3c1392010ec702014d
-  category: main
-  optional: false
-- name: libnvfatbin-static
-  version: 13.3.29
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvfatbin-static-13.3.29-hfa86176_0.conda
-  hash:
-    md5: a5a74722ae9a6c57e74010c2072a1693
-    sha256: 7e83da205b88daa5e18d1c992c38c41b678dfe928af727bc9f8236fc3ebfb073
-  category: main
-  optional: false
-- name: libnvjitlink
-  version: 13.3.33
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvjitlink-13.3.33-h8187d64_0.conda
-  hash:
-    md5: 1a28c00110276452a7552e00197e9e34
-    sha256: 1d19a594f4ab6421585f0f68fc32b99e569ac46998629a83fadab246ec8ce57f
-  category: main
-  optional: false
-- name: libnvjitlink-dev
-  version: 13.3.33
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libnvjitlink: 13.3.33
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvjitlink-dev-13.3.33-h8187d64_0.conda
-  hash:
-    md5: 7f6482941cc24412635faa5534e54278
-    sha256: 36048cb56a5e85e50cb5510fef497d0d50a7430a1370160fee698f35519b7cf7
-  category: main
-  optional: false
-- name: libnvjitlink-static
-  version: 13.3.33
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvjitlink-static-13.3.33-hfa86176_0.conda
-  hash:
-    md5: fc9fa779a51c2785c68f5e2a54246f40
-    sha256: c08ee64c51ad4e2de645f7700e99fd3b35a280c0969115af06ee0b551ffa4e41
-  category: main
-  optional: false
 - name: libnvjpeg
-  version: 13.2.1.68
+  version: 11.9.0.86
   manager: conda
   platform: linux-64
-  dependencies:
-    __glibc: '>=2.28,<3.0.a0'
-    cuda-version: '>=13.3,<13.4.0a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvjpeg-13.2.1.68-hff2b705_0.conda
+  dependencies: {}
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libnvjpeg-11.9.0.86-0.tar.bz2
   hash:
-    md5: 411152d097fb7267412cf11228753384
-    sha256: 79ed0d9b8d0656829f6e72fd90f53e73c30327df0d653f4aeefed53ccbe4655f
+    md5: e42d6f0f20feb0cba0165d5cae33362f
   category: main
   optional: false
 - name: libnvjpeg-dev
-  version: 13.2.1.68
+  version: 11.9.0.86
   manager: conda
   platform: linux-64
   dependencies:
-    cuda-cudart-dev: ''
-    cuda-version: '>=13.3,<13.4.0a0'
-    libnvjpeg: 13.2.1.68
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvjpeg-dev-13.2.1.68-h3c12081_0.conda
+    libnvjpeg: '>=11.9.0.86'
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/libnvjpeg-dev-11.9.0.86-0.tar.bz2
   hash:
-    md5: 59803d6a098358322208cd3da7013a42
-    sha256: 72c9bfae6f691ae9cfd95204361c68c42246172f0e642a52c7adfbb14fb7ea80
-  category: main
-  optional: false
-- name: libnvjpeg-static
-  version: 13.2.1.68
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvjpeg-static-13.2.1.68-0.conda
-  hash:
-    md5: 12c786adac623882fabb881c308621f8
-    sha256: 86de460e9ce939816059cf3161ea0f8dc3de997ec0a8241c015fe65f84c89441
-  category: main
-  optional: false
-- name: libnvptxcompiler-dev
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-    libnvptxcompiler-dev_linux-64: 13.3.73
-  url: https://conda.anaconda.org/nvidia/linux-64/libnvptxcompiler-dev-13.3.73-0.conda
-  hash:
-    md5: f274de9d94c2dbe3d3867f726356fb98
-    sha256: 3ee804496b7eccefbc3c6a4f9b78263598b129103a964e2809342ea8c3e44a54
-  category: main
-  optional: false
-- name: libnvptxcompiler-dev_linux-64
-  version: 13.3.73
-  manager: conda
-  platform: linux-64
-  dependencies:
-    cuda-version: '>=13.3,<13.4.0a0'
-  url: https://conda.anaconda.org/nvidia/noarch/libnvptxcompiler-dev_linux-64-13.3.73-0.conda
-  hash:
-    md5: 96588cf680874836aa8b92ab07cd50ba
-    sha256: abb034176ad6ddd2e2e5c2d732cb65f1fae0184b690f11bf3e2371c9084c02b2
-  category: main
-  optional: false
-- name: libsanitizer
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libgcc: '>=14.3.0'
-    libstdcxx: '>=14.3.0'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libsanitizer-14.3.0-h91d2232_20.conda
-  hash:
-    md5: 1a94c6901b312ea415d280502e11e73f
-    sha256: 4b685b1da0f85f4771e1b243e66cf2cf7b2e625caa440efc082d800a4e9b091e
+    md5: 3fa3184a0180608546e54934be2e4a26
   category: main
   optional: false
 - name: libsqlite
@@ -1822,58 +775,6 @@ package:
   hash:
     md5: fbd3d5506b11b5cfc916b29263b6b6f7
     sha256: b5eadda8fb0df262f0d424c4a0c8c1c8d65d904ce622f07936c793ea1b8a39d9
-  category: main
-  optional: false
-- name: libstdcxx-devel_linux-64
-  version: 14.3.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __unix: ''
-  url: https://conda.anaconda.org/conda-forge/noarch/libstdcxx-devel_linux-64-14.3.0-h9f08a49_120.conda
-  hash:
-    md5: 0cb29441b705f9a0b251289168265642
-    sha256: 5b7fd889a648c71d71a7cdda09107c0f189aa306f77c33cd66678a56cb225e53
-  category: main
-  optional: false
-- name: libstdcxx-ng
-  version: 15.2.0
-  manager: conda
-  platform: linux-64
-  dependencies:
-    libstdcxx: 15.2.0
-  url: https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-ng-15.2.0-hdf11a46_20.conda
-  hash:
-    md5: 593dc263426eb14f16dc594bfdb9772a
-    sha256: 0b79903234f68410c11c33cb9829f7b3cb01a9ff2f42bf083dd2c51e886e6077
-  category: main
-  optional: false
-- name: libsystemd0
-  version: '257.13'
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libcap: '>=2.78,<2.79.0a0'
-    libgcc: '>=14'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libsystemd0-257.13-h084b8d7_1.conda
-  hash:
-    md5: ea0da9c20bbb221b530810c3c68bbe62
-    sha256: 2293884d59cf0436c37fc0a4bad71011a8de2a6913610d1c701a7703377c1f75
-  category: main
-  optional: false
-- name: libudev1
-  version: '257.13'
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libcap: '>=2.78,<2.79.0a0'
-    libgcc: '>=14'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libudev1-257.13-h084b8d7_1.conda
-  hash:
-    md5: 89e5671a076d99516a6acd72a35b1640
-    sha256: 287d05680e49eea51b8145fbf34bc213c0618b04f32e450e9da5d715e5134e38
   category: main
   optional: false
 - name: libuuid
@@ -1927,42 +828,13 @@ package:
   category: main
   optional: false
 - name: nsight-compute
-  version: 2024.1.1.4
+  version: 2022.3.0.22
   manager: conda
   platform: linux-64
   dependencies: {}
-  url: https://conda.anaconda.org/nvidia/linux-64/nsight-compute-2024.1.1.4-0.tar.bz2
+  url: https://conda.anaconda.org/nvidia/label/cuda-11.8.0/linux-64/nsight-compute-2022.3.0.22-0.tar.bz2
   hash:
-    md5: 217ed2ff255f52cbef787aba3f9b9637
-    sha256: 33935f28b007d3d5f584abd22485251ad7eea91b4b9f11c960a053fdd7be8a48
-  category: main
-  optional: false
-- name: ocl-icd
-  version: 2.3.4
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libgcc: '>=14'
-    opencl-headers: '>=2025.6.13'
-  url: https://conda.anaconda.org/conda-forge/linux-64/ocl-icd-2.3.4-hb03c661_1.conda
-  hash:
-    md5: c2871ba95727fd1382c05db66048b64c
-    sha256: 75f3bf733523a338f73d6c276c4a26634877cd970edb558f2769d9fa52b100a9
-  category: main
-  optional: false
-- name: opencl-headers
-  version: 2025.06.13
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libgcc: '>=14'
-    libstdcxx: '>=14'
-  url: https://conda.anaconda.org/conda-forge/linux-64/opencl-headers-2025.06.13-hecca717_0.conda
-  hash:
-    md5: c930c8052d780caa41216af7de472226
-    sha256: 8de2f0cd8a659b01abf86e7fbb8cea4f28ada62fd288429a2bbc040db1b98dd0
+    md5: a438d9120c100bcac9eb166cebdd3023
   category: main
   optional: false
 - name: openssl
@@ -1980,15 +852,15 @@ package:
   category: main
   optional: false
 - name: packaging
-  version: '26.2'
+  version: '23.2'
   manager: conda
   platform: linux-64
   dependencies:
-    python: ''
-  url: https://conda.anaconda.org/conda-forge/noarch/packaging-26.2-pyhc364b38_0.conda
+    python: '>=3.7'
+  url: https://conda.anaconda.org/conda-forge/noarch/packaging-23.2-pyhd8ed1ab_0.conda
   hash:
-    md5: 4c06a92e74452cfa53623a81592e8934
-    sha256: 3906abfb6511a3bb309e39b9b1b7bc38f50a723971de2395489fd1f379255890
+    md5: 79002079284aa895f883c6b7f3f88fd6
+    sha256: 69b3ace6cca2dab9047b2c24926077d81d236bef45329d264b394001e3c3e52f
   category: main
   optional: false
 - name: pip
@@ -2031,23 +903,6 @@ package:
     sha256: 76a5d12e73542678b70a94570f7b0f7763f9a938f77f0e75d9ea615ef22aa84c
   category: main
   optional: false
-- name: rdma-core
-  version: '63.0'
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.17,<3.0.a0'
-    libgcc: '>=14'
-    libnl: '>=3.11.0,<4.0a0'
-    libstdcxx: '>=14'
-    libsystemd0: '>=257.13'
-    libudev1: '>=257.13'
-  url: https://conda.anaconda.org/conda-forge/linux-64/rdma-core-63.0-h192683f_1.conda
-  hash:
-    md5: da47d3251c0f0d16b2801afe5a77b532
-    sha256: f0931894c751b22be09d7c976343a2957a14a59cfe0db04d916d1b93bd66ffcf
-  category: main
-  optional: false
 - name: readline
   version: '8.3'
   manager: conda
@@ -2063,29 +918,15 @@ package:
   category: main
   optional: false
 - name: setuptools
-  version: 83.0.0
+  version: 68.2.2
   manager: conda
   platform: linux-64
   dependencies:
-    python: '>=3.10'
-  url: https://conda.anaconda.org/conda-forge/noarch/setuptools-83.0.0-pyh332efcf_0.conda
+    python: '>=3.7'
+  url: https://conda.anaconda.org/conda-forge/noarch/setuptools-68.2.2-pyhd8ed1ab_0.conda
   hash:
-    md5: 6bf6acbab2499830180ec88c3aff2fa4
-    sha256: 48a9f96016505debadfc67f06de7ac548decbc38d327409b24b0432ef6f16335
-  category: main
-  optional: false
-- name: sysroot_linux-64
-  version: '2.28'
-  manager: conda
-  platform: linux-64
-  dependencies:
-    __glibc: '>=2.28'
-    kernel-headers_linux-64: 4.18.0
-    tzdata: ''
-  url: https://conda.anaconda.org/conda-forge/noarch/sysroot_linux-64-2.28-h4ee821c_9.conda
-  hash:
-    md5: 13dc3adbc692664cd3beabd216434749
-    sha256: c47299fe37aebb0fcf674b3be588e67e4afb86225be4b0d452c7eb75c086b851
+    md5: fc2166155db840c634a1291a5c35a709
+    sha256: 851901b1f8f2049edb36a675f0c3f9a98e1495ef4eb214761b048c6f696a06f7
   category: main
   optional: false
 - name: tk
@@ -2114,16 +955,15 @@ package:
   category: main
   optional: false
 - name: wheel
-  version: 0.47.0
+  version: 0.41.3
   manager: conda
   platform: linux-64
   dependencies:
-    packaging: '>=24.0'
-    python: '>=3.10'
-  url: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
+    python: '>=3.7'
+  url: https://conda.anaconda.org/conda-forge/noarch/wheel-0.41.3-pyhd8ed1ab_0.conda
   hash:
-    md5: d0e3b2f0030cf4fca58bde71d246e94c
-    sha256: 9e156ffaefb8463437144326ada4b85d1de17961b9997ac5f1cbbaf747bd8bed
+    md5: 3fc026b9c87d091c4b34a6c997324ae8
+    sha256: 84c3b57fba778add2bd47b7cc70e86f746d2c55549ffd2ccb6f3d6bf7c94d21d
   category: main
   optional: false
 - name: xz
@@ -3331,116 +2171,6 @@ package:
     sha256: 76cee0e7f96ec96d6269ee3acb4ff69e8ac2f9413e974d9eb542233ea7479bf1
   category: main
   optional: false
-- name: nvidia-cublas-cu11
-  version: 11.10.3.66
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/ce/41/fdeb62b5437996e841d83d7d2714ca75b886547ee8017ee2fe6ea409d983/nvidia_cublas_cu11-11.10.3.66-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: d32e4d75f94ddfb93ea0a5dda08389bcc65d8916a25cb9f37ac89edaeed3bded
-  category: main
-  optional: false
-- name: nvidia-cuda-cupti-cu11
-  version: 11.7.101
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/e6/9d/dd0cdcd800e642e3c82ee3b5987c751afd4f3fb9cc2752517f42c3bc6e49/nvidia_cuda_cupti_cu11-11.7.101-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: e0cfd9854e1f2edaa36ca20d21cd0bdd5dcfca4e3b9e130a082e05b33b6c5895
-  category: main
-  optional: false
-- name: nvidia-cuda-nvrtc-cu11
-  version: 11.7.99
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/ef/25/922c5996aada6611b79b53985af7999fc629aee1d5d001b6a22431e18fec/nvidia_cuda_nvrtc_cu11-11.7.99-2-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: 9f1562822ea264b7e34ed5930567e89242d266448e936b85bc97a3370feabb03
-  category: main
-  optional: false
-- name: nvidia-cuda-runtime-cu11
-  version: 11.7.99
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/36/92/89cf558b514125d2ebd8344dd2f0533404b416486ff681d5434a5832a019/nvidia_cuda_runtime_cu11-11.7.99-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: cc768314ae58d2641f07eac350f40f99dcb35719c4faff4bc458a7cd2b119e31
-  category: main
-  optional: false
-- name: nvidia-cudnn-cu11
-  version: 8.5.0.96
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/dc/30/66d4347d6e864334da5bb1c7571305e501dcb11b9155971421bb7bb5315f/nvidia_cudnn_cu11-8.5.0.96-2-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: 402f40adfc6f418f9dae9ab402e773cfed9beae52333f6d86ae3107a1b9527e7
-  category: main
-  optional: false
-- name: nvidia-cufft-cu11
-  version: 10.9.0.58
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/64/c8/133717b43182ba063803e983e7680a94826a9f4ff5734af0ca315803f1b3/nvidia_cufft_cu11-10.9.0.58-py3-none-manylinux2014_x86_64.whl
-  hash:
-    sha256: e21037259995243cc370dd63c430d77ae9280bedb68d5b5a18226bfc92e5d748
-  category: main
-  optional: false
-- name: nvidia-curand-cu11
-  version: 10.2.10.91
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/8f/11/af78d54b2420e64a4dd19e704f5bb69dcb5a6a3138b4465d6a48cdf59a21/nvidia_curand_cu11-10.2.10.91-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: eecb269c970fa599a2660c9232fa46aaccbf90d9170b96c462e13bcb4d129e2c
-  category: main
-  optional: false
-- name: nvidia-cusolver-cu11
-  version: 11.4.0.1
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/3e/77/66149e3153b19312fb782ea367f3f950123b93916a45538b573fe373570a/nvidia_cusolver_cu11-11.4.0.1-2-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: 72fa7261d755ed55c0074960df5904b65e2326f7adce364cbe4945063c1be412
-  category: main
-  optional: false
-- name: nvidia-cusparse-cu11
-  version: 11.7.4.91
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/ea/6f/6d032cc1bb7db88a989ddce3f4968419a7edeafda362847f42f614b1f845/nvidia_cusparse_cu11-11.7.4.91-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: a3389de714db63321aa11fbec3919271f415ef19fda58aed7f2ede488c32733d
-  category: main
-  optional: false
-- name: nvidia-nccl-cu11
-  version: 2.14.3
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/55/92/914cdb650b6a5d1478f83148597a25e90ea37d739bd563c5096b0e8a5f43/nvidia_nccl_cu11-2.14.3-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: 5e5534257d1284b8e825bc3a182c6f06acd6eb405e9f89d49340e98cd8f136eb
-  category: main
-  optional: false
-- name: nvidia-nvtx-cu11
-  version: 11.7.91
-  manager: pip
-  platform: linux-64
-  dependencies: {}
-  url: https://files.pythonhosted.org/packages/23/d5/09493ff0e64fd77523afbbb075108f27a13790479efe86b9ffb4587671b5/nvidia_nvtx_cu11-11.7.91-py3-none-manylinux1_x86_64.whl
-  hash:
-    sha256: b22c64eee426a62fc00952b507d6d29cf62b4c9df7a480fcc417e540e05fd5ac
-  category: main
-  optional: false
 - name: open3d
   version: 0.19.0
   manager: pip
@@ -3489,13 +2219,13 @@ package:
   category: main
   optional: false
 - name: packaging
-  version: '26.2'
+  version: '23.2'
   manager: pip
   platform: linux-64
   dependencies: {}
-  url: https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl
+  url: https://files.pythonhosted.org/packages/ec/1a/610693ac4ee14fcdf2d9bf3c493370e4f2ef7ae2e19217d7a237ff42367d/packaging-23.2-py3-none-any.whl
   hash:
-    sha256: 5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e
+    sha256: 8c491190033a9af7e1d931d0b5dacc2ef47509b34dd0de67ed209b5203fc88c7
   category: main
   optional: false
 - name: pandas
@@ -4000,13 +2730,13 @@ package:
   category: main
   optional: false
 - name: setuptools
-  version: 83.0.0
+  version: 68.2.2
   manager: pip
   platform: linux-64
   dependencies: {}
-  url: https://files.pythonhosted.org/packages/5d/40/e1e72872c6354b306daef1703549e8e83b4d43cfea356311bf722a043752/setuptools-83.0.0-py3-none-any.whl
+  url: https://files.pythonhosted.org/packages/bb/26/7945080113158354380a12ce26873dd6c1ebd88d47f5bc24e2c5bb38c16a/setuptools-68.2.2-py3-none-any.whl
   hash:
-    sha256: 29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3
+    sha256: b454a35605876da60632df1a60f736524eb73cc47bbc9f3f1ef1b644de74fd2a
   category: main
   optional: false
 - name: shapely
@@ -4175,7 +2905,7 @@ package:
   category: main
   optional: false
 - name: torch
-  version: 2.0.1
+  version: 2.0.1+cu118
   manager: pip
   platform: linux-64
   dependencies:
@@ -4184,24 +2914,31 @@ package:
     sympy: '*'
     networkx: '*'
     jinja2: '*'
-  url: https://files.pythonhosted.org/packages/8c/4d/17e07377c9c3d1a0c4eb3fde1c7c16b5a0ce6133ddbabc08ceef6b7f2645/torch-2.0.1-cp310-cp310-manylinux1_x86_64.whl
+    triton: 2.0.0
+  url: https://download-r2.pytorch.org/whl/cu118/torch-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl
   hash:
-    sha256: 8ced00b3ba471856b993822508f77c98f48a458623596a4c43136158781e306a
+    sha256: a7a49d459bf4862f64f7bc1a68beccf8881c2fa9f3e0569608e16ba6f85ebf7b
   category: main
+  source:
+    type: url
+    url: https://download-r2.pytorch.org/whl/cu118/torch-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl#sha256=a7a49d459bf4862f64f7bc1a68beccf8881c2fa9f3e0569608e16ba6f85ebf7b
   optional: false
 - name: torchvision
-  version: 0.15.2
+  version: 0.15.2+cu118
   manager: pip
   platform: linux-64
   dependencies:
     numpy: '*'
     requests: '*'
-    torch: 2.0.1
+    torch: 2.0.1+cu118
     pillow: '>=5.3.0,<8.3.0 || >=8.4.0'
-  url: https://files.pythonhosted.org/packages/87/0f/88f023bf6176d9af0f85feedf4be129f9cf2748801c4d9c690739a10c100/torchvision-0.15.2-cp310-cp310-manylinux1_x86_64.whl
+  url: https://download-r2.pytorch.org/whl/cu118/torchvision-0.15.2%2Bcu118-cp310-cp310-linux_x86_64.whl
   hash:
-    sha256: 54143f7cc0797d199b98a53b7d21c3f97615762d4dd17ad45a41c7e80d880e73
+    sha256: 19ca4ab5d6179bbe53cff79df1a855ee6533c2861ddc7389f68349d8b9f8302a
   category: main
+  source:
+    type: url
+    url: https://download-r2.pytorch.org/whl/cu118/torchvision-0.15.2%2Bcu118-cp310-cp310-linux_x86_64.whl#sha256=19ca4ab5d6179bbe53cff79df1a855ee6533c2861ddc7389f68349d8b9f8302a
   optional: false
 - name: tqdm
   version: 4.69.1
@@ -4238,7 +2975,11 @@ package:
   version: 2.0.0
   manager: pip
   platform: linux-64
-  dependencies: {}
+  dependencies:
+    cmake: '*'
+    filelock: '*'
+    torch: '*'
+    lit: '*'
   url: https://files.pythonhosted.org/packages/ca/31/ff6be541195daf77aa5c72303b2354661a69e717967d44d91eb4f3fdce32/triton-2.0.0-1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
   hash:
     sha256: 38806ee9663f4b0f7cd64790e96c579374089e58f49aac4a6608121aa55e2505
@@ -4332,13 +3073,13 @@ package:
   category: main
   optional: false
 - name: wheel
-  version: 0.47.0
+  version: 0.41.3
   manager: pip
   platform: linux-64
   dependencies: {}
-  url: https://files.pythonhosted.org/packages/87/1b/9e33c09813d65e248f7f773119148a612516a4bea93e9c6f545f78455b7c/wheel-0.47.0-py3-none-any.whl
+  url: https://files.pythonhosted.org/packages/fa/7f/4c07234086edbce4a0a446209dc0cb08a19bb206a3ea53b2f56a403f983b/wheel-0.41.3-py3-none-any.whl
   hash:
-    sha256: 212281cab4dff978f6cedd499cd893e1f620791ca6ff7107cf270781e587eced
+    sha256: 488609bc63a29322326e05560731bf7bfea8e48ad646e1f5e40d366607de0942
   category: main
   optional: false
 - name: widgetsnbextension

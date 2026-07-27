@@ -58,8 +58,8 @@ MICROMAMBA_IMAGE = (
 )
 
 PACKAGE_VERSIONS = {
-    "torch": "2.0.1",
-    "torchvision": "0.15.2",
+    "torch": "2.0.1+cu118",
+    "torchvision": "0.15.2+cu118",
     "numpy": "1.24.4",
     "mmengine": "0.10.7",
     "mmcv": "2.1.0",
@@ -92,6 +92,9 @@ def _complete_seed_lock(seed_path: Path, *, conda_hash: str = "c" * 32) -> None:
     for name, version in {
         "python": "3.10.14",
         "pip": "23.3.2",
+        "setuptools": "68.2.2",
+        "wheel": "0.41.3",
+        "packaging": "23.2",
         "cuda": "11.8.0",
         "cuda-toolkit": "11.8.0",
     }.items():
@@ -824,7 +827,7 @@ def test_committed_pip_report_is_the_audited_native_linux_input() -> None:
     # Production break caught: replacing the audited report with a regenerated
     # or host-native report silently changes the runtime closure.
     assert hashlib.sha256(PIP_REPORT.read_bytes()).hexdigest() == (
-        "657151ac1fa38d384c9afaf8e61774263af41aa134deea6f476455281fdf014d"
+        "7f42b38a7734de6f14e8985e84df8d719e97742b9795b9f7fcad99d21e08ad64"
     )
 
     report = _committed_pip_report()
@@ -834,7 +837,42 @@ def test_committed_pip_report_is_the_audited_native_linux_input() -> None:
     assert report["environment"]["platform_system"] == "Linux"
     assert report["environment"]["platform_machine"] == "x86_64"
     assert report["environment"]["python_full_version"] == "3.10.14"
-    assert len(report["install"]) == 190
+    assert len(report["install"]) == 179
+
+
+def test_committed_pip_report_preserves_compatible_build_toolchain() -> None:
+    report = _committed_pip_report()
+    versions = {
+        re.sub(r"[-_.]+", "-", item["metadata"]["name"]).lower(): item[
+            "metadata"
+        ]["version"]
+        for item in report["install"]
+    }
+
+    assert versions["setuptools"] == "68.2.2"
+    assert versions["wheel"] == "0.41.3"
+    assert versions["packaging"] == "23.2"
+
+
+def test_committed_pip_report_uses_official_cuda_11_8_torch_wheels() -> None:
+    report = _committed_pip_report()
+    artifacts = {
+        re.sub(r"[-_.]+", "-", item["metadata"]["name"]).lower(): item
+        for item in report["install"]
+    }
+
+    assert artifacts["torch"]["metadata"]["version"] == "2.0.1+cu118"
+    assert artifacts["torchvision"]["metadata"]["version"] == "0.15.2+cu118"
+    assert artifacts["torch"]["download_info"]["url"].startswith(
+        "https://download-r2.pytorch.org/whl/cu118/"
+    )
+    assert artifacts["torchvision"]["download_info"]["url"].startswith(
+        "https://download-r2.pytorch.org/whl/cu118/"
+    )
+    assert not any(
+        name.startswith("nvidia-") and name.endswith("-cu11")
+        for name in artifacts
+    )
 
 
 @pytest.mark.parametrize(
@@ -847,6 +885,7 @@ def test_committed_pip_report_is_the_audited_native_linux_input() -> None:
         ("missing_hash", "SHA-256"),
         ("credentialed_url", "credential"),
         ("direct_version_drift", "torch"),
+        ("cu118_source_drift", "official CUDA 11.8"),
     ],
 )
 def test_seed_rejects_unaudited_pip_report_mutations(
@@ -877,6 +916,13 @@ def test_seed_rejects_unaudited_pip_report_mutations(
             item for item in report["install"] if item["metadata"]["name"] == "torch"
         )
         torch["metadata"]["version"] = "2.0.0"
+    elif production_break == "cu118_source_drift":
+        torch = next(
+            item for item in report["install"] if item["metadata"]["name"] == "torch"
+        )
+        torch["download_info"]["url"] = (
+            "https://files.pythonhosted.org/drifted/torch-2.0.1+cu118.whl"
+        )
     else:  # pragma: no cover - the table above is exhaustive
         raise AssertionError(production_break)
 
@@ -907,7 +953,7 @@ def test_seed_lock_is_deterministic_pip_only_and_preserves_report_artifacts() ->
 
     assert isinstance(first, Lockfile)
     assert first.dict() == second.dict()
-    assert len(first.package) == 190
+    assert len(first.package) == 179
     assert all(isinstance(package, LockedDependency) for package in first.package)
     assert all(package.manager == "pip" for package in first.package)
     assert [package.name for package in first.package] == sorted(
@@ -942,6 +988,48 @@ def test_seed_adapter_refuses_unpinned_conda_lock_runtime(
             PACKAGE_VERSIONS,
             _runtime_environment(),
         )
+
+
+def test_cu118_wheel_cache_is_optional_and_rejects_wrong_hash(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _seed_module()
+    monkeypatch.delenv("RESILIENT_V2X_CU118_WHEEL_CACHE", raising=False)
+    assert module._validated_cu118_wheel_cache() is None
+
+    wrong_wheel = tmp_path / "torch-cu118.whl"
+    wrong_wheel.write_bytes(b"not the audited torch wheel")
+    monkeypatch.setenv("RESILIENT_V2X_CU118_WHEEL_CACHE", str(wrong_wheel))
+    with pytest.raises(module.PipReportMismatch, match="SHA-256"):
+        module._validated_cu118_wheel_cache()
+
+
+def test_old_poetry_normalizes_only_torchvision_cu118_torch_dependency() -> None:
+    module = _seed_module()
+
+    class Dependency:
+        name = "torch"
+        constraint = "2.0.1"
+        _pretty_constraint = "2.0.1"
+
+        def set_constraint(self, value: str) -> None:
+            self.constraint = value
+
+    dependency = Dependency()
+    package = type(
+        "Package",
+        (),
+        {
+            "name": "torchvision",
+            "version": "0.15.2+cu118",
+            "requires": [dependency],
+        },
+    )()
+
+    assert module._normalize_torchvision_cu118_dependency(package) is package
+    assert dependency.constraint == "2.0.1+cu118"
+    assert dependency._pretty_constraint == "2.0.1+cu118"
 
 
 def test_standard_handoff_uses_pinned_conda_lock_command(
@@ -1155,7 +1243,7 @@ from conda_lock.pypi_solver import PlatformEnv, Pool, get_requirements
 seed = parse_conda_lock_file(
     Path(os.environ["RESILIENT_V2X_CONDA_LOCK_SEED_SNAPSHOT"])
 )
-assert len(seed.package) == 190
+assert len(seed.package) == 179
 assert not (
     Path(os.environ["RESILIENT_V2X_CONDA_LOCK_SEED_SNAPSHOT"]).stat().st_mode
     & 0o222
@@ -1191,7 +1279,7 @@ actual = {
     )
     for package in requirements
 }
-assert len(requirements) == 190
+assert len(requirements) == 179
 assert actual == expected
 """
         real_run(
@@ -1283,7 +1371,7 @@ def test_runtime_lock_generation_hands_seed_to_standard_solver_then_audits(
         assert platform == "linux-64"
         assert not output.exists()
         seed = parse_conda_lock_file(seed_path)
-        assert len(seed.package) == 190
+        assert len(seed.package) == 179
         assert all(package.manager == "pip" for package in seed.package)
         _complete_seed_lock(seed_path)
 
@@ -1297,8 +1385,10 @@ def test_runtime_lock_generation_hands_seed_to_standard_solver_then_audits(
     ) == output
 
     final = parse_conda_lock_file(output)
-    assert len([package for package in final.package if package.manager == "pip"]) == 190
-    assert len([package for package in final.package if package.manager == "conda"]) == 4
+    assert len([package for package in final.package if package.manager == "pip"]) == 179
+    assert len(
+        [package for package in final.package if package.manager == "conda"]
+    ) == len(module.EXPECTED_CONDA_PINS)
     module.verify_final_runtime_lock(
         output,
         _committed_pip_report(),
@@ -1524,6 +1614,57 @@ def test_runtime_lock_has_hashes_and_matches_all_constraints() -> None:
     assert re.fullmatch(r"[0-9a-f]{64}", audited["lock_sha256"])
 
 
+def test_runtime_environment_pins_cuda_channel_and_build_toolchain() -> None:
+    environment = yaml.safe_load(ENVIRONMENT.read_text())
+
+    assert environment["channels"] == [
+        "pytorch",
+        "nvidia/label/cuda-11.8.0",
+        "conda-forge",
+    ]
+    assert environment["dependencies"][:7] == [
+        "python=3.10.14",
+        "pip=23.3.2",
+        "setuptools=68.2.2",
+        "wheel=0.41.3",
+        "packaging=23.2",
+        "cuda=11.8.0",
+        "cuda-toolkit=11.8.0",
+    ]
+    assert environment["dependencies"][7]["pip"][:2] == [
+        "torch @ https://download-r2.pytorch.org/whl/cu118/"
+        "torch-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl"
+        "#sha256=a7a49d459bf4862f64f7bc1a68beccf8881c2fa9f3e0569608e16ba6f85ebf7b",
+        "torchvision @ https://download-r2.pytorch.org/whl/cu118/"
+        "torchvision-0.15.2%2Bcu118-cp310-cp310-linux_x86_64.whl"
+        "#sha256=19ca4ab5d6179bbe53cff79df1a855ee6533c2861ddc7389f68349d8b9f8302a",
+    ]
+
+
+def test_runtime_lock_keeps_nvidia_packages_on_cuda_11_8_label() -> None:
+    lock = parse_conda_lock_file(RUNTIME_LOCK)
+    conda_packages = {
+        package.name: package
+        for package in lock.package
+        if package.manager == "conda" and package.platform == "linux-64"
+    }
+    nvidia_packages = [
+        package
+        for package in conda_packages.values()
+        if "conda.anaconda.org/nvidia/" in package.url
+    ]
+
+    assert conda_packages["setuptools"].version == "68.2.2"
+    assert conda_packages["wheel"].version == "0.41.3"
+    assert conda_packages["packaging"].version == "23.2"
+    assert conda_packages["cuda-runtime"].version == "11.8.0"
+    assert nvidia_packages
+    assert all(
+        "conda.anaconda.org/nvidia/label/cuda-11.8.0/" in package.url
+        for package in nvidia_packages
+    )
+
+
 def test_bootstrap_spec_is_minimal_and_exact() -> None:
     environment = yaml.safe_load(BOOTSTRAP_ENVIRONMENT.read_text())
 
@@ -1572,7 +1713,8 @@ def test_dockerfile_installs_only_from_generated_locks() -> None:
     assert "micromamba install" not in lower
     assert "micromamba create --yes --prefix /opt/bootstrap --file" in lower
     assert (
-        "/opt/bootstrap/bin/conda-lock install --prefix /opt/resilient-v2x "
+        "/opt/bootstrap/bin/conda-lock install --micromamba "
+        "--prefix /opt/resilient-v2x "
         "/tmp/environment-linux-64.lock.yml"
     ) in lower
     assert "conda env create" not in lower

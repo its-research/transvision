@@ -36,20 +36,24 @@ DEFAULT_CONSTRAINTS = ENVIRONMENT_DIR / "constraints.txt"
 DEFAULT_ENVIRONMENT = ENVIRONMENT_DIR / "environment.yml"
 DEFAULT_OUTPUT = ENVIRONMENT_DIR / "environment-linux-64.lock.yml"
 SUPPORTED_PLATFORM = "linux-64"
-EXPECTED_PIP_REPORT_COUNT = 190
+EXPECTED_PIP_REPORT_COUNT = 179
 EXPECTED_PYTHON = "3.10.14"
 EXPECTED_PIP = "23.3.2"
 EXPECTED_CONDA_LOCK = "2.5.7"
 EXPECTED_CUDA = "11.8.0"
-EXPECTED_CHANNELS = ("pytorch", "nvidia", "conda-forge")
+EXPECTED_CHANNELS = (
+    "pytorch",
+    "nvidia/label/cuda-11.8.0",
+    "conda-forge",
+)
 AUDITED_MANYLINUX_TAGS = ("_2_31", "_2_34")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 MD5 = re.compile(r"^[0-9a-f]{32}$")
 MANYLINUX_X86_64 = re.compile(r"manylinux_2_(\d+)_x86_64")
 
 APPROVED_CONSTRAINTS = {
-    "torch": "2.0.1",
-    "torchvision": "0.15.2",
+    "torch": "2.0.1+cu118",
+    "torchvision": "0.15.2+cu118",
     "numpy": "1.24.4",
     "mmengine": "0.10.7",
     "mmcv": "2.1.0",
@@ -66,9 +70,36 @@ APPROVED_CONSTRAINTS = {
 EXPECTED_CONDA_PINS = {
     "python": EXPECTED_PYTHON,
     "pip": EXPECTED_PIP,
+    "setuptools": "68.2.2",
+    "wheel": "0.41.3",
+    "packaging": "23.2",
     "cuda": EXPECTED_CUDA,
     "cuda-toolkit": EXPECTED_CUDA,
 }
+EXPECTED_BUILD_TOOLCHAIN = {
+    "setuptools": "68.2.2",
+    "wheel": "0.41.3",
+    "packaging": "23.2",
+}
+EXPECTED_CU118_ARTIFACTS = {
+    "torch": (
+        "2.0.1+cu118",
+        "https://download-r2.pytorch.org/whl/cu118/"
+        "torch-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl",
+        "a7a49d459bf4862f64f7bc1a68beccf8881c2fa9f3e0569608e16ba6f85ebf7b",
+    ),
+    "torchvision": (
+        "0.15.2+cu118",
+        "https://download-r2.pytorch.org/whl/cu118/"
+        "torchvision-0.15.2%2Bcu118-cp310-cp310-linux_x86_64.whl",
+        "19ca4ab5d6179bbe53cff79df1a855ee6533c2861ddc7389f68349d8b9f8302a",
+    ),
+}
+EXPECTED_CU118_REQUIREMENTS = {
+    name: f"{name} @ {url}#sha256={digest}"
+    for name, (_, url, digest) in EXPECTED_CU118_ARTIFACTS.items()
+}
+CU118_WHEEL_CACHE_ENV = "RESILIENT_V2X_CU118_WHEEL_CACHE"
 
 
 class PipReportMismatch(RuntimeError):
@@ -77,6 +108,54 @@ class PipReportMismatch(RuntimeError):
 
 def _canonical_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _validated_cu118_wheel_cache() -> Path | None:
+    raw_path = os.environ.get(CU118_WHEEL_CACHE_ENV)
+    if not raw_path:
+        return None
+    try:
+        cache_path = Path(raw_path).resolve(strict=True)
+        if not cache_path.is_file():
+            raise OSError("cache path is not a regular file")
+        digest = hashlib.sha256()
+        with cache_path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as error:
+        raise PipReportMismatch(
+            f"cannot read {CU118_WHEEL_CACHE_ENV}: {error}"
+        ) from error
+    expected_digest = EXPECTED_CU118_ARTIFACTS["torch"][2]
+    if digest.hexdigest() != expected_digest:
+        raise PipReportMismatch(
+            f"{CU118_WHEEL_CACHE_ENV} SHA-256 does not match the audited torch wheel"
+        )
+    return cache_path
+
+
+def _normalize_torchvision_cu118_dependency(package: object) -> object:
+    if (
+        getattr(package, "name", None) != "torchvision"
+        or str(getattr(package, "version", "")) != "0.15.2+cu118"
+    ):
+        return package
+    torch_dependencies = [
+        dependency
+        for dependency in getattr(package, "requires", ())
+        if getattr(dependency, "name", None) == "torch"
+    ]
+    if (
+        len(torch_dependencies) != 1
+        or str(torch_dependencies[0].constraint) != "2.0.1"
+    ):
+        raise PipReportMismatch(
+            "torchvision 0.15.2+cu118 torch dependency metadata changed"
+        )
+    dependency = torch_dependencies[0]
+    dependency.set_constraint("2.0.1+cu118")
+    dependency._pretty_constraint = "2.0.1+cu118"
+    return package
 
 
 def _require_runtime() -> None:
@@ -160,12 +239,28 @@ def _validate_environment(environment: Mapping[str, object]) -> None:
         raise PipReportMismatch("environment pip dependencies must be a list")
     parsed: dict[str, str] = {}
     for dependency in pip_dependencies:
-        if not isinstance(dependency, str) or dependency.count("==") != 1:
+        if not isinstance(dependency, str):
             raise PipReportMismatch(
                 f"pip dependency is not an exact pin: {dependency!r}"
             )
-        name, version = dependency.split("==", 1)
-        canonical = _canonical_name(name)
+        direct_name = next(
+            (
+                name
+                for name, requirement in EXPECTED_CU118_REQUIREMENTS.items()
+                if dependency == requirement
+            ),
+            None,
+        )
+        if direct_name is not None:
+            canonical = direct_name
+            version = EXPECTED_CU118_ARTIFACTS[direct_name][0]
+        elif dependency.count("==") == 1:
+            name, version = dependency.split("==", 1)
+            canonical = _canonical_name(name)
+        else:
+            raise PipReportMismatch(
+                f"pip dependency is not an exact pin: {dependency!r}"
+            )
         if canonical in parsed:
             raise PipReportMismatch(f"duplicate environment pip pin for {canonical}")
         parsed[canonical] = version
@@ -335,7 +430,31 @@ def _report_artifacts(
 
     if len(install) != EXPECTED_PIP_REPORT_COUNT:
         raise PipReportMismatch(
-            f"pip report must contain exactly 190 artifacts; found {len(install)}"
+            "pip report must contain exactly "
+            f"{EXPECTED_PIP_REPORT_COUNT} artifacts; found {len(install)}"
+        )
+    for name, expected_version in EXPECTED_BUILD_TOOLCHAIN.items():
+        resolved = artifacts.get(name)
+        if resolved is None or resolved[0] != expected_version:
+            actual_version = None if resolved is None else resolved[0]
+            raise PipReportMismatch(
+                f"pip report build tool {name} must be {expected_version}; "
+                f"found {actual_version}"
+            )
+    for name, expected_artifact in EXPECTED_CU118_ARTIFACTS.items():
+        if artifacts.get(name) != expected_artifact:
+            raise PipReportMismatch(
+                f"pip report {name} must use the audited official CUDA 11.8 artifact"
+            )
+    legacy_cuda_packages = sorted(
+        name
+        for name in artifacts
+        if name.startswith("nvidia-") and name.endswith("-cu11")
+    )
+    if legacy_cuda_packages:
+        raise PipReportMismatch(
+            "pip report contains legacy CUDA 11.7 package artifacts: "
+            f"{legacy_cuda_packages!r}"
         )
     if requested != constraints:
         missing = sorted(set(constraints) - set(requested))
@@ -545,6 +664,7 @@ def _run_standard_conda_lock(
     seed_path: Path,
     platform: Literal["linux-64"],
 ) -> None:
+    cached_cu118_wheel = _validated_cu118_wheel_cache()
     required_manylinux_tags: set[str] = set()
     try:
         seed = parse_conda_lock_file(seed_path)
@@ -601,15 +721,57 @@ def _run_standard_conda_lock(
         environment_snapshot = compatibility_root / "environment.yml"
         shutil.copyfile(environment_path, environment_snapshot)
         environment_snapshot.chmod(0o400)
-        (compatibility_root / "sitecustomize.py").write_text(
-            """\
+        compatibility_source = """\
+import hashlib as _hashlib
 import os as _os
 import re as _re
+import shutil as _shutil
 from pathlib import Path as _Path
+from urllib.parse import urldefrag as _urldefrag
 
 from conda_lock.lockfile import parse_conda_lock_file as _parse_lock
 import conda_lock.pypi_solver as _solver
 import conda_lock.src_parser.environment_yaml as _environment_yaml
+import conda_lock._vendor.poetry.puzzle.provider as _provider
+from tools.resilient_v2x.seed_runtime_lock import (
+    _normalize_torchvision_cu118_dependency as _normalize_torchvision,
+)
+
+_cached_cu118_wheel = _os.environ.get("RESILIENT_V2X_CU118_WHEEL_CACHE")
+if _cached_cu118_wheel:
+    _cached_cu118_path = _Path(_cached_cu118_wheel).resolve(strict=True)
+    _cached_cu118_digest = _hashlib.sha256()
+    with _cached_cu118_path.open("rb") as _cached_cu118_stream:
+        for _cached_cu118_chunk in iter(
+            lambda: _cached_cu118_stream.read(1024 * 1024),
+            b"",
+        ):
+            _cached_cu118_digest.update(_cached_cu118_chunk)
+    if _cached_cu118_digest.hexdigest() != "__CU118_TORCH_SHA256__":
+        raise RuntimeError("cached ResilientV2X cu118 wheel SHA-256 changed")
+    _original_download_file = _provider.download_file
+
+    def _with_cached_cu118_wheel(url, dest, session=None, chunk_size=1024):
+        if _urldefrag(url)[0] == "__CU118_TORCH_URL__":
+            _shutil.copyfile(_cached_cu118_path, dest)
+            return
+        return _original_download_file(
+            url,
+            dest,
+            session=session,
+            chunk_size=chunk_size,
+        )
+
+    _provider.download_file = _with_cached_cu118_wheel
+
+_original_get_package_from_url = _provider.Provider.get_package_from_url
+
+def _with_normalized_cu118_dependency(cls, url):
+    return _normalize_torchvision(_original_get_package_from_url(url))
+
+_provider.Provider.get_package_from_url = classmethod(
+    _with_normalized_cu118_dependency
+)
 
 _allowed = {"_2_31", "_2_34"}
 _requested = tuple(
@@ -681,7 +843,7 @@ _seed_path = _Path(
     _os.environ["RESILIENT_V2X_CONDA_LOCK_SEED_SNAPSHOT"]
 )
 _seed = _parse_lock(_seed_path)
-if len(_seed.package) != 190:
+if len(_seed.package) != 179:
     raise RuntimeError(
         "unexpected ResilientV2X audited seed size: "
         + repr(len(_seed.package))
@@ -738,8 +900,21 @@ def _with_missing_audited_seed_records(*args, **kwargs):
 
 _solver.get_requirements = _with_missing_audited_seed_records
 """
+        compatibility_source = compatibility_source.replace(
+            "__CU118_TORCH_URL__",
+            EXPECTED_CU118_ARTIFACTS["torch"][1],
+        ).replace(
+            "__CU118_TORCH_SHA256__",
+            EXPECTED_CU118_ARTIFACTS["torch"][2],
+        )
+        (compatibility_root / "sitecustomize.py").write_text(
+            compatibility_source
         )
         child_environment = os.environ.copy()
+        if cached_cu118_wheel is not None:
+            child_environment[CU118_WHEEL_CACHE_ENV] = str(cached_cu118_wheel)
+        else:
+            child_environment.pop(CU118_WHEEL_CACHE_ENV, None)
         child_environment[
             "RESILIENT_V2X_CONDA_LOCK_MANYLINUX_TAGS"
         ] = ",".join(sorted(required_manylinux_tags))
@@ -749,12 +924,11 @@ _solver.get_requirements = _with_missing_audited_seed_records
         child_environment[
             "RESILIENT_V2X_CONDA_LOCK_ENVIRONMENT_SNAPSHOT"
         ] = str(environment_snapshot)
+        python_paths = [str(compatibility_root), str(ROOT)]
         existing_pythonpath = child_environment.get("PYTHONPATH")
-        child_environment["PYTHONPATH"] = (
-            str(compatibility_root)
-            if not existing_pythonpath
-            else str(compatibility_root) + os.pathsep + existing_pythonpath
-        )
+        if existing_pythonpath:
+            python_paths.append(existing_pythonpath)
+        child_environment["PYTHONPATH"] = os.pathsep.join(python_paths)
         subprocess.run(command, check=True, env=child_environment)
 
 

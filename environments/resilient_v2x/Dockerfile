@@ -15,7 +15,7 @@ RUN micromamba create --yes --prefix /opt/bootstrap --file /tmp/bootstrap-linux-
     && micromamba clean --all --yes
 
 COPY environments/resilient_v2x/environment-linux-64.lock.yml /tmp/environment-linux-64.lock.yml
-RUN /opt/bootstrap/bin/conda-lock install --prefix /opt/resilient-v2x /tmp/environment-linux-64.lock.yml
+RUN /opt/bootstrap/bin/conda-lock install --micromamba --prefix /opt/resilient-v2x /tmp/environment-linux-64.lock.yml
 
 WORKDIR /workspace/transvision
 COPY setup.py setup.cfg MANIFEST.in README.md /workspace/transvision/
@@ -24,7 +24,7 @@ COPY transvision /workspace/transvision/transvision
 COPY configs /workspace/transvision/configs
 COPY tools /workspace/transvision/tools
 COPY scripts/build_resilient_v2x_ops.sh /workspace/transvision/scripts/build_resilient_v2x_ops.sh
-RUN /opt/resilient-v2x/bin/python -c "import sys, torch, mmengine, mmcv, mmdet, mmdet3d; assert sys.version_info[:2] == (3, 10); assert torch.__version__.split('+')[0] == '2.0.1'; assert mmengine.__version__ == '0.10.7'; assert mmcv.__version__ == '2.1.0'; assert mmdet.__version__ == '3.2.0'; assert mmdet3d.__version__ == '1.3.0'" \
+RUN /opt/resilient-v2x/bin/python -c "import sys, torch, torchvision, mmengine, mmcv, mmdet, mmdet3d; assert sys.version_info[:2] == (3, 10); assert torch.__version__ == '2.0.1+cu118'; assert torchvision.__version__ == '0.15.2+cu118'; assert torch.version.cuda == '11.8'; assert mmengine.__version__ == '0.10.7'; assert mmcv.__version__ == '2.1.0'; assert mmdet.__version__ == '3.2.0'; assert mmdet3d.__version__ == '1.3.0'" \
     && /bin/bash scripts/build_resilient_v2x_ops.sh \
     && groupadd --gid 10001 resilient-v2x \
     && useradd --uid 10001 --gid 10001 --create-home --shell /bin/bash resilient-v2x \
