@@ -19,6 +19,23 @@ _MANIFEST_EXPORTS = (
     "release_inventory_sha256",
     "load_temporal_manifest",
 )
+_SCHEDULE_EXPORTS = (
+    "ScheduleError",
+    "TransportPlan",
+    "FaultPlan",
+    "ArrivalRelativeFaultPlan",
+    "OverlayDigest",
+    "TransportOverlayRecord",
+    "FaultOverlayRecord",
+    "stable_uint64",
+    "bernoulli_from_hash",
+    "delay_from_hash",
+    "write_transport_overlay",
+    "write_fault_overlay",
+    "write_arrival_relative_fault_overlay",
+    "read_overlay",
+    "augmentation_seed",
+)
 __all__ = (
     *_MANIFEST_EXPORTS,
     "SUPPROTED_DATASETS",
@@ -29,6 +46,11 @@ __all__ = (
 def __getattr__(name: str) -> object:
     if name in _MANIFEST_EXPORTS:
         module = import_module(".resilient_v2x_manifest", __name__)
+        value = getattr(module, name)
+        globals()[name] = value
+        return value
+    if name in _SCHEDULE_EXPORTS:
+        module = import_module(".resilient_v2x_schedule", __name__)
         value = getattr(module, name)
         globals()[name] = value
         return value
