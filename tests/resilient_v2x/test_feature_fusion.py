@@ -30,9 +30,7 @@ def _supported(
         packet_id=f"{agent.value}-{modality.value}-{source_tick}",
         n_s=source_tick,
         tau_s_ms=source_tau_ms,
-        arrival_tau_ms=(
-            source_tau_ms + delay_ms if agent is Agent.RSU else None
-        ),
+        arrival_tau_ms=(source_tau_ms + delay_ms if agent is Agent.RSU else None),
         payload_valid=True,
         timestamp_valid=True,
         pose_valid=True,
@@ -92,12 +90,16 @@ def _inputs(selections: ResilientBatchSelections):
     batch = selections.batch_size
     lidar = torch.randn(batch, 2, 4, 256, 4, 4, requires_grad=True)
     camera = torch.randn(batch, 2, 4, 256, 4, 4, requires_grad=True)
-    transforms = torch.eye(4).view(1, 1, 1, 4, 4).repeat(
-        batch,
-        2,
-        4,
-        1,
-        1,
+    transforms = (
+        torch.eye(4)
+        .view(1, 1, 1, 4, 4)
+        .repeat(
+            batch,
+            2,
+            4,
+            1,
+            1,
+        )
     )
     lidar_available = torch.zeros(batch, 2, 4, dtype=torch.bool)
     camera_available = torch.zeros(batch, 2, 4, dtype=torch.bool)
@@ -117,9 +119,7 @@ def _inputs(selections: ResilientBatchSelections):
 
 def test_feature_fusion_runs_full_paper_path_and_backpropagates() -> None:
     selections = _all_supported()
-    lidar, camera, transforms, lidar_available, camera_available = _inputs(
-        selections
-    )
+    lidar, camera, transforms, lidar_available, camera_available = _inputs(selections)
     module = ResilientV2XFeatureFusion(
         BEVGridSpec(0.0, -2.0, 1.0, 4, 4),
         ptf_mode="none",
@@ -154,6 +154,39 @@ def test_feature_fusion_runs_full_paper_path_and_backpropagates() -> None:
     assert output.routing_descriptor[1, 782].item() == pytest.approx(1.0)
 
     output.fused.square().mean().backward()
+    assert lidar.grad is not None and torch.isfinite(lidar.grad).all()
+    assert camera.grad is not None and torch.isfinite(camera.grad).all()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required")
+def test_feature_fusion_supports_amp_features_with_fp32_geometry() -> None:
+    selections = _all_supported()
+    lidar, camera, transforms, lidar_available, camera_available = _inputs(selections)
+    lidar = lidar.detach().cuda().half().requires_grad_()
+    camera = camera.detach().cuda().half().requires_grad_()
+    transforms = transforms.cuda()
+    lidar_available = lidar_available.cuda()
+    camera_available = camera_available.cuda()
+    module = ResilientV2XFeatureFusion(
+        BEVGridSpec(0.0, -2.0, 1.0, 4, 4),
+        ptf_mode="nonlinear",
+        routing_mode="uniform",
+    ).cuda()
+
+    with torch.autocast("cuda", dtype=torch.float16):
+        output = module(
+            lidar,
+            camera,
+            transforms,
+            transforms,
+            lidar_available,
+            camera_available,
+            selections,
+        )
+        loss = output.fused.float().square().mean()
+    loss.backward()
+
+    assert output.fused.dtype is torch.float16
     assert lidar.grad is not None and torch.isfinite(lidar.grad).all()
     assert camera.grad is not None and torch.isfinite(camera.grad).all()
 
@@ -211,9 +244,7 @@ def test_explicit_latest_arrival_age_is_not_replaced_by_fallback_packet_delay() 
         camera_rsu=base.camera_rsu,
         rsu_delay_intervals=(2.0, 0.0),
     )
-    lidar, camera, transforms, lidar_available, camera_available = _inputs(
-        selections
-    )
+    lidar, camera, transforms, lidar_available, camera_available = _inputs(selections)
     module = ResilientV2XFeatureFusion(
         BEVGridSpec(0.0, 0.0, 1.0, 4, 4),
         ptf_mode="none",
@@ -235,9 +266,7 @@ def test_explicit_latest_arrival_age_is_not_replaced_by_fallback_packet_delay() 
 
 def test_feature_fusion_rejects_selected_but_unavailable_slot() -> None:
     selections = _all_supported()
-    lidar, camera, transforms, lidar_available, camera_available = _inputs(
-        selections
-    )
+    lidar, camera, transforms, lidar_available, camera_available = _inputs(selections)
     lidar_available[0, 0, 0] = False
     module = ResilientV2XFeatureFusion(
         BEVGridSpec(0.0, 0.0, 1.0, 4, 4),
@@ -262,9 +291,7 @@ def test_feature_fusion_rejects_selected_but_unavailable_slot() -> None:
 @pytest.mark.parametrize("ptf_mode", ("nonlinear", "linear"))
 def test_learned_ptf_modes_smoke(ptf_mode: str) -> None:
     selections = _all_supported()
-    lidar, camera, transforms, lidar_available, camera_available = _inputs(
-        selections
-    )
+    lidar, camera, transforms, lidar_available, camera_available = _inputs(selections)
     module = ResilientV2XFeatureFusion(
         BEVGridSpec(0.0, 0.0, 1.0, 4, 4),
         ptf_mode=ptf_mode,

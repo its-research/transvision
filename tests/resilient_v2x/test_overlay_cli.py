@@ -47,7 +47,9 @@ def _schedule_fixture_module():
 
 def _plain(value: object) -> object:
     if is_dataclass(value) and not isinstance(value, type):
-        return {field.name: _plain(getattr(value, field.name)) for field in fields(value)}
+        return {
+            field.name: _plain(getattr(value, field.name)) for field in fields(value)
+        }
     if isinstance(value, Mapping):
         return {str(key): _plain(item) for key, item in value.items()}
     if isinstance(value, (tuple, list)):
@@ -107,6 +109,35 @@ def test_cohort_filters_at_worst_delay_and_records_structured_reasons(
     assert sample_two_reasons[0]["rejected_source_counts"] == {
         "not_arrived_at_max_delay": 3
     }
+
+
+def test_cohort_rejects_impossible_joint_delay_and_fault_history_contract(
+    schedule_fixture,
+) -> None:
+    manifest = schedule_fixture._manifest("test")
+
+    with pytest.raises(
+        ProtocolBuildError,
+        match=(
+            "joint delay/fault history requirement exceeds represented history: "
+            r"300 / 100 \+ 4 - 1 > 3"
+        ),
+    ):
+        build_cohort_document(
+            manifest,
+            split="test",
+            max_delay_ms=300,
+            max_continuous_fault_duration=4,
+        )
+
+    duration_cohort = build_cohort_document(
+        manifest,
+        split="test",
+        max_delay_ms=0,
+        max_continuous_fault_duration=4,
+    )
+    assert duration_cohort["max_delay_ms"] == 0
+    assert duration_cohort["max_continuous_fault_duration"] == 4
 
 
 def test_cohort_excludes_invalid_payload_pose_and_calibration_metadata(
@@ -219,8 +250,9 @@ def test_training_random_overlays_are_seeded_and_byte_reproducible(
     assert first["sample_ids"] == ["train-3"]
     assert first["overlays"]["transport"]["path"] == "train_transport.jsonl.zst"
     assert first["overlays"]["fault"]["path"] == "train_fault.jsonl.zst"
-    assert first["overlays"]["transport"]["compressed_sha256"] == (
-        second["overlays"]["transport"]["compressed_sha256"]
+    assert (
+        first["overlays"]["transport"]["compressed_sha256"]
+        == (second["overlays"]["transport"]["compressed_sha256"])
     )
     transport_entry = first["overlays"]["transport"]
     records = read_overlay(
@@ -249,9 +281,7 @@ def test_full_fixed_matrix_reuses_exact_cohort_and_binds_transport_hashes(
     assert index["sample_ids"] == cohort["sample_ids"] == ["test-3"]
     assert len(index["transport_overlays"]) == 4
     assert len(index["fault_overlays"]) == 36
-    assert {
-        item["overlay"]["path"] for item in index["transport_overlays"]
-    } == {
+    assert {item["overlay"]["path"] for item in index["transport_overlays"]} == {
         "test_transport_delay_000.jsonl.zst",
         "test_transport_delay_100.jsonl.zst",
         "test_transport_delay_200.jsonl.zst",
@@ -262,9 +292,7 @@ def test_full_fixed_matrix_reuses_exact_cohort_and_binds_transport_hashes(
         for item in index["transport_overlays"]
     }
     for item in index["fault_overlays"]:
-        assert item["transport_overlay_sha256"] == transport_by_delay[
-            item["delay_ms"]
-        ]
+        assert item["transport_overlay_sha256"] == transport_by_delay[item["delay_ms"]]
         overlay = item["overlay"]
         records = read_overlay(
             tmp_path / "matrix" / overlay["path"],
@@ -286,28 +314,18 @@ def test_full_fixed_matrix_reuses_exact_cohort_and_binds_transport_hashes(
         and item["condition"] == "L-Fail"
         and item["agent_scope"] == "E+R"
     )
-    assert main_lidar["overlay"]["path"] == (
-        "test_causal_delay_300_l_fail.jsonl.zst"
-    )
-    assert main_lidar["alias_paths"] == [
-        "test_causal_300_E+R_lidar_d1.jsonl.zst"
-    ]
-    assert (
-        tmp_path / "matrix" / main_lidar["alias_paths"][0]
-    ).read_bytes() == (
+    assert main_lidar["overlay"]["path"] == ("test_causal_delay_300_l_fail.jsonl.zst")
+    assert main_lidar["alias_paths"] == ["test_causal_300_E+R_lidar_d1.jsonl.zst"]
+    assert (tmp_path / "matrix" / main_lidar["alias_paths"][0]).read_bytes() == (
         tmp_path / "matrix" / main_lidar["overlay"]["path"]
     ).read_bytes()
-    assert selected["overlay"]["path"] == (
-        "test_causal_300_E-only_lidar_d1.jsonl.zst"
-    )
+    assert selected["overlay"]["path"] == ("test_causal_300_E-only_lidar_d1.jsonl.zst")
     records = read_overlay(
         tmp_path / "matrix" / selected["overlay"]["path"],
         selected["overlay"]["uncompressed_sha256"],
     )
     assert {
-        (record["agent"], record["modality"])
-        for record in records
-        if record["masked"]
+        (record["agent"], record["modality"]) for record in records if record["masked"]
     } == {("ego", "lidar")}
 
 

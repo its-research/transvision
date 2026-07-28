@@ -1762,6 +1762,25 @@ def test_dockerfile_installs_only_from_generated_locks() -> None:
     assert "pip install -r" not in lower
 
 
+def test_dockerfile_packages_environment_evidence_contract_at_runtime_paths() -> None:
+    dockerfile = DOCKERFILE.read_text()
+    runtime_environment_dir = "/workspace/transvision/environments/resilient_v2x"
+    expected_sources = (
+        BOOTSTRAP_LOCK,
+        RUNTIME_LOCK,
+        CONSTRAINTS,
+        SCHEMA,
+    )
+
+    for source in expected_sources:
+        relative_source = source.relative_to(ROOT).as_posix()
+        expected_copy = (
+            f"COPY {relative_source} {runtime_environment_dir}/{source.name}"
+        )
+        assert expected_copy in dockerfile
+    assert "PYTHONPATH=/workspace/transvision" in dockerfile
+
+
 def test_dockerfile_preserves_dependency_layer_and_non_root_runtime() -> None:
     dockerfile = DOCKERFILE.read_text()
     source_copy = dockerfile.index("COPY transvision /workspace/transvision/transvision")

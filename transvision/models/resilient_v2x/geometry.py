@@ -9,6 +9,14 @@ from torch import Tensor
 from torch.nn import functional as F
 
 
+def _geometry_transform_dtype(feature_dtype: torch.dtype) -> torch.dtype:
+    """Return the stable transform dtype for a BEV feature dtype."""
+
+    if feature_dtype in (torch.float16, torch.bfloat16):
+        return torch.float32
+    return feature_dtype
+
+
 @dataclass(frozen=True)
 class BEVGridSpec:
     x_min: float
@@ -142,16 +150,26 @@ def align_bev_to_target(
         raise ValueError("source_to_target must have shape [B,4,4]")
     if source.shape[0] != source_to_target.shape[0]:
         raise ValueError("source and transform must have matching batch sizes")
-    if source.dtype != source_to_target.dtype:
-        raise ValueError("source and transform must have matching dtype")
+    geometry_dtype = _geometry_transform_dtype(source.dtype)
+    if source_to_target.dtype != geometry_dtype:
+        raise ValueError(
+            "transform dtype must match source dtype, with float32 geometry "
+            "required for low-precision sources"
+        )
     if source.device != source_to_target.device:
         raise ValueError("source and transform must have matching device")
     grid = build_backward_grid(
         source_to_target,
         spec,
-        dtype=source.dtype,
+        dtype=geometry_dtype,
         device=source.device,
     )
+    if grid.dtype != source.dtype:
+        # Matrix inversion and coordinate construction remain in FP32 under
+        # AMP. Only the normalized sampling grid is quantized so grid_sample
+        # can preserve the low-precision feature/output instead of promoting
+        # the full BEV tensor back to FP32.
+        grid = grid.to(dtype=source.dtype)
     return F.grid_sample(
         source,
         grid,

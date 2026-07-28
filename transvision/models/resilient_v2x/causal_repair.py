@@ -18,7 +18,12 @@ from .contracts import (
     SourceCandidate,
     UnsupportedReason,
 )
-from .geometry import BEVGridSpec, align_bev_to_target, warp_with_displacement
+from .geometry import (
+    BEVGridSpec,
+    _geometry_transform_dtype,
+    align_bev_to_target,
+    warp_with_displacement,
+)
 from .ptf import HorizonConditionedPTF, PTFOutput
 
 
@@ -578,14 +583,17 @@ class CausalBranchRepair(nn.Module):
         ):
             raise ValueError("query_agent_index must contain non-boolean integers")
 
-        for name, value in (
-            ("source_to_target", transform),
-            ("ptf_context", context),
-        ):
-            if value.dtype != feature.dtype:
-                raise ValueError(f"{name} dtype must match selected_feature")
-            if value.device != feature.device:
-                raise ValueError(f"{name} device must match selected_feature")
+        if transform.dtype != _geometry_transform_dtype(feature.dtype):
+            raise ValueError(
+                "source_to_target must use the geometry dtype required by "
+                "selected_feature"
+            )
+        if transform.device != feature.device:
+            raise ValueError("source_to_target device must match selected_feature")
+        if context.dtype != feature.dtype:
+            raise ValueError("ptf_context dtype must match selected_feature")
+        if context.device != feature.device:
+            raise ValueError("ptf_context device must match selected_feature")
         if query_agent_index.device != feature.device:
             raise ValueError("query_agent_index device must match selected_feature")
 
@@ -969,7 +977,7 @@ class CausalBranchRepair(nn.Module):
         gamma = torch.pow(
             selected_feature.new_tensor(self.alpha),
             horizon.to(dtype=selected_feature.dtype),
-        )
+        ).to(dtype=selected_feature.dtype)
         age_intervals = horizon.to(dtype=selected_feature.dtype)
         observed = torch.tensor(
             observed_values,

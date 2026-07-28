@@ -58,6 +58,17 @@ def _require_runtime_tensor(
     return value
 
 
+def _parameter_dtype_accepts(value: Tensor, parameter: Tensor) -> bool:
+    if value.dtype == parameter.dtype:
+        return True
+    return bool(
+        value.device.type == "cuda"
+        and torch.is_autocast_enabled()
+        and parameter.dtype is torch.float32
+        and value.dtype in (torch.float16, torch.bfloat16)
+    )
+
+
 def _require_feature(
     value: object,
     name: str,
@@ -77,8 +88,10 @@ def _require_feature(
         raise ValueError(f"{name} must have positive shape [B,{channels},Y,X]")
     if not value.is_floating_point():
         raise ValueError(f"{name} must be floating")
-    if value.dtype != parameter.dtype:
-        raise ValueError(f"{name} dtype must match module parameters")
+    if not _parameter_dtype_accepts(value, parameter):
+        raise ValueError(
+            f"{name} dtype must match module parameters outside CUDA autocast"
+        )
     if value.device != parameter.device:
         raise ValueError(f"{name} device must match module parameters")
     _require_input_finite(value, name)
@@ -208,7 +221,7 @@ class DepthwiseSeparableResidualBlock(nn.Module):
         transformed = self.activation1(transformed)
         transformed = self.pointwise(transformed)
         transformed = self.normalization2(transformed)
-        output = self.activation2(value + transformed)
+        output = self.activation2(value + transformed).to(dtype=value.dtype)
         return _require_runtime_tensor(
             output,
             "residual block output",
@@ -306,7 +319,9 @@ class ModalityAggregator(nn.Module):
 
         masked_ego = _mask_feature(ego_feature, ego_support)
         masked_rsu = _mask_feature(rsu_feature, rsu_support)
-        projected = self.projection(torch.cat((masked_ego, masked_rsu), dim=1))
+        projected = self.projection(torch.cat((masked_ego, masked_rsu), dim=1)).to(
+            dtype=ego_feature.dtype
+        )
         projected = _require_runtime_tensor(
             projected,
             "modality projection",
@@ -616,7 +631,9 @@ class DynamicExpertRouter(nn.Module):
             (lidar_support, camera_support, synergy_support),
             dim=1,
         )
-        raw_synergy_stem = self.synergy_stem(torch.cat(synergy_inputs, dim=1))
+        raw_synergy_stem = self.synergy_stem(torch.cat(synergy_inputs, dim=1)).to(
+            dtype=lidar_feature.dtype
+        )
         expected_feature_shape = tuple(lidar_feature.shape)
         raw_synergy_stem = _require_runtime_tensor(
             raw_synergy_stem,
@@ -729,16 +746,20 @@ class DynamicExpertRouter(nn.Module):
             ) / valid_count.clamp_min(1.0)
         else:
             if routing_mode == "dynamic":
-                logits = self.gate(descriptor)
+                logits = self.gate(descriptor).to(dtype=lidar_feature.dtype)
             else:
                 final_gate = self.gate[-1]
                 if not isinstance(final_gate, nn.Linear):
                     raise RuntimeError("final gate must be a Linear layer")
                 if final_gate.bias is None:
                     raise RuntimeError("final gate must have a bias")
-                logits = final_gate.bias.unsqueeze(0).expand(
-                    lidar_feature.shape[0],
-                    -1,
+                logits = (
+                    final_gate.bias.unsqueeze(0)
+                    .expand(
+                        lidar_feature.shape[0],
+                        -1,
+                    )
+                    .to(dtype=lidar_feature.dtype)
                 )
             logits = _require_runtime_tensor(
                 logits,
@@ -746,7 +767,9 @@ class DynamicExpertRouter(nn.Module):
                 (lidar_feature.shape[0], 3),
                 lidar_feature,
             )
-            weights = _masked_softmax(logits, expert_support)
+            weights = _masked_softmax(logits, expert_support).to(
+                dtype=lidar_feature.dtype
+            )
 
         weights = _require_runtime_tensor(
             weights,
@@ -759,10 +782,11 @@ class DynamicExpertRouter(nn.Module):
             raise RuntimeError("routing weights must be in [0,1]")
         if detached_weights.masked_select(~expert_support).ne(0).any().item():
             raise RuntimeError("unsupported expert weights must be zero")
-        expected_weight_sum = expert_support.any(dim=1).to(dtype=weights.dtype)
+        checked_weight_sum = detached_weights.to(dtype=torch.float32).sum(dim=1)
+        expected_weight_sum = expert_support.any(dim=1).to(dtype=torch.float32)
         tolerance = 10.0 * torch.finfo(weights.dtype).eps
         if not torch.allclose(
-            detached_weights.sum(dim=1),
+            checked_weight_sum,
             expected_weight_sum,
             atol=tolerance,
             rtol=tolerance,
@@ -776,7 +800,11 @@ class DynamicExpertRouter(nn.Module):
         experts = experts * expert_support[:, :, None, None, None].to(
             dtype=experts.dtype
         )
-        fused = (experts * weights[:, :, None, None, None]).sum(dim=1)
+        fused = (
+            (experts * weights[:, :, None, None, None])
+            .sum(dim=1)
+            .to(dtype=lidar_feature.dtype)
+        )
         fused = _require_runtime_tensor(
             fused,
             "fused expert output",

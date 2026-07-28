@@ -18,9 +18,7 @@ from pypcd4 import Encoding, PointCloud
 
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURE_ROOT = (
-    ROOT / "tests/resilient_v2x/fixtures/dair-mini"
-)
+FIXTURE_ROOT = ROOT / "tests/resilient_v2x/fixtures/dair-mini"
 XYZI = np.array(
     [
         [1.0, 2.0, 3.0, 0.25],
@@ -28,6 +26,7 @@ XYZI = np.array(
     ],
     dtype=np.float32,
 )
+COMPRESSIBLE_XYZI = np.repeat(XYZI, 128, axis=0)
 IDENTITY_4X4 = (
     (1.0, 0.0, 0.0, 0.0),
     (0.0, 1.0, 0.0, 0.0),
@@ -54,9 +53,7 @@ def _pcd_bytes(
     extra_field: bool = False,
 ) -> bytes:
     if extra_field:
-        values = np.column_stack(
-            [points[:, 0], np.arange(len(points)), points[:, 1:]]
-        )
+        values = np.column_stack([points[:, 0], np.arange(len(points)), points[:, 1:]])
         fields = ("x", "ring", "y", "z", "intensity")
         types = (np.float32, np.uint16, np.float32, np.float32, np.float32)
     else:
@@ -110,9 +107,7 @@ def _normalized_record(
                     f"{agent}-side/calib/{modality}/{frame_id}.json"
                 ),
                 "calibration_sha256": f"{branch_index + 1:064x}",
-                "camera_intrinsic": (
-                    None if modality == "lidar" else CAMERA_INTRINSIC
-                ),
+                "camera_intrinsic": (None if modality == "lidar" else CAMERA_INTRINSIC),
             }
         )
     return {
@@ -249,9 +244,7 @@ def _inject_atomic_failure(
             *args: object,
             **kwargs: object,
         ) -> None:
-            if Path(path).name.startswith(
-                f".{destination_name}.tmp-"
-            ):
+            if Path(path).name.startswith(f".{destination_name}.tmp-"):
                 raise OSError("injected cleanup failure")
             original_unlink(path, *args, **kwargs)
 
@@ -262,9 +255,7 @@ def _inject_atomic_failure(
 
 def test_public_modules_import_and_cli_help_lists_exact_flags() -> None:
     module = importlib.import_module("tools.resilient_v2x.prepare_data")
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
 
     assert callable(module.main)
     assert callable(module.prepare_manifest)
@@ -311,13 +302,12 @@ def test_pcd_encodings_preserve_order_and_emit_exact_little_endian_bytes(
     tmp_path: Path,
     encoding: Encoding,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
+    points = COMPRESSIBLE_XYZI if encoding == Encoding.BINARY_COMPRESSED else XYZI
     source = tmp_path / f"cloud-{encoding.value}.pcd"
     source.write_bytes(
         _pcd_bytes(
-            XYZI,
+            points,
             encoding=encoding,
             extra_field=encoding == Encoding.ASCII,
         )
@@ -326,20 +316,75 @@ def test_pcd_encodings_preserve_order_and_emit_exact_little_endian_bytes(
 
     prepared = pcd_module.convert_pcd_to_bin(source, destination)
 
-    expected = np.asarray(XYZI, dtype="<f4", order="C").tobytes(order="C")
+    expected = np.asarray(points, dtype="<f4", order="C").tobytes(order="C")
     assert destination.read_bytes() == expected
     assert prepared.destination == destination
-    assert prepared.point_count == 2
-    assert prepared.size == 32
+    assert prepared.point_count == len(points)
+    assert prepared.size == len(points) * 16
     assert prepared.sha256 == hashlib.sha256(expected).hexdigest()
     assert prepared.dtype == "<f4"
     assert prepared.fields == ("x", "y", "z", "intensity")
 
 
+def test_pcd_accepts_only_canonical_pcl_zero_padding(tmp_path: Path) -> None:
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
+    raw = _pcd_bytes(COMPRESSIBLE_XYZI, encoding=Encoding.BINARY_COMPRESSED)
+    marker = b"DATA binary_compressed\n"
+    data_offset = raw.index(marker) + len(marker)
+    padding = b"\0" * (4096 - data_offset)
+    source = tmp_path / "pcl-padded.pcd"
+    source.write_bytes(raw + padding)
+    destination = tmp_path / "pcl-padded.bin"
+
+    prepared = pcd_module.convert_pcd_to_bin(source, destination)
+
+    expected = np.asarray(COMPRESSIBLE_XYZI, dtype="<f4", order="C").tobytes(order="C")
+    assert destination.read_bytes() == expected
+    assert prepared.point_count == len(COMPRESSIBLE_XYZI)
+
+
+@pytest.mark.parametrize(
+    "trailing",
+    (
+        b"\0",
+        b"unexpected",
+    ),
+)
+def test_pcd_rejects_noncanonical_compressed_trailing_bytes(
+    tmp_path: Path,
+    trailing: bytes,
+) -> None:
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
+    raw = _pcd_bytes(COMPRESSIBLE_XYZI, encoding=Encoding.BINARY_COMPRESSED)
+    source = tmp_path / "invalid-padded.pcd"
+    source.write_bytes(raw + trailing)
+    destination = tmp_path / "invalid-padded.bin"
+
+    with pytest.raises(ValueError, match="payload size"):
+        pcd_module.convert_pcd_to_bin(source, destination)
+
+    assert not destination.exists()
+
+
+def test_pcd_rejects_nonzero_canonical_length_padding(tmp_path: Path) -> None:
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
+    raw = _pcd_bytes(COMPRESSIBLE_XYZI, encoding=Encoding.BINARY_COMPRESSED)
+    marker = b"DATA binary_compressed\n"
+    data_offset = raw.index(marker) + len(marker)
+    padding = bytearray(4096 - data_offset)
+    padding[-1] = 1
+    source = tmp_path / "nonzero-padded.pcd"
+    source.write_bytes(raw + padding)
+    destination = tmp_path / "nonzero-padded.bin"
+
+    with pytest.raises(ValueError, match="payload size"):
+        pcd_module.convert_pcd_to_bin(source, destination)
+
+    assert not destination.exists()
+
+
 def test_pcd_zero_points_is_valid_and_idempotent(tmp_path: Path) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     source = tmp_path / "empty.pcd"
     source.write_text(
         "\n".join(
@@ -464,9 +509,7 @@ def test_pcd_rejects_invalid_fields_counts_rows_and_values(
     header: str,
     message: str,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     source = tmp_path / "invalid.pcd"
     source.write_text(header)
     destination = tmp_path / "invalid.bin"
@@ -480,9 +523,7 @@ def test_pcd_rejects_invalid_fields_counts_rows_and_values(
 def test_pcd_refuses_symlink_source_and_conflicting_destination(
     tmp_path: Path,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     real_source = tmp_path / "real.pcd"
     real_source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
     symlink_source = tmp_path / "linked.pcd"
@@ -510,9 +551,7 @@ def test_pcd_refuses_symlink_source_and_conflicting_destination(
 def test_pcd_rejects_source_with_symlinked_ancestor(
     tmp_path: Path,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     real_parent = tmp_path / "real-parent"
     real_parent.mkdir()
     source = real_parent / "source.pcd"
@@ -575,9 +614,7 @@ def test_pcd_parent_replacement_cannot_redirect_publication(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     source = tmp_path / "source.pcd"
     source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
     parent = tmp_path / "publish-parent"
@@ -624,9 +661,7 @@ def test_pcd_final_symlink_or_directory_is_a_conflict(
     tmp_path: Path,
     kind: str,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     source = tmp_path / "source.pcd"
     source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
     destination = tmp_path / "prepared.bin"
@@ -651,9 +686,7 @@ def test_pcd_final_symlink_or_directory_replacement_is_a_conflict(
     monkeypatch: pytest.MonkeyPatch,
     kind: str,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     source = tmp_path / "source.pcd"
     source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
     destination = tmp_path / "prepared.bin"
@@ -693,10 +726,7 @@ def test_protocol_sequences_build_exact_history_and_stable_identifiers() -> None
     records = [
         _normalized_record(
             index,
-            tuple(
-                1_000_000 + index * 100_000 + branch * 10_000
-                for branch in range(4)
-            ),
+            tuple(1_000_000 + index * 100_000 + branch * 10_000 for branch in range(4)),
         )
         for index in range(4)
     ]
@@ -714,6 +744,8 @@ def test_protocol_sequences_build_exact_history_and_stable_identifiers() -> None
         "src-",
         {
             "infrastructure_batch_id": "infrastructure-batch-a",
+            "sequence_lane": 0,
+            "split": "train",
             "vehicle_batch_id": "vehicle-batch-a",
         },
     )
@@ -726,10 +758,9 @@ def test_protocol_sequences_build_exact_history_and_stable_identifiers() -> None
     assert [sample.tau_t_ms for sample in samples] == [0, 100, 200, 300]
     assert [len(sample.source_slices) for sample in samples] == [4, 8, 12, 16]
     assert {sample.sequence_id for sample in samples} == {sequence_id}
-    assert [
-        (item.agent, item.modality)
-        for item in samples[-1].source_slices
-    ] == list(BRANCH_ORDER) * 4
+    assert [(item.agent, item.modality) for item in samples[-1].source_slices] == list(
+        BRANCH_ORDER
+    ) * 4
     first = samples[0].source_slices[0]
     assert first.packet_id == _digest(
         "pkt-",
@@ -764,9 +795,7 @@ def test_protocol_interval_boundaries_are_exact_microseconds(
         ),
     ]
 
-    samples, boundaries = module.build_protocol_sequences(
-        records, 100, 3, 50, 150, 50
-    )
+    samples, boundaries = module.build_protocol_sequences(records, 100, 3, 50, 150, 50)
 
     assert len(boundaries) == splits
     assert samples[-1].n_t == (0 if splits else 1)
@@ -809,15 +838,11 @@ def test_protocol_capture_skew_boundary_is_inclusive(
         (1_000_000, 1_010_000, 1_020_000, 1_000_000 + skew_us),
     )
     if valid:
-        samples, _ = module.build_protocol_sequences(
-            [record], 100, 3, 50, 150, 50
-        )
+        samples, _ = module.build_protocol_sequences([record], 100, 3, 50, 150, 50)
         assert len(samples) == 1
     else:
         with pytest.raises(ValueError, match="skew"):
-            module.build_protocol_sequences(
-                [record], 100, 3, 50, 150, 50
-            )
+            module.build_protocol_sequences([record], 100, 3, 50, 150, 50)
 
 
 def test_protocol_merges_interval_triggers_in_branch_order() -> None:
@@ -840,21 +865,18 @@ def test_protocol_merges_interval_triggers_in_branch_order() -> None:
     assert [sample.n_t for sample in samples] == [0, 0]
     assert len(boundaries) == 1
     assert [
-        (trigger["agent"], trigger["modality"])
-        for trigger in boundaries[0]["triggers"]
+        (trigger["agent"], trigger["modality"]) for trigger in boundaries[0]["triggers"]
     ] == list(BRANCH_ORDER)
-    assert {
-        trigger["interval_us"] for trigger in boundaries[0]["triggers"]
-    } == {150_001}
+    assert {trigger["interval_us"] for trigger in boundaries[0]["triggers"]} == {
+        150_001
+    }
 
 
 def test_source_batch_transition_resets_history_without_interval_boundary() -> None:
     module = importlib.import_module("tools.resilient_v2x.prepare_data")
     samples, boundaries = module.build_protocol_sequences(
         [
-            _normalized_record(
-                0, (1_000_000, 1_010_000, 1_020_000, 1_030_000)
-            ),
+            _normalized_record(0, (1_000_000, 1_010_000, 1_020_000, 1_030_000)),
             _normalized_record(
                 1,
                 (2_000_000, 2_010_000, 2_020_000, 2_030_000),
@@ -878,18 +900,14 @@ def test_source_batch_transition_resets_history_without_interval_boundary() -> N
 def test_source_batch_pair_cannot_reappear_noncontiguously() -> None:
     module = importlib.import_module("tools.resilient_v2x.prepare_data")
     records = [
-        _normalized_record(
-            0, (1_000_000, 1_010_000, 1_020_000, 1_030_000)
-        ),
+        _normalized_record(0, (1_000_000, 1_010_000, 1_020_000, 1_030_000)),
         _normalized_record(
             1,
             (2_000_000, 2_010_000, 2_020_000, 2_030_000),
             vehicle_batch_id="vehicle-batch-b",
             infrastructure_batch_id="infrastructure-batch-b",
         ),
-        _normalized_record(
-            2, (3_000_000, 3_010_000, 3_020_000, 3_030_000)
-        ),
+        _normalized_record(2, (3_000_000, 3_010_000, 3_020_000, 3_030_000)),
     ]
 
     with pytest.raises(ValueError, match="non-contiguously"):
@@ -939,15 +957,9 @@ def test_prepare_four_tick_fixture_is_canonical_complete_and_repeatable(
     assert payload["history_eligible_train_count"] == 1
     assert len(payload["prepared_artifacts"]) == 8
     assert [
-        item["source_relative_path"]
-        for item in payload["prepared_artifacts"]
-    ] == sorted(
-        item["source_relative_path"]
-        for item in payload["prepared_artifacts"]
-    )
-    inventory_paths = {
-        item["relative_path"] for item in payload["release_inventory"]
-    }
+        item["source_relative_path"] for item in payload["prepared_artifacts"]
+    ] == sorted(item["source_relative_path"] for item in payload["prepared_artifacts"])
+    inventory_paths = {item["relative_path"] for item in payload["release_inventory"]}
     assert {
         "cooperative/data_info.json",
         "vehicle-side/data_info.json",
@@ -1001,15 +1013,9 @@ def test_split_and_cooperative_id_failures_precede_publication(
     elif mutation == "missing":
         split["cooperative_split"]["train"].append("999999")
     else:
-        cooperative[0]["vehicle_image_path"] = (
-            "vehicle-side/image/999999.jpg"
-        )
-        cooperative[0]["vehicle_pointcloud_path"] = (
-            "vehicle-side/velodyne/999999.pcd"
-        )
-        cooperative[0]["cooperative_label_path"] = (
-            "cooperative/label_world/999999.json"
-        )
+        cooperative[0]["vehicle_image_path"] = "vehicle-side/image/999999.jpg"
+        cooperative[0]["vehicle_pointcloud_path"] = "vehicle-side/velodyne/999999.pcd"
+        cooperative[0]["cooperative_label_path"] = "cooperative/label_world/999999.json"
         _rewrite_json(cooperative_path, cooperative)
     _rewrite_json(split_path, split)
     kwargs = _fixture_kwargs(root, output)
@@ -1045,6 +1051,7 @@ def test_split_duplicate_json_keys_and_controlled_hash_are_fail_closed(
 
 
 def test_checked_in_official_split_counts_hash_and_test_a_subset() -> None:
+    prepare_module = importlib.import_module("tools.resilient_v2x.prepare_data")
     manifest_module = importlib.import_module(
         "transvision.dataset.resilient_v2x_manifest"
     )
@@ -1062,8 +1069,7 @@ def test_checked_in_official_split_counts_hash_and_test_a_subset() -> None:
         2688,
     ]
     assert all(
-        len(split[name]) == len(set(split[name]))
-        for name in ("train", "val", "test")
+        len(split[name]) == len(set(split[name])) for name in ("train", "val", "test")
     )
     assert not (
         set(split["train"]) & set(split["val"])
@@ -1071,6 +1077,126 @@ def test_checked_in_official_split_counts_hash_and_test_a_subset() -> None:
         or set(split["val"]) & set(split["test"])
     )
     assert set(split["test_A"]).issubset(set(split["test"]))
+
+    split_by_id, release_ids = prepare_module._parse_split(
+        raw,
+        actual_sha256=manifest_module.OFFICIAL_COOPERATIVE_SPLIT_SHA256,
+        expected_sha256=manifest_module.OFFICIAL_COOPERATIVE_SPLIT_SHA256,
+        protocol_scope="controlled",
+        protocol_values=(100, 3, 50, 150, 200),
+    )
+    assert len(release_ids) == 4813 + 1783
+    assert set(split_by_id.values()) == {"train", "val"}
+    assert not set(split["test"]) & release_ids
+
+
+def test_prepare_derives_side_frame_ids_from_official_style_paths(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    output = tmp_path / "manifest.json"
+    for side in ("vehicle-side", "infrastructure-side"):
+        path = root / side / "data_info.json"
+        records = json.loads(path.read_text())
+        for record in records:
+            record.pop("frame_id")
+        _rewrite_json(path, records)
+
+    manifest = module.prepare_manifest(**_fixture_kwargs(root, output))
+
+    assert len(manifest.samples) == 4
+    assert manifest.samples[0].sample_id == "dairc-v000000-i100000"
+    assert [
+        (item.agent, item.modality, item.frame_id)
+        for item in manifest.samples[0].source_slices
+    ] == [
+        ("ego", "lidar", "000000"),
+        ("rsu", "lidar", "100000"),
+        ("ego", "camera", "000000"),
+        ("rsu", "camera", "100000"),
+    ]
+
+
+def test_prepare_preserves_duplicate_target_pair_variants_in_stable_lanes(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    output = tmp_path / "manifest.json"
+
+    infrastructure_path = root / "infrastructure-side/data_info.json"
+    infrastructure = json.loads(infrastructure_path.read_text())
+    alternate = dict(infrastructure[0])
+    alternate.update(
+        {
+            "frame_id": "100004",
+            "image_path": "image/100004.jpg",
+            "pointcloud_path": "velodyne/100004.pcd",
+            "image_timestamp": "1025000",
+            "pointcloud_timestamp": "1005000",
+            "calib_camera_intrinsic_path": ("calib/camera_intrinsic/100004.json"),
+            "calib_virtuallidar_to_camera_path": (
+                "calib/virtuallidar_to_camera/100004.json"
+            ),
+            "calib_virtuallidar_to_world_path": (
+                "calib/virtuallidar_to_world/100004.json"
+            ),
+        }
+    )
+    infrastructure.append(alternate)
+    _rewrite_json(infrastructure_path, infrastructure)
+    shutil.copyfile(
+        root / "infrastructure-side/image/100000.jpg",
+        root / "infrastructure-side/image/100004.jpg",
+    )
+    shutil.copyfile(
+        root / "infrastructure-side/velodyne/100000.pcd",
+        root / "infrastructure-side/velodyne/100004.pcd",
+    )
+    for directory in (
+        "camera_intrinsic",
+        "virtuallidar_to_camera",
+        "virtuallidar_to_world",
+    ):
+        shutil.copyfile(
+            root / f"infrastructure-side/calib/{directory}/100000.json",
+            root / f"infrastructure-side/calib/{directory}/100004.json",
+        )
+
+    cooperative_path = root / "cooperative/data_info.json"
+    cooperative = json.loads(cooperative_path.read_text())
+    alternate_pair = dict(cooperative[0])
+    alternate_pair.update(
+        {
+            "infrastructure_image_path": ("infrastructure-side/image/100004.jpg"),
+            "infrastructure_pointcloud_path": (
+                "infrastructure-side/velodyne/100004.pcd"
+            ),
+        }
+    )
+    cooperative.append(alternate_pair)
+    _rewrite_json(cooperative_path, cooperative)
+
+    manifest = module.prepare_manifest(**_fixture_kwargs(root, output))
+    sample_ids = [sample.sample_id for sample in manifest.samples]
+
+    assert sample_ids == [
+        "dairc-v000000-i100004",
+        "dairc-v000001-i100001",
+        "dairc-v000002-i100002",
+        "dairc-v000003-i100003",
+        "dairc-v000000-i100000",
+    ]
+    assert [sample.n_t for sample in manifest.samples] == [0, 1, 2, 3, 0]
+    assert len({sample.sequence_id for sample in manifest.samples[:4]}) == 1
+    assert manifest.samples[-1].sequence_id != manifest.samples[0].sequence_id
+
+    _rewrite_json(cooperative_path, list(reversed(cooperative)))
+    reordered = module.prepare_manifest(
+        **_fixture_kwargs(root, tmp_path / "reordered-manifest.json")
+    )
+    assert reordered.samples == manifest.samples
 
 
 @pytest.mark.parametrize(
@@ -1103,13 +1229,10 @@ def test_metadata_path_and_timestamp_failures_leave_no_artifacts(
     elif failure == "path_traversal":
         cooperative_path = root / "cooperative/data_info.json"
         cooperative = json.loads(cooperative_path.read_text())
-        cooperative[0]["vehicle_image_path"] = "../outside.jpg"
+        cooperative[0]["vehicle_image_path"] = "vehicle-side/image/../../outside.jpg"
         _rewrite_json(cooperative_path, cooperative)
     elif failure == "missing_calibration":
-        (
-            root
-            / "vehicle-side/calib/lidar_to_novatel/000000.json"
-        ).unlink()
+        (root / "vehicle-side/calib/lidar_to_novatel/000000.json").unlink()
     else:
         source = root / "vehicle-side/velodyne/000000.pcd"
         target = root / "vehicle-side/velodyne/000001.pcd"
@@ -1147,15 +1270,11 @@ def test_calibration_chain_camera_inverse_and_offset_are_exact(
     module = importlib.import_module("tools.resilient_v2x.prepare_data")
     root = _fixture_copy(tmp_path)
     output = tmp_path / "manifest.json"
-    novatel_path = (
-        root / "vehicle-side/calib/novatel_to_world/000000.json"
-    )
+    novatel_path = root / "vehicle-side/calib/novatel_to_world/000000.json"
     novatel = json.loads(novatel_path.read_text())
     novatel["translation"] = [[5.0], [0.0], [0.0]]
     _rewrite_json(novatel_path, novatel)
-    camera_path = (
-        root / "vehicle-side/calib/lidar_to_camera/000000.json"
-    )
+    camera_path = root / "vehicle-side/calib/lidar_to_camera/000000.json"
     camera = json.loads(camera_path.read_text())
     camera["translation"] = [[1.0], [2.0], [3.0]]
     _rewrite_json(camera_path, camera)
@@ -1177,11 +1296,44 @@ def test_calibration_chain_camera_inverse_and_offset_are_exact(
         -3.5,
         0.0,
     ]
-    assert [
-        first_slices[2].agent_from_sensor[index][3]
-        for index in range(3)
-    ] == [-1.0, -2.0, -3.0]
+    assert [first_slices[2].agent_from_sensor[index][3] for index in range(3)] == [
+        -1.0,
+        -2.0,
+        -3.0,
+    ]
     assert first_slices[2].camera_intrinsic == CAMERA_INTRINSIC
+
+
+def test_infrastructure_camera_preserves_official_proper_affine_extrinsic(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    output = tmp_path / "manifest.json"
+    camera_path = root / "infrastructure-side/calib/virtuallidar_to_camera/100000.json"
+    camera = json.loads(camera_path.read_text())
+    camera["rotation"] = [
+        [1.0, 0.1, 0.0],
+        [0.0, 0.82, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+    _rewrite_json(camera_path, camera)
+
+    manifest = module.prepare_manifest(**_fixture_kwargs(root, output))
+    rsu_camera = manifest.samples[0].source_slices[3]
+    expected = np.linalg.inv(
+        np.asarray(
+            [
+                [1.0, 0.1, 0.0, 0.0],
+                [0.0, 0.82, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+    )
+
+    assert np.allclose(np.asarray(rsu_camera.agent_from_sensor), expected)
 
 
 @pytest.mark.parametrize(
@@ -1242,15 +1394,11 @@ def test_nonrigid_source_calibrations_cannot_cancel_to_a_rigid_composition(
     module = importlib.import_module("tools.resilient_v2x.prepare_data")
     root = _fixture_copy(tmp_path)
     output = tmp_path / "manifest.json"
-    lidar_path = (
-        root / "vehicle-side/calib/lidar_to_novatel/000000.json"
-    )
+    lidar_path = root / "vehicle-side/calib/lidar_to_novatel/000000.json"
     lidar = json.loads(lidar_path.read_text())
     lidar["transform"]["rotation"][0][0] = 2.0
     _rewrite_json(lidar_path, lidar)
-    world_path = (
-        root / "vehicle-side/calib/novatel_to_world/000000.json"
-    )
+    world_path = root / "vehicle-side/calib/novatel_to_world/000000.json"
     world = json.loads(world_path.read_text())
     world["rotation"][0][0] = 0.5
     _rewrite_json(world_path, world)
@@ -1285,9 +1433,25 @@ def test_world_box_nonidentity_transform_yaw_wrap_and_ignored_provenance(
     assert (box.length, box.width, box.height) == (4.0, 2.0, 2.0)
     assert box.yaw == -math.pi
     assert len(manifest.samples[0].ground_truth) == 1
-    assert annotation.sha256 == hashlib.sha256(
-        (root / annotation.relative_path).read_bytes()
-    ).hexdigest()
+    assert (
+        annotation.sha256
+        == hashlib.sha256((root / annotation.relative_path).read_bytes()).hexdigest()
+    )
+
+
+def test_official_lowercase_car_label_is_canonicalized(tmp_path: Path) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    output = tmp_path / "manifest.json"
+    path = root / "cooperative/label_world/000000.json"
+    labels = json.loads(path.read_text())
+    labels[0]["type"] = "car"
+    _rewrite_json(path, labels)
+
+    manifest = module.prepare_manifest(**_fixture_kwargs(root, output))
+
+    assert len(manifest.samples[0].ground_truth) == 1
+    assert manifest.samples[0].ground_truth[0].class_name == "Car"
 
 
 @pytest.mark.parametrize(
@@ -1334,9 +1498,7 @@ def test_stable_pcd_revalidation_aborts_manifest_and_leaves_only_complete_bins(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = importlib.import_module("tools.resilient_v2x.prepare_data")
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     root = _fixture_copy(tmp_path)
     output = tmp_path / "manifest.json"
     drifting_source = root / "vehicle-side/velodyne/000000.pcd"
@@ -1348,9 +1510,7 @@ def test_stable_pcd_revalidation_aborts_manifest_and_leaves_only_complete_bins(
         if Path(path) == drifting_source:
             calls += 1
             if calls == 2:
-                drifting_source.write_bytes(
-                    drifting_source.read_bytes() + b"\n"
-                )
+                drifting_source.write_bytes(drifting_source.read_bytes() + b"\n")
         return original_read(Path(path))
 
     monkeypatch.setattr(
@@ -1376,8 +1536,7 @@ def test_prepared_and_manifest_conflicts_are_never_overwritten(
     root = _fixture_copy(tmp_path)
     output = tmp_path / "manifest.json"
     first_prepared = (
-        root
-        / "prepared/resilient_v2x/infrastructure-side/velodyne/100000.bin"
+        root / "prepared/resilient_v2x/infrastructure-side/velodyne/100000.bin"
     )
     first_prepared.parent.mkdir(parents=True)
     first_prepared.write_bytes(b"conflicting prepared bytes")
@@ -1394,9 +1553,10 @@ def test_prepared_and_manifest_conflicts_are_never_overwritten(
     with pytest.raises(ValueError, match="conflict"):
         module.prepare_manifest(**_fixture_kwargs(root, output))
     assert output.read_bytes() == b"conflicting manifest bytes"
-    assert manifest.content_sha256 != hashlib.sha256(
-        b"conflicting manifest bytes"
-    ).hexdigest()
+    assert (
+        manifest.content_sha256
+        != hashlib.sha256(b"conflicting manifest bytes").hexdigest()
+    )
     assert not [
         path
         for path in output.parent.iterdir()
@@ -1510,9 +1670,7 @@ def test_public_library_filesystem_error_is_value_error_with_cause(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     source = tmp_path / "source.pcd"
     source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
     destination = tmp_path / "prepared.bin"
@@ -1613,9 +1771,7 @@ def test_prepared_atomic_publication_faults_are_absent_or_complete(
     monkeypatch: pytest.MonkeyPatch,
     stage: str,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     source = tmp_path / "source.pcd"
     source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
     destination = tmp_path / "prepared.bin"
@@ -1635,9 +1791,10 @@ def test_prepared_atomic_publication_faults_are_absent_or_complete(
     final_expected = stage in {"directory_fsync", "cleanup"}
     assert destination.exists() is final_expected
     if final_expected:
-        assert destination.read_bytes() == np.asarray(
-            XYZI, dtype="<f4", order="C"
-        ).tobytes()
+        assert (
+            destination.read_bytes()
+            == np.asarray(XYZI, dtype="<f4", order="C").tobytes()
+        )
     assert sentinel.read_bytes() == b"sentinel"
     owned_temps = [
         path
@@ -1657,9 +1814,7 @@ def test_atomic_short_write_never_publishes_a_truncated_final(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     source = tmp_path / "source.pcd"
     source.write_bytes(_pcd_bytes(XYZI, encoding=Encoding.ASCII))
     destination = tmp_path / "prepared.bin"
@@ -1689,9 +1844,7 @@ def test_atomic_short_write_never_publishes_a_truncated_final(
     monkeypatch.setattr(
         pcd_module.os,
         "fdopen",
-        lambda *args, **kwargs: ShortWriter(
-            original_fdopen(*args, **kwargs)
-        ),
+        lambda *args, **kwargs: ShortWriter(original_fdopen(*args, **kwargs)),
     )
 
     with pytest.raises(ValueError, match="short write") as raised:
@@ -1723,9 +1876,7 @@ def test_manifest_atomic_publication_faults_are_absent_or_complete(
     stage: str,
 ) -> None:
     module = importlib.import_module("tools.resilient_v2x.prepare_data")
-    pcd_module = importlib.import_module(
-        "transvision.dataset.resilient_v2x_pcd"
-    )
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
     manifest_module = importlib.import_module(
         "transvision.dataset.resilient_v2x_manifest"
     )
@@ -1849,9 +2000,7 @@ def test_raw_inventory_exactly_covers_selected_release_and_no_runtime_state(
         and path != root / "split.json"
         and "prepared" not in path.relative_to(root).parts
     }
-    actual = {
-        entry.relative_path for entry in manifest.release_inventory
-    }
+    actual = {entry.relative_path for entry in manifest.release_inventory}
     assert actual == expected
     assert len(actual) == 51
     assert len(manifest.prepared_artifacts) == len(

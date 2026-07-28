@@ -165,10 +165,7 @@ def _available_branch_sources(
         if source.n_s < sample.n_t - history_limit:
             reject("outside_supported_history")
             continue
-        arrived = (
-            agent == "ego"
-            or source.tau_s_ms + max_delay_ms <= sample.tau_t_ms
-        )
+        arrived = agent == "ego" or source.tau_s_ms + max_delay_ms <= sample.tau_t_ms
         if arrived:
             causal_endpoint_candidates.append(source.n_s)
         if source.tau_s_ms != source.n_s * delta_t_ms:
@@ -219,6 +216,15 @@ def build_cohort_document(
     ):
         raise ProtocolBuildError(
             "max continuous fault duration exceeds represented history"
+        )
+    if (
+        max_delay_ms + (max_continuous_fault_duration - 1) * manifest.delta_t_ms
+        > manifest.history_limit * manifest.delta_t_ms
+    ):
+        raise ProtocolBuildError(
+            "joint delay/fault history requirement exceeds represented history: "
+            f"{max_delay_ms} / {manifest.delta_t_ms} + "
+            f"{max_continuous_fault_duration} - 1 > {manifest.history_limit}"
         )
 
     candidates = tuple(sample for sample in manifest.samples if sample.split == split)
@@ -532,7 +538,10 @@ def build_training_overlays(
         output_dir / "train_fault.jsonl.zst",
     )
     sample_ids = tuple(sample.sample_id for sample in samples)
-    for digest, context in ((transport, "training transport"), (fault, "training fault")):
+    for digest, context in (
+        (transport, "training transport"),
+        (fault, "training fault"),
+    ):
         records = read_overlay(digest.path, digest.uncompressed_sha256)
         _assert_overlay_sample_ids(records, sample_ids, context)
     document = _seal(
@@ -595,7 +604,9 @@ def build_evaluation_overlays(
     if duration > cohort["max_continuous_fault_duration"]:
         raise ProtocolBuildError("duration exceeds the cohort eligibility contract")
     if max(delay_values) > cohort["max_delay_ms"]:
-        raise ProtocolBuildError("requested delay exceeds the cohort eligibility contract")
+        raise ProtocolBuildError(
+            "requested delay exceeds the cohort eligibility contract"
+        )
     split = cohort["split"]
     assert isinstance(split, str)
     samples = _samples_from_ids(manifest, split, cohort["sample_ids"])
@@ -752,7 +763,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     _common_manifest_arguments(evaluation)
     evaluation.add_argument("--cohort", required=True, type=Path)
-    evaluation.add_argument("--delays", type=int, nargs="+", choices=DELAYS, default=DELAYS)
+    evaluation.add_argument(
+        "--delays", type=int, nargs="+", choices=DELAYS, default=DELAYS
+    )
     evaluation.add_argument(
         "--conditions",
         nargs="+",

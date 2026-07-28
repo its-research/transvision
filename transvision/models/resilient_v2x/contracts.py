@@ -307,9 +307,10 @@ def _validate_routing_diagnostics(value: object) -> "RoutingDiagnostics":
         raise ProtocolInvariantError("unsupported expert weights must be exactly zero")
     if expert_support.any().item():
         tolerance = 10.0 * torch.finfo(weights.dtype).eps
+        checked_weights = weights.to(dtype=torch.float32)
         if not torch.allclose(
-            weights.sum(),
-            weights.new_tensor(1.0),
+            checked_weights.sum(),
+            checked_weights.new_tensor(1.0),
             atol=tolerance,
             rtol=tolerance,
         ):

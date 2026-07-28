@@ -33,7 +33,11 @@ MODULE_EXPORTS = (
     "release_inventory_sha256",
     "load_temporal_manifest",
 )
-PACKAGE_EXPORTS = (*MODULE_EXPORTS, "SUPPROTED_DATASETS", "BEVLoadMultiViewImageFromFiles")
+PACKAGE_EXPORTS = (
+    *MODULE_EXPORTS,
+    "SUPPROTED_DATASETS",
+    "BEVLoadMultiViewImageFromFiles",
+)
 BRANCH_ORDER = (
     ("ego", "lidar"),
     ("rsu", "lidar"),
@@ -83,7 +87,9 @@ def _rehash(payload: dict[str, object]) -> dict[str, object]:
     return payload
 
 
-def _entry(relative_path: str, *, sha256: str | None = None, size: int = 1) -> dict[str, object]:
+def _entry(
+    relative_path: str, *, sha256: str | None = None, size: int = 1
+) -> dict[str, object]:
     return {
         "relative_path": relative_path,
         "size": size,
@@ -115,9 +121,7 @@ def _slice(
         "calibration_relative_path": "calib/primary.json",
         "calibration_sha256": PRIMARY_CALIBRATION_SHA256,
         "camera_intrinsic": (
-            None
-            if modality == "lidar"
-            else [list(row) for row in CAMERA_INTRINSIC]
+            None if modality == "lidar" else [list(row) for row in CAMERA_INTRINSIC]
         ),
         "payload_valid": True,
         "pose_valid": True,
@@ -125,7 +129,9 @@ def _slice(
     }
 
 
-def _source_tick(sequence_id: str, n_s: int, base_timestamp_us: int) -> list[dict[str, object]]:
+def _source_tick(
+    sequence_id: str, n_s: int, base_timestamp_us: int
+) -> list[dict[str, object]]:
     return [
         _slice(
             sequence_id=sequence_id,
@@ -191,9 +197,7 @@ def _valid_payload() -> dict[str, object]:
         "metadata/cooperative-data-info.json": _entry(
             "metadata/cooperative-data-info.json"
         ),
-        "poses/secondary-world-pose.json": _entry(
-            "poses/secondary-world-pose.json"
-        ),
+        "poses/secondary-world-pose.json": _entry("poses/secondary-world-pose.json"),
         "labels/sample-0.json": _entry(
             "labels/sample-0.json",
             sha256=samples[0]["annotation_sha256"],  # type: ignore[arg-type]
@@ -290,7 +294,9 @@ def _write_payload(
     canonical: bool = True,
 ) -> Path:
     path = tmp_path / "manifest.json"
-    data = _canonical_bytes(payload) if canonical else json.dumps(payload).encode("utf-8")
+    data = (
+        _canonical_bytes(payload) if canonical else json.dumps(payload).encode("utf-8")
+    )
     path.write_bytes(data)
     return path
 
@@ -561,6 +567,7 @@ def test_fixture_and_controlled_scope_gates_are_fail_closed(tmp_path: Path) -> N
     controlled = _valid_payload()
     controlled["protocol_scope"] = "controlled"
     controlled["history_limit"] = 3
+    controlled["max_capture_skew_ms"] = 200
     controlled["split_sha256"] = module.OFFICIAL_COOPERATIVE_SPLIT_SHA256
     controlled["history_eligible_train_count"] = 0
     _rehash(controlled)
@@ -570,6 +577,17 @@ def test_fixture_and_controlled_scope_gates_are_fail_closed(tmp_path: Path) -> N
         expected_split_hash=module.OFFICIAL_COOPERATIVE_SPLIT_SHA256,
     )
     assert loaded.protocol_scope == "controlled"
+
+    controlled_test = copy.deepcopy(controlled)
+    for sample in controlled_test["samples"]:
+        sample["split"] = "test"
+    _rehash(controlled_test)
+    controlled_test_path = _write_payload(tmp_path, controlled_test)
+    with pytest.raises(module.ManifestError, match="train and val"):
+        module.load_temporal_manifest(
+            controlled_test_path,
+            expected_split_hash=module.OFFICIAL_COOPERATIVE_SPLIT_SHA256,
+        )
 
     controlled["delta_t_ms"] = 101
     _rehash(controlled)
@@ -976,9 +994,7 @@ def test_temporal_interval_inclusive_boundaries_pass(
     current_tick = payload["samples"][1]["source_slices"][-4:]  # type: ignore[index]
     previous_tick = payload["samples"][0]["source_slices"]  # type: ignore[index]
     for previous, current in zip(previous_tick, current_tick):
-        current["capture_timestamp_us"] = (
-            previous["capture_timestamp_us"] + interval_us
-        )
+        current["capture_timestamp_us"] = previous["capture_timestamp_us"] + interval_us
     _rehash(payload)
 
     loaded = module.load_temporal_manifest(
@@ -999,9 +1015,7 @@ def test_temporal_interval_outside_bounds_fails_inside_one_sequence(
     current_tick = payload["samples"][1]["source_slices"][-4:]  # type: ignore[index]
     previous_tick = payload["samples"][0]["source_slices"]  # type: ignore[index]
     for previous, current in zip(previous_tick, current_tick):
-        current["capture_timestamp_us"] = (
-            previous["capture_timestamp_us"] + interval_us
-        )
+        current["capture_timestamp_us"] = previous["capture_timestamp_us"] + interval_us
     _rehash(payload)
 
     with pytest.raises(module.ManifestError, match="interval"):
@@ -1026,9 +1040,7 @@ def test_capture_skew_exact_boundary(
     for sample in payload["samples"]:  # type: ignore[union-attr]
         for tick_start in range(0, len(sample["source_slices"]), 4):
             tick = sample["source_slices"][tick_start : tick_start + 4]
-            tick[-1]["capture_timestamp_us"] = (
-                tick[0]["capture_timestamp_us"] + skew_us
-            )
+            tick[-1]["capture_timestamp_us"] = tick[0]["capture_timestamp_us"] + skew_us
     _rehash(payload)
     path = _write_payload(tmp_path, payload)
 
@@ -1194,10 +1206,7 @@ def test_direct_manifest_construction_validates_content_self_hash(
         expected_split_hash=FIXTURE_SPLIT_SHA256,
         allow_fixture=True,
     )
-    values = {
-        field: getattr(loaded, field)
-        for field in loaded.__dataclass_fields__
-    }
+    values = {field: getattr(loaded, field) for field in loaded.__dataclass_fields__}
     values["content_sha256"] = "0" * 64
 
     with pytest.raises(module.ManifestError, match="content"):
@@ -1264,9 +1273,7 @@ def test_exact_integer_boolean_and_numeric_types(
 ) -> None:
     module = _module()
     payload = (
-        _valid_split_payload()
-        if mutation == "trigger_int_bool"
-        else _valid_payload()
+        _valid_split_payload() if mutation == "trigger_int_bool" else _valid_payload()
     )
     if mutation == "top_int_bool":
         payload["history_limit"] = True
@@ -1375,6 +1382,116 @@ def test_rigid_matrix_tolerance_and_proper_rotation_pass(tmp_path: Path) -> None
         expected_split_hash=FIXTURE_SPLIT_SHA256,
         allow_fixture=True,
     ).samples
+
+
+def test_camera_agent_from_sensor_accepts_well_conditioned_proper_affine(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    payload = _valid_payload()
+    affine = [
+        [1.0, 0.1, 0.0, 1.0],
+        [0.0, 0.82, 0.0, 2.0],
+        [0.0, 0.0, 1.0, 3.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+    for sample in payload["samples"]:
+        for source in sample["source_slices"]:
+            if source["modality"] == "camera":
+                source["agent_from_sensor"] = copy.deepcopy(affine)
+    _rehash(payload)
+
+    loaded = module.load_temporal_manifest(
+        _write_payload(tmp_path, payload),
+        expected_split_hash=FIXTURE_SPLIT_SHA256,
+        allow_fixture=True,
+    )
+
+    assert loaded.samples[0].source_slices[2].agent_from_sensor == tuple(
+        tuple(row) for row in affine
+    )
+
+
+@pytest.mark.parametrize(
+    ("modality", "field"),
+    (
+        ("camera", "world_from_agent"),
+        ("lidar", "agent_from_sensor"),
+    ),
+)
+def test_affine_allowance_is_limited_to_camera_sensor_extrinsics(
+    modality: str,
+    field: str,
+) -> None:
+    module = _module()
+    raw_slice = _slice(
+        sequence_id="seq-0",
+        n_s=0,
+        agent="ego",
+        modality=modality,
+        capture_timestamp_us=1_000_000,
+    )
+    raw_slice[field] = [
+        [1.0, 0.1, 0.0, 1.0],
+        [0.0, 0.82, 0.0, 2.0],
+        [0.0, 0.0, 1.0, 3.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+
+    with pytest.raises(
+        module.ManifestError,
+        match=rf"raw slice {field} rotation must be orthonormal",
+    ):
+        module.RawSliceRecord(**raw_slice)
+
+
+@pytest.mark.parametrize(
+    ("linear", "translation"),
+    (
+        (
+            ((-1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+            (0.0, 0.0, 0.0),
+        ),
+        (
+            ((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+            (0.0, 0.0, 0.0),
+        ),
+        (
+            ((1e8, 0.0, 0.0), (0.0, 1e-8, 0.0), (0.0, 0.0, 1.0)),
+            (0.0, 0.0, 0.0),
+        ),
+        (
+            ((1e39, 0.0, 0.0), (0.0, 1e39, 0.0), (0.0, 0.0, 1e39)),
+            (0.0, 0.0, 0.0),
+        ),
+        (
+            ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+            (1e39, 0.0, 0.0),
+        ),
+    ),
+)
+def test_camera_agent_from_sensor_rejects_unsafe_affine(
+    tmp_path: Path,
+    linear: tuple[tuple[float, ...], ...],
+    translation: tuple[float, float, float],
+) -> None:
+    module = _module()
+    payload = _valid_payload()
+    camera = payload["samples"][0]["source_slices"][2]
+    camera["agent_from_sensor"] = [
+        [*linear[0], translation[0]],
+        [*linear[1], translation[1]],
+        [*linear[2], translation[2]],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+    _rehash(payload)
+
+    with pytest.raises(module.ManifestError, match="proper|conditioned|float32"):
+        module.load_temporal_manifest(
+            _write_payload(tmp_path, payload),
+            expected_split_hash=FIXTURE_SPLIT_SHA256,
+            allow_fixture=True,
+        )
 
 
 def test_camera_intrinsic_accepts_tiny_exact_nonsingular_diagonal(
@@ -1518,9 +1635,7 @@ def test_prepared_artifact_exact_coverage_and_schema(
         duplicate["prepared_relative_path"] = "prepared/other.bin"
         prepared.insert(1, duplicate)
     elif mutation == "duplicate_destination":
-        prepared[1]["prepared_relative_path"] = prepared[0][
-            "prepared_relative_path"
-        ]
+        prepared[1]["prepared_relative_path"] = prepared[0]["prepared_relative_path"]
     elif mutation == "destination_in_raw":
         prepared[0]["prepared_relative_path"] = payload["release_inventory"][0][
             "relative_path"
@@ -1607,9 +1722,7 @@ def test_manifest_identity_sequence_and_exclusion_invariants(
         for source in middle["source_slices"]:
             source["n_s"] = 0
             source["tau_s_ms"] = 0
-            source["packet_id"] = (
-                f"seq-middle:0:{source['agent']}:{source['modality']}"
-            )
+            source["packet_id"] = f"seq-middle:0:{source['agent']}:{source['modality']}"
         payload["samples"].insert(1, middle)  # type: ignore[union-attr]
     elif mutation == "target_tick_gap":
         payload["samples"][1]["n_t"] = 2  # type: ignore[index]
@@ -1679,8 +1792,7 @@ def test_cross_target_reuse_rejects_every_slice_provenance_mutation(
         aggregate = next(
             entry
             for entry in payload["release_inventory"]
-            if entry["relative_path"]
-            == "calib/secondary-camera-intrinsic.json"
+            if entry["relative_path"] == "calib/secondary-camera-intrinsic.json"
         )
         reused["calibration_relative_path"] = aggregate["relative_path"]
         reused["calibration_sha256"] = aggregate["sha256"]
@@ -1709,10 +1821,7 @@ def test_direct_manifest_rejects_malformed_sequence_split_mapping(
     )
     malformed = dict(loaded.sequence_splits[0])
     malformed["extra"] = True
-    values = {
-        field: getattr(loaded, field)
-        for field in loaded.__dataclass_fields__
-    }
+    values = {field: getattr(loaded, field) for field in loaded.__dataclass_fields__}
     values["sequence_splits"] = (malformed,)
 
     with pytest.raises(module.ManifestError, match="fields"):
@@ -1941,10 +2050,7 @@ def test_direct_controlled_manifest_requires_official_split_hash(
         expected_split_hash=FIXTURE_SPLIT_SHA256,
         allow_fixture=True,
     )
-    values = {
-        field: getattr(loaded, field)
-        for field in loaded.__dataclass_fields__
-    }
+    values = {field: getattr(loaded, field) for field in loaded.__dataclass_fields__}
     values.update(
         protocol_scope="controlled",
         history_limit=3,

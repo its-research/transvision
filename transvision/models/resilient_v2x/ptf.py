@@ -10,6 +10,17 @@ from torch import Tensor, nn
 from torch.nn import functional as F
 
 
+def _parameter_dtype_accepts(value: Tensor, parameter: Tensor) -> bool:
+    if value.dtype == parameter.dtype:
+        return True
+    return bool(
+        value.device.type == "cuda"
+        and torch.is_autocast_enabled()
+        and parameter.dtype is torch.float32
+        and value.dtype in (torch.float16, torch.bfloat16)
+    )
+
+
 @dataclass(frozen=True)
 class PTFOutput:
     displacement: Tensor
@@ -57,7 +68,7 @@ class _FiLMResidualBlock(nn.Module):
         transformed = self.activation1(transformed)
         transformed = self.convolution2(transformed)
         transformed = self.normalization2(transformed)
-        return self.activation2(residual + transformed)
+        return self.activation2(residual + transformed).to(dtype=residual.dtype)
 
 
 class HorizonConditionedPTF(nn.Module):
@@ -272,8 +283,14 @@ class HorizonConditionedPTF(nn.Module):
             raise ValueError("availability must be boolean")
         if availability.device != aligned_history.device:
             raise ValueError("aligned_history and availability must share a device")
-        if aligned_history.dtype != self.history_projection[0].weight.dtype:
-            raise ValueError("aligned_history dtype must match the PTF parameter dtype")
+        if not _parameter_dtype_accepts(
+            aligned_history,
+            self.history_projection[0].weight,
+        ):
+            raise ValueError(
+                "aligned_history dtype must match the PTF parameter dtype "
+                "outside CUDA autocast"
+            )
 
         slot_count = self._AGENT_COUNT * self.history_positions
         flat = aligned_history.reshape(
@@ -300,7 +317,9 @@ class HorizonConditionedPTF(nn.Module):
             )
         )
         if valid_index.numel() > 0:
-            projected_valid = self.history_projection(valid_history)
+            projected_valid = self.history_projection(valid_history).to(
+                dtype=aligned_history.dtype
+            )
             if projected_valid.shape[-2:] != (
                 projected_height,
                 projected_width,
@@ -336,8 +355,12 @@ class HorizonConditionedPTF(nn.Module):
             self._AGENT_COUNT,
             self.history_positions,
         )
-        agent_embedding = self.agent_embedding(agent_index)
-        relative_time_embedding = self.relative_time_embedding(relative_time_index)
+        agent_embedding = self.agent_embedding(agent_index).to(
+            dtype=aligned_history.dtype
+        )
+        relative_time_embedding = self.relative_time_embedding(relative_time_index).to(
+            dtype=aligned_history.dtype
+        )
         slot_mask = availability.view(
             batch,
             self._AGENT_COUNT,
@@ -370,7 +393,9 @@ class HorizonConditionedPTF(nn.Module):
             projected_height,
             projected_width,
         )
-        return self.context_stem(torch.cat((flattened_features, mask_planes), dim=1))
+        return self.context_stem(
+            torch.cat((flattened_features, mask_planes), dim=1)
+        ).to(dtype=aligned_history.dtype)
 
     def query(
         self,
@@ -391,8 +416,10 @@ class HorizonConditionedPTF(nn.Module):
             raise ValueError("context must be floating")
         if not torch.isfinite(context.detach()).all().item():
             raise ValueError("context must be finite")
-        if context.dtype != self.context_stem[0].weight.dtype:
-            raise ValueError("context dtype must match the PTF parameter dtype")
+        if not _parameter_dtype_accepts(context, self.context_stem[0].weight):
+            raise ValueError(
+                "context dtype must match the PTF parameter dtype outside CUDA autocast"
+            )
 
         self._validate_index_vector(
             query_agent_index,
@@ -415,7 +442,9 @@ class HorizonConditionedPTF(nn.Module):
         if horizon.lt(0).any().item() or horizon.gt(self.history_limit).any().item():
             raise ValueError("horizon must be in [0, 3]")
 
-        query_embedding = self.agent_embedding(query_agent_index.to(dtype=torch.long))
+        query_embedding = self.agent_embedding(
+            query_agent_index.to(dtype=torch.long)
+        ).to(dtype=context.dtype)
         if self.mode == "linear":
             film_horizon = context.new_full(
                 (batch, 1),
@@ -427,7 +456,7 @@ class HorizonConditionedPTF(nn.Module):
             )
         film_parameters = self.film_mlp(
             torch.cat((query_embedding, film_horizon), dim=1)
-        )
+        ).to(dtype=context.dtype)
         film_parameters = film_parameters.view(
             batch,
             self._RESIDUAL_BLOCK_COUNT,
@@ -451,8 +480,8 @@ class HorizonConditionedPTF(nn.Module):
             )
             transformed = block(transformed, scale, bias)
 
-        raw_displacement = self.displacement_head(transformed)
-        raw_confidence = self.confidence_head(transformed)
+        raw_displacement = self.displacement_head(transformed).to(dtype=context.dtype)
+        raw_confidence = self.confidence_head(transformed).to(dtype=context.dtype)
         if self.mode == "linear":
             low_resolution_displacement = (
                 self.max_low_resolution_cells
@@ -487,10 +516,10 @@ class HorizonConditionedPTF(nn.Module):
             zero_horizon,
             torch.zeros_like(displacement),
             displacement,
-        )
+        ).to(dtype=context.dtype)
         return PTFOutput(
             displacement=displacement,
-            confidence=confidence,
+            confidence=confidence.to(dtype=context.dtype),
         )
 
     @staticmethod

@@ -4,8 +4,6 @@ All artifact identities are external inputs.  No placeholder SHA-256 is
 invented: unset hashes remain ``None`` and the dataset fails before I/O.
 """
 
-
-
 dataset_type = "ResilientTemporalDataset"
 evaluation_point_cloud_range = [0.0, -40.0, -3.0, 80.0, 40.0, 1.0]
 data_root = __import__("os").getenv(
@@ -39,12 +37,14 @@ implementation_choices_dataset = dict(
     workers_per_gpu=4,
     camera_image_size=(256, 704),
     global_seed=20250218,
+    controlled_manifest_splits=("train", "val"),
+    max_capture_skew_ms=200,
+    pair_identity="dairc-v{vehicle_frame_id}-i{infrastructure_frame_id}",
+    duplicate_target_policy="preserve all pairs in deterministic sequence lanes",
     training_transport_overlay=(
         "external protocol artifact selected by the reproducer"
     ),
-    training_fault_overlay=(
-        "external protocol artifact selected by the reproducer"
-    ),
+    training_fault_overlay=("external protocol artifact selected by the reproducer"),
 )
 
 paper_data_contract = dict(
@@ -132,7 +132,10 @@ test_dataloader = dict(
     collate_fn=dict(type="collate_resilient_samples"),
     dataset=dict(
         **common_dataset,
-        split="test",
+        # The public labeled cooperative release covers official train/val;
+        # paper reporting is validation-only. MMEngine still consumes this
+        # through its conventional test_dataloader entry during tools/test.py.
+        split="val",
         include_clean_teacher=False,
         transport_overlay_path=None,
         transport_overlay_sha256=None,
@@ -146,6 +149,7 @@ val_evaluator = dict(
     iou_thresholds=(0.5, 0.7),
     max_detections=100,
     point_cloud_range=evaluation_point_cloud_range,
-    prediction_output=__import__("os").getenv("RESILIENT_V2X_PREDICTION_OUTPUT") or None,
+    prediction_output=__import__("os").getenv("RESILIENT_V2X_PREDICTION_OUTPUT")
+    or None,
 )
 test_evaluator = val_evaluator

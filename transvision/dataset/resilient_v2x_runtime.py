@@ -620,10 +620,10 @@ class ResilientTemporalDataset(Dataset[dict[str, object]]):
             raise RuntimeProtocolError(
                 "the implemented reproduction profile requires delta_t_ms=100"
             )
-        self.samples = tuple(
+        split_samples = tuple(
             sample for sample in self.manifest.samples if sample.split == split
         )
-        if not self.samples:
+        if not split_samples:
             raise RuntimeProtocolError("requested split has no samples")
         self.epoch = _exact_epoch(epoch, "epoch")
         if self.epoch is None:
@@ -654,6 +654,31 @@ class ResilientTemporalDataset(Dataset[dict[str, object]]):
             transport_sha256=transport_overlay_sha256,
             fault_sha256=fault_overlay_sha256,
         )
+        transport_sample_ids = {
+            sample_id for _, sample_id, _ in self.overlays.transport
+        }
+        fault_sample_ids = {sample_id for _, sample_id, _, _, _ in self.overlays.faults}
+        if (
+            transport_sample_ids
+            and fault_sample_ids
+            and transport_sample_ids != fault_sample_ids
+        ):
+            raise RuntimeProtocolError(
+                "transport and fault overlays must cover identical sample sets"
+            )
+        overlay_sample_ids = transport_sample_ids or fault_sample_ids
+        if overlay_sample_ids:
+            self.samples = tuple(
+                sample
+                for sample in split_samples
+                if sample.sample_id in overlay_sample_ids
+            )
+            if len(self.samples) != len(overlay_sample_ids):
+                raise RuntimeProtocolError(
+                    "overlay sample set must exactly belong to the requested split"
+                )
+        else:
+            self.samples = split_samples
         prepared = {
             item.source_relative_path: item for item in self.manifest.prepared_artifacts
         }

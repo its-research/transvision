@@ -1,12 +1,10 @@
 """Paper evaluation condition: Full sensors, fixed RSU delay 300 ms."""
 
-
-
 _base_ = ["../dair_resilient_v2x.py"]
 
 _transport_path = __import__("os").getenv(
     "RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_OVERLAY",
-    "artifacts/resilient_v2x/dair/test_transport_delay_300.jsonl.zst",
+    "artifacts/resilient_v2x/dair/val_transport_delay_300.jsonl.zst",
 )
 _transport_sha256 = (
     __import__("os").getenv("RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_SHA256") or None

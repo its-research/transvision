@@ -150,6 +150,7 @@ cython_debug/
 /data/DAIR-V2X
 /tmp_file
 /work_dirs/
+/artifacts/
 /models/
 /cache/
 nohup.out*

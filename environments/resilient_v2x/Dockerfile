@@ -4,6 +4,7 @@ FROM --platform=linux/amd64 mambaorg/micromamba:2.8.1@sha256:79284aa2949ac9555ec
 FROM --platform=linux/amd64 nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04@sha256:bd746eb3b9953805ebe644847a227e218b5da775f47007c69930569a75c9ad7d
 
 ENV PATH=/opt/resilient-v2x/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    PYTHONPATH=/workspace/transvision \
     CUDA_HOME=/usr/local/cuda \
     FORCE_CUDA=1 \
     PYTHONNOUSERSITE=1 \
@@ -19,7 +20,10 @@ RUN /opt/bootstrap/bin/conda-lock install --micromamba --prefix /opt/resilient-v
 
 WORKDIR /workspace/transvision
 COPY setup.py setup.cfg MANIFEST.in README.md /workspace/transvision/
+COPY environments/resilient_v2x/bootstrap-linux-64.explicit.txt /workspace/transvision/environments/resilient_v2x/bootstrap-linux-64.explicit.txt
+COPY environments/resilient_v2x/environment-linux-64.lock.yml /workspace/transvision/environments/resilient_v2x/environment-linux-64.lock.yml
 COPY environments/resilient_v2x/constraints.txt /workspace/transvision/environments/resilient_v2x/constraints.txt
+COPY environments/resilient_v2x/environment-manifest.schema.json /workspace/transvision/environments/resilient_v2x/environment-manifest.schema.json
 COPY transvision /workspace/transvision/transvision
 COPY configs /workspace/transvision/configs
 COPY tools /workspace/transvision/tools

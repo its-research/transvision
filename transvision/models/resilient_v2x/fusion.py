@@ -18,7 +18,11 @@ from .contracts import (
     RoutingDiagnostics,
     SampleInferenceDiagnostics,
 )
-from .geometry import BEVGridSpec, align_bev_to_target
+from .geometry import (
+    BEVGridSpec,
+    _geometry_transform_dtype,
+    align_bev_to_target,
+)
 from .ptf import HorizonConditionedPTF, PTFOutput
 from .routing import DynamicExpertRouter, ModalityAggregator
 
@@ -270,11 +274,12 @@ class ResilientV2XFeatureFusion(nn.Module):
             or not source_to_target.is_floating_point()
         ):
             raise ValueError(f"{name}_source_to_target must have shape [B,2,4,4,4]")
-        if (
-            source_to_target.dtype != history.dtype
-            or source_to_target.device != history.device
-        ):
-            raise ValueError(f"{name} history and transforms must share placement")
+        if source_to_target.device != history.device:
+            raise ValueError(f"{name} history and transforms must share device")
+        if source_to_target.dtype != _geometry_transform_dtype(history.dtype):
+            raise ValueError(
+                f"{name} transforms must use the geometry dtype required by history"
+            )
         if (
             not isinstance(availability, Tensor)
             or availability.shape != (batch, 2, self.history_positions)

@@ -16,6 +16,10 @@ from transvision.dataset.resilient_v2x_runtime import (
     collate_resilient_samples,
     resolve_temporal_sample,
 )
+from transvision.dataset.resilient_v2x_schedule import (
+    TransportPlan,
+    write_transport_overlay,
+)
 
 
 FIXTURE = Path(__file__).parent / "fixtures/dair-mini"
@@ -238,6 +242,70 @@ def test_dataset_loads_only_sparse_available_lidar_and_collates(
         first["resolved"].sample.sample_id,
         second["resolved"].sample.sample_id,
     )
+
+
+def test_dataset_limits_visible_samples_to_verified_overlay_coverage(
+    prepared_fixture,
+    tmp_path: Path,
+) -> None:
+    root, manifest_path, manifest, split_hash = prepared_fixture
+    sample = tuple(item for item in manifest.samples if item.split == "train")[-1]
+    digest = write_transport_overlay(
+        TransportPlan(
+            temporal_manifest_sha256=manifest.content_sha256,
+            split="train",
+            samples=(sample,),
+            mode="train_random",
+            protocol_seed=17,
+            epochs=(0,),
+            delay_values_ms=(0, 100, 200, 300),
+            fixed_delay_ms=None,
+        ),
+        tmp_path / "transport.jsonl.zst",
+    )
+
+    dataset = ResilientTemporalDataset(
+        manifest_path=manifest_path,
+        data_root=root,
+        split="train",
+        expected_split_hash=split_hash,
+        allow_fixture=True,
+        transport_overlay_path=digest.path,
+        transport_overlay_sha256=digest.uncompressed_sha256,
+        load_camera=False,
+    )
+
+    assert len(dataset) == 1
+    assert dataset.samples[0].sample_id == sample.sample_id
+    assert dataset.resolve((0, 0)).sample.sample_id == sample.sample_id
+
+
+def test_data_preprocessor_accepts_pin_memory_sequence_lists(
+    prepared_fixture,
+) -> None:
+    pytest.importorskip("mmdet3d")
+    from transvision.models.data_preprocessors.resilient_v2x import (
+        ResilientV2XDataPreprocessor,
+    )
+
+    root, manifest_path, _, split_hash = prepared_fixture
+    dataset = ResilientTemporalDataset(
+        manifest_path=manifest_path,
+        data_root=root,
+        split="train",
+        expected_split_hash=split_hash,
+        allow_fixture=True,
+        load_camera=False,
+    )
+    batch = collate_resilient_samples((dataset[0],))
+    for key in ("resolved", "gt_bboxes_3d", "gt_labels_3d"):
+        batch[key] = list(batch[key])
+
+    processed = ResilientV2XDataPreprocessor()(batch, training=True)
+
+    assert len(processed["data_samples"]) == 1
+    assert "gt_bboxes_3d" not in processed["inputs"]
+    assert "gt_labels_3d" not in processed["inputs"]
 
 
 def test_dataset_fails_closed_when_prepared_payload_changes(

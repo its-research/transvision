@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import torch
 
+import transvision.models.resilient_v2x.geometry as geometry_module
 from transvision.models.resilient_v2x.geometry import (
     BEVGridSpec,
     align_bev_to_target,
@@ -68,6 +69,45 @@ def test_grid_spec_rejects_invalid_values(
 def test_identity_alignment_is_exact() -> None:
     actual = align_bev_to_target(impulse(), torch.eye(4).unsqueeze(0), SPEC)
     torch.testing.assert_close(actual, impulse(), atol=0.0, rtol=0.0)
+
+
+def test_low_precision_alignment_builds_geometry_in_float32(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = impulse().to(dtype=torch.float16)
+    transform = torch.eye(4, dtype=torch.float32).unsqueeze(0)
+    captured: dict[str, torch.dtype] = {}
+
+    def fake_grid_sample(
+        value: torch.Tensor,
+        grid: torch.Tensor,
+        **kwargs: object,
+    ) -> torch.Tensor:
+        captured["source"] = value.dtype
+        captured["grid"] = grid.dtype
+        return value.clone()
+
+    monkeypatch.setattr(geometry_module.F, "grid_sample", fake_grid_sample)
+
+    actual = align_bev_to_target(source, transform, SPEC)
+
+    assert actual.dtype is torch.float16
+    assert captured == {"source": torch.float16, "grid": torch.float16}
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required")
+def test_cuda_amp_alignment_accepts_fp16_feature_and_fp32_transform() -> None:
+    source = impulse().cuda().half().requires_grad_()
+    transform = torch.eye(4, device="cuda", dtype=torch.float32).unsqueeze(0)
+
+    with torch.autocast("cuda", dtype=torch.float16):
+        actual = align_bev_to_target(source, transform, SPEC)
+        loss = actual.float().square().sum()
+    loss.backward()
+
+    assert actual.dtype is torch.float16
+    assert source.grad is not None
+    assert torch.isfinite(source.grad).all()
 
 
 def test_positive_x_translation_moves_impulse_one_column() -> None:

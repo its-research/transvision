@@ -54,7 +54,10 @@ def test_reproduction_uses_real_cli_entrypoints_and_required_protocol_flags() ->
         "--protocol-scope controlled",
         "--delta-t-ms 100",
         "--history-limit 3",
+        "--max-capture-skew-ms 200",
+        "--split val",
         "--max-delay-ms 300",
+        "--max-duration 1",
         "--max-duration 4",
         "--protocol-seed 20250218",
         "--p-lidar 0.2",
@@ -71,6 +74,56 @@ def test_reproduction_uses_real_cli_entrypoints_and_required_protocol_flags() ->
     )
     for flag in required_flags:
         assert flag in document
+    assert "validation_cohort.json" in document
+    assert "validation_duration_cohort.json" in document
+    assert "test_cohort.json" not in document
+    assert (
+        'export RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_OVERLAY="$DAIR_ARTIFACT_ROOT/val_transport_delay_300.jsonl.zst"'
+        in document
+    )
+    assert (
+        'export RESILIENT_V2X_TEST_CAUSAL_DELAY_300_L_FAIL_OVERLAY="$DAIR_ARTIFACT_ROOT/val_causal_delay_300_l_fail.jsonl.zst"'
+        in document
+    )
+    assert "$DAIR_ARTIFACT_ROOT/test_transport_delay_300.jsonl.zst" not in document
+    assert "$DAIR_ARTIFACT_ROOT/test_causal_delay_300_l_fail.jsonl.zst" not in document
+
+
+def test_reproduction_separates_main_and_continuous_fault_cohorts() -> None:
+    document = _read(REPRODUCTION)
+    assert (
+        "--max-delay-ms 300 \\\n  --max-duration 1 \\\n"
+        '  --out "$DAIR_ARTIFACT_ROOT/validation_cohort.json"'
+    ) in document
+    assert (
+        "--max-delay-ms 0 \\\n  --max-duration 4 \\\n"
+        '  --out "$DAIR_ARTIFACT_ROOT/validation_duration_cohort.json"'
+    ) in document
+
+    continuous = re.search(
+        r"for duration in 2 3 4; do\n(?P<body>.*?)\ndone",
+        document,
+        flags=re.DOTALL,
+    )
+    assert continuous is not None
+    body = continuous.group("body")
+    assert '--cohort "$DAIR_ARTIFACT_ROOT/validation_duration_cohort.json"' in body
+    assert "--delays 0 \\" in body
+    assert "--delays 0 100 200 300" not in body
+    assert "论文没有规定持续故障与非零时延的笛卡尔积" in document
+    assert "max_delay_ms / delta_t_ms + duration - 1 <= history_limit" in document
+
+
+def test_reproduction_exports_repository_root_before_training() -> None:
+    document = _read(REPRODUCTION)
+    root_export = 'export RESILIENT_V2X_REPO_ROOT="$(pwd)"'
+    pythonpath_export = (
+        'export PYTHONPATH="$RESILIENT_V2X_REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"'
+    )
+    assert root_export in document
+    assert pythonpath_export in document
+    assert document.index(root_export) < document.index("python tools/train.py")
+    assert document.index(pythonpath_export) < document.index("python tools/train.py")
 
 
 def test_multiline_bash_options_have_command_continuations() -> None:
@@ -104,9 +157,7 @@ def test_paper_coverage_references_only_existing_repository_paths() -> None:
         )
     )
     assert referenced_paths
-    missing = sorted(
-        path for path in referenced_paths if not (ROOT / path).exists()
-    )
+    missing = sorted(path for path in referenced_paths if not (ROOT / path).exists())
     assert missing == []
 
 

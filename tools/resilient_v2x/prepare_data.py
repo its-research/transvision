@@ -26,6 +26,7 @@ from transvision.dataset.resilient_v2x_manifest import (  # noqa: E402
     ReleaseInventoryEntry,
     TemporalManifest,
     TemporalSampleRecord,
+    _relative_path as _manifest_relative_path,
     build_release_inventory,
     canonical_json_bytes,
     content_sha256,
@@ -46,9 +47,7 @@ _METADATA_PATHS = (
 _SPLITS = ("train", "val", "test")
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 _UNSIGNED_DECIMAL = re.compile(r"^[1-9][0-9]*$")
-_FINITE_DECIMAL = re.compile(
-    r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$"
-)
+_FINITE_DECIMAL = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
 _CUBOID_ATOL = 1e-5
 _CUBOID_RTOL = 1e-6
 
@@ -86,8 +85,8 @@ def build_protocol_sequences(
     max_capture_skew_us = max_capture_skew_ms * 1000
     samples: list[TemporalSampleRecord] = []
     sequence_splits: list[dict[str, object]] = []
-    completed_source_pairs: set[tuple[str, str]] = set()
-    current_source_pair: tuple[str, str] | None = None
+    completed_source_pairs: set[tuple[str, str, str, int]] = set()
+    current_source_pair: tuple[str, str, str, int] | None = None
     source_sequence_id = ""
     protocol_sequence_id = ""
     segment_index = 0
@@ -107,13 +106,22 @@ def build_protocol_sequences(
             record.get("infrastructure_batch_id"),
             f"paired record {record_index} infrastructure_batch_id",
         )
-        source_pair = (vehicle_batch_id, infrastructure_batch_id)
+        split = record.get("split")
+        if split not in {"train", "val", "test"}:
+            raise ValueError(f"paired record {record_index} split is invalid")
+        sequence_lane = record.get("sequence_lane", 0)
+        if type(sequence_lane) is not int or sequence_lane < 0:
+            raise ValueError(f"paired record {record_index} sequence_lane is invalid")
+        source_pair = (
+            split,
+            vehicle_batch_id,
+            infrastructure_batch_id,
+            sequence_lane,
+        )
         source_changed = source_pair != current_source_pair
         if source_changed:
             if source_pair in completed_source_pairs:
-                raise ValueError(
-                    "source batch pair reappeared non-contiguously"
-                )
+                raise ValueError("source batch pair reappeared non-contiguously")
             if current_source_pair is not None:
                 completed_source_pairs.add(current_source_pair)
             current_source_pair = source_pair
@@ -121,6 +129,8 @@ def build_protocol_sequences(
                 "src-",
                 {
                     "infrastructure_batch_id": infrastructure_batch_id,
+                    "sequence_lane": sequence_lane,
+                    "split": split,
                     "vehicle_batch_id": vehicle_batch_id,
                 },
             )
@@ -135,6 +145,7 @@ def build_protocol_sequences(
             segment_ticks = []
             segment_split = None
             previous_timestamps = None
+            previous_sample_id = None
 
         sample_id = _required_string(
             record.get("sample_id"),
@@ -146,9 +157,7 @@ def build_protocol_sequences(
             or not isinstance(slices_value, Sequence)
             or len(slices_value) != 4
         ):
-            raise ValueError(
-                f"paired record {record_index} must contain four slices"
-            )
+            raise ValueError(f"paired record {record_index} must contain four slices")
         slice_mappings: list[Mapping[str, object]] = []
         timestamps: list[int] = []
         for branch_index, (expected_agent, expected_modality) in enumerate(
@@ -164,9 +173,7 @@ def build_protocol_sequences(
                 raise ValueError("normalized slices have the wrong branch order")
             timestamp = raw_slice.get("capture_timestamp_us")
             if type(timestamp) is not int or timestamp <= 0:
-                raise ValueError(
-                    "capture timestamp must be a positive integer"
-                )
+                raise ValueError("capture timestamp must be a positive integer")
             slice_mappings.append(raw_slice)
             timestamps.append(timestamp)
 
@@ -177,9 +184,7 @@ def build_protocol_sequences(
                 current = timestamps[branch_index]
                 interval = current - previous
                 if interval <= 0:
-                    raise ValueError(
-                        "capture timestamps must be strictly increasing"
-                    )
+                    raise ValueError("capture timestamps must be strictly increasing")
                 if not interval_min_us <= interval <= interval_max_us:
                     triggers.append(
                         {
@@ -216,7 +221,6 @@ def build_protocol_sequences(
             segment_ticks = []
             segment_split = None
 
-        split = record.get("split")
         if segment_split is None:
             segment_split = split
         elif split != segment_split:
@@ -245,27 +249,15 @@ def build_protocol_sequences(
                     modality=modality,  # type: ignore[arg-type]
                     n_s=n_t,
                     tau_s_ms=n_t * delta_t_ms,
-                    capture_timestamp_us=raw_slice[
-                        "capture_timestamp_us"
-                    ],  # type: ignore[arg-type]
+                    capture_timestamp_us=raw_slice["capture_timestamp_us"],  # type: ignore[arg-type]
                     frame_id=frame_id,
                     packet_id=packet_id,
                     relative_path=raw_slice["relative_path"],  # type: ignore[arg-type]
-                    world_from_agent=raw_slice[
-                        "world_from_agent"
-                    ],  # type: ignore[arg-type]
-                    agent_from_sensor=raw_slice[
-                        "agent_from_sensor"
-                    ],  # type: ignore[arg-type]
-                    calibration_relative_path=raw_slice[
-                        "calibration_relative_path"
-                    ],  # type: ignore[arg-type]
-                    calibration_sha256=raw_slice[
-                        "calibration_sha256"
-                    ],  # type: ignore[arg-type]
-                    camera_intrinsic=raw_slice.get(
-                        "camera_intrinsic"
-                    ),  # type: ignore[arg-type]
+                    world_from_agent=raw_slice["world_from_agent"],  # type: ignore[arg-type]
+                    agent_from_sensor=raw_slice["agent_from_sensor"],  # type: ignore[arg-type]
+                    calibration_relative_path=raw_slice["calibration_relative_path"],  # type: ignore[arg-type]
+                    calibration_sha256=raw_slice["calibration_sha256"],  # type: ignore[arg-type]
+                    camera_intrinsic=raw_slice.get("camera_intrinsic"),  # type: ignore[arg-type]
                     payload_valid=True,
                     pose_valid=True,
                     calibration_valid=True,
@@ -274,14 +266,11 @@ def build_protocol_sequences(
         segment_ticks.append(tuple(tick_slices))
         history_start = max(0, n_t - history_limit)
         source_slices = tuple(
-            item
-            for tick in segment_ticks[history_start:]
-            for item in tick
+            item for tick in segment_ticks[history_start:] for item in tick
         )
         ground_truth_value = record.get("ground_truth")
-        if (
-            isinstance(ground_truth_value, (str, bytes))
-            or not isinstance(ground_truth_value, Sequence)
+        if isinstance(ground_truth_value, (str, bytes)) or not isinstance(
+            ground_truth_value, Sequence
         ):
             raise ValueError("ground_truth must be a sequence")
         ground_truth: list[GroundTruthBoxRecord] = []
@@ -301,9 +290,7 @@ def build_protocol_sequences(
                 tau_t_ms=n_t * delta_t_ms,
                 source_slices=source_slices,
                 annotation_path=record["annotation_path"],  # type: ignore[arg-type]
-                annotation_sha256=record[
-                    "annotation_sha256"
-                ],  # type: ignore[arg-type]
+                annotation_sha256=record["annotation_sha256"],  # type: ignore[arg-type]
                 ground_truth=tuple(ground_truth),
             )
         )
@@ -316,6 +303,13 @@ def _required_string(value: object, context: str) -> str:
     if type(value) is not str or not value:
         raise ValueError(f"{context} must be a nonempty string")
     return value
+
+
+def _canonical_relative_path(value: object, context: str) -> str:
+    try:
+        return _manifest_relative_path(value, context)
+    except ManifestError as error:
+        raise ValueError(str(error)) from error
 
 
 def _stable_identifier(prefix: str, payload: Mapping[str, object]) -> str:
@@ -393,10 +387,8 @@ def _parse_split(
             or expected_sha256 != OFFICIAL_COOPERATIVE_SPLIT_SHA256
         ):
             raise ValueError("controlled split must use the official SHA-256")
-        if protocol_values != (100, 3, 50, 150, 50):
-            raise ValueError(
-                "controlled protocol values must be 100,3,50,150,50"
-            )
+        if protocol_values != (100, 3, 50, 150, 200):
+            raise ValueError("controlled protocol values must be 100,3,50,150,200")
     payload = _mapping(_load_json_bytes(raw, "split JSON"), "split JSON")
     cooperative = _mapping(
         payload.get("cooperative_split"),
@@ -432,14 +424,22 @@ def _parse_split(
         counts = tuple(len(split_lists[name]) for name in _SPLITS)
         if counts != (4813, 1783, 2688):
             raise ValueError("controlled cooperative split counts are invalid")
-    return split_by_id, set(split_by_id)
+    release_split_names = (
+        ("train", "val") if protocol_scope == "controlled" else _SPLITS
+    )
+    release_split_by_id = {
+        sample_id: split_name
+        for split_name in release_split_names
+        for sample_id in split_lists[split_name]
+    }
+    return release_split_by_id, set(release_split_by_id)
 
 
 def _full_side_path(prefix: str, value: object, context: str) -> str:
-    relative = _required_string(value, context)
+    relative = _canonical_relative_path(value, context)
     if relative.startswith(f"{prefix}/"):
         return relative
-    return f"{prefix}/{relative}"
+    return _canonical_relative_path(f"{prefix}/{relative}", context)
 
 
 def _side_indexes(
@@ -451,9 +451,7 @@ def _side_indexes(
 ]:
     pointcloud_index: dict[str, tuple[int, Mapping[str, object]]] = {}
     image_index: dict[str, tuple[int, Mapping[str, object]]] = {}
-    for index, value in enumerate(
-        _array(records_value, f"{prefix} data_info")
-    ):
+    for index, value in enumerate(_array(records_value, f"{prefix} data_info")):
         record = _mapping(value, f"{prefix} data_info[{index}]")
         pointcloud_path = _full_side_path(
             prefix,
@@ -479,9 +477,7 @@ def _joined_side_record(
     prefix: str,
     pointcloud_path: str,
     image_path: str,
-    pointcloud_index: Mapping[
-        str, tuple[int, Mapping[str, object]]
-    ],
+    pointcloud_index: Mapping[str, tuple[int, Mapping[str, object]]],
     image_index: Mapping[str, tuple[int, Mapping[str, object]]],
 ) -> Mapping[str, object]:
     pointcloud_match = pointcloud_index.get(pointcloud_path)
@@ -491,15 +487,18 @@ def _joined_side_record(
     if pointcloud_match[0] != image_match[0]:
         raise ValueError(f"conflicting {prefix} metadata joins")
     record = pointcloud_match[1]
-    frame_id = _required_string(
-        record.get("frame_id"),
-        f"{prefix} frame_id",
-    )
-    if (
-        PurePosixPath(pointcloud_path).stem != frame_id
-        or PurePosixPath(image_path).stem != frame_id
-    ):
+    pointcloud_frame_id = PurePosixPath(pointcloud_path).stem
+    image_frame_id = PurePosixPath(image_path).stem
+    if pointcloud_frame_id != image_frame_id:
         raise ValueError(f"{prefix} path/frame-ID disagreement")
+    explicit_frame_id = record.get("frame_id")
+    if explicit_frame_id is not None:
+        frame_id = _required_string(
+            explicit_frame_id,
+            f"{prefix} frame_id",
+        )
+        if frame_id != pointcloud_frame_id:
+            raise ValueError(f"{prefix} path/frame-ID disagreement")
     return record
 
 
@@ -522,13 +521,8 @@ def _inventory_bytes(
 ) -> bytes:
     path = data_root.joinpath(*PurePosixPath(relative_path).parts)
     raw = _read_stable_regular_bytes(path)
-    if (
-        len(raw) != entry.size
-        or hashlib.sha256(raw).hexdigest() != entry.sha256
-    ):
-        raise ValueError(
-            f"file differs from frozen raw inventory: {relative_path}"
-        )
+    if len(raw) != entry.size or hashlib.sha256(raw).hexdigest() != entry.sha256:
+        raise ValueError(f"file differs from frozen raw inventory: {relative_path}")
     return raw
 
 
@@ -642,6 +636,7 @@ def _transform(
     *,
     context: str,
     nested_transform: bool = False,
+    allow_affine: bool = False,
 ) -> np.ndarray:
     mapping = _mapping(payload, context)
     if nested_transform:
@@ -658,7 +653,8 @@ def _transform(
     result = np.eye(4, dtype=np.float64)
     result[:3, :3] = rotation
     result[:3, 3] = translation
-    return _public_rigid_matrix(result, context)
+    validator = _public_affine_matrix if allow_affine else _public_rigid_matrix
+    return validator(result, context)
 
 
 def _intrinsic(payload: object, context: str) -> np.ndarray:
@@ -678,10 +674,7 @@ def _intrinsic(payload: object, context: str) -> np.ndarray:
 
 
 def _plain_matrix(value: np.ndarray) -> tuple[tuple[float, ...], ...]:
-    return tuple(
-        tuple(float(item) for item in row)
-        for row in value.tolist()
-    )
+    return tuple(tuple(float(item) for item in row) for row in value.tolist())
 
 
 def _public_rigid_matrix(value: np.ndarray, context: str) -> np.ndarray:
@@ -715,6 +708,42 @@ def _public_rigid_matrix(value: np.ndarray, context: str) -> np.ndarray:
     return np.asarray(probe.world_from_agent, dtype=np.float64)
 
 
+def _public_affine_matrix(value: np.ndarray, context: str) -> np.ndarray:
+    identity = (
+        (1.0, 0.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0, 0.0),
+        (0.0, 0.0, 1.0, 0.0),
+        (0.0, 0.0, 0.0, 1.0),
+    )
+    intrinsic = (
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, 1.0),
+    )
+    try:
+        probe = RawSliceRecord(
+            agent="ego",
+            modality="camera",
+            n_s=0,
+            tau_s_ms=0,
+            capture_timestamp_us=1,
+            frame_id="preflight-frame",
+            packet_id="preflight-packet",
+            relative_path="preflight/payload.jpg",
+            world_from_agent=identity,
+            agent_from_sensor=_plain_matrix(value),
+            calibration_relative_path="preflight/calibration.json",
+            calibration_sha256="0" * 64,
+            camera_intrinsic=intrinsic,
+            payload_valid=True,
+            pose_valid=True,
+            calibration_valid=True,
+        )
+    except ManifestError as error:
+        raise ManifestError(f"{context} is not affine: {error}") from error
+    return np.asarray(probe.agent_from_sensor, dtype=np.float64)
+
+
 def _offset_number(value: object, context: str) -> float:
     if type(value) in (int, float):
         parsed = float(value)
@@ -732,9 +761,7 @@ def _system_error_offset(value: object) -> tuple[float, float]:
         return 0.0, 0.0
     mapping = _mapping(value, "system_error_offset")
     if set(mapping) != {"delta_x", "delta_y"}:
-        raise ValueError(
-            "system_error_offset requires exactly delta_x and delta_y"
-        )
+        raise ValueError("system_error_offset requires exactly delta_x and delta_y")
     return (
         _offset_number(mapping["delta_x"], "system_error_offset.delta_x"),
         _offset_number(mapping["delta_y"], "system_error_offset.delta_y"),
@@ -772,7 +799,7 @@ def _ground_truth(
         class_name = annotation.get("type")
         if type(class_name) is not str:
             raise ValueError("annotation type must be a string")
-        if class_name != "Car":
+        if class_name not in ("car", "Car"):
             continue
         if "world_8_points" not in annotation:
             raise ValueError("Car annotation requires explicit world_8_points")
@@ -783,9 +810,7 @@ def _ground_truth(
         )
         if np.unique(corners_world, axis=0).shape[0] != 8:
             raise ValueError("world_8_points must contain eight unique corners")
-        homogeneous = np.column_stack(
-            [corners_world, np.ones(8, dtype=np.float64)]
-        )
+        homogeneous = np.column_stack([corners_world, np.ones(8, dtype=np.float64)])
         corners = (ego_lidar_from_world @ homogeneous.T).T[:, :3]
         p0, p1, p2, p3, p4, p5, p6, p7 = corners
         length_vector = p0 - p3
@@ -889,9 +914,7 @@ def _validated_slice(
         calibration_relative_path=calibration_relative_path,
         calibration_sha256=calibration_sha256,
         camera_intrinsic=(
-            None
-            if camera_intrinsic is None
-            else _plain_matrix(camera_intrinsic)
+            None if camera_intrinsic is None else _plain_matrix(camera_intrinsic)
         ),
         payload_valid=True,
         pose_valid=True,
@@ -959,14 +982,10 @@ def _sample_payload(value: TemporalSampleRecord) -> dict[str, object]:
         "split": value.split,
         "n_t": value.n_t,
         "tau_t_ms": value.tau_t_ms,
-        "source_slices": [
-            _raw_slice_payload(item) for item in value.source_slices
-        ],
+        "source_slices": [_raw_slice_payload(item) for item in value.source_slices],
         "annotation_path": value.annotation_path,
         "annotation_sha256": value.annotation_sha256,
-        "ground_truth": [
-            _ground_truth_payload(item) for item in value.ground_truth
-        ],
+        "ground_truth": [_ground_truth_payload(item) for item in value.ground_truth],
     }
 
 
@@ -1000,18 +1019,14 @@ def _boundary_payload(value: Mapping[str, object]) -> dict[str, object]:
         "triggers": [
             {
                 "agent": _mapping(trigger, "sequence trigger")["agent"],
-                "modality": _mapping(trigger, "sequence trigger")[
-                    "modality"
+                "modality": _mapping(trigger, "sequence trigger")["modality"],
+                "previous_capture_timestamp_us": _mapping(trigger, "sequence trigger")[
+                    "previous_capture_timestamp_us"
                 ],
-                "previous_capture_timestamp_us": _mapping(
-                    trigger, "sequence trigger"
-                )["previous_capture_timestamp_us"],
-                "current_capture_timestamp_us": _mapping(
-                    trigger, "sequence trigger"
-                )["current_capture_timestamp_us"],
-                "interval_us": _mapping(trigger, "sequence trigger")[
-                    "interval_us"
+                "current_capture_timestamp_us": _mapping(trigger, "sequence trigger")[
+                    "current_capture_timestamp_us"
                 ],
+                "interval_us": _mapping(trigger, "sequence trigger")["interval_us"],
             }
             for trigger in triggers
         ],
@@ -1036,9 +1051,7 @@ def _manifest_payload(value: TemporalManifest) -> dict[str, object]:
             _prepared_payload(item) for item in value.prepared_artifacts
         ],
         "history_eligible_train_count": value.history_eligible_train_count,
-        "sequence_splits": [
-            _boundary_payload(item) for item in value.sequence_splits
-        ],
+        "sequence_splits": [_boundary_payload(item) for item in value.sequence_splits],
         "excluded_samples": [],
         "samples": [_sample_payload(item) for item in value.samples],
         "content_sha256": value.content_sha256,
@@ -1056,9 +1069,7 @@ def _preflight_records(
     tuple[str, ...],
 ]:
     metadata_inventory = build_release_inventory(data_root, _METADATA_PATHS)
-    metadata_by_path = {
-        entry.relative_path: entry for entry in metadata_inventory
-    }
+    metadata_by_path = {entry.relative_path: entry for entry in metadata_inventory}
     cooperative_value = _load_json_bytes(
         _inventory_bytes(
             data_root,
@@ -1094,11 +1105,10 @@ def _preflight_records(
 
     joined: list[dict[str, object]] = []
     sample_ids: list[str] = []
+    split_keys: list[str] = []
     raw_paths: set[str] = set(_METADATA_PATHS)
     lidar_paths: set[str] = set()
-    for index, value in enumerate(
-        _array(cooperative_value, "cooperative data_info")
-    ):
+    for index, value in enumerate(_array(cooperative_value, "cooperative data_info")):
         cooperative = _mapping(
             value,
             f"cooperative data_info[{index}]",
@@ -1125,18 +1135,29 @@ def _preflight_records(
                 "cooperative_label_path",
             ),
         }
+        paths = {
+            name: _canonical_relative_path(path, f"{name} path")
+            for name, path in paths.items()
+        }
         required_prefixes = {
             "vehicle_image": "vehicle-side/image/",
             "vehicle_pointcloud": "vehicle-side/velodyne/",
             "infrastructure_image": "infrastructure-side/image/",
-            "infrastructure_pointcloud": (
-                "infrastructure-side/velodyne/"
-            ),
+            "infrastructure_pointcloud": ("infrastructure-side/velodyne/"),
             "label": "cooperative/label_world/",
         }
         for name, prefix in required_prefixes.items():
             if not paths[name].startswith(prefix):
                 raise ValueError(f"{name} is not in the canonical DAIR path")
+        vehicle_frame_id = PurePosixPath(paths["vehicle_image"]).stem
+        if (
+            PurePosixPath(paths["vehicle_pointcloud"]).stem != vehicle_frame_id
+            or PurePosixPath(paths["label"]).stem != vehicle_frame_id
+            or paths["label"] != f"cooperative/label_world/{vehicle_frame_id}.json"
+        ):
+            raise ValueError("cooperative sample/path frame-ID disagreement")
+        if vehicle_frame_id not in split_ids:
+            continue
         vehicle = _joined_side_record(
             prefix="vehicle-side",
             pointcloud_path=paths["vehicle_pointcloud"],
@@ -1151,22 +1172,8 @@ def _preflight_records(
             pointcloud_index=infrastructure_pcd_index,
             image_index=infrastructure_image_index,
         )
-        vehicle_frame_id = PurePosixPath(paths["vehicle_image"]).stem
-        if (
-            PurePosixPath(paths["vehicle_pointcloud"]).stem
-            != vehicle_frame_id
-            or PurePosixPath(paths["label"]).stem != vehicle_frame_id
-            or paths["label"]
-            != f"cooperative/label_world/{vehicle_frame_id}.json"
-        ):
-            raise ValueError("cooperative sample/path frame-ID disagreement")
-        infrastructure_frame_id = PurePosixPath(
-            paths["infrastructure_pointcloud"]
-        ).stem
-        if (
-            PurePosixPath(paths["infrastructure_image"]).stem
-            != infrastructure_frame_id
-        ):
+        infrastructure_frame_id = PurePosixPath(paths["infrastructure_pointcloud"]).stem
+        if PurePosixPath(paths["infrastructure_image"]).stem != infrastructure_frame_id:
             raise ValueError("infrastructure sensor frame-ID disagreement")
         calibration_paths = _calibration_paths(
             vehicle=vehicle,
@@ -1174,7 +1181,9 @@ def _preflight_records(
             vehicle_frame_id=vehicle_frame_id,
             infrastructure_frame_id=infrastructure_frame_id,
         )
-        sample_ids.append(vehicle_frame_id)
+        sample_id = f"dairc-v{vehicle_frame_id}-i{infrastructure_frame_id}"
+        sample_ids.append(sample_id)
+        split_keys.append(vehicle_frame_id)
         raw_paths.update(paths.values())
         raw_paths.update(calibration_paths.values())
         lidar_paths.update(
@@ -1190,25 +1199,64 @@ def _preflight_records(
                 "infrastructure": infrastructure,
                 "paths": paths,
                 "calibration_paths": calibration_paths,
-                "sample_id": vehicle_frame_id,
+                "sample_id": sample_id,
                 "vehicle_frame_id": vehicle_frame_id,
                 "infrastructure_frame_id": infrastructure_frame_id,
             }
         )
     if len(sample_ids) != len(set(sample_ids)):
-        raise ValueError("cooperative data_info has duplicate sample IDs")
-    if set(sample_ids) != split_ids:
-        missing = sorted(split_ids - set(sample_ids))
-        unknown = sorted(set(sample_ids) - split_ids)
+        raise ValueError("cooperative data_info has duplicate pair identities")
+    if set(split_keys) != split_ids:
+        missing = sorted(split_ids - set(split_keys))
         raise ValueError(
-            f"split/cooperative sample IDs differ; missing={missing}, "
-            f"unknown={unknown}"
+            f"cooperative release does not cover split IDs; missing={missing}"
         )
 
+    candidates_by_target: dict[str, list[dict[str, object]]] = {}
+    for item in joined:
+        target = _required_string(
+            item["vehicle_frame_id"],
+            "vehicle frame ID",
+        )
+        candidates_by_target.setdefault(target, []).append(item)
+    for candidates in candidates_by_target.values():
+        ranked = sorted(
+            candidates,
+            key=lambda item: (
+                abs(
+                    _timestamp(
+                        _mapping(item["vehicle"], "vehicle record").get(
+                            "pointcloud_timestamp"
+                        ),
+                        "vehicle pointcloud_timestamp",
+                    )
+                    - _timestamp(
+                        _mapping(
+                            item["infrastructure"],
+                            "infrastructure record",
+                        ).get("pointcloud_timestamp"),
+                        "infrastructure pointcloud_timestamp",
+                    )
+                ),
+                _timestamp(
+                    _mapping(
+                        item["infrastructure"],
+                        "infrastructure record",
+                    ).get("pointcloud_timestamp"),
+                    "infrastructure pointcloud_timestamp",
+                ),
+                _required_string(
+                    item["infrastructure_frame_id"],
+                    "infrastructure frame ID",
+                ),
+                _required_string(item["sample_id"], "pair sample ID"),
+            ),
+        )
+        for sequence_lane, item in enumerate(ranked):
+            item["sequence_lane"] = sequence_lane
+
     release_inventory = build_release_inventory(data_root, raw_paths)
-    inventory_by_path = {
-        entry.relative_path: entry for entry in release_inventory
-    }
+    inventory_by_path = {entry.relative_path: entry for entry in release_inventory}
     for metadata_entry in metadata_inventory:
         if inventory_by_path.get(metadata_entry.relative_path) != metadata_entry:
             raise ValueError("metadata changed during raw inventory construction")
@@ -1255,6 +1303,7 @@ def _preflight_records(
         rsu_lidar_to_camera = _transform(
             calibrations["rsu_lidar_to_camera"],
             context="rsu virtuallidar_to_camera",
+            allow_affine=True,
         )
         ego_intrinsic = _intrinsic(
             calibrations["ego_camera_intrinsic"],
@@ -1266,9 +1315,7 @@ def _preflight_records(
         )
         world_from_ego = ego_novatel_to_world @ ego_lidar_to_novatel
         world_from_rsu = rsu_lidar_to_world.copy()
-        delta_x, delta_y = _system_error_offset(
-            cooperative.get("system_error_offset")
-        )
+        delta_x, delta_y = _system_error_offset(cooperative.get("system_error_offset"))
         world_from_rsu[0, 3] += delta_x
         world_from_rsu[1, 3] += delta_y
         try:
@@ -1407,7 +1454,7 @@ def _preflight_records(
         normalized.append(
             {
                 "sample_id": item["sample_id"],
-                "split": split_by_id[item["sample_id"]],  # type: ignore[index]
+                "split": split_by_id[vehicle_frame_id],
                 "vehicle_batch_id": _required_string(
                     vehicle.get("batch_id"),
                     "vehicle batch_id",
@@ -1416,12 +1463,32 @@ def _preflight_records(
                     infrastructure.get("batch_id"),
                     "infrastructure batch_id",
                 ),
+                "sequence_lane": item["sequence_lane"],
                 "slices": slices,
                 "annotation_path": annotation_path,
                 "annotation_sha256": annotation_entry.sha256,
                 "ground_truth": labels,
             }
         )
+
+    def batch_sort_key(value: object) -> tuple[int, int | str]:
+        text = _required_string(value, "batch ID")
+        if _UNSIGNED_DECIMAL.fullmatch(text):
+            return (0, int(text, 10))
+        return (1, text)
+
+    split_order = {"train": 0, "val": 1, "test": 2}
+    normalized.sort(
+        key=lambda record: (
+            split_order[record["split"]],  # type: ignore[index]
+            batch_sort_key(record["vehicle_batch_id"]),
+            batch_sort_key(record["infrastructure_batch_id"]),
+            record["sequence_lane"],
+            record["slices"][0]["capture_timestamp_us"],  # type: ignore[index]
+            record["slices"][1]["capture_timestamp_us"],  # type: ignore[index]
+            record["sample_id"],
+        )
+    )
     return (
         normalized,
         release_inventory,
@@ -1473,15 +1540,16 @@ def _prepare_manifest_impl(
         interval_max_ms=interval_max_ms,
         max_capture_skew_ms=max_capture_skew_ms,
     )
-    if build_release_inventory(
-        data_root,
-        (entry.relative_path for entry in release_inventory),
-    ) != release_inventory:
+    if (
+        build_release_inventory(
+            data_root,
+            (entry.relative_path for entry in release_inventory),
+        )
+        != release_inventory
+    ):
         raise ValueError("raw release changed after preflight")
 
-    inventory_by_path = {
-        entry.relative_path: entry for entry in release_inventory
-    }
+    inventory_by_path = {entry.relative_path: entry for entry in release_inventory}
     prepared_artifacts: list[PreparedArtifactRecord] = []
     for source_relative_path in lidar_paths:
         source_entry = inventory_by_path[source_relative_path]
@@ -1489,13 +1557,9 @@ def _prepare_manifest_impl(
             PurePosixPath("prepared/resilient_v2x")
             / PurePosixPath(source_relative_path).with_suffix(".bin")
         ).as_posix()
-        prepared_path = data_root.joinpath(
-            *PurePosixPath(prepared_relative).parts
-        )
+        prepared_path = data_root.joinpath(*PurePosixPath(prepared_relative).parts)
         prepared = _convert_verified_pcd_to_bin(
-            data_root.joinpath(
-                *PurePosixPath(source_relative_path).parts
-            ),
+            data_root.joinpath(*PurePosixPath(source_relative_path).parts),
             prepared_path,
             expected_size=source_entry.size,
             expected_sha256=source_entry.sha256,
@@ -1512,17 +1576,19 @@ def _prepare_manifest_impl(
             )
         )
 
-    if build_release_inventory(
-        data_root,
-        (entry.relative_path for entry in release_inventory),
-    ) != release_inventory:
+    if (
+        build_release_inventory(
+            data_root,
+            (entry.relative_path for entry in release_inventory),
+        )
+        != release_inventory
+    ):
         raise ValueError("raw release changed before manifest publication")
     if _read_stable_regular_bytes(split_path) != split_raw:
         raise ValueError("split file changed before manifest publication")
 
     history_eligible_train_count = sum(
-        sample.split == "train" and sample.n_t >= history_limit
-        for sample in samples
+        sample.split == "train" and sample.n_t >= history_limit for sample in samples
     )
     common: dict[str, object] = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
@@ -1533,9 +1599,7 @@ def _prepare_manifest_impl(
         "interval_max_ms": interval_max_ms,
         "max_capture_skew_ms": max_capture_skew_ms,
         "split_sha256": split_sha256,
-        "dataset_release_sha256": release_inventory_sha256(
-            release_inventory
-        ),
+        "dataset_release_sha256": release_inventory_sha256(release_inventory),
         "release_inventory": release_inventory,
         "prepared_artifacts": tuple(prepared_artifacts),
         "history_eligible_train_count": history_eligible_train_count,
@@ -1553,16 +1617,10 @@ def _prepare_manifest_impl(
         "max_capture_skew_ms": max_capture_skew_ms,
         "split_sha256": split_sha256,
         "dataset_release_sha256": common["dataset_release_sha256"],
-        "release_inventory": [
-            _inventory_payload(item) for item in release_inventory
-        ],
-        "prepared_artifacts": [
-            _prepared_payload(item) for item in prepared_artifacts
-        ],
+        "release_inventory": [_inventory_payload(item) for item in release_inventory],
+        "prepared_artifacts": [_prepared_payload(item) for item in prepared_artifacts],
         "history_eligible_train_count": history_eligible_train_count,
-        "sequence_splits": [
-            _boundary_payload(item) for item in sequence_splits
-        ],
+        "sequence_splits": [_boundary_payload(item) for item in sequence_splits],
         "excluded_samples": [],
         "samples": [_sample_payload(item) for item in samples],
     }

@@ -145,8 +145,15 @@ counting-convention 与 partial-coverage 说明。
 明确不是 verified evidence。当前配置为了让实验可执行而固定了以下选择：
 
 - 时间剖面：`k=3`、`Δt=100 ms`、固定延迟映射 0/100/200/300 ms；
-- 数据校验剖面：相邻采样间隔 50–150 ms、最大 capture skew 50 ms、
-  固定官方 split 摘要与当前 Car class mapping；
+- 数据校验剖面：相邻逻辑 tick 的采集间隔 50–150 ms、官方 multimodal
+  pair 的四路 capture-time compatibility envelope 200 ms、固定官方 split
+  摘要与当前 Car class mapping；该 envelope 不是同步精度或通信延迟；
+- DAIR controlled manifest 只发布 train/validation；split 按 vehicle frame ID
+  查询，pair 使用 vehicle/RSU 复合 ID，同一 target 的重复 pair 全部保留并
+  确定性分入隔离的 sequence lane；
+- 官方 infrastructure `virtuallidar_to_camera` 的 3×3 线性部分是稳定可逆
+  affine 而非刚体旋转；Camera `agent_from_sensor` 原值保留并要求有限、齐次、
+  正定向且无穷范数条件数不超过 `4`，所有 `world_from_agent` 和 LiDAR 外参仍强制刚体；
 - feature channels `C=256`，因此当前 routing descriptor 是 783 维；
   PointPillars 与 ResNet-50+LSS 是 planned instantiation，不是数值证据；
 - PTF：`α=0.9`、projected channels 64、context channels 128、low-resolution

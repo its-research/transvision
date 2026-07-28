@@ -5,6 +5,7 @@ import json
 import math
 import os
 import stat
+import struct
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass
 from fractions import Fraction
@@ -42,6 +43,7 @@ OFFICIAL_COOPERATIVE_SPLIT_SHA256 = (
 
 _MATRIX_ABS_TOL = 1e-5
 _MATRIX_REL_TOL = 1e-6
+_AFFINE_MAX_CONDITION_NUMBER = 4.0
 _BRANCH_ORDER = (
     ("ego", "lidar"),
     ("rsu", "lidar"),
@@ -144,9 +146,7 @@ _SEQUENCE_TRIGGER_FIELDS = frozenset(
         "interval_us",
     }
 )
-_EXCLUDED_FIELDS = frozenset(
-    {"sample_id", "sequence_id", "split", "n_t", "reason"}
-)
+_EXCLUDED_FIELDS = frozenset({"sample_id", "sequence_id", "split", "n_t", "reason"})
 
 
 def _expect_mapping(value: object, context: str) -> Mapping[str, object]:
@@ -225,7 +225,9 @@ def _sequence_tuple(value: object, context: str) -> tuple[object, ...]:
 
 def _sha256(value: object, context: str) -> str:
     result = _nonempty_string(value, context)
-    if len(result) != 64 or any(character not in "0123456789abcdef" for character in result):
+    if len(result) != 64 or any(
+        character not in "0123456789abcdef" for character in result
+    ):
         raise ManifestError(f"{context} must be 64 lowercase hexadecimal characters")
     return result
 
@@ -285,30 +287,77 @@ def _close(first: float, second: float) -> bool:
     )
 
 
+def _runtime_float32(value: float, context: str) -> float:
+    try:
+        rounded = struct.unpack("!f", struct.pack("!f", value))[0]
+    except (OverflowError, struct.error) as error:
+        raise ManifestError(
+            f"{context} is not representable in runtime float32"
+        ) from error
+    if not math.isfinite(rounded):
+        raise ManifestError(f"{context} is not representable in runtime float32")
+    return rounded
+
+
+def _validate_runtime_inverse(
+    matrix: tuple[tuple[float, ...], ...],
+    inverse: tuple[tuple[float, ...], ...],
+    context: str,
+) -> None:
+    runtime_matrix = tuple(
+        tuple(
+            _runtime_float32(item, f"{context}[{row_index}][{column_index}]")
+            for column_index, item in enumerate(row)
+        )
+        for row_index, row in enumerate(matrix)
+    )
+    runtime_inverse = tuple(
+        tuple(
+            _runtime_float32(
+                item,
+                f"{context} inverse[{row_index}][{column_index}]",
+            )
+            for column_index, item in enumerate(row)
+        )
+        for row_index, row in enumerate(inverse)
+    )
+    for left, right in (
+        (runtime_matrix, runtime_inverse),
+        (runtime_inverse, runtime_matrix),
+    ):
+        for row_index in range(4):
+            for column_index in range(4):
+                product = 0.0
+                for inner_index in range(4):
+                    term = _runtime_float32(
+                        left[row_index][inner_index] * right[inner_index][column_index],
+                        f"{context} float32 inverse product",
+                    )
+                    product = _runtime_float32(
+                        product + term,
+                        f"{context} float32 inverse sum",
+                    )
+                expected = 1.0 if row_index == column_index else 0.0
+                if not _close(product, expected):
+                    raise ManifestError(f"{context} float32 inverse is unstable")
+
+
 def _determinant_3x3(matrix: tuple[tuple[float, ...], ...]) -> float:
     return (
         matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
-        - matrix[0][1]
-        * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
-        + matrix[0][2]
-        * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0])
+        - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
+        + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0])
     )
 
 
 def _exact_determinant_3x3(
     matrix: tuple[tuple[float, ...], ...],
 ) -> Fraction:
-    exact = tuple(
-        tuple(Fraction(value) for value in row)
-        for row in matrix
-    )
+    exact = tuple(tuple(Fraction(value) for value in row) for row in matrix)
     return (
-        exact[0][0]
-        * (exact[1][1] * exact[2][2] - exact[1][2] * exact[2][1])
-        - exact[0][1]
-        * (exact[1][0] * exact[2][2] - exact[1][2] * exact[2][0])
-        + exact[0][2]
-        * (exact[1][0] * exact[2][1] - exact[1][1] * exact[2][0])
+        exact[0][0] * (exact[1][1] * exact[2][2] - exact[1][2] * exact[2][1])
+        - exact[0][1] * (exact[1][0] * exact[2][2] - exact[1][2] * exact[2][0])
+        + exact[0][2] * (exact[1][0] * exact[2][1] - exact[1][1] * exact[2][0])
     )
 
 
@@ -332,6 +381,73 @@ def _rigid_matrix(value: object, context: str) -> tuple[tuple[float, ...], ...]:
     return matrix
 
 
+def _proper_affine_matrix(
+    value: object,
+    context: str,
+) -> tuple[tuple[float, ...], ...]:
+    matrix = _matrix(value, 4, 4, context)
+    for row_index, row in enumerate(matrix):
+        for column_index, item in enumerate(row):
+            _runtime_float32(item, f"{context}[{row_index}][{column_index}]")
+    for actual, expected in zip(matrix[3], (0.0, 0.0, 0.0, 1.0)):
+        if not _close(actual, expected):
+            raise ManifestError(f"{context} must have a homogeneous last row")
+    linear = tuple(tuple(row[:3]) for row in matrix[:3])
+    determinant = _determinant_3x3(linear)
+    if determinant <= _MATRIX_ABS_TOL:
+        raise ManifestError(f"{context} linear component must be proper and invertible")
+    a, b, c = linear[0]
+    d, e, f = linear[1]
+    g, h, i = linear[2]
+    inverse = (
+        (
+            (e * i - f * h) / determinant,
+            (c * h - b * i) / determinant,
+            (b * f - c * e) / determinant,
+        ),
+        (
+            (f * g - d * i) / determinant,
+            (a * i - c * g) / determinant,
+            (c * d - a * f) / determinant,
+        ),
+        (
+            (d * h - e * g) / determinant,
+            (b * g - a * h) / determinant,
+            (a * e - b * d) / determinant,
+        ),
+    )
+    norm = max(sum(abs(item) for item in row) for row in linear)
+    inverse_norm = max(sum(abs(item) for item in row) for row in inverse)
+    condition_number = norm * inverse_norm
+    if (
+        not math.isfinite(condition_number)
+        or condition_number > _AFFINE_MAX_CONDITION_NUMBER
+    ):
+        raise ManifestError(f"{context} linear component is ill-conditioned")
+    for row_index in range(3):
+        for column_index in range(3):
+            product = sum(
+                linear[row_index][inner] * inverse[inner][column_index]
+                for inner in range(3)
+            )
+            expected = 1.0 if row_index == column_index else 0.0
+            if not _close(product, expected):
+                raise ManifestError(f"{context} linear inverse is unstable")
+    inverse_translation = tuple(
+        -sum(
+            inverse[row_index][column_index] * matrix[column_index][3]
+            for column_index in range(3)
+        )
+        for row_index in range(3)
+    )
+    affine_inverse = tuple(
+        tuple((*inverse[row_index], inverse_translation[row_index]))
+        for row_index in range(3)
+    ) + ((0.0, 0.0, 0.0, 1.0),)
+    _validate_runtime_inverse(matrix, affine_inverse, context)
+    return matrix
+
+
 def _camera_matrix(
     value: object,
     context: str,
@@ -347,10 +463,7 @@ def _camera_matrix(
 def _deep_freeze(value: object) -> object:
     if isinstance(value, Mapping):
         return MappingProxyType(
-            {
-                key: _deep_freeze(item)
-                for key, item in value.items()
-            }
+            {key: _deep_freeze(item) for key, item in value.items()}
         )
     if isinstance(value, (list, tuple)):
         return tuple(_deep_freeze(item) for item in value)
@@ -360,8 +473,7 @@ def _deep_freeze(value: object) -> object:
 def _plain(value: object) -> object:
     if is_dataclass(value) and not isinstance(value, type):
         return {
-            field.name: _plain(getattr(value, field.name))
-            for field in fields(value)
+            field.name: _plain(getattr(value, field.name)) for field in fields(value)
         }
     if isinstance(value, Mapping):
         return {key: _plain(item) for key, item in value.items()}
@@ -442,7 +554,9 @@ class RawSliceRecord:
         object.__setattr__(
             self,
             "agent_from_sensor",
-            _rigid_matrix(self.agent_from_sensor, "raw slice agent_from_sensor"),
+            (_rigid_matrix if self.modality == "lidar" else _proper_affine_matrix)(
+                self.agent_from_sensor, "raw slice agent_from_sensor"
+            ),
         )
         object.__setattr__(
             self,
@@ -579,13 +693,10 @@ class TemporalSampleRecord:
         if not all(isinstance(item, RawSliceRecord) for item in source_slices):
             raise ManifestError("sample source_slices must contain RawSliceRecord")
         source_positions = [
-            (item.agent, item.modality, item.n_s)
-            for item in source_slices
+            (item.agent, item.modality, item.n_s) for item in source_slices
         ]
         if len(source_positions) != len(set(source_positions)):
-            raise ManifestError(
-                "sample source positions must be unique"
-            )
+            raise ManifestError("sample source positions must be unique")
         packet_ids = [item.packet_id for item in source_slices]
         if len(packet_ids) != len(set(packet_ids)):
             raise ManifestError("sample packet IDs must be unique")
@@ -605,9 +716,7 @@ class TemporalSampleRecord:
             "sample ground_truth",
         )
         if not all(isinstance(item, GroundTruthBoxRecord) for item in ground_truth):
-            raise ManifestError(
-                "sample ground_truth must contain GroundTruthBoxRecord"
-            )
+            raise ManifestError("sample ground_truth must contain GroundTruthBoxRecord")
         indices = [item.source_annotation_index for item in ground_truth]
         if indices != sorted(set(indices)):
             raise ManifestError(
@@ -697,13 +806,10 @@ class PreparedArtifactRecord:
             _literal_string(self.dtype, ("<f4",), "prepared dtype"),
         )
         prepared_fields = _sequence_tuple(self.fields, "prepared fields")
-        if (
-            any(type(field) is not str for field in prepared_fields)
-            or prepared_fields != ("x", "y", "z", "intensity")
-        ):
-            raise ManifestError(
-                "prepared fields must be x, y, z, intensity"
-            )
+        if any(
+            type(field) is not str for field in prepared_fields
+        ) or prepared_fields != ("x", "y", "z", "intensity"):
+            raise ManifestError("prepared fields must be x, y, z, intensity")
         object.__setattr__(self, "fields", prepared_fields)
 
 
@@ -792,20 +898,16 @@ class TemporalManifest:
             "release_inventory",
         )
         if not all(
-            isinstance(item, ReleaseInventoryEntry)
-            for item in release_inventory
+            isinstance(item, ReleaseInventoryEntry) for item in release_inventory
         ):
-            raise ManifestError(
-                "release_inventory must contain ReleaseInventoryEntry"
-            )
+            raise ManifestError("release_inventory must contain ReleaseInventoryEntry")
         object.__setattr__(self, "release_inventory", release_inventory)
         prepared_artifacts = _sequence_tuple(
             self.prepared_artifacts,
             "prepared_artifacts",
         )
         if not all(
-            isinstance(item, PreparedArtifactRecord)
-            for item in prepared_artifacts
+            isinstance(item, PreparedArtifactRecord) for item in prepared_artifacts
         ):
             raise ManifestError(
                 "prepared_artifacts must contain PreparedArtifactRecord"
@@ -997,9 +1099,7 @@ def _open_directory_entry(
             dir_fd=parent_descriptor,
         )
     except OSError as error:
-        raise ManifestError(
-            f"unable to open inventory directory: {context}"
-        ) from error
+        raise ManifestError(f"unable to open inventory directory: {context}") from error
     try:
         opened = os.fstat(descriptor)
         if not stat.S_ISDIR(opened.st_mode):
@@ -1029,15 +1129,10 @@ def _open_directory_entry(
 def _verify_directory_chain(
     anchor_descriptor: int,
     anchor_identity: tuple[int, int, int],
-    links: Sequence[
-        tuple[int, str, int, tuple[int, int, int], str]
-    ],
+    links: Sequence[tuple[int, str, int, tuple[int, int, int], str]],
 ) -> None:
     anchor = os.fstat(anchor_descriptor)
-    if (
-        not stat.S_ISDIR(anchor.st_mode)
-        or _entry_identity(anchor) != anchor_identity
-    ):
+    if not stat.S_ISDIR(anchor.st_mode) or _entry_identity(anchor) != anchor_identity:
         raise ManifestError("inventory anchor directory changed")
     for (
         parent_descriptor,
@@ -1047,13 +1142,8 @@ def _verify_directory_chain(
         context,
     ) in links:
         opened = os.fstat(child_descriptor)
-        if (
-            not stat.S_ISDIR(opened.st_mode)
-            or _entry_identity(opened) != identity
-        ):
-            raise ManifestError(
-                f"inventory directory descriptor changed: {context}"
-            )
+        if not stat.S_ISDIR(opened.st_mode) or _entry_identity(opened) != identity:
+            raise ManifestError(f"inventory directory descriptor changed: {context}")
         try:
             current = _stat_directory_entry(
                 parent_descriptor,
@@ -1065,9 +1155,7 @@ def _verify_directory_chain(
                 f"inventory directory entry changed: {context}"
             ) from error
         if _entry_identity(current) != identity:
-            raise ManifestError(
-                f"inventory directory entry changed: {context}"
-            )
+            raise ManifestError(f"inventory directory entry changed: {context}")
 
 
 def _hash_open_regular_file(
@@ -1076,9 +1164,7 @@ def _hash_open_regular_file(
     relative_path: str,
     anchor_descriptor: int,
     anchor_identity: tuple[int, int, int],
-    directory_links: Sequence[
-        tuple[int, str, int, tuple[int, int, int], str]
-    ],
+    directory_links: Sequence[tuple[int, str, int, tuple[int, int, int], str]],
 ) -> tuple[int, str]:
     try:
         entry_before = os.stat(
@@ -1091,13 +1177,9 @@ def _hash_open_regular_file(
             f"inventory path does not exist: {relative_path}"
         ) from error
     if stat.S_ISLNK(entry_before.st_mode):
-        raise ManifestError(
-            f"inventory path contains a symlink: {relative_path}"
-        )
+        raise ManifestError(f"inventory path contains a symlink: {relative_path}")
     if not stat.S_ISREG(entry_before.st_mode):
-        raise ManifestError(
-            f"inventory path is not a regular file: {relative_path}"
-        )
+        raise ManifestError(f"inventory path is not a regular file: {relative_path}")
     try:
         descriptor = os.open(
             name,
@@ -1177,9 +1259,7 @@ def build_release_inventory(
         canonical_paths.append(relative)
 
     descriptors: list[int] = []
-    root_links: list[
-        tuple[int, str, int, tuple[int, int, int], str]
-    ] = []
+    root_links: list[tuple[int, str, int, tuple[int, int, int], str]] = []
     try:
         try:
             anchor_descriptor = os.open(
@@ -1187,9 +1267,7 @@ def build_release_inventory(
                 _directory_open_flags(),
             )
         except OSError as error:
-            raise ManifestError(
-                "inventory root anchor does not exist"
-            ) from error
+            raise ManifestError("inventory root anchor does not exist") from error
         descriptors.append(anchor_descriptor)
         anchor_stat = os.fstat(anchor_descriptor)
         if not stat.S_ISDIR(anchor_stat.st_mode):
@@ -1234,9 +1312,7 @@ def build_release_inventory(
             parts = relative.split("/")
             parent_descriptor = root_descriptor
             relative_descriptors: list[int] = []
-            relative_links: list[
-                tuple[int, str, int, tuple[int, int, int], str]
-            ] = []
+            relative_links: list[tuple[int, str, int, tuple[int, int, int], str]] = []
             try:
                 context_parts: list[str] = []
                 for part in parts[:-1]:
@@ -1276,9 +1352,7 @@ def build_release_inventory(
             except ManifestError:
                 raise
             except OSError as error:
-                raise ManifestError(
-                    f"inventory path changed: {relative}"
-                ) from error
+                raise ManifestError(f"inventory path changed: {relative}") from error
             finally:
                 for descriptor in reversed(relative_descriptors):
                     os.close(descriptor)
@@ -1447,9 +1521,13 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
             manifest.interval_min_ms,
             manifest.interval_max_ms,
             manifest.max_capture_skew_ms,
-        ) != (100, 3, 50, 150, 50):
+        ) != (100, 3, 50, 150, 200):
             raise ManifestError(
                 "controlled manifest must use fixed protocol parameters"
+            )
+        if any(sample.split == "test" for sample in manifest.samples):
+            raise ManifestError(
+                "controlled manifest must contain only train and val samples"
             )
 
     if (
@@ -1532,7 +1610,9 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
             for source in sample.source_slices
         ]
         if actual_slices != expected_slices:
-            raise ManifestError("sample source slices have the wrong history grid/order")
+            raise ManifestError(
+                "sample source slices have the wrong history grid/order"
+            )
         packet_ids = [source.packet_id for source in sample.source_slices]
         if len(packet_ids) != len(set(packet_ids)):
             raise ManifestError("packet IDs must be unique within a sample")
@@ -1543,13 +1623,8 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
             payload = inventory_by_path.get(source.relative_path)
             if payload is None:
                 raise ManifestError("raw slice payload is absent from inventory")
-            calibration = inventory_by_path.get(
-                source.calibration_relative_path
-            )
-            if (
-                calibration is None
-                or calibration.sha256 != source.calibration_sha256
-            ):
+            calibration = inventory_by_path.get(source.calibration_relative_path)
+            if calibration is None or calibration.sha256 != source.calibration_sha256:
                 raise ManifestError("primary calibration path/hash mismatch")
             if source.modality == "lidar":
                 referenced_lidar_paths.add(source.relative_path)
@@ -1580,9 +1655,7 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
                 )
             existing_slice = tick_slices.setdefault(position_key, source)
             if existing_slice != source:
-                raise ManifestError(
-                    "cross-target source provenance must be identical"
-                )
+                raise ManifestError("cross-target source provenance must be identical")
             prepared_mapping = (
                 prepared_by_source.get(source.relative_path)
                 if source.modality == "lidar"
@@ -1600,9 +1673,7 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
                 provenance,
             )
             if existing_provenance != provenance:
-                raise ManifestError(
-                    "cross-target packet provenance must be identical"
-                )
+                raise ManifestError("cross-target packet provenance must be identical")
 
     if set(prepared_by_source) != referenced_lidar_paths:
         raise ManifestError(
@@ -1870,9 +1941,7 @@ def load_temporal_manifest(
             _parse_prepared(item, f"prepared_artifacts[{index}]")
             for index, item in enumerate(prepared_value)
         ),
-        history_eligible_train_count=payload_mapping[
-            "history_eligible_train_count"
-        ],  # type: ignore[arg-type]
+        history_eligible_train_count=payload_mapping["history_eligible_train_count"],  # type: ignore[arg-type]
         sequence_splits=tuple(
             _parse_sequence_split(item, f"sequence_splits[{index}]")
             for index, item in enumerate(sequence_splits_value)

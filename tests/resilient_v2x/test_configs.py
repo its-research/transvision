@@ -49,11 +49,7 @@ def _load_config(path: Path, stack: tuple[Path, ...] = ()) -> dict[str, object]:
             merged,
             _load_config(resolved, (*stack, path)),
         )  # type: ignore[assignment]
-    own = {
-        key: value
-        for key, value in namespace.items()
-        if not key.startswith("_")
-    }
+    own = {key: value for key, value in namespace.items() if not key.startswith("_")}
     return _merge(merged, own)  # type: ignore[return-value]
 
 
@@ -80,6 +76,7 @@ def test_every_resilient_v2x_python_config_compiles_and_inherits() -> None:
         assert isinstance(name, str) and name
         assert name not in names
         names.add(name)
+        assert _dataset(config)["split"] == "val"
 
 
 def test_official_mmengine_loader_accepts_every_config_when_available() -> None:
@@ -88,9 +85,8 @@ def test_official_mmengine_loader_accepts_every_config_when_available() -> None:
         config = mmengine.Config.fromfile(path)
         if "experiment" in config:
             assert config.model.type == "ResilientV2XNet"
-            assert config.test_dataloader.dataset.type == (
-                "ResilientTemporalDataset"
-            )
+            assert config.test_dataloader.dataset.type == ("ResilientTemporalDataset")
+            assert config.test_dataloader.dataset.split == "val"
 
 
 def test_main_model_matches_paper_architecture_contract() -> None:
@@ -205,15 +201,14 @@ def test_dataset_and_runtime_are_strict_deterministic_and_runner_compatible() ->
     for split in ("train", "val", "test"):
         dataloader = config[f"{split}_dataloader"]
         assert isinstance(dataloader, dict)
-        assert dataloader["collate_fn"] == {
-            "type": "collate_resilient_samples"
-        }
+        assert dataloader["collate_fn"] == {"type": "collate_resilient_samples"}
         assert dataloader["sampler"]["type"] == "EpochIndexSampler"
         assert dataloader["sampler"]["seed"] == 20250218
         dataset = _dataset(config, split)
         assert set(dataset) == expected_dataset_keys
         assert dataset["type"] == "ResilientTemporalDataset"
-        assert dataset["split"] == split
+        expected_dataset_split = "val" if split == "test" else split
+        assert dataset["split"] == expected_dataset_split
         assert dataset["allow_fixture"] is False
         assert dataset["load_camera"] is dataset["load_lidar"] is True
         assert dataset["camera_image_size"] == (256, 704)
@@ -286,12 +281,10 @@ def test_paper_delay_fault_table_is_complete_and_causally_ordered() -> None:
     for (delay, fault), config in found.items():
         condition = config["experiment"]["condition"]
         dataset = _dataset(config)
-        if delay == 0:
-            assert dataset["transport_overlay_path"] is None
-            assert dataset["transport_overlay_sha256"] is None
-        else:
-            assert isinstance(dataset["transport_overlay_path"], str)
-            assert dataset["transport_overlay_sha256"] is None
+        assert dataset["transport_overlay_path"] == (
+            f"artifacts/resilient_v2x/dair/val_transport_delay_{delay:03d}.jsonl.zst"
+        )
+        assert dataset["transport_overlay_sha256"] is None
         if fault == "Full":
             assert condition["type"] == "fixed_delay"
             assert dataset["fault_overlay_path"] is None
@@ -300,10 +293,12 @@ def test_paper_delay_fault_table_is_complete_and_causally_ordered() -> None:
             assert condition["type"] == "causal_endpoint"
             assert condition["scope"] == "E+R"
             assert condition["duration_ticks"] == 1
-            assert condition["order"] == (
-                "arrival selection before fault masking"
+            assert condition["order"] == ("arrival selection before fault masking")
+            fault_slug = fault.lower().replace("-", "_")
+            assert dataset["fault_overlay_path"] == (
+                "artifacts/resilient_v2x/dair/"
+                f"val_causal_delay_{delay:03d}_{fault_slug}.jsonl.zst"
             )
-            assert isinstance(dataset["fault_overlay_path"], str)
             assert dataset["fault_overlay_sha256"] is None
 
 
@@ -342,18 +337,12 @@ def test_ablation_configs_change_only_supported_model_switches() -> None:
     for name, (field, value) in expected.items():
         model = _load_config(CONFIG_ROOT / "ablations" / name)["model"]
         assert isinstance(model, dict)
-        changed = {
-            key
-            for key in baseline
-            if model.get(key) != baseline.get(key)
-        }
+        changed = {key for key in baseline if model.get(key) != baseline.get(key)}
         assert changed == {field}
         assert model[field] == value
         assert model["teacher"] == baseline["teacher"]
 
-    no_distillation = _load_config(
-        CONFIG_ROOT / "ablations" / "no_distillation.py"
-    )
+    no_distillation = _load_config(CONFIG_ROOT / "ablations" / "no_distillation.py")
     model = no_distillation["model"]
     assert model["teacher"] is None
     assert model["teacher_checkpoint"] is None
@@ -373,6 +362,13 @@ def test_unreported_values_are_labeled_and_no_digest_is_fabricated() -> None:
         assert choices["status"] == (
             "implementation choice; the paper does not report these values"
         )
+
+    dataset_choices = config["implementation_choices_dataset"]
+    assert dataset_choices["controlled_manifest_splits"] == ("train", "val")
+    assert dataset_choices["max_capture_skew_ms"] == 200
+    assert dataset_choices["pair_identity"] == (
+        "dairc-v{vehicle_frame_id}-i{infrastructure_frame_id}"
+    )
 
     for path in CONFIG_ROOT.rglob("*.py"):
         text = path.read_text()

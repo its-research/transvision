@@ -20,6 +20,7 @@ __all__ = ("PreparedPointCloud", "convert_pcd_to_bin")
 _FIELDS = ("x", "y", "z", "intensity")
 _READ_CHUNK_SIZE = 1024 * 1024
 _MAX_HEADER_BYTES = 64 * 1024
+_PCL_COMPRESSED_HEADER_BLOCK_BYTES = 4096
 
 
 @dataclass(frozen=True)
@@ -175,9 +176,7 @@ def _open_anchored_parent(
                     follow_symlinks=False,
                 )
             if stat.S_ISLNK(before.st_mode):
-                raise ValueError(
-                    f"path ancestor must not be a symlink: {path}"
-                )
+                raise ValueError(f"path ancestor must not be a symlink: {path}")
             if not stat.S_ISDIR(before.st_mode):
                 error = NotADirectoryError(
                     errno.ENOTDIR,
@@ -209,9 +208,7 @@ def _open_anchored_parent(
                 or _entry_identity(before) != _entry_identity(opened)
                 or _entry_identity(opened) != _entry_identity(after)
             ):
-                raise ValueError(
-                    f"path ancestor changed while opening: {path}"
-                )
+                raise ValueError(f"path ancestor changed while opening: {path}")
             identities.append(_entry_identity(opened))
             descriptor = child
         parent = _AnchoredParent(
@@ -263,25 +260,20 @@ def _read_opened_regular_bytes(
         )
     except OSError as error:
         if error.errno in (errno.ELOOP, errno.EMLINK):
-            raise ValueError(
-                f"{role} must not be a symlink: {parent.path}"
-            ) from error
+            raise ValueError(f"{role} must not be a symlink: {parent.path}") from error
         raise
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
-            raise ValueError(
-                f"{role} must be a regular file: {parent.path}"
-            )
+            raise ValueError(f"{role} must be a regular file: {parent.path}")
         after_open_entry = os.stat(
             parent.leaf_name,
             dir_fd=parent.descriptor,
             follow_symlinks=False,
         )
-        if (
-            _entry_identity(before_entry) != _entry_identity(before)
-            or _entry_identity(before) != _entry_identity(after_open_entry)
-        ):
+        if _entry_identity(before_entry) != _entry_identity(before) or _entry_identity(
+            before
+        ) != _entry_identity(after_open_entry):
             raise ValueError(f"{role} changed while opening: {parent.path}")
         parent.verify()
         chunks: list[bytes] = []
@@ -328,9 +320,7 @@ def _filesystem_value_error(
 ) -> ValueError:
     detail = error.strerror or str(error) or type(error).__name__
     one_line_detail = " ".join(detail.splitlines())
-    return ValueError(
-        f"filesystem error {operation} {path}: {one_line_detail}"
-    )
+    return ValueError(f"filesystem error {operation} {path}: {one_line_detail}")
 
 
 def _read_stable_regular_bytes_impl(path: Path) -> bytes:
@@ -406,9 +396,7 @@ def _validate_header(
         counts = tuple("1" for _ in field_names)
     if sizes is None or types is None:
         raise ValueError("PCD header is missing required SIZE or TYPE")
-    if not (
-        len(field_names) == len(counts) == len(sizes) == len(types)
-    ):
+    if not (len(field_names) == len(counts) == len(sizes) == len(types)):
         raise ValueError("PCD field metadata lengths are inconsistent")
     parsed_counts: list[int] = []
     for value in counts:
@@ -423,9 +411,7 @@ def _validate_header(
         if not matches:
             raise ValueError(f"PCD is missing required field {required}")
         if len(matches) != 1:
-            raise ValueError(
-                f"PCD required field {required} must occur exactly once"
-            )
+            raise ValueError(f"PCD required field {required} must occur exactly once")
         if parsed_counts[matches[0]] != 1:
             raise ValueError(
                 f"PCD required field {required} must have scalar count one"
@@ -448,8 +434,7 @@ def _validate_header(
 
     try:
         item_size = sum(
-            int(size, 10) * count
-            for size, count in zip(sizes, parsed_counts)
+            int(size, 10) * count for size, count in zip(sizes, parsed_counts)
         )
     except ValueError as error:
         raise ValueError("PCD SIZE values must be integers") from error
@@ -464,7 +449,15 @@ def _validate_header(
         compressed_size, uncompressed_size = struct.unpack("<II", body[:8])
         if uncompressed_size != expected_uncompressed:
             raise ValueError("PCD compressed point count is inconsistent")
-        if len(body) != 8 + compressed_size:
+        payload_end = 8 + compressed_size
+        trailing = body[payload_end:]
+        expected_pcl_padding = _PCL_COMPRESSED_HEADER_BLOCK_BYTES - data_offset
+        has_canonical_pcl_padding = (
+            expected_pcl_padding > 0
+            and len(trailing) == expected_pcl_padding
+            and not any(trailing)
+        )
+        if len(body) < payload_end or (trailing and not has_canonical_pcl_padding):
             raise ValueError("PCD compressed payload size is inconsistent")
     return points, data_offset, encoding
 
@@ -506,9 +499,7 @@ def _open_exclusive_temporary(
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     for _ in range(128):
-        temporary_name = (
-            f".{destination_name}.tmp-{secrets.token_hex(12)}"
-        )
+        temporary_name = f".{destination_name}.tmp-{secrets.token_hex(12)}"
         try:
             return (
                 os.open(
@@ -557,13 +548,14 @@ def _publish_immutable_bytes_impl(destination: Path, data: bytes) -> None:
             identities=parent.identities,
             leaf_name=temporary_name,
         )
-        if _read_opened_regular_bytes(
-            temporary_parent,
-            role="temporary file",
-        ) != data:
-            raise ValueError(
-                f"temporary file verification failed: {destination}"
+        if (
+            _read_opened_regular_bytes(
+                temporary_parent,
+                role="temporary file",
             )
+            != data
+        ):
+            raise ValueError(f"temporary file verification failed: {destination}")
         parent.verify()
         try:
             os.link(
@@ -579,9 +571,7 @@ def _publish_immutable_bytes_impl(destination: Path, data: bytes) -> None:
                 raise ValueError(f"destination conflict: {destination}")
         parent.verify()
         if _existing_bytes(parent) != data:
-            raise ValueError(
-                f"published file verification failed: {destination}"
-            )
+            raise ValueError(f"published file verification failed: {destination}")
         os.fsync(parent.descriptor)
     finally:
         try:

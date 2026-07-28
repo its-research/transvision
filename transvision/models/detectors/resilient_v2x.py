@@ -53,6 +53,18 @@ def _module_device_dtype(module: nn.Module) -> tuple[torch.device, torch.dtype]:
     return parameter.device, parameter.dtype
 
 
+def _autocast_feature_output(value: Tensor) -> Tensor:
+    """Normalize shared-encoder outputs to the active CUDA AMP dtype."""
+
+    if (
+        value.device.type == "cuda"
+        and torch.is_autocast_enabled()
+        and value.dtype is torch.float32
+    ):
+        return value.to(dtype=torch.get_autocast_gpu_dtype())
+    return value
+
+
 @MODELS.register_module()
 class SharedPointPillarsBEVEncoder(nn.Module):
     """One shared PointPillars/SECOND encoder for every agent and tick."""
@@ -161,7 +173,7 @@ class SharedPointPillarsBEVEncoder(nn.Module):
             raise RuntimeError(
                 "PointPillars encoder must output [K,256,grid_height,grid_width]"
             )
-        return encoded
+        return _autocast_feature_output(encoded)
 
 
 @MODELS.register_module()
@@ -304,7 +316,7 @@ class SharedResNetLSSBEVEncoder(nn.Module):
             raise RuntimeError(
                 "camera encoder must output [K,256,grid_height,grid_width]"
             )
-        return bev
+        return _autocast_feature_output(bev)
 
 
 def _nested_tensor(value: object, path: Sequence[str | int]) -> Tensor:

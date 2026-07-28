@@ -60,16 +60,16 @@ class ResilientV2XDataPreprocessor(BaseDataPreprocessor):
         gt_boxes = inputs.get("gt_bboxes_3d")
         gt_labels = inputs.get("gt_labels_3d")
         if (
-            not isinstance(resolved, tuple)
-            or not isinstance(gt_boxes, tuple)
-            or not isinstance(gt_labels, tuple)
+            not isinstance(resolved, (list, tuple))
+            or not isinstance(gt_boxes, (list, tuple))
+            or not isinstance(gt_labels, (list, tuple))
             or not (len(resolved) == len(gt_boxes) == len(gt_labels))
         ):
-            raise ValueError("resolved metadata and GT tuples must share batch size")
+            raise ValueError("resolved metadata and GT sequences must share batch size")
         data_samples: list[Det3DDataSample] = []
         for metadata, boxes, labels in zip(resolved, gt_boxes, gt_labels):
             if not isinstance(metadata, ResolvedTemporalSample):
-                raise ValueError("resolved tuple contains an invalid record")
+                raise ValueError("resolved sequence contains an invalid record")
             if not isinstance(boxes, Tensor) or not isinstance(labels, Tensor):
                 raise ValueError("ground truth values must be tensors")
             sample = Det3DDataSample()

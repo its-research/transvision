@@ -91,28 +91,40 @@ python tools/resilient_v2x/prepare_data.py \
   --history-limit 3 \
   --interval-min-ms 50 \
   --interval-max-ms 150 \
-  --max-capture-skew-ms 50
+  --max-capture-skew-ms 200
 ```
 
-`controlled` 模式会拒绝其他 split 哈希或协议数值。命令验证原始 release inventory、标定、时间戳和文件哈希，将验证后的 PCD 转成 `prepared/resilient_v2x/.../*.bin`，并发布自哈希的时间 manifest。`--protocol-scope fixture` 只供测试，不能产生论文证据。
+`controlled` 模式会拒绝其他 split 哈希或协议数值。公开的带标注 cooperative release 只覆盖官方 train/validation，因此 manifest 不要求未发布 GT 的 test 样本；论文结果也只从 validation 报告。命令验证原始 release inventory、标定、时间戳和文件哈希，将验证后的 PCD 转成 `prepared/resilient_v2x/.../*.bin`，并发布自哈希的时间 manifest。`--protocol-scope fixture` 只供测试，不能产生论文证据。
+
+split 归属按 vehicle frame ID 查询；manifest 的 pair 身份使用
+`dairc-v{vehicle_frame_id}-i{infrastructure_frame_id}`。当前官方元数据中同一
+vehicle target 的 16 个重复配对变体全部保留，并按 LiDAR 时间差、RSU 时间
+和 RSU ID 确定性分入相互隔离的 sequence lane，不做静默去重。
+
+这里的 200 ms 是官方 multimodal pair 的四路 capture-time compatibility envelope，不是同步精度，也不计入通信延迟。`n×100 ms` 是 transport/fault 使用的逻辑协议网格；四路真实 `capture_timestamp_us` 独立保留。官方 release 中 Ego camera 相对 Ego LiDAR 存在约一帧的固定 phase，因此不能用 50 ms all-four skew 拒绝样本。
+
+官方 infrastructure `virtuallidar_to_camera` 是可逆 affine 标定而非严格刚体
+旋转。manifest 原样保留其数值供 LSS 投影使用，并强制有限、齐次、正定向及
+无穷范数条件数不超过 4；agent/world 位姿和 LiDAR 外参仍必须是刚体，不能把 affine 松绑
+扩散到时空对齐路径。
 
 ## 4. 生成 cohort、训练 overlay 与评测 overlay
 
 ### 4.1 冻结共享评测 cohort
 
-先在最坏 300 ms 延迟和最长 4 tick 连续故障下冻结一个共享 cohort。被排除样本及原因会进入 cohort 文档：
+先为 duration-1 评测矩阵在最坏 300 ms 延迟下冻结主共享 cohort。被排除样本及原因会进入 cohort 文档：
 
 ```bash
 python tools/resilient_v2x/build_overlays.py cohort \
   "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
   --expected-split-sha256 "$SPLIT_SHA256" \
-  --split test \
+  --split val \
   --max-delay-ms 300 \
-  --max-duration 4 \
-  --out "$DAIR_ARTIFACT_ROOT/test_cohort.json"
+  --max-duration 1 \
+  --out "$DAIR_ARTIFACT_ROOT/validation_cohort.json"
 ```
 
-所有比较必须复用同一个 `test_cohort.json` 和同一个 `sample_ids_sha256`；不能按条件重新筛样本。
+下面生成的 36 个 duration-1 `(delay, condition, agent_scope)` 组合必须复用同一个 `validation_cohort.json` 和同一个 `sample_ids_sha256`；不能按条件重新筛样本。论文主表是其中 `agent_scope=E+R` 的 12 个组合。
 
 ### 4.2 训练 overlay
 
@@ -133,13 +145,13 @@ python tools/resilient_v2x/build_overlays.py train \
 
 ### 4.3 12 个主条件
 
-主表和诊断均由同一 cohort 构建。下面命令生成 4 个 transport overlay，以及所有延迟、Full/L-Fail/C-Fail、E+R/E-only/R-only 的 duration-1 causal fault overlay：
+主表和 duration-1 agent-scope 诊断均由同一主 cohort 构建。下面命令生成 4 个 transport overlay，以及所有延迟、Full/L-Fail/C-Fail、E+R/E-only/R-only 的 duration-1 causal fault overlay：
 
 ```bash
 python tools/resilient_v2x/build_overlays.py evaluation \
   "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
   --expected-split-sha256 "$SPLIT_SHA256" \
-  --cohort "$DAIR_ARTIFACT_ROOT/test_cohort.json" \
+  --cohort "$DAIR_ARTIFACT_ROOT/validation_cohort.json" \
   --delays 0 100 200 300 \
   --conditions Full L-Fail C-Fail \
   --agents E+R E-only R-only \
@@ -166,15 +178,27 @@ observed RSU 仍使用 `gamma × trajectory confidence`，只有真正当前 Ego
 
 ### 4.4 因果持续故障
 
-持续 2、3、4 tick 的诊断必须写到不同目录，因为每个目录的 `evaluation_overlays.json` 是不可变索引：
+论文没有规定持续故障与非零时延的笛卡尔积，本实现不补造这些组合。cohort 的联合历史契约是 `max_delay_ms / delta_t_ms + duration - 1 <= history_limit`；在当前 `delta_t_ms=100`、`history_limit=3` 下，300 ms 延迟已经消耗 3 个历史间隔，无法再容纳 duration 2 至 4。持续故障诊断因此单独冻结一个 0 ms、最长 4 tick 的共享 cohort：
+
+```bash
+python tools/resilient_v2x/build_overlays.py cohort \
+  "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+  --expected-split-sha256 "$SPLIT_SHA256" \
+  --split val \
+  --max-delay-ms 0 \
+  --max-duration 4 \
+  --out "$DAIR_ARTIFACT_ROOT/validation_duration_cohort.json"
+```
+
+持续 2、3、4 tick 的诊断复用该 cohort，但必须写到不同目录，因为每个目录的 `evaluation_overlays.json` 是不可变索引：
 
 ```bash
 for duration in 2 3 4; do
   python tools/resilient_v2x/build_overlays.py evaluation \
     "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
     --expected-split-sha256 "$SPLIT_SHA256" \
-    --cohort "$DAIR_ARTIFACT_ROOT/test_cohort.json" \
-    --delays 0 100 200 300 \
+    --cohort "$DAIR_ARTIFACT_ROOT/validation_duration_cohort.json" \
+    --delays 0 \
     --conditions L-Fail C-Fail \
     --agents E+R E-only R-only \
     --duration "$duration" \
@@ -214,15 +238,26 @@ export RESILIENT_V2X_TRAIN_FAULT_SHA256="$(python -c 'import json,sys; d=json.lo
 
 主评测条件的环境变量可从索引确定。下例为 300 ms L-Fail：
 
+0 ms Full 也必须绑定 `val_transport_delay_000.jsonl.zst` 及其未压缩摘要；
+该零时延 overlay 不改变到达时刻，而是让运行时严格限制在同一个共享 cohort，
+避免 0 ms 条件意外评测全量 val split。
+
 ```bash
-export RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_OVERLAY="$DAIR_ARTIFACT_ROOT/test_transport_delay_300.jsonl.zst"
-export RESILIENT_V2X_TEST_CAUSAL_DELAY_300_L_FAIL_OVERLAY="$DAIR_ARTIFACT_ROOT/test_causal_delay_300_l_fail.jsonl.zst"
+export RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_OVERLAY="$DAIR_ARTIFACT_ROOT/val_transport_delay_300.jsonl.zst"
+export RESILIENT_V2X_TEST_CAUSAL_DELAY_300_L_FAIL_OVERLAY="$DAIR_ARTIFACT_ROOT/val_causal_delay_300_l_fail.jsonl.zst"
 
 export RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_SHA256="$(python -c 'import json,sys; d=json.load(open(sys.argv[1])); print(next(x["overlay"]["uncompressed_sha256"] for x in d["transport_overlays"] if x["delay_ms"]==300))' "$DAIR_ARTIFACT_ROOT/evaluation_overlays.json")"
 export RESILIENT_V2X_TEST_CAUSAL_DELAY_300_L_FAIL_SHA256="$(python -c 'import json,sys; d=json.load(open(sys.argv[1])); print(next(x["overlay"]["uncompressed_sha256"] for x in d["fault_overlays"] if x["delay_ms"]==300 and x["condition"]=="L-Fail" and x["agent_scope"]=="E+R" and x["duration"]==1))' "$DAIR_ARTIFACT_ROOT/evaluation_overlays.json")"
 ```
 
 其他条件使用各配置文件 `required_external_inputs` 中列出的同名变量；摘要仍从 `evaluation_overlays.json` 读取。
+
+`tools/train.py` 和 `tools/test.py` 由子目录脚本启动，不会自行把仓库根目录加入模块搜索路径。进入两阶段训练前必须从仓库根目录显式绑定该路径；受控容器内对应路径是 `/workspace/transvision`：
+
+```bash
+export RESILIENT_V2X_REPO_ROOT="$(pwd)"
+export PYTHONPATH="$RESILIENT_V2X_REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+```
 
 ## 6. 两阶段训练
 
@@ -323,7 +358,7 @@ python tools/resilient_v2x/profile.py \
   --artifact environment_manifest="$EVIDENCE_ROOT/environment.json" \
   --artifact temporal_manifest="$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
   --artifact evaluation_overlays="$DAIR_ARTIFACT_ROOT/evaluation_overlays.json" \
-  --artifact evaluation_cohort="$DAIR_ARTIFACT_ROOT/test_cohort.json" \
+  --artifact evaluation_cohort="$DAIR_ARTIFACT_ROOT/validation_cohort.json" \
   --artifact transport_overlay="$RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_OVERLAY" \
   --artifact fault_overlay="$RESILIENT_V2X_TEST_CAUSAL_DELAY_300_L_FAIL_OVERLAY"
 ```
@@ -350,7 +385,7 @@ python tools/resilient_v2x/build_evidence.py \
   --conditions "$DAIR_ARTIFACT_ROOT/evaluation_overlays.json" \
   --artifact environment_manifest="$EVIDENCE_ROOT/environment.json" \
   --artifact temporal_manifest="$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
-  --artifact cohort="$DAIR_ARTIFACT_ROOT/test_cohort.json" \
+  --artifact cohort="$DAIR_ARTIFACT_ROOT/validation_cohort.json" \
   --artifact evaluation_overlays="$DAIR_ARTIFACT_ROOT/evaluation_overlays.json" \
   --artifact transport_overlay="$RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_OVERLAY" \
   --artifact fault_overlay="$RESILIENT_V2X_TEST_CAUSAL_DELAY_300_L_FAIL_OVERLAY" \
