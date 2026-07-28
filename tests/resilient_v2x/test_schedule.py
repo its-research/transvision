@@ -23,6 +23,7 @@ from transvision.dataset.resilient_v2x_manifest import (
 )
 from transvision.dataset.resilient_v2x_schedule import (
     ArrivalRelativeFaultPlan,
+    CausalFaultPlan,
     FaultOverlayRecord,
     FaultPlan,
     OverlayDigest,
@@ -35,6 +36,7 @@ from transvision.dataset.resilient_v2x_schedule import (
     read_overlay,
     stable_uint64,
     write_arrival_relative_fault_overlay,
+    write_causal_fault_overlay,
     write_fault_overlay,
     write_transport_overlay,
 )
@@ -968,6 +970,147 @@ def test_arrival_relative_writer_binds_manifest_and_transport_digests(
             transport,
             tmp_path / "bad-transport.zst",
         )
+
+
+@pytest.mark.parametrize("delay_ms", [0, 100, 200, 300])
+def test_causal_fault_anchors_ego_and_rsu_to_their_own_endpoints(
+    tmp_path: Path,
+    delay_ms: int,
+) -> None:
+    manifest = _manifest("test")
+    sample = manifest.samples[-1]
+    transport_digest = write_transport_overlay(
+        _transport_plan(sample, delay_ms=delay_ms),
+        tmp_path / f"transport-causal-{delay_ms}.zst",
+    )
+    transport = read_overlay(
+        transport_digest.path,
+        transport_digest.uncompressed_sha256,
+    )
+    plan = CausalFaultPlan(
+        temporal_manifest_sha256=manifest.content_sha256,
+        transport_overlay_sha256=transport_digest.uncompressed_sha256,
+        split="test",
+        samples=(sample,),
+        condition="L-Fail",
+        agents=("ego", "rsu"),
+        duration=1,
+        fixed_delay_ms=delay_ms,  # type: ignore[arg-type]
+    )
+    digest = write_causal_fault_overlay(
+        plan,
+        manifest,
+        transport,
+        tmp_path / f"fault-causal-{delay_ms}.zst",
+    )
+    records = _records(digest.path, digest)
+    masked = {
+        (record["agent"], record["modality"], record["n_s"])
+        for record in records
+        if record["masked"]
+    }
+    assert masked == {
+        ("ego", "lidar", 3),
+        ("rsu", "lidar", 3 - delay_ms // 100),
+    }
+    transport_dicts = tuple(map(dict, transport))
+    assert _select_latest(
+        sample, "ego", "lidar", transport_dicts, records
+    ) == 2
+    expected_rsu_fallback = 2 - delay_ms // 100
+    assert _select_latest(
+        sample,
+        "rsu",
+        "lidar",
+        transport_dicts,
+        records,
+    ) == (expected_rsu_fallback if expected_rsu_fallback >= 0 else None)
+
+
+@pytest.mark.parametrize(
+    "agents, expected_agents",
+    [
+        (("ego",), {"ego"}),
+        (("rsu",), {"rsu"}),
+        (("ego", "rsu"), {"ego", "rsu"}),
+    ],
+)
+def test_causal_fault_supports_explicit_agent_scope(
+    tmp_path: Path,
+    agents: tuple[str, ...],
+    expected_agents: set[str],
+) -> None:
+    manifest = _manifest("test")
+    sample = manifest.samples[-1]
+    transport_digest = write_transport_overlay(
+        _transport_plan(sample, delay_ms=100),
+        tmp_path / f"transport-{'-'.join(agents)}.zst",
+    )
+    transport = read_overlay(
+        transport_digest.path,
+        transport_digest.uncompressed_sha256,
+    )
+    digest = write_causal_fault_overlay(
+        CausalFaultPlan(
+            temporal_manifest_sha256=manifest.content_sha256,
+            transport_overlay_sha256=transport_digest.uncompressed_sha256,
+            split="test",
+            samples=(sample,),
+            condition="C-Fail",
+            agents=agents,  # type: ignore[arg-type]
+            duration=1,
+            fixed_delay_ms=100,
+        ),
+        manifest,
+        transport,
+        tmp_path / f"fault-{'-'.join(agents)}.zst",
+    )
+    records = _records(digest.path, digest)
+    assert {
+        record["agent"] for record in records if record["masked"]
+    } == expected_agents
+    assert {
+        record["modality"] for record in records if record["masked"]
+    } == {"camera"}
+
+
+@pytest.mark.parametrize("duration, expected_fallback", [(3, 0), (4, None)])
+def test_causal_fault_duration_uses_bounded_branch_history(
+    tmp_path: Path,
+    duration: int,
+    expected_fallback: int | None,
+) -> None:
+    manifest = _manifest("test")
+    sample = manifest.samples[-1]
+    transport_digest = write_transport_overlay(
+        _transport_plan(sample),
+        tmp_path / f"transport-duration-{duration}.zst",
+    )
+    transport = read_overlay(
+        transport_digest.path,
+        transport_digest.uncompressed_sha256,
+    )
+    digest = write_causal_fault_overlay(
+        CausalFaultPlan(
+            temporal_manifest_sha256=manifest.content_sha256,
+            transport_overlay_sha256=transport_digest.uncompressed_sha256,
+            split="test",
+            samples=(sample,),
+            condition="L-Fail",
+            agents=("ego", "rsu"),
+            duration=duration,
+            fixed_delay_ms=0,
+        ),
+        manifest,
+        transport,
+        tmp_path / f"fault-duration-{duration}.zst",
+    )
+    records = _records(digest.path, digest)
+    masked = [record for record in records if record["masked"]]
+    assert len(masked) == 2 * duration
+    assert {record["fallback_selected_n_s"] for record in masked} == {
+        expected_fallback
+    }
 
 
 def test_zstd_round_trip_is_canonical_sorted_jsonl_and_digest_checked(

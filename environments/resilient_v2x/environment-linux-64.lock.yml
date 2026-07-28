@@ -5,15 +5,15 @@
 # available, unless you explicitly update the lock file.
 #
 # Install this environment as "YOURENV" with:
-#     conda-lock install -n YOURENV .environment-linux-64.lock.yml.cgvrntu8.seed
+#     conda-lock install -n YOURENV environment-linux-64.lock.yml
 # To update a single package to the latest version compatible with the version constraints in the source:
-#     conda-lock lock  --lockfile .environment-linux-64.lock.yml.cgvrntu8.seed --update PACKAGE
+#     conda-lock lock --lockfile environment-linux-64.lock.yml --update PACKAGE
 # To re-solve the entire environment, e.g. after changing a version constraint in the source file:
-#     conda-lock -f environment.yml -f ../workspace/transvision/environments/resilient_v2x/environment.yml --lockfile .environment-linux-64.lock.yml.cgvrntu8.seed
+#     conda-lock -f environment.yml --lockfile environment-linux-64.lock.yml
 version: 1
 metadata:
   content_hash:
-    linux-64: 8d29fa2f7c9693483208ffe2d52617f3304ca030104fd6dfe50816df9694500f
+    linux-64: 3a76e30693d7d8d0bae35046b97ac2885e50f5df0e0a433e6f29800b8ca6d059
   channels:
   - url: pytorch
     used_env_vars: []
@@ -25,7 +25,6 @@ metadata:
   - linux-64
   sources:
   - environment.yml
-  - ../workspace/transvision/environments/resilient_v2x/environment.yml
 package:
 - name: _openmp_mutex
   version: '4.5'
@@ -618,16 +617,16 @@ package:
   category: main
   optional: false
 - name: libffi
-  version: 3.7.0
+  version: 3.5.2
   manager: conda
   platform: linux-64
   dependencies:
     __glibc: '>=2.17,<3.0.a0'
     libgcc: '>=14'
-  url: https://conda.anaconda.org/conda-forge/linux-64/libffi-3.7.0-h3435931_0.conda
+  url: https://conda.anaconda.org/conda-forge/linux-64/libffi-3.5.2-h3435931_0.conda
   hash:
-    md5: 0abe40a9880086ca4d2e5daf09dceff9
-    sha256: ac38603008bf1e99b8ed379b1a656a67a70e2841f2b6a069c630cdf6316012d2
+    md5: a360c33a5abe61c07959e449fa1453eb
+    sha256: 31f19b6a88ce40ebc0d5a992c131f57d919f73c0b92cd1617a5bec83f6e961e6
   category: main
   optional: false
 - name: libgcc
@@ -655,6 +654,63 @@ package:
     sha256: e01a2a027fceea1011d2e74307845fb0c4bd6d195ff27fbf5baeafa55531d128
   category: main
   optional: false
+- name: libgl
+  version: 1.7.0
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    libglvnd: 1.7.0
+    libglx: 1.7.0
+  url: https://conda.anaconda.org/conda-forge/linux-64/libgl-1.7.0-ha4b6fd6_3.conda
+  hash:
+    md5: f25206d7322c0e9648e8b83694d143ab
+    sha256: ec353b3076ed8e357ed961d0e9ff6997491cade0e603de5bd18a2e301ac78ebd
+  category: main
+  optional: false
+- name: libglib
+  version: 2.88.2
+  manager: conda
+  platform: linux-64
+  dependencies:
+    libgcc: '>=14'
+    __glibc: '>=2.17,<3.0.a0'
+    libiconv: '>=1.18,<2.0a0'
+    libzlib: '>=1.3.2,<2.0a0'
+    libffi: '>=3.5.2,<3.6.0a0'
+    pcre2: '>=10.47,<10.48.0a0'
+  url: https://conda.anaconda.org/conda-forge/linux-64/libglib-2.88.2-h0d30a3d_0.conda
+  hash:
+    md5: 889febc66cd9e4190f80ef9718fa239b
+    sha256: 4bee10e62796f01e4fa2b5849135b1cc061337fe9cf5eb9bd79e9664922ae0e4
+  category: main
+  optional: false
+- name: libglvnd
+  version: 1.7.0
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+  url: https://conda.anaconda.org/conda-forge/linux-64/libglvnd-1.7.0-ha4b6fd6_3.conda
+  hash:
+    md5: eb83f3f8cecc3e9bff9e250817fc69b6
+    sha256: e019ebe4e3f5cdf23e2f5e58ddf7ade27988c53820115b17b98f218ebcc87748
+  category: main
+  optional: false
+- name: libglx
+  version: 1.7.0
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    libglvnd: 1.7.0
+    xorg-libx11: '>=1.8.13,<2.0a0'
+  url: https://conda.anaconda.org/conda-forge/linux-64/libglx-1.7.0-ha4b6fd6_3.conda
+  hash:
+    md5: ec3c4350aa0261bf7f87b8ca15c8e80e
+    sha256: 2f74713c9ca408ea84e88a30a9028153e7b553e8bb42e06139eac9a753c27da9
+  category: main
+  optional: false
 - name: libgomp
   version: 15.2.0
   manager: conda
@@ -665,6 +721,19 @@ package:
   hash:
     md5: 49321086c41bb58fc4b6cd8cbb74679d
     sha256: 30b8ff1bf43871a17c9de99e56171ef54cfbe690ffa86681628db5a00af97cf7
+  category: main
+  optional: false
+- name: libiconv
+  version: '1.18'
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    libgcc: '>=14'
+  url: https://conda.anaconda.org/conda-forge/linux-64/libiconv-1.18-h3b78370_2.conda
+  hash:
+    md5: 915f5995e94f60e9a4826e0b0920ee88
+    sha256: c467851a7312765447155e071752d7bf9bf44d610a5687e32706f480aad2833f
   category: main
   optional: false
 - name: liblzma
@@ -790,6 +859,22 @@ package:
     sha256: 9b1bdce27a7e31f7d241aeecff67a1f3101d52a2b1e33ccc2cdf2613072bf81f
   category: main
   optional: false
+- name: libxcb
+  version: 1.17.0
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    libgcc: '>=13'
+    pthread-stubs: ''
+    xorg-libxau: '>=1.0.11,<2.0a0'
+    xorg-libxdmcp: ''
+  url: https://conda.anaconda.org/conda-forge/linux-64/libxcb-1.17.0-h8a09558_0.conda
+  hash:
+    md5: 92ed62436b625154323d40d5f2f11dd7
+    sha256: 666c0c431b23c6cec6e492840b176dde533d48b7e6fb8883f5071223433776aa
+  category: main
+  optional: false
 - name: libxcrypt
   version: 4.4.36
   manager: conda
@@ -863,6 +948,21 @@ package:
     sha256: 69b3ace6cca2dab9047b2c24926077d81d236bef45329d264b394001e3c3e52f
   category: main
   optional: false
+- name: pcre2
+  version: '10.47'
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    bzip2: '>=1.0.8,<2.0a0'
+    libgcc: '>=14'
+    libzlib: '>=1.3.1,<2.0a0'
+  url: https://conda.anaconda.org/conda-forge/linux-64/pcre2-10.47-haa7fec5_0.conda
+  hash:
+    md5: 7a3bff861a6583f1889021facefc08b1
+    sha256: 5e6f7d161356fefd981948bea5139c5aa0436767751a6930cb1ca801ebb113ff
+  category: main
+  optional: false
 - name: pip
   version: 23.3.2
   manager: conda
@@ -875,6 +975,19 @@ package:
   hash:
     md5: 8591c748f98dcc02253003533bc2e4b1
     sha256: 29096d1d53c61aeef518729add2f405df86b3629d1d738a35b15095e6a02eeed
+  category: main
+  optional: false
+- name: pthread-stubs
+  version: '0.4'
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    libgcc: '>=13'
+  url: https://conda.anaconda.org/conda-forge/linux-64/pthread-stubs-0.4-hb9d3cd8_1002.conda
+  hash:
+    md5: b3c17d95b5a10c6e64a21fa17573e70e
+    sha256: 9c88f8c64590e9567c6c80823f0328e58d3b1efb0e1c539c0315ceca764e0973
   category: main
   optional: false
 - name: python
@@ -964,6 +1077,46 @@ package:
   hash:
     md5: 3fc026b9c87d091c4b34a6c997324ae8
     sha256: 84c3b57fba778add2bd47b7cc70e86f746d2c55549ffd2ccb6f3d6bf7c94d21d
+  category: main
+  optional: false
+- name: xorg-libx11
+  version: 1.8.13
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    libgcc: '>=14'
+    libxcb: '>=1.17.0,<2.0a0'
+  url: https://conda.anaconda.org/conda-forge/linux-64/xorg-libx11-1.8.13-he1eb515_0.conda
+  hash:
+    md5: 861fb6ccbc677bb9a9fb2468430b9c6a
+    sha256: 516d4060139dbb4de49a4dcdc6317a9353fb39ebd47789c14e6fe52de0deee42
+  category: main
+  optional: false
+- name: xorg-libxau
+  version: 1.0.12
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    libgcc: '>=14'
+  url: https://conda.anaconda.org/conda-forge/linux-64/xorg-libxau-1.0.12-hb03c661_1.conda
+  hash:
+    md5: b2895afaf55bf96a8c8282a2e47a5de0
+    sha256: 6bc6ab7a90a5d8ac94c7e300cc10beb0500eeba4b99822768ca2f2ef356f731b
+  category: main
+  optional: false
+- name: xorg-libxdmcp
+  version: 1.1.5
+  manager: conda
+  platform: linux-64
+  dependencies:
+    __glibc: '>=2.17,<3.0.a0'
+    libgcc: '>=14'
+  url: https://conda.anaconda.org/conda-forge/linux-64/xorg-libxdmcp-1.1.5-hb03c661_1.conda
+  hash:
+    md5: 1dafce8548e38671bea82e3f5c6ce22f
+    sha256: 25d255fb2eef929d21ff660a0c687d38a6d2ccfbcbf0cc6aa738b12af6e9d142
   category: main
   optional: false
 - name: xz
@@ -1980,10 +2133,13 @@ package:
     pyyaml: '*'
     yapf: '*'
     opencv-python: '>=3'
-  url: https://files.pythonhosted.org/packages/a7/19/f97f0fd4d432113a232e75f965335be6b7bb6557ae9faf8051e9a012cadd/mmcv-2.1.0.tar.gz
+  url: https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/mmcv-2.1.0-cp310-cp310-manylinux1_x86_64.whl
   hash:
-    sha256: d387bcab66b467479b6660310e23746cfc79c6e57acf04094680adb499a5cd3f
+    sha256: 169c5b79bc689cefa8bfdfac9cbaabcef5f00792b418506b583c27b937c9e8f1
   category: main
+  source:
+    type: url
+    url: https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/mmcv-2.1.0-cp310-cp310-manylinux1_x86_64.whl#sha256=169c5b79bc689cefa8bfdfac9cbaabcef5f00792b418506b583c27b937c9e8f1
   optional: false
 - name: mmdet
   version: 3.2.0

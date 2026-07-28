@@ -28,6 +28,7 @@ CONSTRAINTS = ENVIRONMENT_DIR / "constraints.txt"
 SCHEMA = ENVIRONMENT_DIR / "environment-manifest.schema.json"
 WORLD_SIZES = (1, 2, 4)
 CUSTOM_OP_MODULES = (
+    "mmcv._ext",
     "transvision.models.voxel.voxel_layer",
     "transvision.models.bev_pool.bev_pool_ext",
 )

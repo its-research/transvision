@@ -220,10 +220,7 @@ class HorizonConditionedPTF(nn.Module):
         self,
         spatial_shape: object,
     ) -> tuple[int, int]:
-        if (
-            not isinstance(spatial_shape, (tuple, list))
-            or len(spatial_shape) != 2
-        ):
+        if not isinstance(spatial_shape, (tuple, list)) or len(spatial_shape) != 2:
             raise ValueError("spatial shape must contain height and width")
         normalized: list[int] = []
         for dimension in spatial_shape:
@@ -232,14 +229,10 @@ class HorizonConditionedPTF(nn.Module):
                 or isinstance(dimension, bool)
                 or int(dimension) <= 0
             ):
-                raise ValueError(
-                    "spatial dimensions must be positive integers"
-                )
+                raise ValueError("spatial dimensions must be positive integers")
             integer_dimension = int(dimension)
             if integer_dimension % 4:
-                raise ValueError(
-                    "spatial dimensions must be divisible by four"
-                )
+                raise ValueError("spatial dimensions must be divisible by four")
             normalized.append(integer_dimension // 4)
         return normalized[0], normalized[1]
 
@@ -251,12 +244,8 @@ class HorizonConditionedPTF(nn.Module):
         if not isinstance(aligned_history, Tensor):
             raise ValueError("aligned_history must be a tensor")
         if aligned_history.ndim != 6:
-            raise ValueError(
-                "aligned_history must have shape [B,2,4,256,H,W]"
-            )
-        batch, agents, positions, channels, height, width = (
-            aligned_history.shape
-        )
+            raise ValueError("aligned_history must have shape [B,2,4,256,H,W]")
+        batch, agents, positions, channels, height, width = aligned_history.shape
         if batch <= 0:
             raise ValueError("aligned_history batch must be positive")
         if (
@@ -264,9 +253,7 @@ class HorizonConditionedPTF(nn.Module):
             or positions != self.history_positions
             or channels != self.in_channels
         ):
-            raise ValueError(
-                "aligned_history must have shape [B,2,4,256,H,W]"
-            )
+            raise ValueError("aligned_history must have shape [B,2,4,256,H,W]")
         if not aligned_history.is_floating_point():
             raise ValueError("aligned_history must be floating")
         projected_height, projected_width = self.projected_spatial_shape(
@@ -284,13 +271,9 @@ class HorizonConditionedPTF(nn.Module):
         if availability.dtype is not torch.bool:
             raise ValueError("availability must be boolean")
         if availability.device != aligned_history.device:
-            raise ValueError(
-                "aligned_history and availability must share a device"
-            )
+            raise ValueError("aligned_history and availability must share a device")
         if aligned_history.dtype != self.history_projection[0].weight.dtype:
-            raise ValueError(
-                "aligned_history dtype must match the PTF parameter dtype"
-            )
+            raise ValueError("aligned_history dtype must match the PTF parameter dtype")
 
         slot_count = self._AGENT_COUNT * self.history_positions
         flat = aligned_history.reshape(
@@ -354,9 +337,7 @@ class HorizonConditionedPTF(nn.Module):
             self.history_positions,
         )
         agent_embedding = self.agent_embedding(agent_index)
-        relative_time_embedding = self.relative_time_embedding(
-            relative_time_index
-        )
+        relative_time_embedding = self.relative_time_embedding(relative_time_index)
         slot_mask = availability.view(
             batch,
             self._AGENT_COUNT,
@@ -389,9 +370,7 @@ class HorizonConditionedPTF(nn.Module):
             projected_height,
             projected_width,
         )
-        return self.context_stem(
-            torch.cat((flattened_features, mask_planes), dim=1)
-        )
+        return self.context_stem(torch.cat((flattened_features, mask_planes), dim=1))
 
     def query(
         self,
@@ -433,15 +412,10 @@ class HorizonConditionedPTF(nn.Module):
             or query_agent_index.gt(self._AGENT_COUNT - 1).any().item()
         ):
             raise ValueError("query_agent_index must contain only 0 or 1")
-        if (
-            horizon.lt(0).any().item()
-            or horizon.gt(self.history_limit).any().item()
-        ):
+        if horizon.lt(0).any().item() or horizon.gt(self.history_limit).any().item():
             raise ValueError("horizon must be in [0, 3]")
 
-        query_embedding = self.agent_embedding(
-            query_agent_index.to(dtype=torch.long)
-        )
+        query_embedding = self.agent_embedding(query_agent_index.to(dtype=torch.long))
         if self.mode == "linear":
             film_horizon = context.new_full(
                 (batch, 1),
@@ -449,8 +423,7 @@ class HorizonConditionedPTF(nn.Module):
             )
         else:
             film_horizon = (
-                horizon.to(dtype=context.dtype).unsqueeze(1)
-                / self.history_limit
+                horizon.to(dtype=context.dtype).unsqueeze(1) / self.history_limit
             )
         film_parameters = self.film_mlp(
             torch.cat((query_embedding, film_horizon), dim=1)
@@ -486,14 +459,12 @@ class HorizonConditionedPTF(nn.Module):
                 / self.history_limit
                 * torch.tanh(raw_displacement)
             )
-            low_resolution_displacement = (
-                low_resolution_displacement
-                * horizon.to(dtype=context.dtype).view(batch, 1, 1, 1)
-            )
+            low_resolution_displacement = low_resolution_displacement * horizon.to(
+                dtype=context.dtype
+            ).view(batch, 1, 1, 1)
         else:
-            low_resolution_displacement = (
-                self.max_low_resolution_cells
-                * torch.tanh(raw_displacement)
+            low_resolution_displacement = self.max_low_resolution_cells * torch.tanh(
+                raw_displacement
             )
         low_resolution_confidence = torch.sigmoid(raw_confidence)
 

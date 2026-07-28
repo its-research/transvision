@@ -17,7 +17,6 @@ from tools.resilient_v2x import check_environment as check_module
 from tools.resilient_v2x.capture_environment import (
     EnvironmentMismatch,
     build_environment_manifest,
-    canonical_hardware_fingerprint,
     capture_environment,
     environment_manifest_to_dict,
     hardware_fingerprint_sha256,
@@ -55,6 +54,13 @@ CUDA_IMAGE = (
 MICROMAMBA_IMAGE = (
     "mambaorg/micromamba:2.8.1"
     "@sha256:79284aa2949ac9555eca7e975ceb4ecefefc5964a2d4fdd4e181ca8eaccf347e"
+)
+MMCV_CU118_WHEEL_URL = (
+    "https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/"
+    "mmcv-2.1.0-cp310-cp310-manylinux1_x86_64.whl"
+)
+MMCV_CU118_WHEEL_SHA256 = (
+    "169c5b79bc689cefa8bfdfac9cbaabcef5f00792b418506b583c27b937c9e8f1"
 )
 
 PACKAGE_VERSIONS = {
@@ -97,6 +103,8 @@ def _complete_seed_lock(seed_path: Path, *, conda_hash: str = "c" * 32) -> None:
         "packaging": "23.2",
         "cuda": "11.8.0",
         "cuda-toolkit": "11.8.0",
+        "libgl": "1.7.0",
+        "libglib": "2.88.2",
     }.items():
         lock.package.append(
             LockedDependency(
@@ -160,6 +168,7 @@ def expected_environment(*, include_hardware: bool = False, world_size: int = 2)
             "cudnn_version": "8.7.0",
         },
         "custom_ops": {
+            "mmcv._ext": "imported",
             "transvision.models.voxel.voxel_layer": "imported",
             "transvision.models.bev_pool.bev_pool_ext": "imported",
         },
@@ -198,6 +207,7 @@ def expected_environment_capture() -> dict[str, object]:
         },
         "gpu": fixed_gpus(),
         "custom_ops": {
+            "mmcv._ext": "imported",
             "transvision.models.voxel.voxel_layer": "imported",
             "transvision.models.bev_pool.bev_pool_ext": "imported",
         },
@@ -225,6 +235,7 @@ def development_capture() -> dict[str, object]:
     actual["cuda"] = {"driver": "", "runtime": "", "cudnn_version": ""}
     actual["gpu"] = []
     actual["custom_ops"] = {
+        "mmcv._ext": "not_available",
         "transvision.models.voxel.voxel_layer": "not_available",
         "transvision.models.bev_pool.bev_pool_ext": "not_available",
     }
@@ -284,6 +295,7 @@ def test_capture_has_required_hardware_and_determinism_fields(monkeypatch: pytes
         capture_module,
         "_capture_custom_ops",
         lambda: {
+            "mmcv._ext": "imported",
             "transvision.models.voxel.voxel_layer": "imported",
             "transvision.models.bev_pool.bev_pool_ext": "imported",
         },
@@ -827,7 +839,7 @@ def test_committed_pip_report_is_the_audited_native_linux_input() -> None:
     # Production break caught: replacing the audited report with a regenerated
     # or host-native report silently changes the runtime closure.
     assert hashlib.sha256(PIP_REPORT.read_bytes()).hexdigest() == (
-        "7f42b38a7734de6f14e8985e84df8d719e97742b9795b9f7fcad99d21e08ad64"
+        "a9d5e274a46d3d932d9c5a6405c445f1df4ea59694d065ea3632ba6484986fe9"
     )
 
     report = _committed_pip_report()
@@ -854,7 +866,7 @@ def test_committed_pip_report_preserves_compatible_build_toolchain() -> None:
     assert versions["packaging"] == "23.2"
 
 
-def test_committed_pip_report_uses_official_cuda_11_8_torch_wheels() -> None:
+def test_committed_pip_report_uses_official_cuda_11_8_binary_wheels() -> None:
     report = _committed_pip_report()
     artifacts = {
         re.sub(r"[-_.]+", "-", item["metadata"]["name"]).lower(): item
@@ -869,6 +881,12 @@ def test_committed_pip_report_uses_official_cuda_11_8_torch_wheels() -> None:
     assert artifacts["torchvision"]["download_info"]["url"].startswith(
         "https://download-r2.pytorch.org/whl/cu118/"
     )
+    assert artifacts["mmcv"]["metadata"]["version"] == "2.1.0"
+    assert artifacts["mmcv"]["download_info"]["url"] == MMCV_CU118_WHEEL_URL
+    assert artifacts["mmcv"]["download_info"]["archive_info"]["hashes"] == {
+        "sha256": MMCV_CU118_WHEEL_SHA256
+    }
+    assert artifacts["mmcv"]["is_direct"] is True
     assert not any(
         name.startswith("nvidia-") and name.endswith("-cu11")
         for name in artifacts
@@ -886,6 +904,7 @@ def test_committed_pip_report_uses_official_cuda_11_8_torch_wheels() -> None:
         ("credentialed_url", "credential"),
         ("direct_version_drift", "torch"),
         ("cu118_source_drift", "official CUDA 11.8"),
+        ("mmcv_source_drift", "official CUDA 11.8"),
     ],
 )
 def test_seed_rejects_unaudited_pip_report_mutations(
@@ -922,6 +941,13 @@ def test_seed_rejects_unaudited_pip_report_mutations(
         )
         torch["download_info"]["url"] = (
             "https://files.pythonhosted.org/drifted/torch-2.0.1+cu118.whl"
+        )
+    elif production_break == "mmcv_source_drift":
+        mmcv = next(
+            item for item in report["install"] if item["metadata"]["name"] == "mmcv"
+        )
+        mmcv["download_info"]["url"] = (
+            "https://files.pythonhosted.org/drifted/mmcv-2.1.0.whl"
         )
     else:  # pragma: no cover - the table above is exhaustive
         raise AssertionError(production_break)
@@ -1612,6 +1638,14 @@ def test_runtime_lock_has_hashes_and_matches_all_constraints() -> None:
     assert audited["constraint_versions"] == constraints
     assert audited["artifact_count"] > len(constraints)
     assert re.fullmatch(r"[0-9a-f]{64}", audited["lock_sha256"])
+    lock = parse_conda_lock_file(RUNTIME_LOCK)
+    mmcv = next(
+        package
+        for package in lock.package
+        if package.manager == "pip" and package.name == "mmcv"
+    )
+    assert mmcv.url == MMCV_CU118_WHEEL_URL
+    assert mmcv.hash.sha256 == MMCV_CU118_WHEEL_SHA256
 
 
 def test_runtime_environment_pins_cuda_channel_and_build_toolchain() -> None:
@@ -1622,7 +1656,7 @@ def test_runtime_environment_pins_cuda_channel_and_build_toolchain() -> None:
         "nvidia/label/cuda-11.8.0",
         "conda-forge",
     ]
-    assert environment["dependencies"][:7] == [
+    assert environment["dependencies"][:9] == [
         "python=3.10.14",
         "pip=23.3.2",
         "setuptools=68.2.2",
@@ -1630,8 +1664,10 @@ def test_runtime_environment_pins_cuda_channel_and_build_toolchain() -> None:
         "packaging=23.2",
         "cuda=11.8.0",
         "cuda-toolkit=11.8.0",
+        "libgl=1.7.0",
+        "libglib=2.88.2",
     ]
-    assert environment["dependencies"][7]["pip"][:2] == [
+    assert environment["dependencies"][9]["pip"][:2] == [
         "torch @ https://download-r2.pytorch.org/whl/cu118/"
         "torch-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl"
         "#sha256=a7a49d459bf4862f64f7bc1a68beccf8881c2fa9f3e0569608e16ba6f85ebf7b",
@@ -1639,6 +1675,9 @@ def test_runtime_environment_pins_cuda_channel_and_build_toolchain() -> None:
         "torchvision-0.15.2%2Bcu118-cp310-cp310-linux_x86_64.whl"
         "#sha256=19ca4ab5d6179bbe53cff79df1a855ee6533c2861ddc7389f68349d8b9f8302a",
     ]
+    assert environment["dependencies"][9]["pip"][4] == (
+        f"mmcv @ {MMCV_CU118_WHEEL_URL}#sha256={MMCV_CU118_WHEEL_SHA256}"
+    )
 
 
 def test_runtime_lock_keeps_nvidia_packages_on_cuda_11_8_label() -> None:
@@ -1658,6 +1697,8 @@ def test_runtime_lock_keeps_nvidia_packages_on_cuda_11_8_label() -> None:
     assert conda_packages["wheel"].version == "0.41.3"
     assert conda_packages["packaging"].version == "23.2"
     assert conda_packages["cuda-runtime"].version == "11.8.0"
+    assert conda_packages["libgl"].version == "1.7.0"
+    assert conda_packages["libglib"].version == "2.88.2"
     assert nvidia_packages
     assert all(
         "conda.anaconda.org/nvidia/label/cuda-11.8.0/" in package.url
@@ -1737,6 +1778,8 @@ def test_dockerfile_preserves_dependency_layer_and_non_root_runtime() -> None:
     assert user_lines[-1] not in {"0", "root", "0:0"}
     assert "transvision.models.voxel.voxel_layer" in dockerfile
     assert "transvision.models.bev_pool.bev_pool_ext" in dockerfile
+    assert "import cv2" in dockerfile
+    assert "import mmcv._ext" in dockerfile
 
 
 @pytest.mark.parametrize(

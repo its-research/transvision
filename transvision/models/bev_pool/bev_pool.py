@@ -82,6 +82,11 @@ class QuickCumsumCuda(torch.autograd.Function):
 
 def bev_pool(feats, coords, B, D, H, W):
     assert feats.shape[0] == coords.shape[0]
+    if feats.shape[0] == 0:
+        # A valid camera/calibration pair may have no frustum samples inside
+        # the configured BEV range.  Return the additive identity while
+        # retaining a zero-gradient connection to the camera features.
+        return feats.new_zeros(B, feats.shape[1], D, H, W) + feats.sum() * 0
 
     ranks = (coords[:, 0] * (W * D * B) + coords[:, 1] * (D * B) + coords[:, 2] * B + coords[:, 3])
     indices = ranks.argsort()

@@ -80,9 +80,7 @@ def arrived_candidates(
             and candidate.arrival_tau_ms <= target_tau_ms
             and candidate.arrival_tau_ms < candidate.tau_s_ms
         ):
-            raise ProtocolInvariantError(
-                "arrived RSU candidate has negative delay"
-            )
+            raise ProtocolInvariantError("arrived RSU candidate has negative delay")
     return tuple(
         candidate
         for candidate in normalized
@@ -126,9 +124,7 @@ def unsupported_reason(
         return newest_metadata_rejection
     if within_horizon_count == 0:
         return UnsupportedReason.UNSUPPORTED_HORIZON
-    raise ProtocolInvariantError(
-        "unsupported reason requested with valid candidate"
-    )
+    raise ProtocolInvariantError("unsupported reason requested with valid candidate")
 
 
 def select_causal_source(
@@ -153,9 +149,7 @@ def select_causal_source(
     if history_limit < 0:
         raise ProtocolInvariantError("history_limit must be non-negative")
     if target_tau_ms != n_t * delta_t_ms:
-        raise ProtocolInvariantError(
-            "target_tau_ms must equal n_t * delta_t_ms"
-        )
+        raise ProtocolInvariantError("target_tau_ms must equal n_t * delta_t_ms")
 
     normalized = _normalize_candidates(candidates)
     horizons: dict[tuple[int, str], int] = {}
@@ -184,9 +178,7 @@ def select_causal_source(
             and candidate.arrival_tau_ms <= target_tau_ms
             and candidate.arrival_tau_ms < candidate.tau_s_ms
         ):
-            raise ProtocolInvariantError(
-                "arrived RSU candidate has negative delay"
-            )
+            raise ProtocolInvariantError("arrived RSU candidate has negative delay")
 
     arrived_count = 0
     unmasked_count = 0
@@ -195,6 +187,19 @@ def select_causal_source(
     newest_unmasked_seen = False
     valid: list[tuple[SourceCandidate, int]] = []
     rejected: list[RejectedCandidate] = []
+
+    endpoint_tick: int | None
+    if agent is Agent.EGO:
+        endpoint_tick = n_t
+    else:
+        arrived_ticks = [
+            candidate.n_s
+            for candidate in normalized
+            if candidate.n_s <= n_t
+            and candidate.arrival_tau_ms is not None
+            and candidate.arrival_tau_ms <= target_tau_ms
+        ]
+        endpoint_tick = max(arrived_ticks) if arrived_ticks else None
 
     for candidate in normalized:
         if candidate.n_s > n_t:
@@ -207,8 +212,7 @@ def select_causal_source(
             )
             continue
         if agent is Agent.RSU and (
-            candidate.arrival_tau_ms is None
-            or candidate.arrival_tau_ms > target_tau_ms
+            candidate.arrival_tau_ms is None or candidate.arrival_tau_ms > target_tau_ms
         ):
             rejected.append(
                 RejectedCandidate(
@@ -262,13 +266,18 @@ def select_causal_source(
     rejected_tuple = tuple(rejected)
     if valid:
         source, horizon = valid[0]
-        observed = agent is Agent.EGO and horizon == 0
+        if endpoint_tick is None:
+            raise ProtocolInvariantError(
+                "a valid causal source requires a branch endpoint"
+            )
+        observed = source.n_s == endpoint_tick
         return BranchSelection(
             agent=agent,
             modality=modality,
             supported=True,
             source=source,
             horizon=horizon,
+            endpoint_tick=endpoint_tick,
             observed=observed,
             propagated=not observed,
             rejected=rejected_tuple,
@@ -338,25 +347,17 @@ def branch_reliability(
         raise ProtocolInvariantError("selection must be a BranchSelection")
     if not selection.supported:
         return _placed_scalar(confidence, 0.0)
-    if (
-        selection.agent is Agent.EGO
-        and selection.horizon == 0
-        and selection.observed
-    ):
+    if selection.agent is Agent.EGO and selection.horizon == 0 and selection.observed:
         return _placed_scalar(confidence, 1.0)
 
     if not isinstance(confidence, Tensor):
-        raise ProtocolInvariantError(
-            "propagated branch requires a confidence tensor"
-        )
+        raise ProtocolInvariantError("propagated branch requires a confidence tensor")
     if (
         confidence.ndim != 4
         or confidence.shape[1] != 1
         or any(size <= 0 for size in confidence.shape)
     ):
-        raise ProtocolInvariantError(
-            "confidence must have non-empty shape [B,1,Y,X]"
-        )
+        raise ProtocolInvariantError("confidence must have non-empty shape [B,1,Y,X]")
     if not confidence.is_floating_point():
         raise ProtocolInvariantError("confidence must be floating")
     detached = confidence.detach()
@@ -368,47 +369,77 @@ def branch_reliability(
     if batch_index < 0 or batch_index >= confidence.shape[0]:
         raise ProtocolInvariantError("batch_index is out of range")
     if selection.horizon is None:
-        raise ProtocolInvariantError(
-            "supported branch requires a horizon"
-        )
+        raise ProtocolInvariantError("supported branch requires a horizon")
 
     horizon = confidence.new_tensor(selection.horizon)
     return age_decay(horizon, alpha) * confidence[batch_index].mean()
 
 
-def normalized_selected_rsu_delay(
-    selections: Sequence[BranchSelection],
+def latest_arrived_rsu_age_intervals(
+    candidates: Sequence[SourceCandidate],
+    target_tau_ms: int,
     history_limit: int,
     delta_t_ms: int,
 ) -> float:
+    """Return ``(target time - latest arrived RSU source time) / Δt``.
+
+    Arrival age is a transport property, independent of sensor fault fallback.
+    Only timestamp-valid packets in the bounded causal history participate.
+    """
+
+    target_tau_ms = _require_integer(target_tau_ms, "target_tau_ms")
     history_limit = _require_integer(history_limit, "history_limit")
     delta_t_ms = _require_integer(delta_t_ms, "delta_t_ms")
-    if history_limit <= 0 or delta_t_ms <= 0:
+    if target_tau_ms < 0 or history_limit <= 0 or delta_t_ms <= 0:
         raise ProtocolInvariantError(
-            "delay denominator inputs must be positive"
+            "target time must be nonnegative and interval inputs positive"
         )
+    if target_tau_ms % delta_t_ms:
+        raise ProtocolInvariantError("target time violates the temporal grid")
+    if isinstance(candidates, (str, bytes)) or not isinstance(
+        candidates,
+        Sequence,
+    ):
+        raise ProtocolInvariantError("candidates must be a sequence")
 
-    realized_delays: list[int] = []
-    for selection in selections:
-        if (
-            selection.supported
-            and selection.agent is Agent.RSU
-            and selection.source is not None
-            and selection.source.arrival_tau_ms is not None
-        ):
-            delay = (
-                selection.source.arrival_tau_ms
-                - selection.source.tau_s_ms
+    arrived: list[tuple[int, str, int]] = []
+    for candidate in candidates:
+        if not isinstance(candidate, SourceCandidate):
+            raise ProtocolInvariantError(
+                "candidates must contain SourceCandidate values"
             )
-            if delay < 0:
-                raise ProtocolInvariantError(
-                    "selected RSU delay cannot be negative"
-                )
-            realized_delays.append(delay)
-    if not realized_delays:
+        arrival_tau_ms = candidate.arrival_tau_ms
+        if (
+            arrival_tau_ms is None
+            or arrival_tau_ms > target_tau_ms
+            or not candidate.timestamp_valid
+        ):
+            continue
+        elapsed_ms = target_tau_ms - candidate.tau_s_ms
+        if candidate.tau_s_ms != candidate.n_s * delta_t_ms:
+            raise ProtocolInvariantError(
+                "arrived RSU source timestamp violates the temporal grid"
+            )
+        if elapsed_ms < 0 or elapsed_ms % delta_t_ms:
+            raise ProtocolInvariantError(
+                "arrived RSU source violates the temporal grid"
+            )
+        horizon = elapsed_ms // delta_t_ms
+        if horizon > history_limit:
+            continue
+        if arrival_tau_ms < candidate.tau_s_ms:
+            raise ProtocolInvariantError(
+                "RSU source arrival cannot precede source time"
+            )
+        arrived.append((candidate.n_s, candidate.packet_id, horizon))
+    if not arrived:
         return 0.0
-    denominator = history_limit * delta_t_ms
-    return min(max(max(realized_delays) / denominator, 0.0), 1.0)
+    newest_tick = max(item[0] for item in arrived)
+    newest = [item for item in arrived if item[0] == newest_tick]
+    horizons = {item[2] for item in newest}
+    if len(horizons) != 1:
+        raise ProtocolInvariantError("latest RSU packets disagree on source age")
+    return float(horizons.pop())
 
 
 class CausalBranchRepair(nn.Module):
@@ -433,26 +464,20 @@ class CausalBranchRepair(nn.Module):
             or isinstance(channels, bool)
             or int(channels) != self._CHANNELS
         ):
-            raise ProtocolInvariantError(
-                "channels must be the approved integer 256"
-            )
+            raise ProtocolInvariantError("channels must be the approved integer 256")
         if (
             not isinstance(alpha, Real)
             or isinstance(alpha, bool)
             or not math.isfinite(alpha)
             or float(alpha) != self._ALPHA
         ):
-            raise ProtocolInvariantError(
-                "alpha must be the approved finite value 0.9"
-            )
+            raise ProtocolInvariantError("alpha must be the approved finite value 0.9")
         if (
             not isinstance(history_limit, Integral)
             or isinstance(history_limit, bool)
             or int(history_limit) != self._HISTORY_LIMIT
         ):
-            raise ProtocolInvariantError(
-                "history_limit must be the approved integer 3"
-            )
+            raise ProtocolInvariantError("history_limit must be the approved integer 3")
         self.grid_spec = grid_spec
         self.channels = int(channels)
         self.alpha = float(alpha)
@@ -467,9 +492,7 @@ class CausalBranchRepair(nn.Module):
             or isinstance(batch_size, bool)
             or int(batch_size) <= 0
         ):
-            raise ProtocolInvariantError(
-                "batch_size must be a positive integer"
-            )
+            raise ProtocolInvariantError("batch_size must be a positive integer")
         return (
             int(batch_size),
             self.channels,
@@ -487,9 +510,7 @@ class CausalBranchRepair(nn.Module):
             raise ValueError(f"{name} must be a tensor")
         if value.ndim != rank:
             if name == "source_to_target":
-                raise ValueError(
-                    "source_to_target must have shape [N,4,4]"
-                )
+                raise ValueError("source_to_target must have shape [N,4,4]")
             raise ValueError(f"{name} must be rank-{rank}")
         if not value.is_floating_point():
             raise ValueError(f"{name} must be floating")
@@ -518,16 +539,12 @@ class CausalBranchRepair(nn.Module):
         if batch <= 0:
             raise ValueError("selected_feature batch must be positive")
         if feature.shape[1] != self.channels:
-            raise ValueError(
-                "selected_feature channel count must equal channels"
-            )
+            raise ValueError("selected_feature channel count must equal channels")
         if feature.shape[2:] != (
             self.grid_spec.height,
             self.grid_spec.width,
         ):
-            raise ValueError(
-                "selected_feature spatial shape must match grid_spec"
-            )
+            raise ValueError("selected_feature spatial shape must match grid_spec")
 
         transform = self._require_floating_tensor(
             source_to_target,
@@ -537,9 +554,7 @@ class CausalBranchRepair(nn.Module):
         if transform.shape[1:] != (4, 4):
             raise ValueError("source_to_target must have shape [N,4,4]")
         if transform.shape[0] != batch:
-            raise ValueError(
-                "source_to_target batch must match selected_feature"
-            )
+            raise ValueError("source_to_target batch must match selected_feature")
         context = self._require_floating_tensor(
             ptf_context,
             "ptf_context",
@@ -554,43 +569,27 @@ class CausalBranchRepair(nn.Module):
 
         if not isinstance(query_agent_index, Tensor):
             raise ValueError("query_agent_index must be a tensor")
-        if (
-            query_agent_index.ndim != 1
-            or query_agent_index.shape[0] != batch
-        ):
-            raise ValueError(
-                "query_agent_index must have shape [N] matching batch"
-            )
+        if query_agent_index.ndim != 1 or query_agent_index.shape[0] != batch:
+            raise ValueError("query_agent_index must have shape [N] matching batch")
         if (
             query_agent_index.dtype is torch.bool
             or query_agent_index.is_floating_point()
             or query_agent_index.is_complex()
         ):
-            raise ValueError(
-                "query_agent_index must contain non-boolean integers"
-            )
+            raise ValueError("query_agent_index must contain non-boolean integers")
 
         for name, value in (
             ("source_to_target", transform),
             ("ptf_context", context),
         ):
             if value.dtype != feature.dtype:
-                raise ValueError(
-                    f"{name} dtype must match selected_feature"
-                )
+                raise ValueError(f"{name} dtype must match selected_feature")
             if value.device != feature.device:
-                raise ValueError(
-                    f"{name} device must match selected_feature"
-                )
+                raise ValueError(f"{name} device must match selected_feature")
         if query_agent_index.device != feature.device:
-            raise ValueError(
-                "query_agent_index device must match selected_feature"
-            )
+            raise ValueError("query_agent_index device must match selected_feature")
 
-        if (
-            not isinstance(selections, Sequence)
-            or isinstance(selections, (str, bytes))
-        ):
+        if not isinstance(selections, Sequence) or isinstance(selections, (str, bytes)):
             raise ProtocolInvariantError("selections must be a sequence")
         normalized_selections = tuple(selections)
         if len(normalized_selections) != batch:
@@ -606,8 +605,7 @@ class CausalBranchRepair(nn.Module):
             )
         modality = normalized_selections[0].modality
         if not isinstance(modality, Modality) or any(
-            selection.modality is not modality
-            for selection in normalized_selections
+            selection.modality is not modality for selection in normalized_selections
         ):
             raise ProtocolInvariantError(
                 "all selections in a call must have one modality"
@@ -653,9 +651,7 @@ class CausalBranchRepair(nn.Module):
             "faulted",
         ):
             if not isinstance(getattr(source, name), bool):
-                raise ProtocolInvariantError(
-                    f"selection source {name} must be boolean"
-                )
+                raise ProtocolInvariantError(f"selection source {name} must be boolean")
         if not (
             source.payload_valid
             and source.timestamp_valid
@@ -692,17 +688,14 @@ class CausalBranchRepair(nn.Module):
 
         for row, selection in enumerate(selections):
             if not isinstance(selection.agent, Agent):
-                raise ProtocolInvariantError(
-                    "selection agent must be an Agent"
-                )
+                raise ProtocolInvariantError("selection agent must be an Agent")
             if not isinstance(selection.supported, bool):
-                raise ProtocolInvariantError(
-                    "selection supported flag must be boolean"
-                )
+                raise ProtocolInvariantError("selection supported flag must be boolean")
             if not selection.supported:
                 if (
                     selection.source is not None
                     or selection.horizon is not None
+                    or selection.endpoint_tick is not None
                     or selection.observed is not False
                     or selection.propagated is not False
                     or not isinstance(
@@ -725,9 +718,19 @@ class CausalBranchRepair(nn.Module):
                     "supported horizon must be an integer in [0,3]"
                 )
             horizon = int(horizon_value)
-            expected_observed = (
-                selection.agent is Agent.EGO and horizon == 0
-            )
+            endpoint_tick = selection.endpoint_tick
+            if not isinstance(endpoint_tick, Integral) or isinstance(
+                endpoint_tick, bool
+            ):
+                raise ProtocolInvariantError(
+                    "supported endpoint_tick must be an integer"
+                )
+            source = selection.source
+            if not isinstance(source, SourceCandidate):
+                raise ProtocolInvariantError(
+                    "supported selection source must be a SourceCandidate"
+                )
+            expected_observed = source.n_s == int(endpoint_tick)
             if (
                 not isinstance(selection.observed, bool)
                 or not isinstance(selection.propagated, bool)
@@ -739,17 +742,13 @@ class CausalBranchRepair(nn.Module):
                 )
             self._validate_supported_source(selection)
             if selection.reason is not None:
-                raise ProtocolInvariantError(
-                    "supported selection forbids a reason"
-                )
+                raise ProtocolInvariantError("supported selection forbids a reason")
 
             supported_indices.append(row)
             horizons.append(horizon)
-            observed.append(expected_observed)
-            propagated.append(not expected_observed)
-            expected_agent_indices.append(
-                0 if selection.agent is Agent.EGO else 1
-            )
+            observed.append(selection.observed)
+            propagated.append(selection.propagated)
+            expected_agent_indices.append(0 if selection.agent is Agent.EGO else 1)
 
         if supported_indices:
             supported_index = torch.tensor(
@@ -789,43 +788,27 @@ class CausalBranchRepair(nn.Module):
         if not isinstance(confidence, Tensor):
             raise RuntimeError("PTF confidence must be a tensor")
         if displacement.ndim != 4:
-            raise RuntimeError(
-                "PTF displacement must have shape [S,2,Y,X]"
-            )
+            raise RuntimeError("PTF displacement must have shape [S,2,Y,X]")
         if displacement.shape[0] != supported_count:
-            raise RuntimeError(
-                "PTF displacement batch must match supported rows"
-            )
+            raise RuntimeError("PTF displacement batch must match supported rows")
         if displacement.shape[1] != 2:
-            raise RuntimeError(
-                "PTF displacement channel count must be two"
-            )
+            raise RuntimeError("PTF displacement channel count must be two")
         if displacement.shape[2:] != (
             self.grid_spec.height,
             self.grid_spec.width,
         ):
-            raise RuntimeError(
-                "PTF displacement spatial shape must match grid_spec"
-            )
+            raise RuntimeError("PTF displacement spatial shape must match grid_spec")
         if confidence.ndim != 4:
-            raise RuntimeError(
-                "PTF confidence must have shape [S,1,Y,X]"
-            )
+            raise RuntimeError("PTF confidence must have shape [S,1,Y,X]")
         if confidence.shape[0] != supported_count:
-            raise RuntimeError(
-                "PTF confidence batch must match supported rows"
-            )
+            raise RuntimeError("PTF confidence batch must match supported rows")
         if confidence.shape[1] != 1:
-            raise RuntimeError(
-                "PTF confidence channel count must be one"
-            )
+            raise RuntimeError("PTF confidence channel count must be one")
         if confidence.shape[2:] != (
             self.grid_spec.height,
             self.grid_spec.width,
         ):
-            raise RuntimeError(
-                "PTF confidence spatial shape must match grid_spec"
-            )
+            raise RuntimeError("PTF confidence spatial shape must match grid_spec")
         for name, value in (
             ("displacement", displacement),
             ("confidence", confidence),
@@ -833,13 +816,9 @@ class CausalBranchRepair(nn.Module):
             if not value.is_floating_point():
                 raise RuntimeError(f"PTF {name} must be floating")
             if value.dtype != feature.dtype:
-                raise RuntimeError(
-                    f"PTF {name} dtype must match selected_feature"
-                )
+                raise RuntimeError(f"PTF {name} dtype must match selected_feature")
             if value.device != feature.device:
-                raise RuntimeError(
-                    f"PTF {name} device must match selected_feature"
-                )
+                raise RuntimeError(f"PTF {name} device must match selected_feature")
             self._require_runtime_finite(value, f"PTF {name}")
         detached_confidence = confidence.detach()
         if (
@@ -923,7 +902,7 @@ class CausalBranchRepair(nn.Module):
                     dtype=torch.bool,
                     device=selected_feature.device,
                 ),
-                normalized_age=selected_feature.new_zeros(batch),
+                age_intervals=selected_feature.new_zeros(batch),
                 displacement=None,
                 confidence=None,
                 diagnostics=tuple(
@@ -964,9 +943,7 @@ class CausalBranchRepair(nn.Module):
             "selected feature",
         )
         if not self._all_finite(supported_context):
-            raise ValueError(
-                "supported ptf_context must contain only finite values"
-            )
+            raise ValueError("supported ptf_context must contain only finite values")
         aligned_feature = align_bev_to_target(
             supported_feature,
             supported_transform,
@@ -993,9 +970,7 @@ class CausalBranchRepair(nn.Module):
             selected_feature.new_tensor(self.alpha),
             horizon.to(dtype=selected_feature.dtype),
         )
-        normalized_age = (
-            horizon.to(dtype=selected_feature.dtype) / self.history_limit
-        )
+        age_intervals = horizon.to(dtype=selected_feature.dtype)
         observed = torch.tensor(
             observed_values,
             dtype=torch.bool,
@@ -1006,8 +981,9 @@ class CausalBranchRepair(nn.Module):
             dtype=torch.bool,
             device=selected_feature.device,
         )
+        current_ego = supported_agent_index.eq(0) & horizon.eq(0)
         reliability = torch.where(
-            observed,
+            current_ego,
             torch.ones_like(gamma),
             gamma * confidence.mean(dim=(-3, -2, -1)),
         )
@@ -1015,21 +991,17 @@ class CausalBranchRepair(nn.Module):
 
         for name, value in (
             ("gamma", gamma),
-            ("normalized age", normalized_age),
+            ("age intervals", age_intervals),
             ("reliability", reliability),
             ("repaired feature", repaired),
         ):
             self._require_runtime_finite(value, name)
         for name, value in (
             ("gamma", gamma),
-            ("normalized age", normalized_age),
             ("reliability", reliability),
         ):
             detached = value.detach()
-            if (
-                detached.lt(0).any().item()
-                or detached.gt(1).any().item()
-            ):
+            if detached.lt(0).any().item() or detached.gt(1).any().item():
                 raise RuntimeError(f"{name} must be in [0,1]")
 
         full_feature = selected_feature.new_zeros(feature_shape).index_copy(
@@ -1042,10 +1014,12 @@ class CausalBranchRepair(nn.Module):
             supported_index,
             reliability,
         )
-        full_normalized_age = selected_feature.new_zeros(batch).index_copy(
+        if age_intervals.detach().gt(self.history_limit).any().item():
+            raise RuntimeError("age intervals exceed the supported history")
+        full_age_intervals = selected_feature.new_zeros(batch).index_copy(
             0,
             supported_index,
-            normalized_age,
+            age_intervals,
         )
         full_support = torch.zeros(
             batch,
@@ -1080,22 +1054,17 @@ class CausalBranchRepair(nn.Module):
         ).index_copy(0, supported_index, confidence)
 
         supported_positions = {
-            row: position
-            for position, row in enumerate(supported_indices)
+            row: position for position, row in enumerate(supported_indices)
         }
         diagnostics: list[BranchDiagnostics] = []
         for row, selection in enumerate(normalized_selections):
             if not selection.supported:
-                diagnostics.append(
-                    self._unsupported_diagnostics(selection)
-                )
+                diagnostics.append(self._unsupported_diagnostics(selection))
                 continue
             position = supported_positions[row]
             source = selection.source
             if source is None:
-                raise ProtocolInvariantError(
-                    "supported selection requires source"
-                )
+                raise ProtocolInvariantError("supported selection requires source")
             diagnostics.append(
                 BranchDiagnostics(
                     agent=selection.agent,
@@ -1107,9 +1076,7 @@ class CausalBranchRepair(nn.Module):
                     observed=observed_values[position],
                     propagated=propagated_values[position],
                     gamma=float(gamma[position].detach().item()),
-                    reliability=float(
-                        reliability[position].detach().item()
-                    ),
+                    reliability=float(reliability[position].detach().item()),
                     ptf_queried=True,
                     displacement=displacement[position].detach(),
                     confidence=confidence[position].detach(),
@@ -1123,7 +1090,7 @@ class CausalBranchRepair(nn.Module):
             support=full_support,
             observed=full_observed,
             propagated=full_propagated,
-            normalized_age=full_normalized_age,
+            age_intervals=full_age_intervals,
             displacement=full_displacement,
             confidence=full_confidence,
             diagnostics=tuple(diagnostics),

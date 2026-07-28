@@ -14,6 +14,7 @@ from typing import Literal
 import zstandard
 
 from .resilient_v2x_manifest import (
+    RawSliceRecord,
     TemporalManifest,
     TemporalSampleRecord,
     canonical_json_bytes,
@@ -25,6 +26,7 @@ __all__ = (
     "TransportPlan",
     "FaultPlan",
     "ArrivalRelativeFaultPlan",
+    "CausalFaultPlan",
     "OverlayDigest",
     "TransportOverlayRecord",
     "FaultOverlayRecord",
@@ -34,6 +36,7 @@ __all__ = (
     "write_transport_overlay",
     "write_fault_overlay",
     "write_arrival_relative_fault_overlay",
+    "write_causal_fault_overlay",
     "read_overlay",
     "augmentation_seed",
 )
@@ -382,6 +385,65 @@ class ArrivalRelativeFaultPlan:
         )
         if delay not in (0, 300):
             raise ScheduleError("arrival-relative fixed delay must be 0 or 300")
+        object.__setattr__(self, "fixed_delay_ms", delay)
+
+
+@dataclass(frozen=True)
+class CausalFaultPlan:
+    """Evaluation faults anchored to each branch's causal endpoint.
+
+    Unlike ``FaultPlan(mode='global_target')``, this plan binds the RSU mask
+    to the latest packet that actually arrived under one immutable transport
+    overlay.  It therefore implements the paper's joint latency--fault and
+    E-only/R-only diagnostic contracts.
+    """
+
+    temporal_manifest_sha256: str
+    transport_overlay_sha256: str
+    split: Literal["val", "test"]
+    samples: tuple[TemporalSampleRecord, ...]
+    condition: Literal["Full", "L-Fail", "C-Fail"]
+    agents: tuple[Literal["ego", "rsu"], ...]
+    duration: int
+    fixed_delay_ms: Literal[0, 100, 200, 300]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "temporal_manifest_sha256",
+            _sha256(self.temporal_manifest_sha256, "temporal manifest digest"),
+        )
+        object.__setattr__(
+            self,
+            "transport_overlay_sha256",
+            _sha256(self.transport_overlay_sha256, "transport overlay digest"),
+        )
+        split = _literal(self.split, _EVALUATION_SPLITS, "causal fault split")
+        object.__setattr__(self, "split", split)
+        object.__setattr__(
+            self,
+            "samples",
+            _samples(self.samples, split, "causal fault samples"),
+        )
+        condition = _literal(
+            self.condition,
+            ("Full", "L-Fail", "C-Fail"),
+            "causal fault condition",
+        )
+        agents = _agents(self.agents, "causal fault agents")
+        if not agents:
+            raise ScheduleError("causal faults require at least one agent")
+        duration = _exact_int(self.duration, "causal fault duration", 1)
+        if condition == "Full" and duration != 1:
+            raise ScheduleError("Full condition requires duration 1")
+        delay = _exact_int(self.fixed_delay_ms, "causal fault fixed delay", 0)
+        if delay not in _DELAY_VALUES_MS:
+            raise ScheduleError(
+                "causal fault fixed delay must be 0, 100, 200, or 300"
+            )
+        object.__setattr__(self, "condition", condition)
+        object.__setattr__(self, "agents", agents)
+        object.__setattr__(self, "duration", duration)
         object.__setattr__(self, "fixed_delay_ms", delay)
 
 
@@ -963,7 +1025,7 @@ def read_overlay(
 
 
 def _transport_from_mappings(
-    plan: ArrivalRelativeFaultPlan,
+    plan: ArrivalRelativeFaultPlan | CausalFaultPlan,
     transport_records: Sequence[Mapping[str, object]],
 ) -> tuple[TransportOverlayRecord, ...]:
     if isinstance(transport_records, (str, bytes)) or not isinstance(
@@ -1081,5 +1143,98 @@ def write_arrival_relative_fault_overlay(
                 fallback_selected_n_s=fallback,
             )
         )
+    records.sort(key=_fault_sort_key)
+    return _publish_overlay(records, output)
+
+
+def _causal_branch_sources(
+    sample: TemporalSampleRecord,
+    agent: str,
+    modality: str,
+    arrival_by_packet: Mapping[str, int],
+) -> tuple[RawSliceRecord, ...]:
+    sources = []
+    for source in sample.source_slices:
+        if (source.agent, source.modality) != (agent, modality):
+            continue
+        if source.n_s > sample.n_t:
+            continue
+        if agent == "rsu":
+            arrival = arrival_by_packet.get(source.packet_id)
+            if arrival is None or arrival > sample.tau_t_ms:
+                continue
+        sources.append(source)
+    sources.sort(key=lambda source: source.n_s, reverse=True)
+    return tuple(sources)
+
+
+def write_causal_fault_overlay(
+    plan: CausalFaultPlan,
+    temporal_manifest: TemporalManifest,
+    transport_records: Sequence[Mapping[str, object]],
+    output: Path,
+) -> OverlayDigest:
+    """Write endpoint-relative Full/L-Fail/C-Fail evaluation records."""
+
+    if not isinstance(plan, CausalFaultPlan):
+        raise ScheduleError("causal fault plan must be CausalFaultPlan")
+    if not isinstance(temporal_manifest, TemporalManifest):
+        raise ScheduleError("temporal manifest must be TemporalManifest")
+    if temporal_manifest.content_sha256 != plan.temporal_manifest_sha256:
+        raise ScheduleError("temporal manifest digest mismatch")
+    if plan.duration > temporal_manifest.history_limit + 1:
+        raise ScheduleError(
+            "causal fault duration exceeds the represented history"
+        )
+    manifest_samples = {
+        sample.sample_id: sample for sample in temporal_manifest.samples
+    }
+    if any(manifest_samples.get(sample.sample_id) != sample for sample in plan.samples):
+        raise ScheduleError("causal fault samples are absent from manifest")
+
+    parsed = _transport_from_mappings(plan, transport_records)
+    arrival_by_packet = {record.packet_id: record.arrival_tau_ms for record in parsed}
+    failed_modality = {
+        "Full": None,
+        "L-Fail": "lidar",
+        "C-Fail": "camera",
+    }[plan.condition]
+    records: list[FaultOverlayRecord] = []
+    for sample in plan.samples:
+        for agent in _AGENTS:
+            for modality in _MODALITIES:
+                sources = _causal_branch_sources(
+                    sample,
+                    agent,
+                    modality,
+                    arrival_by_packet,
+                )
+                if not sources:
+                    raise ScheduleError(
+                        "causal fault branch has no no-fault source selection"
+                    )
+                masked = agent in plan.agents and modality == failed_modality
+                count = plan.duration if masked else 1
+                if len(sources) < count:
+                    raise ScheduleError(
+                        "causal fault sample lacks the requested history duration"
+                    )
+                selected = sources[0].n_s
+                fallback = (
+                    sources[count].n_s if masked and len(sources) > count else None
+                )
+                for source in sources[:count]:
+                    records.append(
+                        FaultOverlayRecord(
+                            epoch=None,
+                            sample_id=sample.sample_id,
+                            agent=agent,  # type: ignore[arg-type]
+                            modality=modality,  # type: ignore[arg-type]
+                            n_s=source.n_s,
+                            masked=masked,
+                            pre_mask_selected_n_s=selected,
+                            fallback_selected_n_s=fallback if masked else selected,
+                        )
+                    )
     records.sort(key=_fault_sort_key)
     return _publish_overlay(records, output)

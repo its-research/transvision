@@ -254,15 +254,15 @@
     },
     {
       "download_info": {
-        "url": "https://files.pythonhosted.org/packages/a7/19/f97f0fd4d432113a232e75f965335be6b7bb6557ae9faf8051e9a012cadd/mmcv-2.1.0.tar.gz",
+        "url": "https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/mmcv-2.1.0-cp310-cp310-manylinux1_x86_64.whl",
         "archive_info": {
-          "hash": "sha256=d387bcab66b467479b6660310e23746cfc79c6e57acf04094680adb499a5cd3f",
+          "hash": "sha256=169c5b79bc689cefa8bfdfac9cbaabcef5f00792b418506b583c27b937c9e8f1",
           "hashes": {
-            "sha256": "d387bcab66b467479b6660310e23746cfc79c6e57acf04094680adb499a5cd3f"
+            "sha256": "169c5b79bc689cefa8bfdfac9cbaabcef5f00792b418506b583c27b937c9e8f1"
           }
         }
       },
-      "is_direct": false,
+      "is_direct": true,
       "is_yanked": false,
       "requested": true,
       "metadata": {
@@ -290,21 +290,53 @@
         ],
         "requires_dist": [
           "addict",
-          "mmengine>=0.3.0",
+          "mmengine >=0.3.0",
           "numpy",
           "packaging",
           "Pillow",
           "pyyaml",
           "yapf",
-          "opencv-python>=3",
-          "regex ; sys_platform == \"win32\""
+          "opencv-python >=3",
+          "regex ; sys_platform == \"win32\"",
+          "pytest-runner ; extra == 'all'",
+          "ninja ; extra == 'all'",
+          "psutil ; extra == 'all'",
+          "addict ; extra == 'all'",
+          "mmengine >=0.3.0 ; extra == 'all'",
+          "numpy ; extra == 'all'",
+          "packaging ; extra == 'all'",
+          "Pillow ; extra == 'all'",
+          "pyyaml ; extra == 'all'",
+          "yapf ; extra == 'all'",
+          "coverage ; extra == 'all'",
+          "lmdb ; extra == 'all'",
+          "onnx ; extra == 'all'",
+          "onnxoptimizer ; extra == 'all'",
+          "onnxruntime ; extra == 'all'",
+          "pytest ; extra == 'all'",
+          "PyTurboJPEG ; extra == 'all'",
+          "scipy ; extra == 'all'",
+          "tifffile ; extra == 'all'",
+          "regex ; (sys_platform == \"win32\") and extra == 'all'",
+          "pytest-runner ; extra == 'build'",
+          "ninja ; extra == 'optional'",
+          "psutil ; extra == 'optional'",
+          "coverage ; extra == 'tests'",
+          "lmdb ; extra == 'tests'",
+          "onnx ; extra == 'tests'",
+          "onnxoptimizer ; extra == 'tests'",
+          "onnxruntime ; extra == 'tests'",
+          "pytest ; extra == 'tests'",
+          "PyTurboJPEG ; extra == 'tests'",
+          "scipy ; extra == 'tests'",
+          "tifffile ; extra == 'tests'"
         ],
         "requires_python": ">=3.7",
         "provides_extra": [
           "all",
-          "tests",
           "build",
-          "optional"
+          "optional",
+          "tests"
         ]
       }
     },

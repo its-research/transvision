@@ -4,7 +4,7 @@ import pickle
 import mmcv
 import numpy as np
 import yaml
-from pypcd import pypcd
+from pypcd4 import PointCloud
 
 
 def load_json(path):
@@ -30,15 +30,16 @@ def save_pkl(item, path):
 
 
 def read_pcd(pcd_path):
-    pcd = pypcd.PointCloud.from_path(pcd_path)
+    pcd = PointCloud.from_path(pcd_path)
     time = None
-    pcd_np_points = np.zeros((pcd.points, 4), dtype=np.float32)
-    pcd_np_points[:, 0] = np.transpose(pcd.pc_data['x'])
-    pcd_np_points[:, 1] = np.transpose(pcd.pc_data['y'])
-    pcd_np_points[:, 2] = np.transpose(pcd.pc_data['z'])
-    pcd_np_points[:, 3] = np.transpose(pcd.pc_data['intensity']) / 256.0
-    del_index = np.where(np.isnan(pcd_np_points))[0]
-    pcd_np_points = np.delete(pcd_np_points, del_index, axis=0)
+    pcd_np_points = np.asarray(
+        pcd.numpy(("x", "y", "z", "intensity")),
+        dtype=np.float32,
+    ).copy()
+    pcd_np_points[:, 3] /= 256.0
+    pcd_np_points = pcd_np_points[
+        np.isfinite(pcd_np_points).all(axis=1)
+    ]
     return pcd_np_points, time
 
 

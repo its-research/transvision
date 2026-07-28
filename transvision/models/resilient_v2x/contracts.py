@@ -63,6 +63,7 @@ class BranchSelection:
     supported: bool
     source: SourceCandidate | None
     horizon: int | None
+    endpoint_tick: int | None
     observed: bool
     propagated: bool
     rejected: tuple[RejectedCandidate, ...]
@@ -70,25 +71,67 @@ class BranchSelection:
 
     def __post_init__(self) -> None:
         if self.supported:
-            if self.source is None or self.horizon is None or self.reason is not None:
+            if (
+                self.source is None
+                or self.horizon is None
+                or self.endpoint_tick is None
+                or self.reason is not None
+            ):
                 raise ProtocolInvariantError(
-                    "supported branch requires source and horizon and forbids reason"
+                    "supported branch requires source, horizon, and endpoint_tick "
+                    "and forbids reason"
                 )
-            if self.horizon < 0:
-                raise ProtocolInvariantError("horizon must be non-negative")
-            if self.observed == self.propagated:
+            if not isinstance(self.source, SourceCandidate):
                 raise ProtocolInvariantError(
-                    "supported branch requires exactly one observed/propagated flag"
+                    "supported branch source must be a SourceCandidate"
+                )
+            if (
+                not isinstance(self.horizon, Integral)
+                or isinstance(self.horizon, bool)
+                or int(self.horizon) < 0
+            ):
+                raise ProtocolInvariantError("horizon must be a non-negative integer")
+            if not isinstance(self.endpoint_tick, Integral) or isinstance(
+                self.endpoint_tick, bool
+            ):
+                raise ProtocolInvariantError("endpoint_tick must be an integer")
+            if not isinstance(self.source.n_s, Integral) or isinstance(
+                self.source.n_s, bool
+            ):
+                raise ProtocolInvariantError("source n_s must be an integer")
+            source_tick = int(self.source.n_s)
+            endpoint_tick = int(self.endpoint_tick)
+            horizon = int(self.horizon)
+            if source_tick > endpoint_tick:
+                raise ProtocolInvariantError(
+                    "source tick cannot be newer than the branch endpoint"
+                )
+            if endpoint_tick - source_tick > horizon:
+                raise ProtocolInvariantError(
+                    "branch endpoint cannot be newer than the target tick"
+                )
+            expected_observed = source_tick == endpoint_tick
+            if (
+                type(self.observed) is not bool
+                or type(self.propagated) is not bool
+                or self.observed is not expected_observed
+                or self.propagated is expected_observed
+            ):
+                raise ProtocolInvariantError(
+                    "supported branch observed/propagated flags must describe "
+                    "whether the source equals the branch endpoint"
                 )
         elif (
             self.source is not None
             or self.horizon is not None
+            or self.endpoint_tick is not None
             or self.reason is None
             or self.observed
             or self.propagated
         ):
             raise ProtocolInvariantError(
-                "unsupported branch requires null source/horizon, false flags, and reason"
+                "unsupported branch requires null source/horizon/endpoint_tick, "
+                "false flags, and reason"
             )
 
     @classmethod
@@ -105,6 +148,7 @@ class BranchSelection:
             supported=False,
             source=None,
             horizon=None,
+            endpoint_tick=None,
             observed=False,
             propagated=False,
             rejected=rejected,
@@ -137,18 +181,14 @@ class RepairedBranch:
     support: Tensor
     observed: Tensor
     propagated: Tensor
-    normalized_age: Tensor
+    age_intervals: Tensor
     displacement: Tensor | None
     confidence: Tensor | None
     diagnostics: tuple[BranchDiagnostics, ...]
 
 
 def _require_trimmed_text(value: object, name: str) -> str:
-    if (
-        type(value) is not str
-        or not value
-        or value != value.strip()
-    ):
+    if type(value) is not str or not value or value != value.strip():
         raise ProtocolInvariantError(
             f"{name} must be a non-empty string without surrounding whitespace"
         )
@@ -209,9 +249,7 @@ def _require_finite_tensor(
     if detached and value.requires_grad:
         raise ProtocolInvariantError(f"{name} must be detached")
     if value.device.type == "meta":
-        raise ProtocolInvariantError(
-            f"{name} device must contain materialized values"
-        )
+        raise ProtocolInvariantError(f"{name} device must contain materialized values")
     if floating and not torch.isfinite(value).all().item():
         raise ProtocolInvariantError(f"{name} must contain only finite values")
     return value
@@ -219,9 +257,7 @@ def _require_finite_tensor(
 
 def _validate_routing_diagnostics(value: object) -> "RoutingDiagnostics":
     if not isinstance(value, RoutingDiagnostics):
-        raise ProtocolInvariantError(
-            "routing must be a RoutingDiagnostics record"
-        )
+        raise ProtocolInvariantError("routing must be a RoutingDiagnostics record")
     fields = (value.descriptor, value.expert_support, value.weights)
     present = tuple(field is not None for field in fields)
     if any(present) and not all(present):
@@ -264,15 +300,11 @@ def _validate_routing_diagnostics(value: object) -> "RoutingDiagnostics":
         descriptor.device != expert_support.device
         or descriptor.device != weights.device
     ):
-        raise ProtocolInvariantError(
-            "routing diagnostic tensors must share a device"
-        )
+        raise ProtocolInvariantError("routing diagnostic tensors must share a device")
     if weights.lt(0).any().item() or weights.gt(1).any().item():
         raise ProtocolInvariantError("routing weights must be in [0,1]")
     if weights.masked_select(~expert_support).ne(0).any().item():
-        raise ProtocolInvariantError(
-            "unsupported expert weights must be exactly zero"
-        )
+        raise ProtocolInvariantError("unsupported expert weights must be exactly zero")
     if expert_support.any().item():
         tolerance = 10.0 * torch.finfo(weights.dtype).eps
         if not torch.allclose(
@@ -281,13 +313,9 @@ def _validate_routing_diagnostics(value: object) -> "RoutingDiagnostics":
             atol=tolerance,
             rtol=tolerance,
         ):
-            raise ProtocolInvariantError(
-                "supported routing weights must sum to one"
-            )
+            raise ProtocolInvariantError("supported routing weights must sum to one")
     elif weights.ne(0).any().item():
-        raise ProtocolInvariantError(
-            "all-invalid routing weights must be exactly zero"
-        )
+        raise ProtocolInvariantError("all-invalid routing weights must be exactly zero")
     return value
 
 
@@ -308,16 +336,9 @@ def _validate_branch_diagnostics(
     expected_modality: Modality,
 ) -> BranchDiagnostics:
     if not isinstance(branch, BranchDiagnostics):
-        raise ProtocolInvariantError(
-            "branches must contain BranchDiagnostics records"
-        )
-    if (
-        branch.agent is not expected_agent
-        or branch.modality is not expected_modality
-    ):
-        raise ProtocolInvariantError(
-            "branches must use fixed [L_E,L_R,C_E,C_R] order"
-        )
+        raise ProtocolInvariantError("branches must contain BranchDiagnostics records")
+    if branch.agent is not expected_agent or branch.modality is not expected_modality:
+        raise ProtocolInvariantError("branches must use fixed [L_E,L_R,C_E,C_R] order")
     supported = _require_bool(branch.supported, "branch supported")
     observed = _require_bool(branch.observed, "branch observed")
     propagated = _require_bool(branch.propagated, "branch propagated")
@@ -368,11 +389,14 @@ def _validate_branch_diagnostics(
         raise ProtocolInvariantError(
             "supported branch requires exactly one observed/propagated flag"
         )
-    expected_observed = expected_agent is Agent.EGO and horizon == 0
-    if observed is not expected_observed or propagated is expected_observed:
-        raise ProtocolInvariantError(
-            "supported branch observed/propagated semantics are invalid"
-        )
+    if expected_agent is Agent.EGO:
+        expected_observed = horizon == 0
+        if observed is not expected_observed or propagated is expected_observed:
+            raise ProtocolInvariantError(
+                "supported Ego branch observed/propagated semantics are invalid"
+            )
+    elif horizon == 0 and (not observed or propagated):
+        raise ProtocolInvariantError("a zero-age supported RSU branch must be observed")
     if branch.reason is not None:
         raise ProtocolInvariantError("supported branch forbids a reason")
 
@@ -391,18 +415,14 @@ def _validate_branch_diagnostics(
     displacement = branch.displacement
     confidence = branch.confidence
     if not isinstance(displacement, Tensor):
-        raise ProtocolInvariantError(
-            "supported PTF branch requires displacement"
-        )
+        raise ProtocolInvariantError("supported PTF branch requires displacement")
     if (
         displacement.ndim != 3
         or displacement.shape[0] != 2
         or displacement.shape[1] <= 0
         or displacement.shape[2] <= 0
     ):
-        raise ProtocolInvariantError(
-            "branch displacement must be [2,Y,X]"
-        )
+        raise ProtocolInvariantError("branch displacement must be [2,Y,X]")
     displacement = _require_finite_tensor(
         displacement,
         "branch displacement",
@@ -430,9 +450,7 @@ def _validate_branch_diagnostics(
             "branch displacement/confidence dtype and device must match"
         )
     if confidence.lt(0).any().item() or confidence.gt(1).any().item():
-        raise ProtocolInvariantError(
-            "branch confidence must be in [0,1]"
-        )
+        raise ProtocolInvariantError("branch confidence must be in [0,1]")
     return branch
 
 
@@ -493,9 +511,7 @@ class ResilientFeatureBatch:
             or any(dimension <= 0 for dimension in self.fused.shape)
             or self.fused.shape[1] != 256
         ):
-            raise ProtocolInvariantError(
-                "fused feature must be positive [B,256,Y,X]"
-            )
+            raise ProtocolInvariantError("fused feature must be positive [B,256,Y,X]")
         if not self.fused.is_floating_point():
             raise ProtocolInvariantError("fused feature must be floating")
         if self.fused.device.type == "meta":
@@ -532,13 +548,9 @@ class ResilientFeatureBatch:
             or routing_weights.device != self.fused.device
             or routing_descriptor.device != self.fused.device
         ):
-            raise ProtocolInvariantError(
-                "feature batch tensors must share a device"
-            )
+            raise ProtocolInvariantError("feature batch tensors must share a device")
         if routing_weights.lt(0).any().item():
-            raise ProtocolInvariantError(
-                "routing weights must be nonnegative"
-            )
+            raise ProtocolInvariantError("routing weights must be nonnegative")
         unsupported_rows = ~overall_support
         if (
             routing_weights.masked_select(
@@ -567,15 +579,11 @@ class ResilientFeatureBatch:
         if type(self.diagnostics) is not tuple:
             raise ProtocolInvariantError("diagnostics must be a tuple")
         if len(self.diagnostics) != batch:
-            raise ProtocolInvariantError(
-                "diagnostics count must equal batch size"
-            )
+            raise ProtocolInvariantError("diagnostics count must equal batch size")
         sample_ids: list[str] = []
         for index, diagnostic in enumerate(self.diagnostics):
             if not isinstance(diagnostic, SampleInferenceDiagnostics):
-                raise ProtocolInvariantError(
-                    "diagnostics must contain sample records"
-                )
+                raise ProtocolInvariantError("diagnostics must contain sample records")
             diagnostic.__post_init__()
             sample_ids.append(diagnostic.sample_id)
             routing = _validate_routing_diagnostics(diagnostic.routing)
@@ -617,26 +625,19 @@ class ResilientFeatureBatch:
             raise ProtocolInvariantError("sample IDs must be unique")
 
         if not isinstance(self.branch_features, Mapping):
-            raise ProtocolInvariantError(
-                "branch_features must be a mapping"
-            )
+            raise ProtocolInvariantError("branch_features must be a mapping")
         for key, value in self.branch_features.items():
             if type(key) is not str or not key:
                 raise ProtocolInvariantError(
                     "branch feature keys must be non-empty strings"
                 )
             if not isinstance(value, Tensor):
-                raise ProtocolInvariantError(
-                    "branch feature values must be tensors"
-                )
+                raise ProtocolInvariantError("branch feature values must be tensors")
             if value.shape != self.fused.shape:
                 raise ProtocolInvariantError(
                     "branch features must match fused feature shape"
                 )
-            if (
-                value.dtype != self.fused.dtype
-                or value.device != self.fused.device
-            ):
+            if value.dtype != self.fused.dtype or value.device != self.fused.device:
                 raise ProtocolInvariantError(
                     "branch features must match fused dtype and device"
                 )

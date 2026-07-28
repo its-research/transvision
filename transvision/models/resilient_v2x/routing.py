@@ -14,11 +14,7 @@ def _require_positive_channels(
     *,
     approved: int | None = None,
 ) -> int:
-    if (
-        not isinstance(value, Integral)
-        or isinstance(value, bool)
-        or int(value) <= 0
-    ):
+    if not isinstance(value, Integral) or isinstance(value, bool) or int(value) <= 0:
         raise ValueError(f"{name} must be a positive non-boolean integer")
     normalized = int(value)
     if approved is not None and normalized != approved:
@@ -78,9 +74,7 @@ def _require_feature(
         or value.shape[2] <= 0
         or value.shape[3] <= 0
     ):
-        raise ValueError(
-            f"{name} must have positive shape [B,{channels},Y,X]"
-        )
+        raise ValueError(f"{name} must have positive shape [B,{channels},Y,X]")
     if not value.is_floating_point():
         raise ValueError(f"{name} must be floating")
     if value.dtype != parameter.dtype:
@@ -128,6 +122,29 @@ def _require_unit_interval_tensor(
     detached = value.detach()
     if detached.lt(0).any().item() or detached.gt(1).any().item():
         raise ValueError(f"{name} must contain values in [0,1]")
+    return value
+
+
+def _require_age_interval_tensor(
+    value: object,
+    name: str,
+    shape: tuple[int, ...],
+    reference: Tensor,
+) -> Tensor:
+    if not isinstance(value, Tensor):
+        raise ValueError(f"{name} must be a tensor")
+    if value.shape != shape:
+        raise ValueError(f"{name} must have shape {list(shape)}")
+    if not value.is_floating_point():
+        raise ValueError(f"{name} must be floating")
+    if value.dtype != reference.dtype:
+        raise ValueError(f"{name} dtype must match feature inputs")
+    if value.device != reference.device:
+        raise ValueError(f"{name} device must match feature inputs")
+    _require_input_finite(value, name)
+    detached = value.detach()
+    if detached.lt(0).any().item() or detached.gt(3).any().item():
+        raise ValueError(f"{name} must contain values in [0,3]")
     return value
 
 
@@ -250,17 +267,11 @@ class ModalityAggregator(nn.Module):
             parameter,
         )
         if rsu_feature.shape != ego_feature.shape:
-            raise ValueError(
-                "ego_feature and rsu_feature must have identical shape"
-            )
+            raise ValueError("ego_feature and rsu_feature must have identical shape")
         if rsu_feature.dtype != ego_feature.dtype:
-            raise ValueError(
-                "ego_feature and rsu_feature must have identical dtype"
-            )
+            raise ValueError("ego_feature and rsu_feature must have identical dtype")
         if rsu_feature.device != ego_feature.device:
-            raise ValueError(
-                "ego_feature and rsu_feature must have identical device"
-            )
+            raise ValueError("ego_feature and rsu_feature must have identical device")
 
         batch = ego_feature.shape[0]
         shape = (batch,)
@@ -289,19 +300,13 @@ class ModalityAggregator(nn.Module):
             ego_feature,
         )
         if ego_reliability.detach().masked_select(~ego_support).ne(0).any().item():
-            raise ValueError(
-                "unsupported Ego reliability must be neutral zero"
-            )
+            raise ValueError("unsupported Ego reliability must be neutral zero")
         if rsu_reliability.detach().masked_select(~rsu_support).ne(0).any().item():
-            raise ValueError(
-                "unsupported RSU reliability must be neutral zero"
-            )
+            raise ValueError("unsupported RSU reliability must be neutral zero")
 
         masked_ego = _mask_feature(ego_feature, ego_support)
         masked_rsu = _mask_feature(rsu_feature, rsu_support)
-        projected = self.projection(
-            torch.cat((masked_ego, masked_rsu), dim=1)
-        )
+        projected = self.projection(torch.cat((masked_ego, masked_rsu), dim=1))
         projected = _require_runtime_tensor(
             projected,
             "modality projection",
@@ -406,8 +411,8 @@ class DynamicExpertRouter(nn.Module):
         branch_reliability: object,
         branch_observed: object,
         branch_propagated: object,
-        branch_normalized_age: object,
-        normalized_rsu_delay: object,
+        branch_age_intervals: object,
+        rsu_delay_intervals: object,
         routing_mode: object,
         use_reliability: object,
         use_delay_metadata: object,
@@ -421,7 +426,7 @@ class DynamicExpertRouter(nn.Module):
         Tensor,
         Tensor,
         Tensor,
-        Literal["dynamic", "static", "uniform"],
+        Literal["dynamic", "static", "uniform", "concat"],
         bool,
         bool,
     ]:
@@ -483,15 +488,15 @@ class DynamicExpertRouter(nn.Module):
             branch_shape,
             lidar_feature.device,
         )
-        branch_normalized_age = _require_unit_interval_tensor(
-            branch_normalized_age,
-            "branch_normalized_age",
+        branch_age_intervals = _require_age_interval_tensor(
+            branch_age_intervals,
+            "branch_age_intervals",
             branch_shape,
             lidar_feature,
         )
-        normalized_rsu_delay = _require_unit_interval_tensor(
-            normalized_rsu_delay,
-            "normalized_rsu_delay",
+        rsu_delay_intervals = _require_age_interval_tensor(
+            rsu_delay_intervals,
+            "rsu_delay_intervals",
             (batch, 1),
             lidar_feature,
         )
@@ -499,9 +504,10 @@ class DynamicExpertRouter(nn.Module):
             "dynamic",
             "static",
             "uniform",
+            "concat",
         ):
             raise ValueError(
-                "routing_mode must be 'dynamic', 'static', or 'uniform'"
+                "routing_mode must be 'dynamic', 'static', 'uniform', or 'concat'"
             )
         if type(use_reliability) is not bool:
             raise ValueError("use_reliability must be a boolean")
@@ -513,48 +519,20 @@ class DynamicExpertRouter(nn.Module):
             dim=1,
         )
         unsupported = ~branch_support
-        if (
-            branch_reliability.detach()
-            .masked_select(unsupported)
-            .ne(0)
-            .any()
-            .item()
-        ):
-            raise ValueError(
-                "unsupported branch reliability must be neutral zero"
-            )
+        if branch_reliability.detach().masked_select(unsupported).ne(0).any().item():
+            raise ValueError("unsupported branch reliability must be neutral zero")
         if branch_observed.masked_select(unsupported).any().item():
-            raise ValueError(
-                "unsupported branch observed flags must be neutral false"
-            )
+            raise ValueError("unsupported branch observed flags must be neutral false")
         if branch_propagated.masked_select(unsupported).any().item():
             raise ValueError(
                 "unsupported branch propagated flags must be neutral false"
             )
-        if (
-            branch_normalized_age.detach()
-            .masked_select(unsupported)
-            .ne(0)
-            .any()
-            .item()
-        ):
-            raise ValueError(
-                "unsupported branch normalized age must be neutral zero"
-            )
+        if branch_age_intervals.detach().masked_select(unsupported).ne(0).any().item():
+            raise ValueError("unsupported branch age intervals must be neutral zero")
         exactly_one_flag = branch_observed ^ branch_propagated
         if exactly_one_flag.ne(branch_support).any().item():
             raise ValueError(
                 "supported branch requires exactly one observed/propagated flag"
-            )
-        rsu_supported = branch_support[:, (1, 3)].any(dim=1)
-        if (
-            normalized_rsu_delay.detach()[~rsu_supported]
-            .ne(0)
-            .any()
-            .item()
-        ):
-            raise ValueError(
-                "normalized RSU delay must be zero without RSU support"
             )
         return (
             lidar_feature,
@@ -564,8 +542,8 @@ class DynamicExpertRouter(nn.Module):
             branch_reliability,
             branch_observed,
             branch_propagated,
-            branch_normalized_age,
-            normalized_rsu_delay,
+            branch_age_intervals,
+            rsu_delay_intervals,
             routing_mode,
             use_reliability,
             use_delay_metadata,
@@ -580,9 +558,9 @@ class DynamicExpertRouter(nn.Module):
         branch_reliability: Tensor,
         branch_observed: Tensor,
         branch_propagated: Tensor,
-        branch_normalized_age: Tensor,
-        normalized_rsu_delay: Tensor,
-        routing_mode: Literal["dynamic", "static", "uniform"],
+        branch_age_intervals: Tensor,
+        rsu_delay_intervals: Tensor,
+        routing_mode: Literal["dynamic", "static", "uniform", "concat"],
         use_reliability: bool,
         use_delay_metadata: bool,
     ) -> RoutingOutput:
@@ -594,8 +572,8 @@ class DynamicExpertRouter(nn.Module):
             branch_reliability,
             branch_observed,
             branch_propagated,
-            branch_normalized_age,
-            normalized_rsu_delay,
+            branch_age_intervals,
+            rsu_delay_intervals,
             routing_mode,
             use_reliability,
             use_delay_metadata,
@@ -607,8 +585,8 @@ class DynamicExpertRouter(nn.Module):
             branch_reliability,
             branch_observed,
             branch_propagated,
-            branch_normalized_age,
-            normalized_rsu_delay,
+            branch_age_intervals,
+            rsu_delay_intervals,
             routing_mode,
             use_reliability,
             use_delay_metadata,
@@ -616,17 +594,29 @@ class DynamicExpertRouter(nn.Module):
 
         lidar_support = lidar_branch_support.any(dim=1)
         camera_support = camera_branch_support.any(dim=1)
-        synergy_support = lidar_support & camera_support
+
+        raw_lidar_expert = self.lidar_expert(lidar_feature)
+        raw_camera_expert = self.camera_expert(camera_feature)
+        lidar_expert = _mask_feature(raw_lidar_expert, lidar_support)
+        camera_expert = _mask_feature(raw_camera_expert, camera_support)
+
+        # The paper requests a capacity-matched concat deployment baseline but
+        # does not prescribe its internal topology.  This controlled local
+        # choice retains the exact DER parameter budget, transforms both
+        # modality streams, concatenates their masked outputs, and uses the
+        # existing synergy stack as the concat projection.  The unused gate is
+        # retained solely for exact trainable-parameter matching.
+        if routing_mode == "concat":
+            synergy_inputs = (lidar_expert, camera_expert)
+            synergy_support = lidar_support | camera_support
+        else:
+            synergy_inputs = (lidar_feature, camera_feature)
+            synergy_support = lidar_support & camera_support
         expert_support = torch.stack(
             (lidar_support, camera_support, synergy_support),
             dim=1,
         )
-
-        raw_lidar_expert = self.lidar_expert(lidar_feature)
-        raw_camera_expert = self.camera_expert(camera_feature)
-        raw_synergy_stem = self.synergy_stem(
-            torch.cat((lidar_feature, camera_feature), dim=1)
-        )
+        raw_synergy_stem = self.synergy_stem(torch.cat(synergy_inputs, dim=1))
         expected_feature_shape = tuple(lidar_feature.shape)
         raw_synergy_stem = _require_runtime_tensor(
             raw_synergy_stem,
@@ -647,8 +637,6 @@ class DynamicExpertRouter(nn.Module):
                 lidar_feature,
             )
 
-        lidar_expert = _mask_feature(raw_lidar_expert, lidar_support)
-        camera_expert = _mask_feature(raw_camera_expert, camera_support)
         synergy_expert = _mask_feature(raw_synergy_expert, synergy_support)
         for name, value in (
             ("masked LiDAR expert", lidar_expert),
@@ -688,11 +676,11 @@ class DynamicExpertRouter(nn.Module):
         ).reshape(lidar_feature.shape[0], 8)
         flags = flags.to(dtype=lidar_feature.dtype)
         if use_delay_metadata:
-            ages = branch_normalized_age
-            delay = normalized_rsu_delay
+            ages = branch_age_intervals
+            delay = rsu_delay_intervals
         else:
-            ages = torch.zeros_like(branch_normalized_age)
-            delay = torch.zeros_like(normalized_rsu_delay)
+            ages = torch.zeros_like(branch_age_intervals)
+            delay = torch.zeros_like(rsu_delay_intervals)
         descriptor = torch.cat(
             (
                 expert_gap,
@@ -709,24 +697,36 @@ class DynamicExpertRouter(nn.Module):
         ):
             raise RuntimeError("routing descriptor must have shape [B,783]")
         _require_runtime_finite(descriptor, "routing descriptor")
-        metadata = descriptor[:, 768:]
+        unit_metadata = descriptor[:, 768:778]
         if (
-            metadata.detach().lt(0).any().item()
-            or metadata.detach().gt(1).any().item()
+            unit_metadata.detach().lt(0).any().item()
+            or unit_metadata.detach().gt(1).any().item()
         ):
-            raise RuntimeError(
-                "routing descriptor metadata must be in [0,1]"
-            )
+            raise RuntimeError("routing reliability and flags must be in [0,1]")
+        interval_metadata = descriptor[:, 778:783]
+        if (
+            interval_metadata.detach().lt(0).any().item()
+            or interval_metadata.detach().gt(3).any().item()
+        ):
+            raise RuntimeError("routing age metadata must be in [0,3]")
 
-        if routing_mode == "uniform":
+        if routing_mode == "concat":
+            weights = torch.stack(
+                (
+                    torch.zeros_like(synergy_support),
+                    torch.zeros_like(synergy_support),
+                    synergy_support,
+                ),
+                dim=1,
+            ).to(dtype=lidar_feature.dtype)
+        elif routing_mode == "uniform":
             valid_count = expert_support.sum(
                 dim=1,
                 keepdim=True,
             ).to(dtype=lidar_feature.dtype)
-            weights = (
-                expert_support.to(dtype=lidar_feature.dtype)
-                / valid_count.clamp_min(1.0)
-            )
+            weights = expert_support.to(
+                dtype=lidar_feature.dtype
+            ) / valid_count.clamp_min(1.0)
         else:
             if routing_mode == "dynamic":
                 logits = self.gate(descriptor)
@@ -755,16 +755,11 @@ class DynamicExpertRouter(nn.Module):
             lidar_feature,
         )
         detached_weights = weights.detach()
-        if (
-            detached_weights.lt(0).any().item()
-            or detached_weights.gt(1).any().item()
-        ):
+        if detached_weights.lt(0).any().item() or detached_weights.gt(1).any().item():
             raise RuntimeError("routing weights must be in [0,1]")
         if detached_weights.masked_select(~expert_support).ne(0).any().item():
             raise RuntimeError("unsupported expert weights must be zero")
-        expected_weight_sum = expert_support.any(dim=1).to(
-            dtype=weights.dtype
-        )
+        expected_weight_sum = expert_support.any(dim=1).to(dtype=weights.dtype)
         tolerance = 10.0 * torch.finfo(weights.dtype).eps
         if not torch.allclose(
             detached_weights.sum(dim=1),
@@ -772,21 +767,16 @@ class DynamicExpertRouter(nn.Module):
             atol=tolerance,
             rtol=tolerance,
         ):
-            raise RuntimeError(
-                "routing weights must sum to one for supported rows"
-            )
+            raise RuntimeError("routing weights must sum to one for supported rows")
 
         experts = torch.stack(
             (lidar_expert, camera_expert, synergy_expert),
             dim=1,
         )
-        experts = experts * expert_support[
-            :, :, None, None, None
-        ].to(dtype=experts.dtype)
-        fused = (
-            experts
-            * weights[:, :, None, None, None]
-        ).sum(dim=1)
+        experts = experts * expert_support[:, :, None, None, None].to(
+            dtype=experts.dtype
+        )
+        fused = (experts * weights[:, :, None, None, None]).sum(dim=1)
         fused = _require_runtime_tensor(
             fused,
             "fused expert output",

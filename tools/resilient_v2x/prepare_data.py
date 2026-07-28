@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from transvision.dataset.resilient_v2x_manifest import (
+from transvision.dataset.resilient_v2x_manifest import (  # noqa: E402
     GroundTruthBoxRecord,
     MANIFEST_SCHEMA_VERSION,
     ManifestError,
@@ -31,11 +31,10 @@ from transvision.dataset.resilient_v2x_manifest import (
     content_sha256,
     release_inventory_sha256,
 )
-from transvision.dataset.resilient_v2x_pcd import (
+from transvision.dataset.resilient_v2x_pcd import (  # noqa: E402
     _convert_verified_pcd_to_bin,
     _publish_immutable_bytes,
     _read_stable_regular_bytes,
-    convert_pcd_to_bin,
 )
 
 

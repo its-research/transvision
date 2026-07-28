@@ -75,6 +75,8 @@ EXPECTED_CONDA_PINS = {
     "packaging": "23.2",
     "cuda": EXPECTED_CUDA,
     "cuda-toolkit": EXPECTED_CUDA,
+    "libgl": "1.7.0",
+    "libglib": "2.88.2",
 }
 EXPECTED_BUILD_TOOLCHAIN = {
     "setuptools": "68.2.2",
@@ -93,6 +95,12 @@ EXPECTED_CU118_ARTIFACTS = {
         "https://download-r2.pytorch.org/whl/cu118/"
         "torchvision-0.15.2%2Bcu118-cp310-cp310-linux_x86_64.whl",
         "19ca4ab5d6179bbe53cff79df1a855ee6533c2861ddc7389f68349d8b9f8302a",
+    ),
+    "mmcv": (
+        "2.1.0",
+        "https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/"
+        "mmcv-2.1.0-cp310-cp310-manylinux1_x86_64.whl",
+        "169c5b79bc689cefa8bfdfac9cbaabcef5f00792b418506b583c27b937c9e8f1",
     ),
 }
 EXPECTED_CU118_REQUIREMENTS = {

@@ -25,7 +25,7 @@ from .causal_repair import (
     select_causal_source,
     age_decay,
     branch_reliability,
-    normalized_selected_rsu_delay,
+    latest_arrived_rsu_age_intervals,
 )
 from .ptf import HorizonConditionedPTF, PTFOutput
 from .routing import (
@@ -37,10 +37,24 @@ from .routing import (
 )
 from .distillation import (
     DistillationLosses,
+    FrozenTeacher as FrozenTeacher,
+    HeadDistillationLosses as HeadDistillationLosses,
     assert_teacher_frozen,
     bernoulli_kl_from_logits,
+    categorical_kl_from_logits as categorical_kl_from_logits,
     distillation_losses,
     freeze_teacher,
+    head_distillation_losses as head_distillation_losses,
+)
+from .fusion import (
+    BRANCH_KEYS as BRANCH_KEYS,
+    IdentityTrajectoryField as IdentityTrajectoryField,
+    ResilientBatchSelections as ResilientBatchSelections,
+    ResilientV2XFeatureFusion as ResilientV2XFeatureFusion,
+)
+from .feature_io import (
+    bev_xy_to_yx as bev_xy_to_yx,
+    scatter_sparse_bev_history as scatter_sparse_bev_history,
 )
 
 __all__ = (
@@ -60,7 +74,7 @@ __all__ = (
     "select_causal_source",
     "age_decay",
     "branch_reliability",
-    "normalized_selected_rsu_delay",
+    "latest_arrived_rsu_age_intervals",
     "PTFOutput",
     "HorizonConditionedPTF",
     "BranchDiagnostics",

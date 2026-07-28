@@ -30,11 +30,7 @@ class BEVGridSpec:
             raise ValueError("resolution must be positive")
         for name in ("height", "width"):
             value = getattr(self, name)
-            if (
-                not isinstance(value, Integral)
-                or isinstance(value, bool)
-                or value <= 0
-            ):
+            if not isinstance(value, Integral) or isinstance(value, bool) or value <= 0:
                 raise ValueError(f"{name} must be a positive integer")
 
 
@@ -179,10 +175,7 @@ def warp_with_displacement(
     batch, _, height, width = source.shape
     if displacement_cells.shape != (batch, 2, height, width):
         raise ValueError("displacement shape must be [B,2,Y,X]")
-    if (
-        not source.is_floating_point()
-        or not displacement_cells.is_floating_point()
-    ):
+    if not source.is_floating_point() or not displacement_cells.is_floating_point():
         raise ValueError("source and displacement must be floating")
     if source.dtype != displacement_cells.dtype:
         raise ValueError("source and displacement must have matching dtype")

@@ -1534,6 +1534,7 @@ import sys
 from importlib.metadata import version
 
 assert version("pypcd4") == "1.4.3"
+baseline_modules = set(sys.modules)
 import transvision.dataset.resilient_v2x_pcd
 import tools.resilient_v2x.prepare_data
 
@@ -1553,7 +1554,7 @@ forbidden_fragments = (
 )
 loaded = [
     name
-    for name in sys.modules
+    for name in set(sys.modules) - baseline_modules
     if any(
         name == prefix or name.startswith(prefix + ".")
         for prefix in forbidden_prefixes

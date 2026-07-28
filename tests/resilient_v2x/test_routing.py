@@ -11,7 +11,6 @@ from torch import nn
 
 from transvision.models.resilient_v2x.causal_repair import (
     CausalBranchRepair,
-    normalized_selected_rsu_delay,
 )
 from transvision.models.resilient_v2x.contracts import (
     Agent,
@@ -78,10 +77,10 @@ def router_inputs(
         "branch_propagated": torch.tensor(
             [[False, False, False, True], [False, True, False, False]]
         ),
-        "branch_normalized_age": torch.tensor(
-            [[0.0, 0.0, 0.0, 1.0 / 3.0], [0.0, 2.0 / 3.0, 0.0, 0.0]]
+        "branch_age_intervals": torch.tensor(
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 2.0, 0.0, 0.0]]
         ),
-        "normalized_rsu_delay": torch.tensor([[1.0 / 3.0], [2.0 / 3.0]]),
+        "rsu_delay_intervals": torch.tensor([[1.0], [2.0]]),
         "routing_mode": "dynamic",
         "use_reliability": True,
         "use_delay_metadata": True,
@@ -104,7 +103,7 @@ def single_router_inputs(
                 propagated[0, index] = True
     reliability_values = torch.tensor([[0.9, 0.8, 0.7, 0.6]])
     reliability = reliability_values * support
-    age_values = torch.tensor([[0.0, 1.0 / 3.0, 0.0, 2.0 / 3.0]])
+    age_values = torch.tensor([[0.0, 1.0, 0.0, 2.0]])
     age = age_values * support
     has_rsu = branch_support[1] or branch_support[3]
     return {
@@ -115,8 +114,8 @@ def single_router_inputs(
         "branch_reliability": reliability,
         "branch_observed": observed,
         "branch_propagated": propagated,
-        "branch_normalized_age": age,
-        "normalized_rsu_delay": torch.tensor([[0.5 if has_rsu else 0.0]]),
+        "branch_age_intervals": age,
+        "rsu_delay_intervals": torch.tensor([[1.0 if has_rsu else 0.0]]),
         "routing_mode": "dynamic",
         "use_reliability": True,
         "use_delay_metadata": True,
@@ -656,13 +655,13 @@ def test_descriptor_has_exact_frozen_layout() -> None:
     )
     torch.testing.assert_close(
         output.descriptor[:, 778:782],
-        inputs["branch_normalized_age"],
+        inputs["branch_age_intervals"],
         atol=0.0,
         rtol=0.0,
     )
     torch.testing.assert_close(
         output.descriptor[:, 782:783],
-        inputs["normalized_rsu_delay"],
+        inputs["rsu_delay_intervals"],
         atol=0.0,
         rtol=0.0,
     )
@@ -852,6 +851,67 @@ def test_uniform_mode_assigns_exact_inverse_valid_count() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("branch_support", "expected_support"),
+    [
+        ((True, False, True, False), True),
+        ((True, False, False, False), True),
+        ((False, False, True, False), True),
+        ((False, False, False, False), False),
+    ],
+)
+def test_capacity_matched_concat_uses_masked_modality_experts(
+    branch_support: tuple[bool, bool, bool, bool],
+    expected_support: bool,
+) -> None:
+    router = make_router().eval()
+    inputs = single_router_inputs(branch_support)
+    inputs["routing_mode"] = "concat"
+
+    output = router(**inputs)
+
+    assert output.overall_support.tolist() == [expected_support]
+    assert output.expert_support[0, 2].item() is expected_support
+    assert output.weights.tolist() == [
+        [0.0, 0.0, 1.0 if expected_support else 0.0]
+    ]
+    torch.testing.assert_close(
+        output.fused,
+        output.synergy_expert,
+        atol=0.0,
+        rtol=0.0,
+    )
+
+
+def test_concat_and_dynamic_router_have_identical_parameter_capacity() -> None:
+    dynamic = make_router()
+    concat = make_router()
+
+    assert trainable_parameter_count(concat) == trainable_parameter_count(
+        dynamic
+    )
+
+
+def test_concat_mode_does_not_execute_der_gate() -> None:
+    router = make_router().eval()
+    inputs = router_inputs()
+    inputs["routing_mode"] = "concat"
+
+    def forbid_gate(
+        _module: nn.Module,
+        _inputs: tuple[torch.Tensor, ...],
+    ) -> None:
+        raise AssertionError("concat baseline must not execute DER gate")
+
+    handle = router.gate.register_forward_pre_hook(forbid_gate)
+    try:
+        output = router(**inputs)
+    finally:
+        handle.remove()
+
+    assert output.weights.tolist() == [[0.0, 0.0, 1.0]] * 2
+
+
 def test_static_mode_uses_only_final_gate_bias() -> None:
     router = make_router().eval()
     with torch.no_grad():
@@ -899,7 +959,7 @@ def test_weighted_sum_uses_lidar_camera_synergy_expert_order() -> None:
 
 
 def test_all_invalid_is_exact_zero_and_never_nan_in_every_mode() -> None:
-    for mode in ("dynamic", "static", "uniform"):
+    for mode in ("dynamic", "static", "uniform", "concat"):
         inputs = single_router_inputs((False, False, False, False))
         inputs["routing_mode"] = mode
         output = make_router().eval()(**inputs)
@@ -934,7 +994,8 @@ def _selection(
 ) -> BranchSelection:
     tick = 10 - horizon
     source_tau_ms = tick * 100
-    observed = agent is Agent.EGO and horizon == 0
+    endpoint_tick = 10 if agent is Agent.EGO else tick
+    observed = tick == endpoint_tick
     return BranchSelection(
         agent=agent,
         modality=modality,
@@ -951,6 +1012,7 @@ def _selection(
             faulted=False,
         ),
         horizon=horizon,
+        endpoint_tick=endpoint_tick,
         observed=observed,
         propagated=not observed,
         rejected=(),
@@ -958,7 +1020,7 @@ def _selection(
     )
 
 
-def test_task_five_normalized_ages_enter_descriptor_without_second_division() -> None:
+def test_paper_interval_ages_enter_descriptor_without_division_by_k() -> None:
     repair = CausalBranchRepair(
         grid_spec=BEVGridSpec(
             x_min=0.0,
@@ -1011,7 +1073,7 @@ def test_task_five_normalized_ages_enter_descriptor_without_second_division() ->
         (lidar_repaired.propagated, camera_repaired.propagated)
     ).reshape(1, 4)
     packed_age = torch.cat(
-        (lidar_repaired.normalized_age, camera_repaired.normalized_age)
+        (lidar_repaired.age_intervals, camera_repaired.age_intervals)
     ).reshape(1, 4)
     inputs = {
         "lidar_feature": torch.randn(1, 256, 2, 2),
@@ -1021,18 +1083,8 @@ def test_task_five_normalized_ages_enter_descriptor_without_second_division() ->
         "branch_reliability": packed_reliability,
         "branch_observed": packed_observed,
         "branch_propagated": packed_propagated,
-        "branch_normalized_age": packed_age,
-        "normalized_rsu_delay": torch.tensor(
-            [
-                [
-                    normalized_selected_rsu_delay(
-                        selections,
-                        history_limit=3,
-                        delta_t_ms=100,
-                    )
-                ]
-            ]
-        ),
+        "branch_age_intervals": packed_age,
+        "rsu_delay_intervals": torch.tensor([[1.0]]),
         "routing_mode": "uniform",
         "use_reliability": True,
         "use_delay_metadata": True,
@@ -1040,7 +1092,7 @@ def test_task_five_normalized_ages_enter_descriptor_without_second_division() ->
 
     output = make_router().eval()(**inputs)
 
-    expected = torch.tensor([[0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]])
+    expected = torch.tensor([[0.0, 1.0, 2.0, 3.0]])
     torch.testing.assert_close(
         packed_age,
         expected,
@@ -1074,10 +1126,10 @@ def test_task_five_normalized_ages_enter_descriptor_without_second_division() ->
         ("branch_observed", torch.zeros(2, 4)),
         ("branch_observed", torch.zeros(2, 3, dtype=torch.bool)),
         ("branch_propagated", torch.zeros(2, 4, dtype=torch.int64)),
-        ("branch_normalized_age", torch.zeros(2, 3)),
-        ("branch_normalized_age", torch.zeros(2, 4, dtype=torch.int64)),
-        ("normalized_rsu_delay", torch.zeros(2)),
-        ("normalized_rsu_delay", torch.zeros(2, 1, dtype=torch.int64)),
+        ("branch_age_intervals", torch.zeros(2, 3)),
+        ("branch_age_intervals", torch.zeros(2, 4, dtype=torch.int64)),
+        ("rsu_delay_intervals", torch.zeros(2)),
+        ("rsu_delay_intervals", torch.zeros(2, 1, dtype=torch.int64)),
     ],
 )
 def test_router_rejects_invalid_shapes_and_dtypes(
@@ -1100,16 +1152,15 @@ def test_router_rejects_invalid_shapes_and_dtypes(
         ("branch_reliability", math.inf),
         ("branch_reliability", -0.1),
         ("branch_reliability", 1.1),
-        ("branch_normalized_age", math.nan),
-        ("branch_normalized_age", math.inf),
-        ("branch_normalized_age", -0.1),
-        ("branch_normalized_age", 1.1),
-        ("branch_normalized_age", 2.0),
-        ("branch_normalized_age", 3.0),
-        ("normalized_rsu_delay", math.nan),
-        ("normalized_rsu_delay", math.inf),
-        ("normalized_rsu_delay", -0.1),
-        ("normalized_rsu_delay", 1.1),
+        ("branch_age_intervals", math.nan),
+        ("branch_age_intervals", math.inf),
+        ("branch_age_intervals", -0.1),
+        ("branch_age_intervals", 3.1),
+        ("branch_age_intervals", 4.0),
+        ("rsu_delay_intervals", math.nan),
+        ("rsu_delay_intervals", math.inf),
+        ("rsu_delay_intervals", -0.1),
+        ("rsu_delay_intervals", 3.1),
     ],
 )
 def test_router_rejects_nonfinite_or_out_of_range_values(
@@ -1131,11 +1182,11 @@ def test_router_rejects_nonfinite_or_out_of_range_values(
         ("branch_reliability", (0, 1), 0.2),
         ("branch_observed", (0, 1), True),
         ("branch_propagated", (0, 1), True),
-        ("branch_normalized_age", (0, 1), 0.2),
+        ("branch_age_intervals", (0, 1), 0.2),
         ("branch_reliability", (1, 2), 0.2),
         ("branch_observed", (1, 2), True),
         ("branch_propagated", (1, 2), True),
-        ("branch_normalized_age", (1, 2), 0.2),
+        ("branch_age_intervals", (1, 2), 0.2),
     ],
 )
 def test_router_requires_unsupported_branch_metadata_to_be_neutral(
@@ -1173,12 +1224,13 @@ def test_supported_branch_requires_exactly_one_flag(
         make_router()(**inputs)
 
 
-def test_delay_must_be_zero_when_neither_rsu_branch_is_supported() -> None:
+def test_arrived_rsu_delay_remains_visible_when_sensor_branches_are_unsupported() -> None:
     inputs = single_router_inputs((True, False, True, False))
-    inputs["normalized_rsu_delay"] = torch.tensor([[0.2]])
+    inputs["rsu_delay_intervals"] = torch.tensor([[0.2]])
 
-    with pytest.raises(ValueError, match="delay|RSU"):
-        make_router()(**inputs)
+    output = make_router()(**inputs)
+
+    assert output.descriptor[0, 782].item() == pytest.approx(0.2)
 
 
 @pytest.mark.parametrize(
@@ -1237,7 +1289,9 @@ def test_router_rejects_string_subclass_before_expert_or_gate_computation() -> N
             handle.remove()
 
 
-@pytest.mark.parametrize("mode", ["dynamic", "static", "uniform"])
+@pytest.mark.parametrize(
+    "mode", ["dynamic", "static", "uniform", "concat"]
+)
 def test_router_accepts_only_each_builtin_routing_mode(mode: str) -> None:
     inputs = router_inputs()
     inputs["routing_mode"] = mode
@@ -1255,8 +1309,8 @@ def test_router_accepts_only_each_builtin_routing_mode(mode: str) -> None:
         "branch_reliability",
         "branch_observed",
         "branch_propagated",
-        "branch_normalized_age",
-        "normalized_rsu_delay",
+        "branch_age_intervals",
+        "rsu_delay_intervals",
     ],
 )
 def test_router_rejects_metadata_device_mismatch(field: str) -> None:
@@ -1357,10 +1411,10 @@ def test_valid_gradients_are_finite_and_invalid_rows_contribute_zero() -> None:
     inputs["branch_propagated"] = torch.tensor(
         [[False, True, False, True], [False, False, False, False]]
     )
-    inputs["branch_normalized_age"] = torch.tensor(
+    inputs["branch_age_intervals"] = torch.tensor(
         [[0.0, 1.0 / 3.0, 0.0, 2.0 / 3.0], [0.0, 0.0, 0.0, 0.0]]
     )
-    inputs["normalized_rsu_delay"] = torch.tensor([[0.5], [0.0]])
+    inputs["rsu_delay_intervals"] = torch.tensor([[0.5], [0.0]])
 
     output = router(**inputs)
     loss = (
@@ -1406,10 +1460,10 @@ def test_invalid_row_feature_values_cannot_change_any_output() -> None:
     inputs["branch_propagated"] = torch.tensor(
         [[False, True, False, True], [False, False, False, False]]
     )
-    inputs["branch_normalized_age"] = torch.tensor(
+    inputs["branch_age_intervals"] = torch.tensor(
         [[0.0, 1.0 / 3.0, 0.0, 2.0 / 3.0], [0.0, 0.0, 0.0, 0.0]]
     )
-    inputs["normalized_rsu_delay"] = torch.tensor([[0.5], [0.0]])
+    inputs["rsu_delay_intervals"] = torch.tensor([[0.5], [0.0]])
     first = router(**inputs)
     changed = dict(inputs)
     changed_lidar = inputs["lidar_feature"].clone()

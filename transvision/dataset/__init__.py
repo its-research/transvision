@@ -24,6 +24,7 @@ _SCHEDULE_EXPORTS = (
     "TransportPlan",
     "FaultPlan",
     "ArrivalRelativeFaultPlan",
+    "CausalFaultPlan",
     "OverlayDigest",
     "TransportOverlayRecord",
     "FaultOverlayRecord",
@@ -33,8 +34,21 @@ _SCHEDULE_EXPORTS = (
     "write_transport_overlay",
     "write_fault_overlay",
     "write_arrival_relative_fault_overlay",
+    "write_causal_fault_overlay",
     "read_overlay",
     "augmentation_seed",
+)
+_RUNTIME_EXPORTS = (
+    "RUNTIME_BRANCH_ORDER",
+    "RuntimeProtocolError",
+    "RuntimeOverlayIndex",
+    "ResolvedHistorySlot",
+    "ResolvedBranch",
+    "ResolvedTemporalSample",
+    "resolve_temporal_sample",
+    "ResilientTemporalDataset",
+    "collate_resilient_samples",
+    "EpochIndexSampler",
 )
 __all__ = (
     *_MANIFEST_EXPORTS,
@@ -51,6 +65,11 @@ def __getattr__(name: str) -> object:
         return value
     if name in _SCHEDULE_EXPORTS:
         module = import_module(".resilient_v2x_schedule", __name__)
+        value = getattr(module, name)
+        globals()[name] = value
+        return value
+    if name in _RUNTIME_EXPORTS:
+        module = import_module(".resilient_v2x_runtime", __name__)
         value = getattr(module, name)
         globals()[name] = value
         return value

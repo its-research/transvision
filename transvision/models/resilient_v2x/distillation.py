@@ -60,9 +60,7 @@ def _require_logits_pair(
     if not isinstance(student_logits, Tensor):
         raise ValueError("student_logits must be a tensor")
     if teacher_logits.shape != student_logits.shape:
-        raise ValueError(
-            "teacher and student logits must have identical shapes"
-        )
+        raise ValueError("teacher and student logits must have identical shapes")
     if teacher_logits.numel() == 0:
         raise ValueError("teacher and student logits must be non-empty")
     if not teacher_logits.is_floating_point():
@@ -88,13 +86,9 @@ def _require_rank_four_pair(
     if not isinstance(student, Tensor):
         raise ValueError(f"student_{name} must be a tensor")
     if teacher.ndim != 4 or any(dimension <= 0 for dimension in teacher.shape):
-        raise ValueError(
-            f"teacher_{name} must have a positive rank-4 shape"
-        )
+        raise ValueError(f"teacher_{name} must have a positive rank-4 shape")
     if student.ndim != 4 or any(dimension <= 0 for dimension in student.shape):
-        raise ValueError(
-            f"student_{name} must have a positive rank-4 shape"
-        )
+        raise ValueError(f"student_{name} must have a positive rank-4 shape")
     if teacher.shape != student.shape:
         raise ValueError(
             f"teacher and student {name} tensors must have identical shapes"
@@ -106,9 +100,7 @@ def _require_rank_four_pair(
             f"teacher and student {name} tensors must have identical dtype"
         )
     if teacher.device != student.device:
-        raise ValueError(
-            f"teacher and student {name} tensors must share a device"
-        )
+        raise ValueError(f"teacher and student {name} tensors must share a device")
     return teacher, student
 
 
@@ -147,6 +139,14 @@ class DistillationLosses:
     total: Tensor
 
 
+@dataclass(frozen=True)
+class HeadDistillationLosses:
+    feature: Tensor
+    logit: Tensor
+    total: Tensor
+    head_type: str
+
+
 def freeze_teacher(teacher: nn.Module) -> nn.Module:
     teacher = _require_module(teacher, "teacher")
     teacher.eval()
@@ -154,6 +154,26 @@ def freeze_teacher(teacher: nn.Module) -> nn.Module:
         parameter.requires_grad_(False)
         parameter.grad = None
     return teacher
+
+
+class FrozenTeacher(nn.Module):
+    """Keep a clean-input teacher frozen even when its parent enters train."""
+
+    def __init__(self, teacher: nn.Module) -> None:
+        super().__init__()
+        self.teacher = freeze_teacher(teacher)
+
+    def train(self, mode: bool = True) -> "FrozenTeacher":
+        if type(mode) is not bool:
+            raise ValueError("mode must be a boolean")
+        super().train(False)
+        freeze_teacher(self.teacher)
+        return self
+
+    def forward(self, *args, **kwargs):
+        assert_teacher_frozen(self.teacher)
+        with torch.no_grad():
+            return self.teacher(*args, **kwargs)
 
 
 def assert_teacher_frozen(teacher: nn.Module) -> None:
@@ -180,9 +200,7 @@ def bernoulli_kl_from_logits(
     epsilon = _require_epsilon(epsilon)
 
     teacher_probability = _clamp_float32_probability(
-        torch.sigmoid(
-            teacher_logits.detach().to(torch.float32) / temperature
-        ),
+        torch.sigmoid(teacher_logits.detach().to(torch.float32) / temperature),
         epsilon,
     )
     student_probability = _clamp_float32_probability(
@@ -193,11 +211,45 @@ def bernoulli_kl_from_logits(
         teacher_probability.log() - student_probability.log()
     )
     negative = (1.0 - teacher_probability) * (
-        (1.0 - teacher_probability).log()
-        - (1.0 - student_probability).log()
+        (1.0 - teacher_probability).log() - (1.0 - student_probability).log()
     )
     loss = (positive + negative).mean()
     _require_finite_output(loss, "Bernoulli KL")
+    return loss
+
+
+def categorical_kl_from_logits(
+    teacher_logits: Tensor,
+    student_logits: Tensor,
+    temperature: float,
+) -> Tensor:
+    """Dense multiclass KL, reducing classes before spatial/batch mean."""
+
+    teacher_logits, student_logits = _require_logits_pair(
+        teacher_logits,
+        student_logits,
+    )
+    if teacher_logits.ndim < 2 or teacher_logits.shape[1] <= 0:
+        raise ValueError("categorical logits require a non-empty class axis")
+    temperature = _require_positive_scalar(temperature, "temperature")
+    teacher_probability = torch.softmax(
+        teacher_logits.detach().to(torch.float32) / temperature,
+        dim=1,
+    )
+    student_log_probability = torch.log_softmax(
+        student_logits.to(torch.float32) / temperature,
+        dim=1,
+    )
+    loss = (
+        F.kl_div(
+            student_log_probability,
+            teacher_probability,
+            reduction="none",
+        )
+        .sum(dim=1)
+        .mean()
+    )
+    _require_finite_output(loss, "categorical KL")
     return loss
 
 
@@ -233,9 +285,7 @@ def distillation_losses(
     if valid_sample_mask.dtype != torch.bool:
         raise ValueError("valid_sample_mask must be boolean")
     if valid_sample_mask.device != teacher_feature.device:
-        raise ValueError(
-            "valid_sample_mask device must match distillation tensors"
-        )
+        raise ValueError("valid_sample_mask device must match distillation tensors")
 
     temperature = _require_positive_scalar(temperature, "temperature")
     lambda_feature = _require_nonnegative_scalar(
@@ -264,21 +314,23 @@ def distillation_losses(
         valid_student_feature.dtype,
         torch.float32,
     )
-    feature = F.mse_loss(
-        valid_student_feature.to(feature_dtype),
-        valid_teacher_feature.to(feature_dtype),
-        reduction="none",
-    ).flatten(start_dim=1).mean(dim=1).mean()
+    feature = (
+        F.mse_loss(
+            valid_student_feature.to(feature_dtype),
+            valid_teacher_feature.to(feature_dtype),
+            reduction="none",
+        )
+        .flatten(start_dim=1)
+        .mean(dim=1)
+        .mean()
+    )
     bernoulli = bernoulli_kl_from_logits(
         valid_teacher_logits,
         valid_student_logits,
         temperature=temperature,
         epsilon=_DISTILLATION_EPSILON,
     )
-    total = (
-        lambda_feature * feature
-        + lambda_logit * (temperature**2) * bernoulli
-    )
+    total = lambda_feature * feature + lambda_logit * (temperature**2) * bernoulli
     for name, value in (
         ("feature loss", feature),
         ("Bernoulli loss", bernoulli),
@@ -289,4 +341,111 @@ def distillation_losses(
         feature=feature,
         bernoulli=bernoulli,
         total=total,
+    )
+
+
+def head_distillation_losses(
+    teacher_feature: Tensor,
+    student_feature: Tensor,
+    teacher_logits: Tensor,
+    student_logits: Tensor,
+    temperature: float,
+    lambda_feature: float,
+    lambda_logit: float,
+    valid_sample_mask: Tensor,
+    head_type: str,
+) -> HeadDistillationLosses:
+    """Feature plus Bernoulli/softmax logit distillation from the paper."""
+
+    if head_type == "bernoulli":
+        losses = distillation_losses(
+            teacher_feature=teacher_feature,
+            student_feature=student_feature,
+            teacher_logits=teacher_logits,
+            student_logits=student_logits,
+            temperature=temperature,
+            lambda_feature=lambda_feature,
+            lambda_logit=lambda_logit,
+            valid_sample_mask=valid_sample_mask,
+        )
+        return HeadDistillationLosses(
+            feature=losses.feature,
+            logit=losses.bernoulli,
+            total=losses.total,
+            head_type=head_type,
+        )
+    if head_type != "categorical":
+        raise ValueError("head_type must be 'bernoulli' or 'categorical'")
+
+    teacher_feature, student_feature = _require_rank_four_pair(
+        teacher_feature,
+        student_feature,
+        "feature",
+    )
+    teacher_logits, student_logits = _require_rank_four_pair(
+        teacher_logits,
+        student_logits,
+        "logits",
+    )
+    batch = teacher_feature.shape[0]
+    if teacher_logits.shape[0] != batch:
+        raise ValueError("feature and logit tensors must share batch size")
+    if teacher_logits.device != teacher_feature.device:
+        raise ValueError("all feature and logit tensors must share a device")
+    if (
+        not isinstance(valid_sample_mask, Tensor)
+        or valid_sample_mask.shape != (batch,)
+        or valid_sample_mask.dtype is not torch.bool
+        or valid_sample_mask.device != teacher_feature.device
+    ):
+        raise ValueError("valid_sample_mask must be boolean [B] on the data device")
+    if not valid_sample_mask.any().item():
+        raise RuntimeError("no valid samples for distillation")
+
+    temperature = _require_positive_scalar(temperature, "temperature")
+    lambda_feature = _require_nonnegative_scalar(
+        lambda_feature,
+        "lambda_feature",
+    )
+    lambda_logit = _require_nonnegative_scalar(lambda_logit, "lambda_logit")
+    valid_teacher_feature = teacher_feature[valid_sample_mask].detach()
+    valid_student_feature = student_feature[valid_sample_mask]
+    valid_teacher_logits = teacher_logits[valid_sample_mask].detach()
+    valid_student_logits = student_logits[valid_sample_mask]
+    for name, value in (
+        ("teacher_feature", valid_teacher_feature),
+        ("student_feature", valid_student_feature),
+        ("teacher_logits", valid_teacher_logits),
+        ("student_logits", valid_student_logits),
+    ):
+        _require_finite(value, name)
+
+    feature_dtype = torch.promote_types(valid_student_feature.dtype, torch.float32)
+    feature = (
+        F.mse_loss(
+            valid_student_feature.to(feature_dtype),
+            valid_teacher_feature.to(feature_dtype),
+            reduction="none",
+        )
+        .flatten(start_dim=1)
+        .mean(dim=1)
+        .mean()
+    )
+    logit = categorical_kl_from_logits(
+        valid_teacher_logits,
+        valid_student_logits,
+        temperature,
+    )
+    total = lambda_feature * feature + lambda_logit * (temperature**2) * logit
+    for name, value in (
+        ("feature loss", feature),
+        ("categorical loss", logit),
+        ("total distillation loss", total),
+    ):
+        _require_finite_output(value, name)
+    return HeadDistillationLosses(
+        feature=feature,
+        logit=logit,
+        total=total,
+        head_type=head_type,
     )

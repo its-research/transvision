@@ -1,6 +1,8 @@
-from typing import Dict, List, Optional, Tuple
+from __future__ import annotations
 
-import numpy as np
+from collections.abc import Mapping, Sequence
+from typing import Literal
+
 import torch
 from mmdet3d.models import Base3DDetector
 from mmdet3d.registry import MODELS
@@ -9,357 +11,606 @@ from mmdet3d.utils import OptConfigType, OptMultiConfig, OptSampleList
 from torch import Tensor, nn
 from torch.nn import functional as F
 
+from transvision.models.resilient_v2x import (
+    BEVGridSpec,
+    FrozenTeacher,
+    ResilientBatchSelections,
+    ResilientFeatureBatch,
+    ResilientV2XFeatureFusion,
+    assert_teacher_frozen,
+    bev_xy_to_yx,
+    head_distillation_losses,
+    scatter_sparse_bev_history,
+)
 from transvision.models.voxel import Voxelization
-from .utils import PixelWeightedFusion, ReduceInfTC
 
 
-class PerceptionTrajectoryField(nn.Module):
+def _build_optional(config: object) -> nn.Module | None:
+    if config is None:
+        return None
+    if isinstance(config, nn.Module):
+        return config
+    if not isinstance(config, Mapping):
+        raise ValueError("module config must be a mapping or nn.Module")
+    return MODELS.build(dict(config))
 
-    def __init__(self, in_channels: int, history_steps: int = 3, hidden_channels: int = 64) -> None:
+
+def _first_tensor(value: object, name: str) -> Tensor:
+    if isinstance(value, Tensor):
+        return value
+    if isinstance(value, (list, tuple)) and value and isinstance(value[0], Tensor):
+        return value[0]
+    raise RuntimeError(f"{name} must produce a tensor or non-empty tensor sequence")
+
+
+def _module_device_dtype(module: nn.Module) -> tuple[torch.device, torch.dtype]:
+    parameter = next(module.parameters(), None)
+    if parameter is None:
+        buffer = next(module.buffers(), None)
+        if buffer is None:
+            return torch.device("cpu"), torch.float32
+        return buffer.device, buffer.dtype
+    return parameter.device, parameter.dtype
+
+
+@MODELS.register_module()
+class SharedPointPillarsBEVEncoder(nn.Module):
+    """One shared PointPillars/SECOND encoder for every agent and tick."""
+
+    def __init__(
+        self,
+        voxelize_cfg: Mapping[str, object],
+        middle_encoder: Mapping[str, object] | nn.Module,
+        backbone: Mapping[str, object] | nn.Module,
+        neck: Mapping[str, object] | nn.Module,
+        output_height: int,
+        output_width: int,
+        voxel_encoder: Mapping[str, object] | nn.Module | None = None,
+        output_projection: Mapping[str, object] | nn.Module | None = None,
+        voxelize_reduce: bool = True,
+    ) -> None:
         super().__init__()
-        self.history_steps = history_steps
-        self.flow_encoder = nn.Sequential(
-            nn.Conv3d(in_channels, hidden_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(hidden_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv3d(hidden_channels, hidden_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(hidden_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv3d(hidden_channels, 2, kernel_size=1),
-        )
+        if not isinstance(voxelize_cfg, Mapping):
+            raise ValueError("voxelize_cfg must be a mapping")
+        if type(voxelize_reduce) is not bool:
+            raise ValueError("voxelize_reduce must be boolean")
+        if type(output_height) is not int or output_height <= 0:
+            raise ValueError("output_height must be positive")
+        if type(output_width) is not int or output_width <= 0:
+            raise ValueError("output_width must be positive")
+        self.voxel_layer = Voxelization(**dict(voxelize_cfg))
+        self.voxelize_reduce = voxelize_reduce
+        self.voxel_encoder = _build_optional(voxel_encoder)
+        self.middle_encoder = _build_optional(middle_encoder)
+        self.backbone = _build_optional(backbone)
+        self.neck = _build_optional(neck)
+        self.output_projection = _build_optional(output_projection)
+        if self.middle_encoder is None or self.backbone is None or self.neck is None:
+            raise ValueError("middle_encoder, backbone, and neck are required")
+        self.output_height = output_height
+        self.output_width = output_width
 
-    def forward(self, history_feats: Tensor) -> Tensor:
-        if history_feats.ndim != 5:
-            raise ValueError('history_feats should be a 5D tensor [B, T, C, H, W]')
-        history_feats = history_feats.transpose(1, 2)
-        flow = self.flow_encoder(history_feats)
-        return flow.squeeze(2)
+    @torch.no_grad()
+    def _voxelize(
+        self,
+        points: Sequence[Tensor],
+    ) -> tuple[Tensor, Tensor, Tensor | None]:
+        features: list[Tensor] = []
+        coordinates: list[Tensor] = []
+        sizes: list[Tensor] = []
+        for batch_index, point_tensor in enumerate(points):
+            if not isinstance(point_tensor, Tensor) or point_tensor.ndim != 2:
+                raise ValueError("every point payload must be a rank-2 tensor")
+            result = self.voxel_layer(point_tensor.float())
+            if len(result) == 3:
+                feature, coordinate, size = result
+                sizes.append(size)
+            elif len(result) == 2:
+                feature, coordinate = result
+            else:
+                raise RuntimeError("voxelizer returned an unsupported tuple")
+            features.append(feature)
+            coordinates.append(
+                F.pad(coordinate, (1, 0), mode="constant", value=batch_index)
+            )
+        if not features:
+            raise ValueError("PointPillars encoder requires at least one payload")
+        feature = torch.cat(features, dim=0)
+        coordinate = torch.cat(coordinates, dim=0)
+        size_tensor = torch.cat(sizes, dim=0) if sizes else None
+        return feature, coordinate, size_tensor
 
-    def warp(self, features: Tensor, flow: Tensor, delay_scale: Tensor) -> Tensor:
-        batch_size, _, height, width = features.shape
-        grid_y, grid_x = torch.meshgrid(
-            torch.linspace(-1.0, 1.0, height, device=features.device, dtype=features.dtype),
-            torch.linspace(-1.0, 1.0, width, device=features.device, dtype=features.dtype),
-            indexing='ij',
-        )
-        base_grid = torch.stack((grid_x, grid_y), dim=-1)
-        base_grid = base_grid.unsqueeze(0).repeat(batch_size, 1, 1, 1)
-        flow_x = flow[:, 0] / ((width - 1) / 2.0)
-        flow_y = flow[:, 1] / ((height - 1) / 2.0)
-        flow_grid = torch.stack((flow_x, flow_y), dim=-1)
-        delay_scale = delay_scale.view(batch_size, 1, 1, 1)
-        warped_grid = base_grid + flow_grid * delay_scale
-        return F.grid_sample(features, warped_grid, mode='bilinear', padding_mode='zeros', align_corners=True)
+    def forward(self, points: Sequence[Tensor]) -> Tensor:
+        if isinstance(points, (str, bytes)) or not isinstance(points, Sequence):
+            raise ValueError("points must be a sequence")
+        if not points:
+            device, dtype = _module_device_dtype(self)
+            return torch.empty(
+                0,
+                256,
+                self.output_height,
+                self.output_width,
+                device=device,
+                dtype=dtype,
+            )
+        feature, coordinate, sizes = self._voxelize(points)
+        if self.voxel_encoder is not None:
+            if sizes is None:
+                feature = self.voxel_encoder(feature, coordinate)
+            else:
+                feature = self.voxel_encoder(feature, sizes, coordinate)
+        elif sizes is not None and self.voxelize_reduce:
+            feature = feature.sum(dim=1) / sizes.type_as(feature).clamp_min(1).view(
+                -1, 1
+            )
+            feature = feature.contiguous()
+        batch_size = len(points)
+        encoded = self.middle_encoder(feature, coordinate, batch_size)
+        encoded = self.backbone(encoded)
+        encoded = self.neck(encoded)
+        encoded = _first_tensor(encoded, "PointPillars neck")
+        if self.output_projection is not None:
+            encoded = self.output_projection(encoded)
+            encoded = _first_tensor(encoded, "PointPillars output projection")
+        if encoded.shape != (
+            batch_size,
+            256,
+            self.output_height,
+            self.output_width,
+        ):
+            raise RuntimeError(
+                "PointPillars encoder must output [K,256,grid_height,grid_width]"
+            )
+        return encoded
 
-    def align(self, delayed_feat: Tensor, flow: Tensor, latency_ms: Tensor) -> Tensor:
-        delay_scale = latency_ms / torch.clamp(latency_ms.max(), min=1.0)
-        return self.warp(delayed_feat, flow, delay_scale)
 
-    def reconstruct(self, last_valid_feat: Tensor, flow: Tensor) -> Tensor:
-        delay_scale = torch.ones(last_valid_feat.size(0), device=last_valid_feat.device, dtype=last_valid_feat.dtype)
-        return self.warp(last_valid_feat, flow, delay_scale)
+@MODELS.register_module()
+class SharedResNetLSSBEVEncoder(nn.Module):
+    """One shared ResNet50 + LSS encoder for every camera packet."""
 
-
-class DynamicExpertRouting(nn.Module):
-
-    def __init__(self, in_channels: int, hidden_channels: int = 128) -> None:
+    def __init__(
+        self,
+        image_backbone: Mapping[str, object] | nn.Module,
+        image_neck: Mapping[str, object] | nn.Module,
+        view_transform: Mapping[str, object] | nn.Module,
+        output_height: int,
+        output_width: int,
+        bev_backbone: Mapping[str, object] | nn.Module | None = None,
+        bev_neck: Mapping[str, object] | nn.Module | None = None,
+        output_projection: Mapping[str, object] | nn.Module | None = None,
+        view_transform_output_order: Literal["xy", "yx"] = "xy",
+    ) -> None:
         super().__init__()
-        self.lidar_expert = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-        )
-        self.camera_expert = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-        )
-        self.synergy_expert = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-        )
-        self.gating = nn.Sequential(
-            nn.Linear(in_channels * 3 + 3, hidden_channels),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_channels, 3),
-        )
+        self.image_backbone = _build_optional(image_backbone)
+        self.image_neck = _build_optional(image_neck)
+        self.view_transform = _build_optional(view_transform)
+        self.bev_backbone = _build_optional(bev_backbone)
+        self.bev_neck = _build_optional(bev_neck)
+        self.output_projection = _build_optional(output_projection)
+        if (
+            self.image_backbone is None
+            or self.image_neck is None
+            or self.view_transform is None
+        ):
+            raise ValueError("image backbone, neck, and view transform are required")
+        if type(output_height) is not int or output_height <= 0:
+            raise ValueError("output_height must be positive")
+        if type(output_width) is not int or output_width <= 0:
+            raise ValueError("output_width must be positive")
+        if view_transform_output_order not in ("xy", "yx"):
+            raise ValueError("view_transform_output_order must be 'xy' or 'yx'")
+        self.output_height = output_height
+        self.output_width = output_width
+        self.view_transform_output_order = view_transform_output_order
 
     def forward(
         self,
-        lidar_feat: Tensor,
-        camera_feat: Tensor,
-        fusion_feat: Tensor,
-        modality_mask: Tensor,
-        latency_ms: Tensor,
+        images: Tensor,
+        intrinsics: Tensor,
+        camera_to_agent: Tensor,
     ) -> Tensor:
-        lidar_tokens = F.adaptive_avg_pool2d(lidar_feat, (1, 1)).flatten(1)
-        camera_tokens = F.adaptive_avg_pool2d(camera_feat, (1, 1)).flatten(1)
-        fusion_tokens = F.adaptive_avg_pool2d(fusion_feat, (1, 1)).flatten(1)
-        gating_inputs = torch.cat(
-            [lidar_tokens, camera_tokens, fusion_tokens, modality_mask, latency_ms.view(-1, 1)],
-            dim=1,
-        )
-        logits = self.gating(gating_inputs)
-        mask = torch.stack([modality_mask[:, 0], modality_mask[:, 1], torch.ones_like(modality_mask[:, 0])], dim=1)
-        logits = logits.masked_fill(mask == 0, torch.finfo(logits.dtype).min)
-        weights = F.softmax(logits, dim=1).view(-1, 3, 1, 1, 1)
+        if not isinstance(images, Tensor) or images.ndim != 4:
+            raise ValueError("images must have shape [K,3,H,W]")
+        count = images.shape[0]
+        if count == 0:
+            device, dtype = _module_device_dtype(self)
+            return torch.empty(
+                0,
+                256,
+                self.output_height,
+                self.output_width,
+                device=device,
+                dtype=dtype,
+            )
+        if images.shape[1] != 3 or not images.is_floating_point():
+            raise ValueError("images must be floating RGB tensors")
+        if intrinsics.shape != (count, 3, 3):
+            raise ValueError("intrinsics must have shape [K,3,3]")
+        if camera_to_agent.shape != (count, 4, 4):
+            raise ValueError("camera_to_agent must have shape [K,4,4]")
+        if (
+            intrinsics.device != images.device
+            or camera_to_agent.device != images.device
+            or intrinsics.dtype != images.dtype
+            or camera_to_agent.dtype != images.dtype
+        ):
+            raise ValueError("camera tensors must share dtype and device")
 
-        expert_outputs = torch.stack(
-            [self.lidar_expert(lidar_feat), self.camera_expert(camera_feat), self.synergy_expert(fusion_feat)],
-            dim=1,
+        image_features = self.image_backbone(images)
+        image_features = self.image_neck(image_features)
+        image_features = _first_tensor(image_features, "image neck")
+        image_features = image_features.view(
+            count,
+            1,
+            image_features.shape[1],
+            image_features.shape[2],
+            image_features.shape[3],
         )
-        fused = (expert_outputs * weights).sum(dim=1)
-        return fused
+
+        intrinsic4 = (
+            torch.eye(4, device=images.device, dtype=images.dtype)
+            .view(
+                1,
+                1,
+                4,
+                4,
+            )
+            .repeat(count, 1, 1, 1)
+        )
+        intrinsic4[:, 0, :3, :3] = intrinsics
+        camera_to_agent = camera_to_agent.view(count, 1, 4, 4)
+        agent_to_camera = torch.linalg.inv(camera_to_agent)
+        lidar_to_image = intrinsic4 @ agent_to_camera
+        identity = (
+            torch.eye(
+                4,
+                device=images.device,
+                dtype=images.dtype,
+            )
+            .view(1, 1, 4, 4)
+            .repeat(count, 1, 1, 1)
+        )
+        points = [images.new_empty(0, 4) for _ in range(count)]
+        metas = [{} for _ in range(count)]
+        bev = self.view_transform(
+            image_features,
+            points,
+            lidar_to_image,
+            intrinsic4,
+            camera_to_agent,
+            identity,
+            identity[:, 0],
+            metas,
+        )
+        # This repository's LSSTransform passes nx[0] (X) as the pooling H
+        # dimension and nx[1] (Y) as W, so its tensor is [B,C,X,Y].  Every
+        # causal alignment/PTF operation and PointPillars uses [B,C,Y,X].
+        if self.view_transform_output_order == "xy":
+            bev = bev_xy_to_yx(bev)
+        if self.bev_backbone is not None:
+            bev = self.bev_backbone(bev)
+        if self.bev_neck is not None:
+            bev = self.bev_neck(bev)
+        bev = _first_tensor(bev, "camera BEV encoder")
+        if self.output_projection is not None:
+            bev = self.output_projection(bev)
+            bev = _first_tensor(bev, "camera output projection")
+        if bev.shape != (
+            count,
+            256,
+            self.output_height,
+            self.output_width,
+        ):
+            raise RuntimeError(
+                "camera encoder must output [K,256,grid_height,grid_width]"
+            )
+        return bev
+
+
+def _nested_tensor(value: object, path: Sequence[str | int]) -> Tensor:
+    current = value
+    for item in path:
+        if isinstance(item, int):
+            if not isinstance(current, (list, tuple)):
+                raise RuntimeError("distillation logit path expects a sequence")
+            current = current[item]
+        else:
+            if not isinstance(current, Mapping):
+                raise RuntimeError("distillation logit path expects a mapping")
+            current = current[item]
+    if not isinstance(current, Tensor) or current.ndim != 4:
+        raise RuntimeError("distillation logit path must resolve to rank-4 Tensor")
+    return current
 
 
 @MODELS.register_module()
 class ResilientV2XNet(Base3DDetector):
+    """Causal, multimodal, teacher-student ResilientV2X detector."""
 
     def __init__(
         self,
-        mode: str = 'fusion',
+        grid_spec: Mapping[str, object],
+        lidar_encoder: Mapping[str, object] | nn.Module,
+        camera_encoder: Mapping[str, object] | nn.Module,
+        bbox_head: Mapping[str, object] | nn.Module,
         data_preprocessor: OptConfigType = None,
-        pts_voxel_encoder: Optional[dict] = None,
-        pts_middle_encoder: Optional[dict] = None,
-        fusion_layer: Optional[dict] = None,
-        img_backbone: Optional[dict] = None,
-        pts_backbone: Optional[dict] = None,
-        view_transform: Optional[dict] = None,
-        img_neck: Optional[dict] = None,
-        pts_neck: Optional[dict] = None,
-        bbox_head: Optional[dict] = None,
-        ptf_cfg: Optional[dict] = None,
-        der_cfg: Optional[dict] = None,
+        ptf_mode: Literal["nonlinear", "linear", "none"] = "nonlinear",
+        routing_mode: Literal["dynamic", "static", "uniform", "concat"] = "dynamic",
+        use_reliability: bool = True,
+        use_delay_metadata: bool = True,
+        delta_t_ms: int = 100,
+        teacher: Mapping[str, object] | nn.Module | None = None,
+        teacher_checkpoint: str | None = None,
+        distillation: Mapping[str, object] | None = None,
         init_cfg: OptMultiConfig = None,
-        seg_head: Optional[dict] = None,
         **kwargs,
     ) -> None:
-        voxelize_cfg = data_preprocessor.pop('voxelize_cfg')
         super().__init__(data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+        if not isinstance(grid_spec, Mapping):
+            raise ValueError("grid_spec must be a mapping")
+        self.grid_spec = BEVGridSpec(**dict(grid_spec))
+        self.lidar_encoder = _build_optional(lidar_encoder)
+        self.camera_encoder = _build_optional(camera_encoder)
+        self.bbox_head = _build_optional(bbox_head)
+        if (
+            self.lidar_encoder is None
+            or self.camera_encoder is None
+            or self.bbox_head is None
+        ):
+            raise ValueError("both encoders and bbox_head are required")
+        self.resilient_fusion = ResilientV2XFeatureFusion(
+            grid_spec=self.grid_spec,
+            ptf_mode=ptf_mode,
+            routing_mode=routing_mode,
+            use_reliability=use_reliability,
+            use_delay_metadata=use_delay_metadata,
+            delta_t_ms=delta_t_ms,
+        )
 
-        self.mode = mode
-        self.voxelize_reduce = voxelize_cfg.pop('voxelize_reduce')
-        self.pts_voxel_layer = Voxelization(**voxelize_cfg)
-        self.pts_voxel_encoder = MODELS.build(pts_voxel_encoder)
-        self.img_backbone = MODELS.build(img_backbone) if img_backbone is not None else None
-        self.img_neck = MODELS.build(img_neck) if img_neck is not None else None
-        self.view_transform = MODELS.build(view_transform) if view_transform is not None else None
-        self.pts_middle_encoder = MODELS.build(pts_middle_encoder)
-        self.fusion_layer = MODELS.build(fusion_layer) if fusion_layer is not None else None
-        self.pts_backbone = MODELS.build(pts_backbone)
-        self.pts_neck = MODELS.build(pts_neck)
-        self.bbox_head = MODELS.build(bbox_head)
+        self.teacher: FrozenTeacher | None = None
+        self.distillation_cfg: dict[str, object] | None = None
+        if teacher is not None:
+            teacher_model = _build_optional(teacher)
+            if not isinstance(teacher_model, ResilientV2XNet):
+                raise ValueError("teacher must build another ResilientV2XNet")
+            if type(teacher_checkpoint) is not str or not teacher_checkpoint:
+                raise ValueError(
+                    "teacher_checkpoint is required to avoid a random frozen teacher"
+                )
+            from mmengine.runner import load_checkpoint
 
-        if 'fusion' in self.mode:
-            self.inf_pts_voxel_layer = Voxelization(**voxelize_cfg)
-            self.inf_pts_voxel_encoder = MODELS.build(pts_voxel_encoder)
-            self.inf_pts_middle_encoder = MODELS.build(pts_middle_encoder)
-            self.inf_pts_backbone = MODELS.build(pts_backbone)
-            self.inf_pts_neck = MODELS.build(pts_neck)
-            self.fusion_weighted = PixelWeightedFusion(512)
-            self.encoder = ReduceInfTC(1024)
-
-        ptf_cfg = ptf_cfg or {}
-        der_cfg = der_cfg or {}
-        self.ptf = PerceptionTrajectoryField(**ptf_cfg)
-        self.der = DynamicExpertRouting(**der_cfg)
-
-        self.init_weights()
-
-    def init_weights(self) -> None:
-        if self.img_backbone is not None:
-            self.img_backbone.init_weights()
-
-    def extract_img_feat(
-        self,
-        x,
-        points,
-        lidar2image,
-        camera_intrinsics,
-        camera2lidar,
-        img_aug_matrix,
-        lidar_aug_matrix,
-        img_metas,
-    ) -> torch.Tensor:
-        batch_size, num_cams, channels, height, width = x.size()
-        x = x.view(batch_size * num_cams, channels, height, width).contiguous()
-        x = self.img_backbone(x)
-        x = self.img_neck(x)
-        if not isinstance(x, torch.Tensor):
-            x = x[0]
-
-        bn, channels, height, width = x.size()
-        x = x.view(batch_size, int(bn / batch_size), channels, height, width)
-        with torch.autocast(device_type='cuda', dtype=torch.float32):
-            x = self.view_transform(
-                x,
-                points,
-                lidar2image,
-                camera_intrinsics,
-                camera2lidar,
-                img_aug_matrix,
-                lidar_aug_matrix,
-                img_metas,
+            load_checkpoint(
+                teacher_model,
+                teacher_checkpoint,
+                map_location="cpu",
+                strict=True,
             )
-        return x
+            self.teacher = FrozenTeacher(teacher_model)
+            if not isinstance(distillation, Mapping):
+                raise ValueError("distillation config is required with teacher")
+            required = {
+                "temperature",
+                "lambda_feature",
+                "lambda_logit",
+                "head_type",
+                "logit_path",
+            }
+            if frozenset(distillation) != required:
+                raise ValueError("distillation config fields mismatch")
+            path = distillation["logit_path"]
+            if not isinstance(path, (list, tuple)) or any(
+                not isinstance(item, (str, int)) for item in path
+            ):
+                raise ValueError(
+                    "distillation logit_path must be a string/int sequence"
+                )
+            self.distillation_cfg = dict(distillation)
+        elif distillation is not None or teacher_checkpoint is not None:
+            raise ValueError(
+                "distillation config and teacher_checkpoint require a teacher"
+            )
 
-    def extract_pts_feat(self, batch_inputs_dict, points_view='vehicle') -> torch.Tensor:
-        if points_view == 'vehicle':
-            points = batch_inputs_dict['points']
-            with torch.autocast('cuda', enabled=False):
-                points = [point.float() for point in points]
-                feats, coords, sizes = self.voxelize(points)
-                batch_size = coords[-1, 0] + 1
-            x = self.pts_middle_encoder(feats, coords, batch_size)
-            return x
-        if points_view == 'infrastructure':
-            points = batch_inputs_dict['infrastructure_points']
-            with torch.autocast('cuda', enabled=False):
-                points = [point.float() for point in points]
-                feats, coords, sizes = self.inf_voxelize(points)
-                batch_size = coords[-1, 0] + 1
-            x = self.inf_pts_middle_encoder(feats, coords, batch_size)
-            return x
-        raise ValueError(f'Unknown points_view: {points_view}')
+    @property
+    def with_bbox_head(self) -> bool:
+        return self.bbox_head is not None
+
+    def train(self, mode: bool = True) -> "ResilientV2XNet":
+        super().train(mode)
+        if self.teacher is not None:
+            self.teacher.train(False)
+            assert_teacher_frozen(self.teacher.teacher)
+        return self
+
+    def _encode_histories(
+        self,
+        inputs: Mapping[str, object],
+    ) -> tuple[Tensor, Tensor]:
+        availability = inputs.get("availability")
+        if (
+            not isinstance(availability, Tensor)
+            or availability.ndim != 4
+            or availability.shape[1:] != (2, 2, 4)
+            or availability.dtype is not torch.bool
+        ):
+            raise ValueError("availability must be boolean [B,2,2,4]")
+        batch = availability.shape[0]
+        precomputed_lidar = inputs.get("lidar_history_features")
+        precomputed_camera = inputs.get("camera_history_features")
+        if precomputed_lidar is not None or precomputed_camera is not None:
+            if not isinstance(precomputed_lidar, Tensor) or not isinstance(
+                precomputed_camera,
+                Tensor,
+            ):
+                raise ValueError("both precomputed modality histories are required")
+            return precomputed_lidar, precomputed_camera
+
+        lidar_points = inputs.get("lidar_points")
+        lidar_owner = inputs.get("lidar_owner")
+        if not isinstance(lidar_points, (tuple, list)) or not isinstance(
+            lidar_owner,
+            Tensor,
+        ):
+            raise ValueError("sparse LiDAR payloads and owner tensor are required")
+        lidar_encoded = self.lidar_encoder(lidar_points)
+        lidar_history = scatter_sparse_bev_history(
+            lidar_encoded,
+            lidar_owner,
+            availability[:, 0],
+        )
+
+        camera_images = inputs.get("camera_images")
+        camera_owner = inputs.get("camera_owner")
+        camera_intrinsics = inputs.get("camera_intrinsics")
+        camera_to_agent = inputs.get("camera_agent_from_sensor")
+        if not all(
+            isinstance(value, Tensor)
+            for value in (
+                camera_images,
+                camera_owner,
+                camera_intrinsics,
+                camera_to_agent,
+            )
+        ):
+            raise ValueError("sparse camera tensors are required")
+        camera_encoded = self.camera_encoder(
+            camera_images,
+            camera_intrinsics,
+            camera_to_agent,
+        )
+        camera_history = scatter_sparse_bev_history(
+            camera_encoded,
+            camera_owner,
+            availability[:, 1],
+        )
+        if lidar_history.shape[0] != batch or camera_history.shape[0] != batch:
+            raise RuntimeError("encoded history batch mismatch")
+        return lidar_history, camera_history
+
+    def extract_resilient_feature(
+        self,
+        batch_inputs_dict: Mapping[str, object],
+    ) -> ResilientFeatureBatch:
+        lidar_history, camera_history = self._encode_histories(batch_inputs_dict)
+        transforms = batch_inputs_dict.get("source_to_target")
+        availability = batch_inputs_dict.get("availability")
+        selections = batch_inputs_dict.get("selections")
+        if (
+            not isinstance(transforms, Tensor)
+            or transforms.ndim != 6
+            or transforms.shape[1:] != (2, 2, 4, 4, 4)
+        ):
+            raise ValueError("source_to_target must have shape [B,2,2,4,4,4]")
+        if not isinstance(availability, Tensor):
+            raise ValueError("availability tensor is required")
+        if not isinstance(selections, ResilientBatchSelections):
+            raise ValueError("ResilientBatchSelections are required")
+        return self.resilient_fusion(
+            lidar_history=lidar_history,
+            camera_history=camera_history,
+            lidar_source_to_target=transforms[:, 0],
+            camera_source_to_target=transforms[:, 1],
+            lidar_availability=availability[:, 0],
+            camera_availability=availability[:, 1],
+            selections=selections,
+        )
+
+    def extract_feat(
+        self,
+        batch_inputs_dict: Mapping[str, object],
+        batch_input_metas: Sequence[Mapping[str, object]] | None = None,
+        **kwargs,
+    ) -> list[Tensor]:
+        return [self.extract_resilient_feature(batch_inputs_dict).fused]
+
+    def _forward(
+        self,
+        batch_inputs: Mapping[str, object],
+        batch_data_samples: OptSampleList = None,
+        **kwargs,
+    ) -> object:
+        feature = self.extract_resilient_feature(batch_inputs)
+        return self.bbox_head([feature.fused])
 
     def predict(
         self,
-        batch_inputs_dict: Dict[str, Optional[Tensor]],
-        batch_data_samples: List[Det3DDataSample],
+        batch_inputs_dict: Mapping[str, object],
+        batch_data_samples: list[Det3DDataSample],
         **kwargs,
-    ) -> List[Det3DDataSample]:
-        batch_input_metas = [item.metainfo for item in batch_data_samples]
-        feats = self.extract_feat(batch_inputs_dict, batch_input_metas)
-        outputs = self.bbox_head.predict(feats, batch_input_metas)
-        return self.add_pred_to_datasample(batch_data_samples, outputs)
-
-    def extract_feat(self, batch_inputs_dict, batch_input_metas, **kwargs):
-        imgs = batch_inputs_dict.get('imgs', None)
-        points = batch_inputs_dict.get('points', None)
-        features = []
-        if imgs is not None:
-            imgs = imgs.contiguous()
-            lidar2image, camera_intrinsics, camera2lidar = [], [], []
-            img_aug_matrix, lidar_aug_matrix = [], []
-            for meta in batch_input_metas:
-                lidar2image.append(meta['lidar2img'])
-                camera_intrinsics.append(meta['cam2img'])
-                camera2lidar.append(meta['cam2lidar'])
-                img_aug_matrix.append(meta.get('img_aug_matrix', np.eye(4)))
-                lidar_aug_matrix.append(meta.get('lidar_aug_matrix', np.eye(4)))
-
-            lidar2image = imgs.new_tensor(np.asarray(lidar2image))
-            camera_intrinsics = imgs.new_tensor(np.asarray(camera_intrinsics))
-            camera2lidar = imgs.new_tensor(np.asarray(camera2lidar))
-            img_aug_matrix = imgs.new_tensor(np.asarray(img_aug_matrix))
-            lidar_aug_matrix = imgs.new_tensor(np.asarray(lidar_aug_matrix))
-
-            img_feature = self.extract_img_feat(
-                imgs,
-                points,
-                lidar2image,
-                camera_intrinsics,
-                camera2lidar,
-                img_aug_matrix,
-                lidar_aug_matrix,
-                batch_input_metas,
-            )
-            features.append(img_feature)
-
-        pts_feature = self.extract_pts_feat(batch_inputs_dict, points_view='vehicle')
-        features.append(pts_feature)
-
-        if self.fusion_layer is not None:
-            veh_x = self.fusion_layer(features)
-        else:
-            veh_x = features[-1]
-
-        veh_x = self.pts_backbone(veh_x)
-        veh_x = self.pts_neck(veh_x)
-        if self.mode == 'veh_only':
-            return veh_x
-
-        inf_pts_feature = self.extract_pts_feat(batch_inputs_dict, points_view='infrastructure')
-        inf_x = self.inf_pts_backbone(inf_pts_feature)
-        inf_x = self.inf_pts_neck(inf_x)
-        inf_x[0] = self.encoder(inf_x[0])
-
-        history_feats = batch_inputs_dict.get('infrastructure_history', None)
-        if history_feats is None:
-            history_feats = inf_x[0].unsqueeze(1).repeat(1, self.ptf.history_steps, 1, 1, 1)
-        flow = self.ptf(history_feats)
-        latency_ms = torch.tensor(
-            [meta.get('v2x_latency_ms', 0.0) for meta in batch_input_metas],
-            device=inf_x[0].device,
-            dtype=inf_x[0].dtype,
+    ) -> list[Det3DDataSample]:
+        feature = self.extract_resilient_feature(batch_inputs_dict)
+        outputs = self.bbox_head.predict(
+            [feature.fused],
+            batch_data_samples,
         )
-        aligned_inf = self.ptf.align(inf_x[0], flow, latency_ms)
-
-        modality_mask = torch.tensor(
-            [meta.get('modality_mask', [1.0, 1.0]) for meta in batch_input_metas],
-            device=inf_x[0].device,
-            dtype=inf_x[0].dtype,
-        )
-        lidar_feat = veh_x[0]
-        camera_feat = veh_x[0] if len(features) == 1 else features[0]
-        fusion_feat = self.fusion_weighted(torch.cat([veh_x[0], aligned_inf], dim=1))
-        fused = self.der(lidar_feat, camera_feat, fusion_feat, modality_mask, latency_ms)
-        return [fused]
+        results = self.add_pred_to_datasample(batch_data_samples, outputs)
+        for sample, diagnostic in zip(results, feature.diagnostics):
+            sample.set_metainfo({"resilient_v2x_diagnostics": diagnostic})
+        return results
 
     def loss(
         self,
-        batch_inputs_dict: Dict[str, Optional[Tensor]],
-        batch_data_samples: List[Det3DDataSample],
+        batch_inputs_dict: Mapping[str, object],
+        batch_data_samples: list[Det3DDataSample],
         **kwargs,
-    ) -> List[Det3DDataSample]:
-        batch_input_metas = [item.metainfo for item in batch_data_samples]
-        feats = self.extract_feat(batch_inputs_dict, batch_input_metas)
-        losses = self.bbox_head.loss(feats, batch_data_samples)
+    ) -> dict[str, Tensor]:
+        teacher_feature: ResilientFeatureBatch | None = None
+        teacher_logits: Tensor | None = None
+        if self.teacher is not None:
+            if self.distillation_cfg is None:
+                raise RuntimeError("teacher is configured without distillation")
+            clean_inputs = batch_inputs_dict.get("teacher_clean")
+            if not isinstance(clean_inputs, Mapping):
+                raise RuntimeError(
+                    "training with a teacher requires teacher_clean inputs"
+                )
+            path = self.distillation_cfg["logit_path"]
+            if not isinstance(path, (list, tuple)):
+                raise RuntimeError("distillation logit_path is invalid")
+            assert_teacher_frozen(self.teacher.teacher)
+            # Run the frozen path before constructing the student's autograd
+            # graph.  This is mathematically identical and avoids overlapping
+            # teacher activations with dense multi-frame student activations.
+            with torch.no_grad():
+                teacher_feature = self.teacher.teacher.extract_resilient_feature(
+                    clean_inputs
+                )
+                teacher_raw = self.teacher.teacher.bbox_head([teacher_feature.fused])
+                teacher_logits = _nested_tensor(teacher_raw, path)
+
+        student = self.extract_resilient_feature(batch_inputs_dict)
+        losses = dict(self.bbox_head.loss([student.fused], batch_data_samples))
+        if self.teacher is None:
+            return losses
+        if (
+            self.distillation_cfg is None
+            or teacher_feature is None
+            or teacher_logits is None
+        ):
+            raise RuntimeError("teacher distillation state is incomplete")
+        student_raw = self.bbox_head([student.fused])
+        path = self.distillation_cfg["logit_path"]
+        if not isinstance(path, (list, tuple)):
+            raise RuntimeError("distillation logit_path is invalid")
+        student_logits = _nested_tensor(student_raw, path)
+        distilled = head_distillation_losses(
+            teacher_feature=teacher_feature.fused,
+            student_feature=student.fused,
+            teacher_logits=teacher_logits,
+            student_logits=student_logits,
+            temperature=float(self.distillation_cfg["temperature"]),
+            lambda_feature=float(self.distillation_cfg["lambda_feature"]),
+            lambda_logit=float(self.distillation_cfg["lambda_logit"]),
+            valid_sample_mask=student.overall_support,
+            head_type=str(self.distillation_cfg["head_type"]),
+        )
+        losses["loss_distillation"] = distilled.total
+        losses["distillation_feature"] = distilled.feature.detach()
+        losses["distillation_logit"] = distilled.logit.detach()
         return losses
 
-    def add_pred_to_datasample(
-        self,
-        data_samples: List[Det3DDataSample],
-        results: List[Det3DDataSample],
-    ) -> List[Det3DDataSample]:
-        for data_sample, pred_instances in zip(data_samples, results):
-            data_sample.pred_instances_3d = pred_instances
-        return data_samples
 
-    @torch.no_grad()
-    def voxelize(self, points: List[Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
-        voxels, coors, num_points = [], [], []
-        for res in points:
-            res_voxels, res_coors, res_num_points = self.pts_voxel_layer(res)
-            voxels.append(res_voxels)
-            coors.append(res_coors)
-            num_points.append(res_num_points)
-        voxels = torch.cat(voxels, dim=0)
-        num_points = torch.cat(num_points, dim=0)
-        coors_batch = []
-        for i, coor in enumerate(coors):
-            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-            coors_batch.append(coor_pad)
-        coors_batch = torch.cat(coors_batch, dim=0)
-        if self.voxelize_reduce:
-            voxels = voxels.sum(dim=1, keepdim=False) / num_points.type_as(voxels).view(-1, 1)
-            voxels = voxels.contiguous()
-        return voxels, coors_batch, num_points
-
-    @torch.no_grad()
-    def inf_voxelize(self, points: List[Tensor]) -> Tuple[Tensor, Tensor, Tensor]:
-        voxels, coors, num_points = [], [], []
-        for res in points:
-            res_voxels, res_coors, res_num_points = self.inf_pts_voxel_layer(res)
-            voxels.append(res_voxels)
-            coors.append(res_coors)
-            num_points.append(res_num_points)
-        voxels = torch.cat(voxels, dim=0)
-        num_points = torch.cat(num_points, dim=0)
-        coors_batch = []
-        for i, coor in enumerate(coors):
-            coor_pad = F.pad(coor, (1, 0), mode='constant', value=i)
-            coors_batch.append(coor_pad)
-        coors_batch = torch.cat(coors_batch, dim=0)
-        if self.voxelize_reduce:
-            voxels = voxels.sum(dim=1, keepdim=False) / num_points.type_as(voxels).view(-1, 1)
-            voxels = voxels.contiguous()
-        return voxels, coors_batch, num_points
+__all__ = (
+    "SharedPointPillarsBEVEncoder",
+    "SharedResNetLSSBEVEncoder",
+    "ResilientV2XNet",
+)

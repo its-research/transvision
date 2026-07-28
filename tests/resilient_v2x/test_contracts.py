@@ -45,7 +45,7 @@ CORE_PUBLIC_API = (
     "select_causal_source",
     "age_decay",
     "branch_reliability",
-    "normalized_selected_rsu_delay",
+    "latest_arrived_rsu_age_intervals",
     "PTFOutput",
     "HorizonConditionedPTF",
     "BranchDiagnostics",
@@ -290,6 +290,7 @@ def test_branch_selection_is_immutable() -> None:
         supported=True,
         source=_candidate(),
         horizon=0,
+        endpoint_tick=10,
         observed=True,
         propagated=False,
         rejected=(),
@@ -345,7 +346,7 @@ def test_repaired_branch_keeps_tensor_and_diagnostics_contract() -> None:
         support=torch.zeros(1, dtype=torch.bool),
         observed=torch.zeros(1, dtype=torch.bool),
         propagated=torch.zeros(1, dtype=torch.bool),
-        normalized_age=torch.zeros(1),
+        age_intervals=torch.zeros(1),
         displacement=None,
         confidence=None,
         diagnostics=(diagnostics,),
@@ -373,6 +374,7 @@ def test_supported_selection_accepts_each_valid_mode(
         supported=True,
         source=source,
         horizon=horizon,
+        endpoint_tick=10 if observed else 12,
         observed=observed,
         propagated=propagated,
         rejected=(),
@@ -393,6 +395,7 @@ def test_supported_selection_requires_source_and_horizon() -> None:
             supported=True,
             source=None,
             horizon=None,
+            endpoint_tick=None,
             observed=False,
             propagated=False,
             rejected=(),
@@ -401,13 +404,49 @@ def test_supported_selection_requires_source_and_horizon() -> None:
 
 
 def test_supported_selection_rejects_negative_horizon() -> None:
-    with pytest.raises(ProtocolInvariantError, match="horizon must be non-negative"):
+    with pytest.raises(ProtocolInvariantError, match="horizon must be a non-negative"):
         BranchSelection(
             agent=Agent.EGO,
             modality=Modality.LIDAR,
             supported=True,
             source=_candidate(),
             horizon=-1,
+            endpoint_tick=10,
+            observed=True,
+            propagated=False,
+            rejected=(),
+            reason=None,
+        )
+
+
+@pytest.mark.parametrize("endpoint_tick", [None, True, 10.5])
+def test_supported_selection_requires_integer_endpoint(
+    endpoint_tick: object,
+) -> None:
+    with pytest.raises(ProtocolInvariantError, match="endpoint_tick"):
+        BranchSelection(
+            agent=Agent.EGO,
+            modality=Modality.LIDAR,
+            supported=True,
+            source=_candidate(),
+            horizon=0,
+            endpoint_tick=endpoint_tick,
+            observed=True,
+            propagated=False,
+            rejected=(),
+            reason=None,
+        )
+
+
+def test_supported_selection_flags_are_defined_by_endpoint() -> None:
+    with pytest.raises(ProtocolInvariantError, match="branch endpoint"):
+        BranchSelection(
+            agent=Agent.RSU,
+            modality=Modality.CAMERA,
+            supported=True,
+            source=_candidate(),
+            horizon=1,
+            endpoint_tick=11,
             observed=True,
             propagated=False,
             rejected=(),
@@ -426,7 +465,7 @@ def test_supported_selection_requires_exactly_one_mode(
 ) -> None:
     with pytest.raises(
         ProtocolInvariantError,
-        match="exactly one observed/propagated flag",
+        match="observed/propagated",
     ):
         BranchSelection(
             agent=Agent.EGO,
@@ -434,6 +473,7 @@ def test_supported_selection_requires_exactly_one_mode(
             supported=True,
             source=_candidate(),
             horizon=0,
+            endpoint_tick=10,
             observed=observed,
             propagated=propagated,
             rejected=(),
@@ -444,7 +484,7 @@ def test_supported_selection_requires_exactly_one_mode(
 def test_supported_selection_forbids_reason() -> None:
     with pytest.raises(
         ProtocolInvariantError,
-        match="supported branch requires source and horizon and forbids reason",
+        match="supported branch requires source, horizon, and endpoint_tick",
     ):
         BranchSelection(
             agent=Agent.EGO,
@@ -452,6 +492,7 @@ def test_supported_selection_forbids_reason() -> None:
             supported=True,
             source=_candidate(),
             horizon=0,
+            endpoint_tick=10,
             observed=True,
             propagated=False,
             rejected=(),
@@ -469,6 +510,7 @@ def test_unsupported_selection_requires_reason_and_null_source() -> None:
 
     assert selection.source is None
     assert selection.horizon is None
+    assert selection.endpoint_tick is None
     assert selection.reason is UnsupportedReason.EMPTY_ARRIVAL_SET
 
 
@@ -477,6 +519,7 @@ def test_unsupported_selection_requires_reason_and_null_source() -> None:
     [
         ("source", _candidate()),
         ("horizon", 0),
+        ("endpoint_tick", 10),
         ("reason", None),
         ("observed", True),
         ("propagated", True),
@@ -492,6 +535,7 @@ def test_unsupported_selection_rejects_supported_shape_fields(
         "supported": False,
         "source": None,
         "horizon": None,
+        "endpoint_tick": None,
         "observed": False,
         "propagated": False,
         "rejected": (),
@@ -502,7 +546,8 @@ def test_unsupported_selection_rejects_supported_shape_fields(
     with pytest.raises(
         ProtocolInvariantError,
         match=(
-            "unsupported branch requires null source/horizon, false flags, and reason"
+            "unsupported branch requires null source/horizon/endpoint_tick, "
+            "false flags, and reason"
         ),
     ):
         BranchSelection(**values)

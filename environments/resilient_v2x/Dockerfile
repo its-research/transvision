@@ -24,13 +24,13 @@ COPY transvision /workspace/transvision/transvision
 COPY configs /workspace/transvision/configs
 COPY tools /workspace/transvision/tools
 COPY scripts/build_resilient_v2x_ops.sh /workspace/transvision/scripts/build_resilient_v2x_ops.sh
-RUN /opt/resilient-v2x/bin/python -c "import sys, torch, torchvision, mmengine, mmcv, mmdet, mmdet3d; assert sys.version_info[:2] == (3, 10); assert torch.__version__ == '2.0.1+cu118'; assert torchvision.__version__ == '0.15.2+cu118'; assert torch.version.cuda == '11.8'; assert mmengine.__version__ == '0.10.7'; assert mmcv.__version__ == '2.1.0'; assert mmdet.__version__ == '3.2.0'; assert mmdet3d.__version__ == '1.3.0'" \
+RUN /opt/resilient-v2x/bin/python -c "import sys, torch, torchvision, cv2, mmengine, mmcv, mmdet, mmdet3d; assert sys.version_info[:2] == (3, 10); assert torch.__version__ == '2.0.1+cu118'; assert torchvision.__version__ == '0.15.2+cu118'; assert torch.version.cuda == '11.8'; assert cv2.__version__ == '4.11.0'; assert mmengine.__version__ == '0.10.7'; assert mmcv.__version__ == '2.1.0'; assert mmdet.__version__ == '3.2.0'; assert mmdet3d.__version__ == '1.3.0'" \
     && /bin/bash scripts/build_resilient_v2x_ops.sh \
     && groupadd --gid 10001 resilient-v2x \
     && useradd --uid 10001 --gid 10001 --create-home --shell /bin/bash resilient-v2x \
     && chown -R 10001:10001 /workspace/transvision
 
 USER 10001:10001
-RUN /opt/resilient-v2x/bin/python -c "import transvision.models.voxel.voxel_layer, transvision.models.bev_pool.bev_pool_ext"
+RUN /opt/resilient-v2x/bin/python -c "import cv2; import mmcv._ext, transvision.models.voxel.voxel_layer, transvision.models.bev_pool.bev_pool_ext"
 
 CMD ["/opt/resilient-v2x/bin/python", "tools/resilient_v2x/check_environment.py", "--mode", "controlled", "--require-cuda", "--require-custom-ops"]

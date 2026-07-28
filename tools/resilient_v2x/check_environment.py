@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.resilient_v2x.capture_environment import (
+from tools.resilient_v2x.capture_environment import (  # noqa: E402
     BOOTSTRAP_LOCK,
     CONSTRAINTS,
     RUNTIME_LOCK,

@@ -27,7 +27,7 @@ must preserve every existing name and its order.
 14. `select_causal_source`
 15. `age_decay`
 16. `branch_reliability`
-17. `normalized_selected_rsu_delay`
+17. `latest_arrived_rsu_age_intervals`
 18. `PTFOutput`
 19. `HorizonConditionedPTF`
 20. `BranchDiagnostics`
@@ -87,6 +87,7 @@ BranchSelection(
     supported: bool,
     source: SourceCandidate | None,
     horizon: int | None,
+    endpoint_tick: int | None,
     observed: bool,
     propagated: bool,
     rejected: tuple[RejectedCandidate, ...],
@@ -116,7 +117,7 @@ RepairedBranch(
     support: Tensor,
     observed: Tensor,
     propagated: Tensor,
-    normalized_age: Tensor,
+    age_intervals: Tensor,
     displacement: Tensor | None,
     confidence: Tensor | None,
     diagnostics: tuple[BranchDiagnostics, ...],
@@ -186,8 +187,9 @@ branch_reliability(
     batch_index: int,
 ) -> Tensor
 
-normalized_selected_rsu_delay(
-    selections: Sequence[BranchSelection],
+latest_arrived_rsu_age_intervals(
+    candidates: Sequence[SourceCandidate],
+    target_tau_ms: int,
     history_limit: int,
     delta_t_ms: int,
 ) -> float
@@ -324,6 +326,10 @@ displacement are each applied exactly once.
 The arrival cutoff is `arrival_tau_ms <= target_tau_ms`; a future target packet
 or a condition label never contributes delay metadata. Candidate filtering is:
 
+Before fault and metadata filtering, `endpoint_tick` is fixed to `n_t` for
+Ego and to the greatest arrived RSU `n_s` for RSU. Source selection then uses
+the following filtering order without moving that endpoint:
+
 1. reject a future source tick;
 2. for RSU, reject null or future arrival;
 3. reject a faulted packet;
@@ -342,11 +348,14 @@ Within one candidate, metadata order is `INVALID_TIMESTAMP`,
 `MISSING_PAYLOAD`, `INVALID_POSE`, `INVALID_CALIBRATION`.
 `METHOD_NOT_APPLICABLE` denotes a branch the method does not implement.
 
-A supported branch is observed only for Ego at horizon zero. Every other
-supported branch is propagated. The total age decay is `gamma = alpha**h` and
-is applied once to the repaired feature. Observed Ego at zero has reliability
-one; propagated reliability is age decay multiplied by mean PTF confidence.
-Unsupported reliability is exact zero.
+A supported branch is observed exactly when its selected source tick equals
+its branch `endpoint_tick`; selecting an older source after endpoint loss is
+propagated. Consequently, the latest arrived RSU source is observed even when
+its age relative to the Ego decision time is nonzero. The total age decay is
+`gamma = alpha**h` and is applied once to the repaired feature. Only a truly
+current Ego source has reliability one. Every other supported branch,
+including an observed delayed RSU endpoint, has reliability
+`gamma * mean(PTF confidence)`. Unsupported reliability is exact zero.
 
 ## PTF and causal repair
 
@@ -385,10 +394,14 @@ The descriptor arithmetic is `3*256 + 2 + 8 + 4 + 1 = 783`. Its slices are:
 - `[512:768]`: masked synergy expert GAP;
 - `[768:770]`: LiDAR and camera reliability;
 - `[770:778]`: observed/propagated flags in four-branch order;
-- `[778:782]`: normalized branch ages in four-branch order;
-- `[782]`: normalized selected RSU delay.
+- `[778:782]`: branch source ages `h=(t-s*)/Delta t` in sampling intervals,
+  in four-branch order;
+- `[782]`: latest causally arrived RSU source age `d_R/Delta t` in sampling
+  intervals. This is independent of an older modality-specific fallback
+  selected after a fault; it is zero when no valid RSU arrival is available.
 
-Task 5 owns age normalization. The router never divides normalized age again.
+Repair/runtime compute these interval-unit values; the router does not divide
+them again.
 
 ## Distillation
 

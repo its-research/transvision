@@ -9,7 +9,7 @@ from transvision.models.resilient_v2x.causal_repair import (
     age_decay,
     arrived_candidates,
     branch_reliability,
-    normalized_selected_rsu_delay,
+    latest_arrived_rsu_age_intervals,
     select_causal_source,
 )
 from transvision.models.resilient_v2x.contracts import (
@@ -99,10 +99,15 @@ def test_complete_agent_delay_fault_horizon_table(
         if agent is Agent.EGO
         else max(delay_ms // 100, int(fault_target))
     )
+    expected_endpoint = 10 if agent is Agent.EGO else 10 - delay_ms // 100
+    expected_observed = not fault_target if agent is Agent.EGO else not (
+        delay_ms == 0 and fault_target
+    )
 
     assert result.supported
     assert result.horizon == expected_horizon
-    assert result.observed is (agent is Agent.EGO and expected_horizon == 0)
+    assert result.endpoint_tick == expected_endpoint
+    assert result.observed is expected_observed
     assert result.propagated is not result.observed
 
 
@@ -249,6 +254,8 @@ def test_exact_arrival_cutoff_has_no_future_packet_interpolation() -> None:
     assert result.source is not None
     assert result.source.n_s == 9
     assert result.horizon == 1
+    assert result.endpoint_tick == 9
+    assert result.observed
     assert result.rejected[0].packet_id == "seq:10"
     assert result.rejected[0].reason is UnsupportedReason.EMPTY_ARRIVAL_SET
 
@@ -265,6 +272,8 @@ def test_newest_invalid_candidate_falls_back_to_older_valid_source() -> None:
 
     assert result.source is not None
     assert result.source.n_s == 9
+    assert result.endpoint_tick == 10
+    assert result.propagated
     assert result.reason is None
     assert result.rejected[0] == RejectedCandidate(
         packet_id="seq:10",
@@ -547,15 +556,19 @@ def supported_selection(
     *,
     modality: Modality = Modality.LIDAR,
     delay_ms: int = 0,
+    endpoint_tick: int | None = None,
 ) -> BranchSelection:
     source = candidate(10 - horizon, delay_ms=delay_ms)
-    observed = agent is Agent.EGO and horizon == 0
+    if endpoint_tick is None:
+        endpoint_tick = 10
+    observed = source.n_s == endpoint_tick
     return BranchSelection(
         agent=agent,
         modality=modality,
         supported=True,
         source=source,
         horizon=horizon,
+        endpoint_tick=endpoint_tick,
         observed=observed,
         propagated=not observed,
         rejected=(),
@@ -706,97 +719,87 @@ def test_propagated_reliability_rejects_invalid_batch_index(
         )
 
 
-def test_normalized_rsu_delay_uses_maximum_selected_delay_across_modalities() -> None:
-    selections = [
-        supported_selection(
-            Agent.RSU,
-            1,
-            modality=Modality.LIDAR,
-            delay_ms=100,
-        ),
-        supported_selection(
-            Agent.RSU,
-            2,
-            modality=Modality.CAMERA,
-            delay_ms=250,
-        ),
+def test_rsu_age_uses_latest_arrived_packet_independent_of_sensor_fault() -> None:
+    candidates = [
+        candidate(10, arrival_tau_ms=1100, faulted=True),
+        candidate(9, arrival_tau_ms=1000, faulted=True),
+        candidate(8, arrival_tau_ms=950),
     ]
 
-    result = normalized_selected_rsu_delay(selections, 3, 100)
-
-    assert result == pytest.approx(250 / 300)
-
-
-def test_normalized_rsu_delay_clamps_to_one() -> None:
-    result = normalized_selected_rsu_delay(
-        [supported_selection(Agent.RSU, 3, delay_ms=500)],
-        3,
-        100,
+    result = latest_arrived_rsu_age_intervals(
+        candidates,
+        target_tau_ms=1000,
+        history_limit=3,
+        delta_t_ms=100,
     )
 
     assert result == 1.0
 
 
-def test_normalized_rsu_delay_is_zero_without_supported_rsu() -> None:
-    unsupported = BranchSelection.unsupported(
-        Agent.RSU,
-        Modality.CAMERA,
-        UnsupportedReason.EMPTY_ARRIVAL_SET,
-        (),
-    )
-
-    assert normalized_selected_rsu_delay([], 3, 100) == 0.0
-    assert (
-        normalized_selected_rsu_delay(
-            [supported_selection(Agent.EGO, 0), unsupported],
-            3,
-            100,
-        )
-        == 0.0
-    )
-
-
-def test_normalized_rsu_delay_ignores_future_unselected_target_packet() -> None:
-    selection = select(
-        Agent.RSU,
+def test_rsu_age_is_zero_without_an_arrived_timestamp_valid_packet() -> None:
+    result = latest_arrived_rsu_age_intervals(
         [
-            candidate(10, arrival_tau_ms=1300),
-            candidate(9, arrival_tau_ms=1000),
+            candidate(10, arrival_tau_ms=1001),
+            candidate(9, arrival_tau_ms=1000, timestamp_valid=False),
         ],
+        target_tau_ms=1000,
+        history_limit=3,
+        delta_t_ms=100,
     )
 
-    assert normalized_selected_rsu_delay([selection], 3, 100) == pytest.approx(
-        1 / 3
-    )
+    assert result == 0.0
+
+
+def test_rsu_age_requires_same_age_for_latest_multimodal_packets() -> None:
+    candidates = [
+        candidate(9, packet_id="lidar:9", arrival_tau_ms=1000),
+        candidate(9, packet_id="camera:9", arrival_tau_ms=950),
+    ]
+
+    assert latest_arrived_rsu_age_intervals(
+        candidates,
+        target_tau_ms=1000,
+        history_limit=3,
+        delta_t_ms=100,
+    ) == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize(
     ("history_limit", "delta_t_ms"),
     [(0, 100), (-1, 100), (3, 0), (3, -100), (True, 100), (3, False)],
 )
-def test_normalized_rsu_delay_rejects_invalid_denominator_inputs(
+def test_rsu_delay_intervals_rejects_invalid_denominator_inputs(
     history_limit: int,
     delta_t_ms: int,
 ) -> None:
     with pytest.raises(ProtocolInvariantError):
-        normalized_selected_rsu_delay([], history_limit, delta_t_ms)
+        latest_arrived_rsu_age_intervals(
+            [],
+            target_tau_ms=1000,
+            history_limit=history_limit,
+            delta_t_ms=delta_t_ms,
+        )
 
 
-def test_normalized_rsu_delay_rejects_negative_selected_delay() -> None:
-    values = vars(candidate(9)).copy()
-    values["arrival_tau_ms"] = 899
-    source = SourceCandidate(**values)
-    selection = BranchSelection(
-        agent=Agent.RSU,
-        modality=Modality.LIDAR,
-        supported=True,
-        source=source,
-        horizon=1,
-        observed=False,
-        propagated=True,
-        rejected=(),
-        reason=None,
-    )
+def test_rsu_age_rejects_arrival_before_source_time() -> None:
+    with pytest.raises(ProtocolInvariantError, match="precede"):
+        latest_arrived_rsu_age_intervals(
+            [candidate(9, arrival_tau_ms=899)],
+            target_tau_ms=1000,
+            history_limit=3,
+            delta_t_ms=100,
+        )
 
-    with pytest.raises(ProtocolInvariantError, match="negative"):
-        normalized_selected_rsu_delay([selection], 3, 100)
+
+def test_rsu_age_rejects_inconsistent_timestamp_marked_valid() -> None:
+    values = vars(candidate(9, arrival_tau_ms=1000)).copy()
+    values["tau_s_ms"] = 850
+    malformed = SourceCandidate(**values)
+
+    with pytest.raises(ProtocolInvariantError, match="timestamp"):
+        latest_arrived_rsu_age_intervals(
+            [malformed],
+            target_tau_ms=1000,
+            history_limit=3,
+            delta_t_ms=100,
+        )

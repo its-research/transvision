@@ -83,8 +83,8 @@ def test_core_import_does_not_import_custom_ops() -> None:
 
 def test_constraints_pin_every_approved_runtime_package() -> None:
     expected = {
-        "torch": "2.0.1",
-        "torchvision": "0.15.2",
+        "torch": "2.0.1+cu118",
+        "torchvision": "0.15.2+cu118",
         "numpy": "1.24.4",
         "mmengine": "0.10.7",
         "mmcv": "2.1.0",
@@ -109,8 +109,8 @@ def test_constraints_pin_every_approved_runtime_package() -> None:
 
 def test_environment_and_dev_inputs_have_exact_pins_and_parse_with_conda_lock() -> None:
     expected_environment_pip = {
-        "torch": "2.0.1",
-        "torchvision": "0.15.2",
+        "torch": "2.0.1+cu118",
+        "torchvision": "0.15.2+cu118",
         "numpy": "1.24.4",
         "mmengine": "0.10.7",
         "mmcv": "2.1.0",
@@ -125,13 +125,44 @@ def test_environment_and_dev_inputs_have_exact_pins_and_parse_with_conda_lock() 
         "conda-lock": "2.5.7",
     }
     environment = yaml.safe_load(ENVIRONMENT.read_text())
-    environment_pip = {
-        name: version
+    expected_direct_requirements = {
+        "torch": (
+            "https://download-r2.pytorch.org/whl/cu118/"
+            "torch-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl"
+            "#sha256=a7a49d459bf4862f64f7bc1a68beccf8881c2fa9f3e0569608e16ba6f85ebf7b"
+        ),
+        "torchvision": (
+            "https://download-r2.pytorch.org/whl/cu118/"
+            "torchvision-0.15.2%2Bcu118-cp310-cp310-linux_x86_64.whl"
+            "#sha256=19ca4ab5d6179bbe53cff79df1a855ee6533c2861ddc7389f68349d8b9f8302a"
+        ),
+        "mmcv": (
+            "https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/"
+            "mmcv-2.1.0-cp310-cp310-manylinux1_x86_64.whl"
+            "#sha256=169c5b79bc689cefa8bfdfac9cbaabcef5f00792b418506b583c27b937c9e8f1"
+        ),
+    }
+    environment_pip_lines = [
+        line
         for entry in environment["dependencies"]
         if isinstance(entry, dict)
         for line in entry["pip"]
+    ]
+    direct_requirements = {
+        name: url
+        for line in environment_pip_lines
+        if " @ " in line
+        for name, url in [line.split(" @ ", maxsplit=1)]
+    }
+    environment_pip = {
+        name: version
+        for line in environment_pip_lines
+        if "==" in line
         for name, version in [line.split("==", maxsplit=1)]
     }
+    environment_pip.update(
+        {name: expected_environment_pip[name] for name in direct_requirements}
+    )
     dev_pins = {
         name: version
         for line in DEV_REQUIREMENTS.read_text().splitlines()
@@ -149,11 +180,16 @@ def test_environment_and_dev_inputs_have_exact_pins_and_parse_with_conda_lock() 
         "for dependency in specification.dependencies['linux-64'])"
     )
 
-    assert environment["channels"] == ["pytorch", "nvidia", "conda-forge"]
+    assert environment["channels"] == [
+        "pytorch",
+        "nvidia/label/cuda-11.8.0",
+        "conda-forge",
+    ]
     assert "python=3.10.14" in environment["dependencies"]
     assert "cuda=11.8.0" in environment["dependencies"]
     assert "cuda-toolkit=11.8.0" in environment["dependencies"]
     assert environment_pip == expected_environment_pip
+    assert direct_requirements == expected_direct_requirements
     assert dev_pins == {
         "pip": "23.3.2",
         "setuptools": "68.2.2",

@@ -67,14 +67,20 @@ def supported(
     agent: Agent,
     modality: Modality,
     horizon: int,
+    *,
+    endpoint_tick: int | None = None,
 ) -> BranchSelection:
-    observed = agent is Agent.EGO and horizon == 0
+    source = make_source(horizon)
+    if endpoint_tick is None:
+        endpoint_tick = 10
+    observed = source.n_s == endpoint_tick
     return BranchSelection(
         agent=agent,
         modality=modality,
         supported=True,
-        source=make_source(horizon),
+        source=source,
         horizon=horizon,
+        endpoint_tick=endpoint_tick,
         observed=observed,
         propagated=not observed,
         rejected=(),
@@ -296,8 +302,8 @@ def test_observed_and_propagated_arithmetic_is_exact() -> None:
         (0.9**3) * output.confidence[1].mean().item()
     )
     torch.testing.assert_close(
-        output.normalized_age,
-        torch.tensor([0.0, 1.0]),
+        output.age_intervals,
+        torch.tensor([0.0, 3.0]),
     )
     assert output.support.tolist() == [True, True]
     assert output.observed.tolist() == [True, False]
@@ -340,8 +346,8 @@ def test_mixed_horizons_preserve_order_and_use_one_vectorized_query() -> None:
         rtol=0,
     )
     torch.testing.assert_close(
-        output.normalized_age,
-        torch.tensor([0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 0.0]),
+        output.age_intervals,
+        torch.tensor([0.0, 1.0, 2.0, 3.0, 0.0]),
     )
     assert output.support.tolist() == [True, True, True, True, False]
     assert torch.count_nonzero(output.feature[4]).item() == 0
@@ -353,18 +359,18 @@ def test_mixed_horizons_preserve_order_and_use_one_vectorized_query() -> None:
     assert output.diagnostics[4].confidence is None
 
 
-def test_rsu_zero_horizon_is_propagated_and_uses_confidence() -> None:
+def test_rsu_endpoint_is_observed_but_still_uses_confidence() -> None:
     output = run_repair(
         make_repair(),
         SpyPTF(confidence_value=0.4),
         base_inputs((supported(Agent.RSU, Modality.LIDAR, 0),)),
     )
 
-    assert output.observed.tolist() == [False]
-    assert output.propagated.tolist() == [True]
+    assert output.observed.tolist() == [True]
+    assert output.propagated.tolist() == [False]
     torch.testing.assert_close(output.reliability, torch.tensor([0.4]))
-    assert output.diagnostics[0].observed is False
-    assert output.diagnostics[0].propagated is True
+    assert output.diagnostics[0].observed is True
+    assert output.diagnostics[0].propagated is False
 
 
 def test_all_unsupported_short_circuits_every_numeric_poison() -> None:
@@ -393,7 +399,7 @@ def test_all_unsupported_short_circuits_every_numeric_poison() -> None:
     assert spy.query_count == 0
     assert torch.count_nonzero(output.feature).item() == 0
     assert torch.count_nonzero(output.reliability).item() == 0
-    assert torch.count_nonzero(output.normalized_age).item() == 0
+    assert torch.count_nonzero(output.age_intervals).item() == 0
     assert output.support.tolist() == [False, False]
     assert output.observed.tolist() == [False, False]
     assert output.propagated.tolist() == [False, False]
@@ -678,29 +684,21 @@ def test_supported_horizon_must_be_exact_integer_range(
 
 
 @pytest.mark.parametrize(
-    "selection",
+    ("selection", "observed", "propagated"),
     [
-        replace(
-            supported(Agent.EGO, Modality.LIDAR, 0),
-            observed=False,
-            propagated=True,
-        ),
-        replace(
-            supported(Agent.EGO, Modality.LIDAR, 1),
-            observed=True,
-            propagated=False,
-        ),
-        replace(
-            supported(Agent.RSU, Modality.LIDAR, 0),
-            observed=True,
-            propagated=False,
-        ),
+        (supported(Agent.EGO, Modality.LIDAR, 0), False, True),
+        (supported(Agent.EGO, Modality.LIDAR, 1), True, False),
+        (supported(Agent.RSU, Modality.LIDAR, 0), False, True),
     ],
-    ids=["ego-zero-propagated", "ego-history-observed", "rsu-zero-observed"],
+    ids=["ego-zero-propagated", "ego-history-observed", "rsu-zero-propagated"],
 )
 def test_observed_and_propagated_semantics_are_enforced(
     selection: BranchSelection,
+    observed: bool,
+    propagated: bool,
 ) -> None:
+    object.__setattr__(selection, "observed", observed)
+    object.__setattr__(selection, "propagated", propagated)
     with pytest.raises(ProtocolInvariantError, match="observed|propagated"):
         run_repair(
             make_repair(),
