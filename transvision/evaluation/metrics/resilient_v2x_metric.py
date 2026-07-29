@@ -31,6 +31,12 @@ def _box_tensor(value):
     return value.tensor if hasattr(value, "tensor") else value
 
 
+def _field(value: object, name: str, default: object = None) -> object:
+    if isinstance(value, Mapping):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
 def _plain_diagnostic(value: object) -> dict[str, object] | None:
     branches = getattr(value, "branches", None)
     routing = getattr(value, "routing", None)
@@ -109,24 +115,34 @@ class ResilientV2XMetric(BaseMetric):
 
     def process(self, data_batch: object, data_samples: Sequence[object]) -> None:
         for data_sample in data_samples:
-            metainfo = getattr(data_sample, "metainfo", {})
+            metainfo = _field(
+                data_sample,
+                "metainfo",
+                data_sample if isinstance(data_sample, Mapping) else {},
+            )
             if not isinstance(metainfo, Mapping):
                 raise ValueError("data sample metainfo must be a mapping")
             sample_id = metainfo.get("sample_id", metainfo.get("sample_idx"))
-            predictions = getattr(data_sample, "pred_instances_3d", None)
-            targets = getattr(data_sample, "gt_instances_3d", None)
+            predictions = _field(data_sample, "pred_instances_3d")
+            targets = _field(data_sample, "gt_instances_3d")
             if predictions is None or targets is None:
                 raise ValueError("prediction and ground truth instances are required")
-            predicted_boxes = _box_tensor(predictions.bboxes_3d)
-            target_boxes = _box_tensor(targets.bboxes_3d)
+            predicted_boxes = _box_tensor(_field(predictions, "bboxes_3d"))
+            target_boxes = _box_tensor(_field(targets, "bboxes_3d"))
             self.results.append(
                 {
                     "sample_id": sample_id,
                     "predicted_boxes": _numpy(predicted_boxes),
-                    "predicted_scores": _numpy(predictions.scores_3d),
-                    "predicted_labels": _numpy(predictions.labels_3d),
+                    "predicted_scores": _numpy(
+                        _field(predictions, "scores_3d")
+                    ),
+                    "predicted_labels": _numpy(
+                        _field(predictions, "labels_3d")
+                    ),
                     "ground_truth_boxes": _numpy(target_boxes),
-                    "ground_truth_labels": _numpy(targets.labels_3d),
+                    "ground_truth_labels": _numpy(
+                        _field(targets, "labels_3d")
+                    ),
                     "diagnostic": _plain_diagnostic(
                         metainfo.get("resilient_v2x_diagnostics")
                     ),
