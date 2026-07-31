@@ -65,6 +65,19 @@ def _autocast_feature_output(value: Tensor) -> Tensor:
     return value
 
 
+def _initialize_nested_modules(modules: Sequence[nn.Module | None]) -> None:
+    """Propagate MMEngine initialization through shared nn.Module wrappers."""
+
+    seen: set[int] = set()
+    for module in modules:
+        if module is None or id(module) in seen:
+            continue
+        seen.add(id(module))
+        initializer = getattr(module, "init_weights", None)
+        if callable(initializer) and not bool(getattr(module, "is_init", False)):
+            initializer()
+
+
 @MODELS.register_module()
 class SharedPointPillarsBEVEncoder(nn.Module):
     """One shared PointPillars/SECOND encoder for every agent and tick."""
@@ -101,6 +114,17 @@ class SharedPointPillarsBEVEncoder(nn.Module):
             raise ValueError("middle_encoder, backbone, and neck are required")
         self.output_height = output_height
         self.output_width = output_width
+
+    def init_weights(self) -> None:
+        _initialize_nested_modules(
+            (
+                self.voxel_encoder,
+                self.middle_encoder,
+                self.backbone,
+                self.neck,
+                self.output_projection,
+            )
+        )
 
     @torch.no_grad()
     def _voxelize(
@@ -214,6 +238,18 @@ class SharedResNetLSSBEVEncoder(nn.Module):
         self.output_height = output_height
         self.output_width = output_width
         self.view_transform_output_order = view_transform_output_order
+
+    def init_weights(self) -> None:
+        _initialize_nested_modules(
+            (
+                self.image_backbone,
+                self.image_neck,
+                self.view_transform,
+                self.bev_backbone,
+                self.bev_neck,
+                self.output_projection,
+            )
+        )
 
     def forward(
         self,

@@ -54,7 +54,7 @@ def test_reproduction_uses_real_cli_entrypoints_and_required_protocol_flags() ->
         "--protocol-scope controlled",
         "--delta-t-ms 100",
         "--history-limit 3",
-        "--max-capture-skew-ms 200",
+        "--max-capture-skew-ms 75",
         "--split val",
         "--max-delay-ms 300",
         "--max-duration 1",

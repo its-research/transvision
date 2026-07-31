@@ -86,22 +86,22 @@ python tools/resilient_v2x/prepare_data.py \
   --split-file "$DAIR_SPLIT" \
   --expected-split-sha256 "$SPLIT_SHA256" \
   --protocol-scope controlled \
-  --output "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+  --output "$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json" \
   --delta-t-ms 100 \
   --history-limit 3 \
   --interval-min-ms 50 \
   --interval-max-ms 150 \
-  --max-capture-skew-ms 200
+  --max-capture-skew-ms 75
 ```
 
-`controlled` 模式会拒绝其他 split 哈希或协议数值。公开的带标注 cooperative release 只覆盖官方 train/validation，因此 manifest 不要求未发布 GT 的 test 样本；论文结果也只从 validation 报告。命令验证原始 release inventory、标定、时间戳和文件哈希，将验证后的 PCD 转成 `prepared/resilient_v2x/.../*.bin`，并发布自哈希的时间 manifest。`--protocol-scope fixture` 只供测试，不能产生论文证据。
+`controlled` 模式会拒绝其他 split 哈希或协议数值。公开的带标注 cooperative release 只覆盖官方 train/validation，因此 manifest 不要求未发布 GT 的 test 样本；论文结果也只从 validation 报告。命令验证原始 release inventory、标定、时间戳和文件哈希，将验证后的 PCD 转成 `prepared/resilient_v2x_v2/.../*.bin`，把整型强度按 PCD `TYPE/SIZE` 映射到 `[0,1]`，并发布自哈希的时间 manifest。v2 路径不会覆盖旧的 prepared 数据。`--protocol-scope fixture` 只供测试，不能产生论文证据。
 
 split 归属按 vehicle frame ID 查询；manifest 的 pair 身份使用
 `dairc-v{vehicle_frame_id}-i{infrastructure_frame_id}`。当前官方元数据中同一
 vehicle target 的 16 个重复配对变体全部保留，并按 LiDAR 时间差、RSU 时间
 和 RSU ID 确定性分入相互隔离的 sequence lane，不做静默去重。
 
-这里的 200 ms 是官方 multimodal pair 的四路 capture-time compatibility envelope，不是同步精度，也不计入通信延迟。`n×100 ms` 是 transport/fault 使用的逻辑协议网格；四路真实 `capture_timestamp_us` 独立保留。官方 release 中 Ego camera 相对 Ego LiDAR 存在约一帧的固定 phase，因此不能用 50 ms all-four skew 拒绝样本。
+官方 release 中同一 record 的 Ego camera 相对 Ego LiDAR 晚约一帧。准备器因此把 record `t-1` 的 Ego camera 因果重标到逻辑 tick `t`，并采用 tick `t` 的 Ego-LiDAR 位姿作为最近位姿近似。source 起点以及非 camera cadence 缺口后的新 sequence 首 tick 只包含其余三路，下一 tick 恢复相机；若仅 camera cadence 断开而当前相机仍通过 75 ms 对齐检查，则新 sequence 可保留该当前相机。RSU camera 保持当前 record 不变。75 ms 是重相位后的真实 capture-time compatibility envelope，不是通信延迟；`n×100 ms` 才是 transport/fault 使用的逻辑协议网格。所有真实 `capture_timestamp_us` 仍独立保留。
 
 官方 infrastructure `virtuallidar_to_camera` 是可逆 affine 标定而非严格刚体
 旋转。manifest 原样保留其数值供 LSS 投影使用，并强制有限、齐次、正定向及
@@ -116,7 +116,7 @@ vehicle target 的 16 个重复配对变体全部保留，并按 LiDAR 时间差
 
 ```bash
 python tools/resilient_v2x/build_overlays.py cohort \
-  "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+  "$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json" \
   --expected-split-sha256 "$SPLIT_SHA256" \
   --split val \
   --max-delay-ms 300 \
@@ -132,7 +132,7 @@ python tools/resilient_v2x/build_overlays.py cohort \
 
 ```bash
 python tools/resilient_v2x/build_overlays.py train \
-  "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+  "$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json" \
   --expected-split-sha256 "$SPLIT_SHA256" \
   --protocol-seed 20250218 \
   --epochs $(python -c 'print(*range(50))') \
@@ -149,7 +149,7 @@ python tools/resilient_v2x/build_overlays.py train \
 
 ```bash
 python tools/resilient_v2x/build_overlays.py evaluation \
-  "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+  "$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json" \
   --expected-split-sha256 "$SPLIT_SHA256" \
   --cohort "$DAIR_ARTIFACT_ROOT/validation_cohort.json" \
   --delays 0 100 200 300 \
@@ -182,7 +182,7 @@ observed RSU 仍使用 `gamma × trajectory confidence`，只有真正当前 Ego
 
 ```bash
 python tools/resilient_v2x/build_overlays.py cohort \
-  "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+  "$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json" \
   --expected-split-sha256 "$SPLIT_SHA256" \
   --split val \
   --max-delay-ms 0 \
@@ -195,7 +195,7 @@ python tools/resilient_v2x/build_overlays.py cohort \
 ```bash
 for duration in 2 3 4; do
   python tools/resilient_v2x/build_overlays.py evaluation \
-    "$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+    "$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json" \
     --expected-split-sha256 "$SPLIT_SHA256" \
     --cohort "$DAIR_ARTIFACT_ROOT/validation_duration_cohort.json" \
     --delays 0 \
@@ -220,8 +220,20 @@ done
 
 ```bash
 export RESILIENT_V2X_DATA_ROOT="$DAIR_ROOT"
-export RESILIENT_V2X_MANIFEST="$DAIR_ARTIFACT_ROOT/temporal_manifest.json"
+export RESILIENT_V2X_MANIFEST="$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json"
 export RESILIENT_V2X_SPLIT_SHA256="$SPLIT_SHA256"
+```
+
+Camera backbone 使用官方 PyTorch ResNet-50 ImageNet 权重，并冻结其 BatchNorm
+统计。权重不进入 Git；首次运行先下载并核验固定摘要：
+
+```bash
+mkdir -p models
+curl --fail --location \
+  https://download.pytorch.org/models/resnet50-0676ba61.pth \
+  --output models/resnet50-0676ba61.pth
+echo "0676ba61b6795bbe1773cffd859882e5e297624d384b6993f7c9e683e722fb8a  models/resnet50-0676ba61.pth" | sha256sum --check
+export RESILIENT_V2X_RESNET50_CHECKPOINT="$(pwd)/models/resnet50-0676ba61.pth"
 ```
 
 训练 overlay 必须成对提供路径和摘要：
@@ -270,6 +282,11 @@ python tools/train.py \
 ```
 
 clean teacher 配置显式关闭 teacher、distillation 和训练 overlay，训练输入为零延迟、无注入故障。根据预先声明的 checkpoint 选择规则选择一个真实 checkpoint，并记录摘要：
+
+当前受控环境使用 PyTorch 2.0.1 + CUDA 11.8。该组合在 mmdet3d
+`Anchor3DHead` target assignment 的确定性 CUDA 高级索引路径会触发内部断言；
+因此配置固定全部 RNG 与 sampler seed，但显式设置 `deterministic=False`。这一
+implementation choice 会进入保存的 config 和环境证据，不能静默改回或宣称位级确定性。
 
 ```bash
 export RESILIENT_V2X_TEACHER_CHECKPOINT="$(pwd)/work_dirs/resilient_v2x_dair_clean_teacher/teacher_epoch_50.pth"
@@ -356,7 +373,7 @@ python tools/resilient_v2x/profile.py \
   --iterations 100 \
   --strict-checkpoint \
   --artifact environment_manifest="$EVIDENCE_ROOT/environment.json" \
-  --artifact temporal_manifest="$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+  --artifact temporal_manifest="$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json" \
   --artifact evaluation_overlays="$DAIR_ARTIFACT_ROOT/evaluation_overlays.json" \
   --artifact evaluation_cohort="$DAIR_ARTIFACT_ROOT/validation_cohort.json" \
   --artifact transport_overlay="$RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_OVERLAY" \
@@ -384,7 +401,7 @@ python tools/resilient_v2x/build_evidence.py \
   --predictions "$RUN_DIR/predictions.json" \
   --conditions "$DAIR_ARTIFACT_ROOT/evaluation_overlays.json" \
   --artifact environment_manifest="$EVIDENCE_ROOT/environment.json" \
-  --artifact temporal_manifest="$DAIR_ARTIFACT_ROOT/temporal_manifest.json" \
+  --artifact temporal_manifest="$DAIR_ARTIFACT_ROOT/temporal_manifest_v2.json" \
   --artifact cohort="$DAIR_ARTIFACT_ROOT/validation_cohort.json" \
   --artifact evaluation_overlays="$DAIR_ARTIFACT_ROOT/evaluation_overlays.json" \
   --artifact transport_overlay="$RESILIENT_V2X_TEST_TRANSPORT_DELAY_300_OVERLAY" \

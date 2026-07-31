@@ -12,7 +12,7 @@ data_root = __import__("os").getenv(
 )
 manifest_path = __import__("os").getenv(
     "RESILIENT_V2X_MANIFEST",
-    "artifacts/resilient_v2x/dair/temporal_manifest.json",
+    "artifacts/resilient_v2x/dair/temporal_manifest_v2.json",
 )
 expected_split_hash = __import__("os").getenv("RESILIENT_V2X_SPLIT_SHA256") or None
 
@@ -38,7 +38,8 @@ implementation_choices_dataset = dict(
     camera_image_size=(256, 704),
     global_seed=20250218,
     controlled_manifest_splits=("train", "val"),
-    max_capture_skew_ms=200,
+    max_capture_skew_ms=75,
+    prepared_dataset_version="resilient_v2x_v2",
     pair_identity="dairc-v{vehicle_frame_id}-i{infrastructure_frame_id}",
     duplicate_target_policy="preserve all pairs in deterministic sequence lanes",
     training_transport_overlay=(
@@ -67,6 +68,7 @@ common_dataset = dict(
     load_camera=True,
     load_lidar=True,
     camera_image_size=(256, 704),
+    point_cloud_range=evaluation_point_cloud_range,
 )
 
 train_dataloader = dict(

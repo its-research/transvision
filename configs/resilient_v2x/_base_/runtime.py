@@ -14,7 +14,7 @@ default_hooks = dict(
         type="CheckpointHook",
         interval=1,
         max_keep_ckpts=5,
-        save_best="resilient_v2x/car_3d_ap_r40_0.70",
+        save_best="resilient_v2x/car_bev_ap_r40_0.70",
         rule="greater",
     ),
     sampler_seed=dict(type="DistSamplerSeedHook"),
@@ -31,7 +31,7 @@ env_cfg = dict(
     mp_cfg=dict(mp_start_method="fork", opencv_num_threads=0),
     dist_cfg=dict(backend="nccl"),
 )
-randomness = dict(seed=20250218, deterministic=True, diff_rank_seed=False)
+randomness = dict(seed=20250218, deterministic=False, diff_rank_seed=False)
 
 vis_backends = [dict(type="LocalVisBackend")]
 visualizer = dict(
@@ -83,4 +83,9 @@ implementation_choices_runtime = dict(
     warmup_iterations=500,
     gradient_clip_norm=35,
     single_gpu_reference_batch_size=1,
+    deterministic_cuda=False,
+    deterministic_cuda_reason=(
+        "PyTorch 2.0.1 CUDA deterministic advanced indexing fails inside "
+        "mmdet3d Anchor3DHead target assignment; sampler and RNG seeds remain fixed"
+    ),
 )

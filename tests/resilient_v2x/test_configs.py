@@ -127,6 +127,9 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert isinstance(lidar, dict)
     assert lidar["type"] == "SharedPointPillarsBEVEncoder"
     assert lidar["voxel_encoder"]["type"] == "PillarFeatureNet"
+    assert lidar["voxel_encoder"]["norm_cfg"]["type"] == "GN"
+    assert lidar["backbone"]["norm_cfg"]["type"] == "GN"
+    assert lidar["neck"]["norm_cfg"]["type"] == "GN"
     assert lidar["middle_encoder"] == {
         "type": "PointPillarsScatter",
         "in_channels": 64,
@@ -140,6 +143,17 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert camera["type"] == "SharedResNetLSSBEVEncoder"
     assert camera["image_backbone"]["depth"] == 50
     assert camera["image_backbone"]["out_indices"] == (1, 2, 3)
+    assert camera["image_backbone"]["frozen_stages"] == 1
+    assert camera["image_backbone"]["norm_eval"] is True
+    assert camera["image_backbone"]["norm_cfg"] == {
+        "type": "BN",
+        "requires_grad": False,
+    }
+    assert camera["image_backbone"]["init_cfg"] == {
+        "type": "Pretrained",
+        "checkpoint": ("https://download.pytorch.org/models/resnet50-0676ba61.pth"),
+    }
+    assert camera["image_neck"]["norm_cfg"]["type"] == "GN"
     assert camera["view_transform"]["type"] == "LSSTransform"
     assert camera["view_transform"]["out_channels"] == 256
     assert camera["view_transform"]["xbound"] == (0.0, 80.0, 0.8)
@@ -179,7 +193,7 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     }
 
 
-def test_dataset_and_runtime_are_strict_deterministic_and_runner_compatible() -> None:
+def test_dataset_and_runtime_are_seeded_and_runner_compatible() -> None:
     config = _load_config(MAIN)
     expected_dataset_keys = {
         "type",
@@ -191,6 +205,7 @@ def test_dataset_and_runtime_are_strict_deterministic_and_runner_compatible() ->
         "load_camera",
         "load_lidar",
         "camera_image_size",
+        "point_cloud_range",
         "split",
         "include_clean_teacher",
         "transport_overlay_path",
@@ -212,6 +227,14 @@ def test_dataset_and_runtime_are_strict_deterministic_and_runner_compatible() ->
         assert dataset["allow_fixture"] is False
         assert dataset["load_camera"] is dataset["load_lidar"] is True
         assert dataset["camera_image_size"] == (256, 704)
+        assert dataset["point_cloud_range"] == [
+            0.0,
+            -40.0,
+            -3.0,
+            80.0,
+            40.0,
+            1.0,
+        ]
     train = _dataset(config, "train")
     assert train["include_clean_teacher"] is True
     assert isinstance(train["transport_overlay_path"], str)
@@ -223,13 +246,13 @@ def test_dataset_and_runtime_are_strict_deterministic_and_runner_compatible() ->
 
     assert config["randomness"] == {
         "seed": 20250218,
-        "deterministic": True,
+        "deterministic": False,
         "diff_rank_seed": False,
     }
     assert config["env_cfg"]["cudnn_benchmark"] is False
     assert config["train_cfg"]["max_epochs"] == 50
     assert config["default_hooks"]["checkpoint"]["save_best"] == (
-        "resilient_v2x/car_3d_ap_r40_0.70"
+        "resilient_v2x/car_bev_ap_r40_0.70"
     )
     assert config["optim_wrapper"]["optimizer"] == {
         "type": "AdamW",
@@ -365,10 +388,14 @@ def test_unreported_values_are_labeled_and_no_digest_is_fabricated() -> None:
 
     dataset_choices = config["implementation_choices_dataset"]
     assert dataset_choices["controlled_manifest_splits"] == ("train", "val")
-    assert dataset_choices["max_capture_skew_ms"] == 200
+    assert dataset_choices["max_capture_skew_ms"] == 75
+    assert dataset_choices["prepared_dataset_version"] == "resilient_v2x_v2"
     assert dataset_choices["pair_identity"] == (
         "dairc-v{vehicle_frame_id}-i{infrastructure_frame_id}"
     )
+    runtime_choices = config["implementation_choices_runtime"]
+    assert runtime_choices["deterministic_cuda"] is False
+    assert "Anchor3DHead" in runtime_choices["deterministic_cuda_reason"]
 
     for path in CONFIG_ROOT.rglob("*.py"):
         text = path.read_text()

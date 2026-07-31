@@ -51,15 +51,16 @@ def _pcd_bytes(
     *,
     encoding: Encoding,
     extra_field: bool = False,
+    intensity_type: type[np.generic] = np.float32,
 ) -> bytes:
     if extra_field:
         values = np.column_stack([points[:, 0], np.arange(len(points)), points[:, 1:]])
         fields = ("x", "ring", "y", "z", "intensity")
-        types = (np.float32, np.uint16, np.float32, np.float32, np.float32)
+        types = (np.float32, np.uint16, np.float32, np.float32, intensity_type)
     else:
         values = points
         fields = ("x", "y", "z", "intensity")
-        types = (np.float32,) * 4
+        types = (np.float32, np.float32, np.float32, intensity_type)
     cloud = PointCloud.from_points(values, fields, types)
     buffer = io.BytesIO()
     cloud.save(buffer, encoding=encoding)
@@ -152,7 +153,7 @@ def _fixture_kwargs(root: Path, output: Path) -> dict[str, object]:
         "history_limit": 3,
         "interval_min_ms": 50,
         "interval_max_ms": 150,
-        "max_capture_skew_ms": 50,
+        "max_capture_skew_ms": 150,
     }
 
 
@@ -324,6 +325,109 @@ def test_pcd_encodings_preserve_order_and_emit_exact_little_endian_bytes(
     assert prepared.sha256 == hashlib.sha256(expected).hexdigest()
     assert prepared.dtype == "<f4"
     assert prepared.fields == ("x", "y", "z", "intensity")
+
+
+@pytest.mark.parametrize(
+    "encoding",
+    (Encoding.ASCII, Encoding.BINARY, Encoding.BINARY_COMPRESSED),
+)
+def test_pcd_uint8_intensity_is_normalized_from_header_type_and_size(
+    tmp_path: Path,
+    encoding: Encoding,
+) -> None:
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
+    base_points = np.array(
+        (
+            (1.0, 2.0, 3.0, 0.0),
+            (-4.0, 5.5, 6.25, 127.0),
+            (7.0, 8.0, 9.0, 255.0),
+        ),
+        dtype=np.float32,
+    )
+    points = (
+        np.repeat(base_points, 128, axis=0)
+        if encoding == Encoding.BINARY_COMPRESSED
+        else base_points
+    )
+    source = tmp_path / f"uint8-{encoding.value}.pcd"
+    source.write_bytes(
+        _pcd_bytes(
+            points,
+            encoding=encoding,
+            intensity_type=np.uint8,
+        )
+    )
+    destination = tmp_path / f"uint8-{encoding.value}.bin"
+
+    pcd_module.convert_pcd_to_bin(source, destination)
+
+    expected = np.asarray(points, dtype="<f4").copy()
+    expected[:, 3] = expected[:, 3] / 255.0
+    assert destination.read_bytes() == expected.tobytes(order="C")
+
+
+@pytest.mark.parametrize(
+    ("intensity_type", "intensity_size", "value", "message"),
+    (
+        ("F", 4, "-0.01", r"\[0, 1\]"),
+        ("F", 4, "1.01", r"\[0, 1\]"),
+        ("F", 4, "nan", "finite"),
+        ("U", 1, "-1", "TYPE/SIZE range"),
+        ("U", 1, "256", "TYPE/SIZE range"),
+        ("I", 1, "-1", "TYPE/SIZE range"),
+        ("I", 1, "128", "TYPE/SIZE range"),
+    ),
+)
+def test_pcd_rejects_uninterpretable_ascii_intensity(
+    tmp_path: Path,
+    intensity_type: str,
+    intensity_size: int,
+    value: str,
+    message: str,
+) -> None:
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
+    source = tmp_path / "invalid-intensity.pcd"
+    source.write_text(
+        "\n".join(
+            (
+                "VERSION 0.7",
+                "FIELDS x y z intensity",
+                f"SIZE 4 4 4 {intensity_size}",
+                f"TYPE F F F {intensity_type}",
+                "COUNT 1 1 1 1",
+                "WIDTH 1",
+                "HEIGHT 1",
+                "POINTS 1",
+                "DATA ascii",
+                f"1 2 3 {value}",
+            )
+        )
+    )
+    destination = tmp_path / "invalid-intensity.bin"
+
+    with pytest.raises(ValueError, match=message):
+        pcd_module.convert_pcd_to_bin(source, destination)
+
+    assert not destination.exists()
+
+
+def test_pcd_rejects_negative_binary_integer_intensity(tmp_path: Path) -> None:
+    pcd_module = importlib.import_module("transvision.dataset.resilient_v2x_pcd")
+    points = np.array(((1.0, 2.0, 3.0, -1.0),), dtype=np.float32)
+    source = tmp_path / "negative-intensity.pcd"
+    source.write_bytes(
+        _pcd_bytes(
+            points,
+            encoding=Encoding.BINARY,
+            intensity_type=np.int8,
+        )
+    )
+    destination = tmp_path / "negative-intensity.bin"
+
+    with pytest.raises(ValueError, match="TYPE/SIZE range"):
+        pcd_module.convert_pcd_to_bin(source, destination)
+
+    assert not destination.exists()
 
 
 def test_pcd_accepts_only_canonical_pcl_zero_padding(tmp_path: Path) -> None:
@@ -571,7 +675,7 @@ def test_pcd_rejects_source_with_symlinked_ancestor(
 
 @pytest.mark.parametrize(
     "linked_relative",
-    ("prepared", "prepared/resilient_v2x"),
+    ("prepared", "prepared/resilient_v2x_v2"),
 )
 def test_prepare_rejects_symlinked_prepared_ancestor(
     tmp_path: Path,
@@ -775,6 +879,46 @@ def test_protocol_sequences_build_exact_history_and_stable_identifiers() -> None
     assert samples[-1].ground_truth[0].x == 10.0
 
 
+def test_protocol_sequences_allow_only_initial_ego_camera_to_be_sparse() -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    first = _normalized_record(
+        0,
+        (1_000_000, 1_010_000, 1_020_000, 1_030_000),
+    )
+    first["slices"].pop(2)  # type: ignore[union-attr]
+    second = _normalized_record(
+        1,
+        (1_100_000, 1_110_000, 1_020_000, 1_130_000),
+    )
+
+    samples, boundaries = module.build_protocol_sequences(
+        [first, second], 100, 3, 50, 150, 150
+    )
+
+    assert boundaries == []
+    assert [len(sample.source_slices) for sample in samples] == [3, 7]
+    assert [(source.agent, source.modality) for source in samples[0].source_slices] == [
+        ("ego", "lidar"),
+        ("rsu", "lidar"),
+        ("rsu", "camera"),
+    ]
+
+    for record_index, branch_index in ((0, 0), (0, 1), (1, 2)):
+        records = [
+            _normalized_record(
+                0,
+                (1_000_000, 1_010_000, 1_020_000, 1_030_000),
+            ),
+            _normalized_record(
+                1,
+                (1_100_000, 1_110_000, 1_120_000, 1_130_000),
+            ),
+        ]
+        records[record_index]["slices"].pop(branch_index)  # type: ignore[union-attr]
+        with pytest.raises(ValueError, match="grid|first source tick"):
+            module.build_protocol_sequences(records, 100, 3, 50, 150, 150)
+
+
 @pytest.mark.parametrize(
     ("interval_us", "splits"),
     ((49_999, 1), (50_000, 0), (150_000, 0), (150_001, 1)),
@@ -799,7 +943,7 @@ def test_protocol_interval_boundaries_are_exact_microseconds(
 
     assert len(boundaries) == splits
     assert samples[-1].n_t == (0 if splits else 1)
-    assert len(samples[-1].source_slices) == (4 if splits else 8)
+    assert len(samples[-1].source_slices) == (3 if splits else 8)
 
 
 @pytest.mark.parametrize("branch_index", range(4))
@@ -813,7 +957,10 @@ def test_protocol_rejects_nonincreasing_each_stream_without_reordering(
     second = [value + 100_000 for value in first]
     second[branch_index] = first[branch_index] + delta_us
 
-    with pytest.raises(ValueError, match="strictly increasing"):
+    message = (
+        "rephase interval discontinuity" if branch_index == 2 else "strictly increasing"
+    )
+    with pytest.raises(ValueError, match=message):
         module.build_protocol_sequences(
             [
                 _normalized_record(0, tuple(first)),
@@ -866,10 +1013,116 @@ def test_protocol_merges_interval_triggers_in_branch_order() -> None:
     assert len(boundaries) == 1
     assert [
         (trigger["agent"], trigger["modality"]) for trigger in boundaries[0]["triggers"]
-    ] == list(BRANCH_ORDER)
+    ] == [
+        ("ego", "lidar"),
+        ("rsu", "lidar"),
+        ("rsu", "camera"),
+    ]
     assert {trigger["interval_us"] for trigger in boundaries[0]["triggers"]} == {
         150_001
     }
+
+
+def test_protocol_gap_boundary_drops_cross_gap_camera_then_recovers() -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    records = [
+        _normalized_record(0, (1_000_000, 1_010_000, 1_020_000, 1_030_000)),
+        _normalized_record(1, (1_100_000, 1_110_000, 1_060_000, 1_130_000)),
+        _normalized_record(2, (1_300_000, 1_310_000, 1_160_000, 1_330_000)),
+        _normalized_record(3, (1_400_000, 1_410_000, 1_360_000, 1_430_000)),
+    ]
+    records[0]["slices"].pop(2)  # type: ignore[union-attr]
+
+    samples, boundaries = module.build_protocol_sequences(
+        records,
+        delta_t_ms=100,
+        history_limit=3,
+        interval_min_ms=50,
+        interval_max_ms=150,
+        max_capture_skew_ms=75,
+    )
+
+    assert [sample.n_t for sample in samples] == [0, 1, 0, 1]
+    assert [len(sample.source_slices) for sample in samples] == [3, 7, 3, 7]
+    assert len(boundaries) == 1
+    assert boundaries[0]["previous_sample_id"] == "000001"
+    assert boundaries[0]["current_sample_id"] == "000002"
+    assert [
+        (trigger["agent"], trigger["modality"]) for trigger in boundaries[0]["triggers"]
+    ] == [
+        ("ego", "lidar"),
+        ("rsu", "lidar"),
+        ("rsu", "camera"),
+    ]
+    assert {trigger["interval_us"] for trigger in boundaries[0]["triggers"]} == {
+        200_000
+    }
+    assert not any(
+        (source.agent, source.modality) == ("ego", "camera")
+        for source in samples[2].source_slices
+    )
+    restored_camera = next(
+        source
+        for source in samples[3].source_slices
+        if source.n_s == 1 and (source.agent, source.modality) == ("ego", "camera")
+    )
+    assert restored_camera.capture_timestamp_us == 1_360_000
+
+
+def test_protocol_camera_only_cadence_boundary_keeps_aligned_camera() -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    records = [
+        _normalized_record(0, (1_000_000, 1_010_000, 1_020_000, 1_030_000)),
+        _normalized_record(1, (1_100_000, 1_110_000, 1_060_000, 1_130_000)),
+        _normalized_record(2, (1_200_000, 1_210_000, 1_260_000, 1_230_000)),
+        _normalized_record(3, (1_300_000, 1_310_000, 1_360_000, 1_330_000)),
+    ]
+    records[0]["slices"].pop(2)  # type: ignore[union-attr]
+
+    samples, boundaries = module.build_protocol_sequences(
+        records,
+        delta_t_ms=100,
+        history_limit=3,
+        interval_min_ms=50,
+        interval_max_ms=150,
+        max_capture_skew_ms=75,
+    )
+
+    assert [sample.n_t for sample in samples] == [0, 1, 0, 1]
+    assert [len(sample.source_slices) for sample in samples] == [3, 7, 4, 8]
+    assert len(boundaries) == 1
+    assert boundaries[0]["triggers"] == [
+        {
+            "agent": "ego",
+            "modality": "camera",
+            "previous_capture_timestamp_us": 1_060_000,
+            "current_capture_timestamp_us": 1_260_000,
+            "interval_us": 200_000,
+        }
+    ]
+    current_camera = next(
+        source
+        for source in samples[2].source_slices
+        if (source.agent, source.modality) == ("ego", "camera")
+    )
+    assert current_camera.n_s == 0
+    assert current_camera.capture_timestamp_us == 1_260_000
+
+
+def test_protocol_rejects_unverifiable_camera_only_skew_discontinuity() -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    first = _normalized_record(
+        0,
+        (1_000_000, 1_010_000, 1_020_000, 1_030_000),
+    )
+    first["slices"].pop(2)  # type: ignore[union-attr]
+    second = _normalized_record(
+        1,
+        (1_100_000, 1_110_000, 1_000_000, 1_130_000),
+    )
+
+    with pytest.raises(ValueError, match="rephase discontinuity.*skew"):
+        module.build_protocol_sequences([first, second], 100, 3, 50, 150, 75)
 
 
 def test_source_batch_transition_resets_history_without_interval_boundary() -> None:
@@ -938,7 +1191,7 @@ def test_prepare_four_tick_fixture_is_canonical_complete_and_repeatable(
     assert payload["protocol_scope"] == "fixture"
     assert [sample["n_t"] for sample in payload["samples"]] == [0, 1, 2, 3]
     assert payload["samples"][3]["tau_t_ms"] == 300
-    assert len(payload["samples"][3]["source_slices"]) == 16
+    assert len(payload["samples"][3]["source_slices"]) == 15
     assert payload["samples"][3]["ground_truth"] == [
         {
             "class_name": "Car",
@@ -977,7 +1230,7 @@ def test_prepare_four_tick_fixture_is_canonical_complete_and_repeatable(
     assert not any(path.endswith(".bin") for path in inventory_paths)
     assert all(
         Path(item["prepared_relative_path"]).is_relative_to(
-            Path("prepared/resilient_v2x")
+            Path("prepared/resilient_v2x_v2")
         )
         for item in payload["prepared_artifacts"]
     )
@@ -1083,7 +1336,7 @@ def test_checked_in_official_split_counts_hash_and_test_a_subset() -> None:
         actual_sha256=manifest_module.OFFICIAL_COOPERATIVE_SPLIT_SHA256,
         expected_sha256=manifest_module.OFFICIAL_COOPERATIVE_SPLIT_SHA256,
         protocol_scope="controlled",
-        protocol_values=(100, 3, 50, 150, 200),
+        protocol_values=(100, 3, 50, 150, 75),
     )
     assert len(release_ids) == 4813 + 1783
     assert set(split_by_id.values()) == {"train", "val"}
@@ -1113,7 +1366,6 @@ def test_prepare_derives_side_frame_ids_from_official_style_paths(
     ] == [
         ("ego", "lidar", "000000"),
         ("rsu", "lidar", "100000"),
-        ("ego", "camera", "000000"),
         ("rsu", "camera", "100000"),
     ]
 
@@ -1191,12 +1443,61 @@ def test_prepare_preserves_duplicate_target_pair_variants_in_stable_lanes(
     assert [sample.n_t for sample in manifest.samples] == [0, 1, 2, 3, 0]
     assert len({sample.sequence_id for sample in manifest.samples[:4]}) == 1
     assert manifest.samples[-1].sequence_id != manifest.samples[0].sequence_id
+    assert not any(
+        (source.agent, source.modality) == ("ego", "camera")
+        for source in manifest.samples[0].source_slices
+    )
+    assert not any(
+        (source.agent, source.modality) == ("ego", "camera")
+        for source in manifest.samples[-1].source_slices
+    )
 
     _rewrite_json(cooperative_path, list(reversed(cooperative)))
     reordered = module.prepare_manifest(
         **_fixture_kwargs(root, tmp_path / "reordered-manifest.json")
     )
     assert reordered.samples == manifest.samples
+
+
+def test_prepare_does_not_rephase_ego_camera_across_split(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    output = tmp_path / "manifest.json"
+    split_path = root / "split.json"
+    split = json.loads(split_path.read_text())
+    split["cooperative_split"]["train"] = ["000000", "000001"]
+    split["cooperative_split"]["val"] = ["000002", "000003"]
+    _rewrite_json(split_path, split)
+
+    manifest = module.prepare_manifest(**_fixture_kwargs(root, output))
+
+    by_split = {
+        split_name: tuple(
+            sample for sample in manifest.samples if sample.split == split_name
+        )
+        for split_name in ("train", "val")
+    }
+    for split_name, expected_frames in (
+        ("train", (None, "000000")),
+        ("val", (None, "000002")),
+    ):
+        observed_frames = []
+        for sample in by_split[split_name]:
+            current_camera = next(
+                (
+                    source
+                    for source in sample.source_slices
+                    if source.n_s == sample.n_t
+                    and (source.agent, source.modality) == ("ego", "camera")
+                ),
+                None,
+            )
+            observed_frames.append(
+                None if current_camera is None else current_camera.frame_id
+            )
+        assert tuple(observed_frames) == expected_frames
 
 
 @pytest.mark.parametrize(
@@ -1259,9 +1560,85 @@ def test_manifest_uses_independent_side_timestamps_without_filename_inference(
     assert [item.capture_timestamp_us for item in final_tick] == [
         1_300_000,
         1_310_000,
-        1_320_000,
+        1_220_000,
         1_330_000,
     ]
+
+
+def test_prepare_rephases_ego_camera_causally_with_current_lidar_pose(
+    tmp_path: Path,
+) -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    root = _fixture_copy(tmp_path)
+    output = tmp_path / "manifest.json"
+    vehicle_path = root / "vehicle-side/data_info.json"
+    vehicle = json.loads(vehicle_path.read_text())
+    for record in vehicle:
+        record["image_timestamp"] = str(int(record["image_timestamp"]) + 100_000)
+    _rewrite_json(vehicle_path, vehicle)
+    current_pose_path = root / "vehicle-side/calib/novatel_to_world/000001.json"
+    current_pose = json.loads(current_pose_path.read_text())
+    current_pose["translation"] = [[7.0], [0.0], [0.0]]
+    _rewrite_json(current_pose_path, current_pose)
+    current_intrinsic_path = root / "vehicle-side/calib/camera_intrinsic/000001.json"
+    current_intrinsic = json.loads(current_intrinsic_path.read_text())
+    current_intrinsic["cam_K"][0] = 1200
+    _rewrite_json(current_intrinsic_path, current_intrinsic)
+    current_extrinsic_path = root / "vehicle-side/calib/lidar_to_camera/000001.json"
+    current_extrinsic = json.loads(current_extrinsic_path.read_text())
+    current_extrinsic["translation"] = [[9.0], [0.0], [0.0]]
+    _rewrite_json(current_extrinsic_path, current_extrinsic)
+    kwargs = _fixture_kwargs(root, output)
+    kwargs["max_capture_skew_ms"] = 50
+
+    manifest = module.prepare_manifest(**kwargs)
+
+    first = manifest.samples[0]
+    second_tick = tuple(
+        source for source in manifest.samples[1].source_slices if source.n_s == 1
+    )
+    ego_camera = next(
+        source
+        for source in second_tick
+        if (source.agent, source.modality) == ("ego", "camera")
+    )
+    ego_lidar = next(
+        source
+        for source in second_tick
+        if (source.agent, source.modality) == ("ego", "lidar")
+    )
+    rsu_camera = next(
+        source
+        for source in second_tick
+        if (source.agent, source.modality) == ("rsu", "camera")
+    )
+    assert not any(
+        (source.agent, source.modality) == ("ego", "camera")
+        for source in first.source_slices
+    )
+    assert ego_camera.n_s == 1
+    assert ego_camera.frame_id == "000000"
+    assert ego_camera.relative_path == "vehicle-side/image/000000.jpg"
+    assert ego_camera.capture_timestamp_us == 1_120_000
+    assert ego_camera.camera_intrinsic == CAMERA_INTRINSIC
+    assert ego_camera.agent_from_sensor == IDENTITY_4X4
+    assert ego_camera.calibration_relative_path == (
+        "vehicle-side/calib/lidar_to_camera/000000.json"
+    )
+    assert ego_camera.world_from_agent == ego_lidar.world_from_agent
+    assert ego_camera.world_from_agent[0][3] == 7.0
+    assert rsu_camera.frame_id == "100001"
+    assert rsu_camera.capture_timestamp_us == 1_130_000
+    capture_skew_us = max(source.capture_timestamp_us for source in second_tick) - min(
+        source.capture_timestamp_us for source in second_tick
+    )
+    assert capture_skew_us == 30_000
+    assert capture_skew_us < 120_000
+
+    too_strict = _fixture_kwargs(root, tmp_path / "too-strict-manifest.json")
+    too_strict["max_capture_skew_ms"] = 29
+    with pytest.raises(ValueError, match="skew"):
+        module.prepare_manifest(**too_strict)
 
 
 def test_calibration_chain_camera_inverse_and_offset_are_exact(
@@ -1288,6 +1665,14 @@ def test_calibration_chain_camera_inverse_and_offset_are_exact(
 
     manifest = module.prepare_manifest(**_fixture_kwargs(root, output))
     first_slices = manifest.samples[0].source_slices
+    second_tick = tuple(
+        source for source in manifest.samples[1].source_slices if source.n_s == 1
+    )
+    shifted_ego_camera = next(
+        source
+        for source in second_tick
+        if (source.agent, source.modality) == ("ego", "camera")
+    )
 
     assert manifest.samples[0].ground_truth[0].x == 5.0
     assert first_slices[0].world_from_agent[0][3] == 5.0
@@ -1296,12 +1681,15 @@ def test_calibration_chain_camera_inverse_and_offset_are_exact(
         -3.5,
         0.0,
     ]
-    assert [first_slices[2].agent_from_sensor[index][3] for index in range(3)] == [
+    assert [shifted_ego_camera.agent_from_sensor[index][3] for index in range(3)] == [
         -1.0,
         -2.0,
         -3.0,
     ]
-    assert first_slices[2].camera_intrinsic == CAMERA_INTRINSIC
+    assert shifted_ego_camera.camera_intrinsic == CAMERA_INTRINSIC
+    assert shifted_ego_camera.calibration_relative_path == (
+        "vehicle-side/calib/lidar_to_camera/000000.json"
+    )
 
 
 def test_infrastructure_camera_preserves_official_proper_affine_extrinsic(
@@ -1320,7 +1708,11 @@ def test_infrastructure_camera_preserves_official_proper_affine_extrinsic(
     _rewrite_json(camera_path, camera)
 
     manifest = module.prepare_manifest(**_fixture_kwargs(root, output))
-    rsu_camera = manifest.samples[0].source_slices[3]
+    rsu_camera = next(
+        source
+        for source in manifest.samples[0].source_slices
+        if (source.agent, source.modality) == ("rsu", "camera")
+    )
     expected = np.linalg.inv(
         np.asarray(
             [
@@ -1536,7 +1928,7 @@ def test_prepared_and_manifest_conflicts_are_never_overwritten(
     root = _fixture_copy(tmp_path)
     output = tmp_path / "manifest.json"
     first_prepared = (
-        root / "prepared/resilient_v2x/infrastructure-side/velodyne/100000.bin"
+        root / "prepared/resilient_v2x_v2/infrastructure-side/velodyne/100000.bin"
     )
     first_prepared.parent.mkdir(parents=True)
     first_prepared.write_bytes(b"conflicting prepared bytes")
@@ -1593,7 +1985,7 @@ def test_cli_success_error_and_argparse_exit_contracts(
         "--interval-max-ms",
         "150",
         "--max-capture-skew-ms",
-        "50",
+        "150",
     ]
 
     assert module.main(argv) == 0
@@ -1642,7 +2034,7 @@ def test_cli_filesystem_error_is_one_line_without_traceback(
         "--interval-max-ms",
         "150",
         "--max-capture-skew-ms",
-        "50",
+        "150",
     ]
 
     assert module.main(argv) == 1

@@ -92,7 +92,7 @@ def build_protocol_sequences(
     segment_index = 0
     segment_ticks: list[tuple[RawSliceRecord, ...]] = []
     segment_split: object = None
-    previous_timestamps: tuple[int, ...] | None = None
+    previous_timestamps: dict[tuple[str, str], int] | None = None
     previous_sample_id: str | None = None
 
     for record_index, record in enumerate(paired_records):
@@ -152,38 +152,44 @@ def build_protocol_sequences(
             f"paired record {record_index} sample_id",
         )
         slices_value = record.get("slices")
-        if (
-            isinstance(slices_value, (str, bytes))
-            or not isinstance(slices_value, Sequence)
-            or len(slices_value) != 4
+        if isinstance(slices_value, (str, bytes)) or not isinstance(
+            slices_value, Sequence
         ):
-            raise ValueError(f"paired record {record_index} must contain four slices")
+            raise ValueError(f"paired record {record_index} slices must be a sequence")
         slice_mappings: list[Mapping[str, object]] = []
-        timestamps: list[int] = []
-        for branch_index, (expected_agent, expected_modality) in enumerate(
-            branch_order
-        ):
-            raw_slice = slices_value[branch_index]
+        timestamp_by_branch: dict[tuple[str, str], int] = {}
+        actual_branches: list[tuple[object, object]] = []
+        for raw_slice in slices_value:
             if not isinstance(raw_slice, Mapping):
                 raise ValueError("normalized slice must be a mapping")
-            if (
-                raw_slice.get("agent"),
-                raw_slice.get("modality"),
-            ) != (expected_agent, expected_modality):
-                raise ValueError("normalized slices have the wrong branch order")
+            branch = (raw_slice.get("agent"), raw_slice.get("modality"))
+            actual_branches.append(branch)
             timestamp = raw_slice.get("capture_timestamp_us")
             if type(timestamp) is not int or timestamp <= 0:
                 raise ValueError("capture timestamp must be a positive integer")
             slice_mappings.append(raw_slice)
-            timestamps.append(timestamp)
+            timestamp_by_branch[branch] = timestamp  # type: ignore[index]
+        allowed_branches = (branch_order, branch_order[:2] + branch_order[3:])
+        if tuple(actual_branches) not in allowed_branches:
+            raise ValueError("normalized slices have the wrong branch grid/order")
+        if not source_changed and tuple(actual_branches) != branch_order:
+            raise ValueError("only the first source tick may omit ego camera")
 
+        ego_camera_branch = ("ego", "camera")
         triggers: list[dict[str, object]] = []
+        ego_camera_nonincreasing = False
         if previous_timestamps is not None:
-            for branch_index, (agent, modality) in enumerate(branch_order):
-                previous = previous_timestamps[branch_index]
-                current = timestamps[branch_index]
+            for agent, modality in branch_order:
+                branch = (agent, modality)
+                previous = previous_timestamps.get(branch)
+                current = timestamp_by_branch.get(branch)
+                if previous is None or current is None:
+                    continue
                 interval = current - previous
                 if interval <= 0:
+                    if branch == ego_camera_branch:
+                        ego_camera_nonincreasing = True
+                        continue
                     raise ValueError("capture timestamps must be strictly increasing")
                 if not interval_min_us <= interval <= interval_max_us:
                     triggers.append(
@@ -195,7 +201,42 @@ def build_protocol_sequences(
                             "interval_us": interval,
                         }
                     )
+        boundary_triggers = [
+            trigger
+            for trigger in triggers
+            if (trigger["agent"], trigger["modality"]) != ego_camera_branch
+        ]
+        if ego_camera_nonincreasing and not boundary_triggers:
+            raise ValueError(
+                "ego-camera rephase interval discontinuity lacks a "
+                "verifiable non-camera boundary"
+            )
+        if boundary_triggers:
+            triggers = boundary_triggers
+            # The rephased ego-camera came from the pre-gap record and must not
+            # cross into the new protocol sequence. The next tick can restore
+            # camera input from the new segment's first raw record.
+            timestamp_by_branch.pop(ego_camera_branch, None)
+            slice_mappings = [
+                raw_slice
+                for raw_slice in slice_mappings
+                if (raw_slice["agent"], raw_slice["modality"]) != ego_camera_branch
+            ]
+        timestamps = tuple(timestamp_by_branch.values())
         if max(timestamps) - min(timestamps) > max_capture_skew_us:
+            non_camera_timestamps = tuple(
+                timestamp
+                for branch, timestamp in timestamp_by_branch.items()
+                if branch != ego_camera_branch
+            )
+            if (
+                ego_camera_branch in timestamp_by_branch
+                and max(non_camera_timestamps) - min(non_camera_timestamps)
+                <= max_capture_skew_us
+            ):
+                raise ValueError(
+                    "ego-camera rephase discontinuity exceeds capture skew limit"
+                )
             raise ValueError("capture timestamp skew exceeds protocol limit")
 
         if triggers:
@@ -294,7 +335,7 @@ def build_protocol_sequences(
                 ground_truth=tuple(ground_truth),
             )
         )
-        previous_timestamps = tuple(timestamps)
+        previous_timestamps = timestamp_by_branch
         previous_sample_id = sample_id
     return samples, sequence_splits
 
@@ -387,8 +428,8 @@ def _parse_split(
             or expected_sha256 != OFFICIAL_COOPERATIVE_SPLIT_SHA256
         ):
             raise ValueError("controlled split must use the official SHA-256")
-        if protocol_values != (100, 3, 50, 150, 200):
-            raise ValueError("controlled protocol values must be 100,3,50,150,200")
+        if protocol_values != (100, 3, 50, 150, 75):
+            raise ValueError("controlled protocol values must be 100,3,50,150,75")
     payload = _mapping(_load_json_bytes(raw, "split JSON"), "split JSON")
     cooperative = _mapping(
         payload.get("cooperative_split"),
@@ -1489,6 +1530,40 @@ def _preflight_records(
             record["sample_id"],
         )
     )
+    previous_group: tuple[object, object, object, object] | None = None
+    previous_ego_camera: Mapping[str, object] | None = None
+    for record in normalized:
+        group = (
+            record["split"],
+            record["vehicle_batch_id"],
+            record["infrastructure_batch_id"],
+            record["sequence_lane"],
+        )
+        slices = record["slices"]
+        assert isinstance(slices, list) and len(slices) == 4
+        current_ego_lidar = slices[0]
+        current_ego_camera = slices[2]
+        assert isinstance(current_ego_lidar, Mapping)
+        assert isinstance(current_ego_camera, Mapping)
+        if group != previous_group:
+            record["slices"] = [slices[0], slices[1], slices[3]]
+        else:
+            assert previous_ego_camera is not None
+            rephased_ego_camera = dict(previous_ego_camera)
+            # DAIR supplies camera calibration/payload at the previous record.
+            # Use the current target ego-LiDAR pose as the nearest-pose
+            # approximation so every source transform targets the current ego.
+            rephased_ego_camera["world_from_agent"] = current_ego_lidar[
+                "world_from_agent"
+            ]
+            record["slices"] = [
+                slices[0],
+                slices[1],
+                rephased_ego_camera,
+                slices[3],
+            ]
+        previous_group = group
+        previous_ego_camera = current_ego_camera
     return (
         normalized,
         release_inventory,
@@ -1554,7 +1629,7 @@ def _prepare_manifest_impl(
     for source_relative_path in lidar_paths:
         source_entry = inventory_by_path[source_relative_path]
         prepared_relative = (
-            PurePosixPath("prepared/resilient_v2x")
+            PurePosixPath("prepared/resilient_v2x_v2")
             / PurePosixPath(source_relative_path).with_suffix(".bin")
         ).as_posix()
         prepared_path = data_root.joinpath(*PurePosixPath(prepared_relative).parts)

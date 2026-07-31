@@ -38,6 +38,17 @@ class PreparedPointCloud:
     ]
 
 
+@dataclass(frozen=True)
+class _ValidatedHeader:
+    point_count: int
+    data_offset: int
+    encoding: str
+    values_per_point: int
+    intensity_value_index: int
+    intensity_type: str
+    intensity_size: int
+
+
 _EntryIdentity = tuple[int, int, int]
 
 
@@ -384,7 +395,7 @@ def _header_integer(
 
 def _validate_header(
     raw: bytes,
-) -> tuple[int, int, str]:
+) -> _ValidatedHeader:
     header, data_offset = _header(raw)
     field_names = header.get("FIELDS")
     counts = header.get("COUNT")
@@ -404,6 +415,7 @@ def _validate_header(
             parsed_counts.append(int(value, 10))
         except ValueError as error:
             raise ValueError("PCD COUNT values must be integers") from error
+    required_indices: dict[str, int] = {}
     for required in _FIELDS:
         matches = [
             index for index, field in enumerate(field_names) if field == required
@@ -416,6 +428,25 @@ def _validate_header(
             raise ValueError(
                 f"PCD required field {required} must have scalar count one"
             )
+        required_indices[required] = matches[0]
+    intensity_index = required_indices["intensity"]
+    intensity_type = types[intensity_index]
+    try:
+        intensity_size = int(sizes[intensity_index], 10)
+    except ValueError as error:
+        raise ValueError("PCD SIZE values must be integers") from error
+    valid_intensity_sizes = {
+        "F": {4, 8},
+        "I": {1, 2, 4, 8},
+        "U": {1, 2, 4, 8},
+    }
+    if (
+        intensity_type not in valid_intensity_sizes
+        or intensity_size not in valid_intensity_sizes[intensity_type]
+    ):
+        raise ValueError(
+            f"unsupported PCD intensity TYPE/SIZE: {intensity_type}/{intensity_size}"
+        )
     width = _header_integer(header, "WIDTH")
     height = _header_integer(header, "HEIGHT")
     points = _header_integer(header, "POINTS")
@@ -459,25 +490,101 @@ def _validate_header(
         )
         if len(body) < payload_end or (trailing and not has_canonical_pcl_padding):
             raise ValueError("PCD compressed payload size is inconsistent")
-    return points, data_offset, encoding
+    return _ValidatedHeader(
+        point_count=points,
+        data_offset=data_offset,
+        encoding=encoding,
+        values_per_point=sum(parsed_counts),
+        intensity_value_index=sum(parsed_counts[:intensity_index]),
+        intensity_type=intensity_type,
+        intensity_size=intensity_size,
+    )
+
+
+def _integer_intensity_maximum(header: _ValidatedHeader) -> int:
+    bits = 8 * header.intensity_size
+    if header.intensity_type == "U":
+        return (1 << bits) - 1
+    return (1 << (bits - 1)) - 1
+
+
+def _validate_ascii_integer_intensity(
+    raw: bytes,
+    header: _ValidatedHeader,
+) -> None:
+    if header.encoding != Encoding.ASCII.value or header.intensity_type == "F":
+        return
+    tokens = raw[header.data_offset :].split()
+    expected_values = header.point_count * header.values_per_point
+    if len(tokens) != expected_values:
+        return
+    maximum = _integer_intensity_maximum(header)
+    intensity_tokens = tokens[header.intensity_value_index :: header.values_per_point]
+    for token in intensity_tokens:
+        try:
+            value = int(token, 10)
+        except ValueError as error:
+            raise ValueError(
+                "PCD integer intensity must use finite decimal values"
+            ) from error
+        if value < 0 or value > maximum:
+            raise ValueError(
+                "PCD integer intensity is outside the declared TYPE/SIZE range"
+            )
+
+
+def _normalized_intensity(
+    intensity: np.ndarray,
+    header: _ValidatedHeader,
+) -> np.ndarray:
+    expected_kind = {
+        "F": "f",
+        "I": "i",
+        "U": "u",
+    }[header.intensity_type]
+    if (
+        intensity.dtype.kind != expected_kind
+        or intensity.dtype.itemsize != header.intensity_size
+    ):
+        raise ValueError("PCD intensity payload disagrees with TYPE/SIZE")
+    values = intensity.astype(np.float64, copy=False)
+    if not np.isfinite(values).all():
+        raise ValueError("PCD intensity must be finite")
+    if header.intensity_type == "F":
+        if np.any(values < 0.0) or np.any(values > 1.0):
+            raise ValueError("PCD floating intensity must be in [0, 1]")
+        return values
+    maximum = _integer_intensity_maximum(header)
+    if np.any(values < 0.0) or np.any(values > maximum):
+        raise ValueError(
+            "PCD integer intensity is outside the declared TYPE/SIZE range"
+        )
+    return values / maximum
 
 
 def _pcd_output(raw: bytes) -> tuple[bytes, int]:
-    expected_points, _, _ = _validate_header(raw)
+    header = _validate_header(raw)
+    _validate_ascii_integer_intensity(raw, header)
     try:
         cloud = PointCloud.from_fileobj(io.BytesIO(raw))
         selected = np.asarray(cloud.numpy(_FIELDS))
+        intensity = np.asarray(cloud.pc_data["intensity"]).reshape(-1)
     except Exception as error:
         raise ValueError(f"invalid PCD payload: {error}") from error
-    if selected.ndim != 2 or selected.shape != (expected_points, 4):
+    if (
+        selected.ndim != 2
+        or selected.shape != (header.point_count, 4)
+        or intensity.shape != (header.point_count,)
+    ):
         raise ValueError("PCD point count is inconsistent")
     if not np.isfinite(selected).all():
         raise ValueError("PCD selected fields must be finite")
+    selected[:, 3] = _normalized_intensity(intensity, header)
     little_endian = np.ascontiguousarray(selected, dtype=np.dtype("<f4"))
     output = little_endian.tobytes(order="C")
-    if len(output) != expected_points * 16:
+    if len(output) != header.point_count * 16:
         raise ValueError("prepared PCD byte size is inconsistent")
-    return output, expected_points
+    return output, header.point_count
 
 
 def _existing_bytes(parent: _AnchoredParent) -> bytes | None:

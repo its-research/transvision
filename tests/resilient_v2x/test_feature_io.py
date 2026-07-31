@@ -81,6 +81,36 @@ def test_lss_camera_projection_uses_general_affine_inverse() -> None:
     assert not torch.allclose(capture.lidar_to_image[0, 0], transpose_shortcut)
 
 
+def test_shared_camera_encoder_propagates_child_weight_initialization() -> None:
+    pytest.importorskip("mmdet3d")
+    from transvision.models.detectors.resilient_v2x import (
+        SharedResNetLSSBEVEncoder,
+    )
+
+    class InitializableIdentity(torch.nn.Identity):
+        def __init__(self) -> None:
+            super().__init__()
+            self.init_calls = 0
+
+        def init_weights(self) -> None:
+            self.init_calls += 1
+
+    backbone = InitializableIdentity()
+    neck = InitializableIdentity()
+    view_transform = InitializableIdentity()
+    encoder = SharedResNetLSSBEVEncoder(
+        image_backbone=backbone,
+        image_neck=neck,
+        view_transform=view_transform,
+        output_height=1,
+        output_width=1,
+    )
+
+    encoder.init_weights()
+
+    assert backbone.init_calls == neck.init_calls == view_transform.init_calls == 1
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required")
 def test_lss_encoder_normalizes_fp32_bev_to_active_amp_dtype() -> None:
     pytest.importorskip("mmdet3d")

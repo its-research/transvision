@@ -251,6 +251,20 @@ def _valid_payload() -> dict[str, object]:
     return _rehash(payload)
 
 
+def _valid_sparse_initial_camera_payload() -> dict[str, object]:
+    payload = _valid_payload()
+    for sample in payload["samples"]:  # type: ignore[union-attr]
+        sample["source_slices"] = [
+            source
+            for source in sample["source_slices"]
+            if not (
+                source["n_s"] == 0
+                and (source["agent"], source["modality"]) == ("ego", "camera")
+            )
+        ]
+    return _rehash(payload)
+
+
 def _valid_split_payload() -> dict[str, object]:
     payload = _valid_payload()
     second_sample = payload["samples"][1]  # type: ignore[index]
@@ -577,6 +591,21 @@ def test_fixture_and_controlled_scope_gates_are_fail_closed(tmp_path: Path) -> N
         expected_split_hash=module.OFFICIAL_COOPERATIVE_SPLIT_SHA256,
     )
     assert loaded.protocol_scope == "controlled"
+
+    current = _valid_sparse_initial_camera_payload()
+    current["protocol_scope"] = "controlled"
+    current["history_limit"] = 3
+    current["max_capture_skew_ms"] = 75
+    current["split_sha256"] = module.OFFICIAL_COOPERATIVE_SPLIT_SHA256
+    current["history_eligible_train_count"] = 0
+    _rehash(current)
+    current_path = _write_payload(tmp_path, current)
+    current_loaded = module.load_temporal_manifest(
+        current_path,
+        expected_split_hash=module.OFFICIAL_COOPERATIVE_SPLIT_SHA256,
+    )
+    assert current_loaded.max_capture_skew_ms == 75
+    assert len(current_loaded.samples[0].source_slices) == 3
 
     controlled_test = copy.deepcopy(controlled)
     for sample in controlled_test["samples"]:
@@ -1100,6 +1129,69 @@ def test_source_history_grid_order_and_split_are_strict(tmp_path: Path) -> None:
             )
 
 
+def test_manifest_accepts_only_sparse_initial_ego_camera(tmp_path: Path) -> None:
+    module = _module()
+    payload = _valid_sparse_initial_camera_payload()
+
+    loaded = module.load_temporal_manifest(
+        _write_payload(tmp_path, payload),
+        expected_split_hash=FIXTURE_SPLIT_SHA256,
+        allow_fixture=True,
+    )
+
+    assert [len(sample.source_slices) for sample in loaded.samples] == [3, 7]
+    assert not any(
+        source.n_s == 0 and (source.agent, source.modality) == ("ego", "camera")
+        for sample in loaded.samples
+        for source in sample.source_slices
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("initial_other", "later_ego_camera", "inconsistent_initial_camera"),
+)
+def test_manifest_rejects_other_sparse_stream_positions(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    module = _module()
+    payload = _valid_sparse_initial_camera_payload()
+    if mutation == "initial_other":
+        for sample in payload["samples"]:  # type: ignore[union-attr]
+            sample["source_slices"] = [
+                source
+                for source in sample["source_slices"]
+                if not (
+                    source["n_s"] == 0
+                    and (source["agent"], source["modality"]) == ("rsu", "camera")
+                )
+            ]
+    elif mutation == "later_ego_camera":
+        payload["samples"][1]["source_slices"] = [  # type: ignore[index]
+            source
+            for source in payload["samples"][1]["source_slices"]  # type: ignore[index]
+            if not (
+                source["n_s"] == 1
+                and (source["agent"], source["modality"]) == ("ego", "camera")
+            )
+        ]
+    else:
+        initial_camera = _source_tick("seq-0", 0, 1_000_000)[2]
+        payload["samples"][1]["source_slices"].insert(  # type: ignore[index]
+            2,
+            initial_camera,
+        )
+    _rehash(payload)
+
+    with pytest.raises(module.ManifestError, match="history|grid|required"):
+        module.load_temporal_manifest(
+            _write_payload(tmp_path, payload),
+            expected_split_hash=FIXTURE_SPLIT_SHA256,
+            allow_fixture=True,
+        )
+
+
 def test_valid_sequence_split_loads_and_fake_trigger_provenance_fails(
     tmp_path: Path,
 ) -> None:
@@ -1118,6 +1210,49 @@ def test_valid_sequence_split_loads_and_fake_trigger_provenance_fails(
     trigger["current_capture_timestamp_us"] += 1
     _rehash(invalid)
     with pytest.raises(module.ManifestError, match="provenance"):
+        module.load_temporal_manifest(
+            _write_payload(tmp_path, invalid),
+            expected_split_hash=FIXTURE_SPLIT_SHA256,
+            allow_fixture=True,
+        )
+
+
+def test_sparse_sequence_split_has_closed_non_camera_trigger_provenance(
+    tmp_path: Path,
+) -> None:
+    module = _module()
+    payload = _valid_split_payload()
+    current = payload["samples"][1]  # type: ignore[index]
+    current["source_slices"] = [
+        source
+        for source in current["source_slices"]
+        if (source["agent"], source["modality"]) != ("ego", "camera")
+    ]
+    _rehash(payload)
+
+    loaded = module.load_temporal_manifest(
+        _write_payload(tmp_path, payload),
+        expected_split_hash=FIXTURE_SPLIT_SHA256,
+        allow_fixture=True,
+    )
+
+    assert len(loaded.samples[1].source_slices) == 3
+    assert loaded.sequence_splits[0]["triggers"][0]["agent"] == "ego"
+    assert loaded.sequence_splits[0]["triggers"][0]["modality"] == "lidar"
+
+    invalid = copy.deepcopy(payload)
+    trigger = invalid["sequence_splits"][0]["triggers"][0]  # type: ignore[index]
+    trigger.update(
+        {
+            "agent": "ego",
+            "modality": "camera",
+            "previous_capture_timestamp_us": 1_020_000,
+            "current_capture_timestamp_us": 1_220_000,
+            "interval_us": 200_000,
+        }
+    )
+    _rehash(invalid)
+    with pytest.raises(module.ManifestError, match="provenance is absent"):
         module.load_temporal_manifest(
             _write_payload(tmp_path, invalid),
             expected_split_hash=FIXTURE_SPLIT_SHA256,

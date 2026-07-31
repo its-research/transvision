@@ -80,6 +80,21 @@ class RuntimeProtocolError(RuntimeError):
     """Raised when a runtime overlay or payload violates the protocol."""
 
 
+def _point_cloud_range(
+    value: Sequence[float] | None,
+) -> tuple[float, float, float, float, float, float] | None:
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes)) or len(value) != 6:
+        raise ValueError("point_cloud_range must contain six finite values")
+    limits = tuple(float(item) for item in value)
+    if not all(math.isfinite(item) for item in limits):
+        raise ValueError("point_cloud_range must contain six finite values")
+    if any(upper <= lower for lower, upper in zip(limits[:3], limits[3:])):
+        raise ValueError("point_cloud_range maxima must exceed minima")
+    return limits
+
+
 def _exact_epoch(value: object, name: str) -> int | None:
     if value is None:
         return None
@@ -564,6 +579,35 @@ def _transform_points_to_agent(
     return torch.cat((xyz, points[:, 3:4]), dim=1)
 
 
+def _normalize_lidar_intensity(
+    points: Tensor,
+    *,
+    allow_legacy_u8: bool = True,
+) -> Tensor:
+    """Normalize legacy DAIR U8 intensity while preserving unit float data."""
+
+    if not isinstance(points, Tensor) or points.ndim != 2 or points.shape[1] != 4:
+        raise RuntimeProtocolError("prepared LiDAR payload must have shape [N,4]")
+    if not torch.isfinite(points).all().item():
+        raise RuntimeProtocolError("prepared LiDAR payload must be finite")
+    if not points.shape[0]:
+        return points
+    intensity = points[:, 3]
+    minimum = float(intensity.min().item())
+    maximum = float(intensity.max().item())
+    if minimum < 0.0 or maximum > 255.0:
+        raise RuntimeProtocolError("LiDAR intensity must be in [0,1] or legacy U8")
+    if maximum <= 1.0:
+        return points
+    if not allow_legacy_u8:
+        raise RuntimeProtocolError(
+            "v2 prepared LiDAR intensity must already be normalized to [0,1]"
+        )
+    normalized = points.clone()
+    normalized[:, 3].div_(255.0)
+    return normalized
+
+
 class ResilientTemporalDataset(Dataset[dict[str, object]]):
     """Strict manifest dataset that performs causal I/O only."""
 
@@ -584,6 +628,7 @@ class ResilientTemporalDataset(Dataset[dict[str, object]]):
         load_camera: bool = True,
         load_lidar: bool = True,
         camera_image_size: tuple[int, int] | None = None,
+        point_cloud_range: Sequence[float] | None = None,
         include_clean_teacher: bool = False,
     ) -> None:
         if split not in ("train", "val", "test"):
@@ -634,6 +679,7 @@ class ResilientTemporalDataset(Dataset[dict[str, object]]):
         self.load_camera = load_camera
         self.load_lidar = load_lidar
         self.camera_image_size = camera_image_size
+        self.point_cloud_range = _point_cloud_range(point_cloud_range)
         self.include_clean_teacher = include_clean_teacher
 
         transport_records = self._read_optional_overlay(
@@ -752,6 +798,12 @@ class ResilientTemporalDataset(Dataset[dict[str, object]]):
         if array.size != artifact.point_count * 4:
             raise RuntimeProtocolError("prepared point count mismatch")
         points = torch.from_numpy(array.copy()).view(-1, 4)
+        points = _normalize_lidar_intensity(
+            points,
+            allow_legacy_u8=not artifact.prepared_relative_path.startswith(
+                "prepared/resilient_v2x_v2/"
+            ),
+        )
         return _transform_points_to_agent(points, source.agent_from_sensor)
 
     def _load_camera(self, source: RawSliceRecord) -> Tensor:
@@ -866,6 +918,12 @@ class ResilientTemporalDataset(Dataset[dict[str, object]]):
             ],
             dtype=torch.float32,
         ).reshape(-1, 7)
+        if self.point_cloud_range is not None and gt.shape[0]:
+            centers = gt[:, :3].clone()
+            centers[:, 2] += gt[:, 5] / 2.0
+            lower = centers.new_tensor(self.point_cloud_range[:3])
+            upper = centers.new_tensor(self.point_cloud_range[3:])
+            gt = gt[((centers >= lower) & (centers < upper)).all(dim=1)]
         return {
             "resolved": resolved,
             "lidar_points": tuple(lidar_payloads),

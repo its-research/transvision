@@ -1515,13 +1515,17 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
             raise ManifestError(
                 "controlled split must use the official cooperative hash"
             )
-        if (
+        protocol_parameters = (
             manifest.delta_t_ms,
             manifest.history_limit,
             manifest.interval_min_ms,
             manifest.interval_max_ms,
             manifest.max_capture_skew_ms,
-        ) != (100, 3, 50, 150, 200):
+        )
+        if protocol_parameters not in {
+            (100, 3, 50, 150, 75),
+            (100, 3, 50, 150, 200),
+        }:
             raise ManifestError(
                 "controlled manifest must use fixed protocol parameters"
             )
@@ -1563,6 +1567,7 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
     current_sequence: str | None = None
     expected_n_t = 0
     sequence_split_value: dict[str, str] = {}
+    sequence_has_initial_ego_camera: dict[str, bool] = {}
     tick_slices: dict[
         tuple[str, int, str, str],
         RawSliceRecord,
@@ -1597,6 +1602,17 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
         if annotation is None or annotation.sha256 != sample.annotation_sha256:
             raise ManifestError("annotation path/hash mismatch")
 
+        actual_slices = [
+            (source.n_s, source.agent, source.modality)
+            for source in sample.source_slices
+        ]
+        if sample.n_t == 0:
+            sequence_has_initial_ego_camera[sample.sequence_id] = (
+                0,
+                "ego",
+                "camera",
+            ) in actual_slices
+        initial_ego_camera = sequence_has_initial_ego_camera[sample.sequence_id]
         expected_slices = [
             (n_s, agent, modality)
             for n_s in range(
@@ -1604,10 +1620,7 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
                 sample.n_t + 1,
             )
             for agent, modality in _BRANCH_ORDER
-        ]
-        actual_slices = [
-            (source.n_s, source.agent, source.modality)
-            for source in sample.source_slices
+            if n_s != 0 or (agent, modality) != ("ego", "camera") or initial_ego_camera
         ]
         if actual_slices != expected_slices:
             raise ManifestError(
@@ -1692,8 +1705,10 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
             for agent, modality in _BRANCH_ORDER:
                 source = tick_slices.get((sequence_id, n_s, agent, modality))
                 if source is None:
+                    if n_s == 0 and (agent, modality) == ("ego", "camera"):
+                        continue
                     raise ManifestError(
-                        "sequence source ticks must contain all four streams"
+                        "sequence source ticks have a missing required stream"
                     )
                 timestamps.append(source.capture_timestamp_us)
             if max(timestamps) - min(timestamps) > (
@@ -1703,12 +1718,14 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
             if n_s == 0:
                 continue
             for agent, modality in _BRANCH_ORDER:
-                previous = tick_slices[
+                previous_source = tick_slices.get(
                     (sequence_id, n_s - 1, agent, modality)
-                ].capture_timestamp_us
-                current = tick_slices[
-                    (sequence_id, n_s, agent, modality)
-                ].capture_timestamp_us
+                )
+                current_source = tick_slices.get((sequence_id, n_s, agent, modality))
+                if previous_source is None or current_source is None:
+                    continue
+                previous = previous_source.capture_timestamp_us
+                current = current_source.capture_timestamp_us
                 interval = current - previous
                 if interval <= 0:
                     raise ManifestError(
@@ -1792,17 +1809,27 @@ def _validate_manifest(manifest: TemporalManifest) -> None:
                     "sequence split trigger interval must be out of bounds"
                 )
             previous_slice = next(
-                source
-                for source in previous_sample.source_slices
-                if source.n_s == previous_sample.n_t
-                and (source.agent, source.modality) == branch
+                (
+                    source
+                    for source in previous_sample.source_slices
+                    if source.n_s == previous_sample.n_t
+                    and (source.agent, source.modality) == branch
+                ),
+                None,
             )
             current_slice = next(
-                source
-                for source in current_sample.source_slices
-                if source.n_s == current_sample.n_t
-                and (source.agent, source.modality) == branch
+                (
+                    source
+                    for source in current_sample.source_slices
+                    if source.n_s == current_sample.n_t
+                    and (source.agent, source.modality) == branch
+                ),
+                None,
             )
+            if previous_slice is None or current_slice is None:
+                raise ManifestError(
+                    "sequence split trigger source provenance is absent"
+                )
             if (
                 previous_slice.capture_timestamp_us != previous_timestamp
                 or current_slice.capture_timestamp_us != current_timestamp

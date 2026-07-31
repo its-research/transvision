@@ -5,10 +5,13 @@ PointPillars, ResNet-50 + LSS, PTF, and the three-expert router.  Numeric
 choices not reported by the paper are recorded in ``implementation_choices``.
 """
 
-
-
 point_cloud_range = [0.0, -40.0, -3.0, 80.0, 40.0, 1.0]
 voxel_size = [0.4, 0.4, 4.0]
+group_norm = dict(type="GN", num_groups=32, eps=0.001)
+resnet50_checkpoint = __import__("os").getenv(
+    "RESILIENT_V2X_RESNET50_CHECKPOINT",
+    "https://download.pytorch.org/models/resnet50-0676ba61.pth",
+)
 bev_grid = dict(
     x_min=0.0,
     y_min=-40.0,
@@ -25,7 +28,10 @@ implementation_choices_model = dict(
     image_size=(256, 704),
     camera_depth_bins=(1.0, 81.0, 1.0),
     anchor_size_lwh=(3.9, 1.6, 1.56),
-    anchor_z_center=-1.0,
+    anchor_z_bottom=-1.8,
+    lidar_normalization="GroupNorm; independent of sparse payload batch composition",
+    camera_normalization="frozen ImageNet BatchNorm plus GroupNorm LSS neck",
+    image_backbone_checkpoint=resnet50_checkpoint,
     distillation_temperature=2.0,
     lambda_feature=1.0,
     lambda_logit=1.0,
@@ -56,6 +62,7 @@ lidar_encoder = dict(
         with_distance=False,
         voxel_size=voxel_size,
         point_cloud_range=point_cloud_range,
+        norm_cfg=group_norm,
     ),
     middle_encoder=dict(
         type="PointPillarsScatter",
@@ -68,12 +75,14 @@ lidar_encoder = dict(
         layer_nums=[3, 5, 5],
         layer_strides=[2, 2, 2],
         out_channels=[64, 128, 256],
+        norm_cfg=group_norm,
     ),
     neck=dict(
         type="SECONDFPN",
         in_channels=[64, 128, 256],
         upsample_strides=[1, 2, 4],
         out_channels=[64, 96, 96],
+        norm_cfg=group_norm,
     ),
     output_height=100,
     output_width=100,
@@ -86,10 +95,11 @@ camera_encoder = dict(
         depth=50,
         num_stages=4,
         out_indices=(1, 2, 3),
-        frozen_stages=-1,
-        norm_cfg=dict(type="BN", requires_grad=True),
-        norm_eval=False,
+        frozen_stages=1,
+        norm_cfg=dict(type="BN", requires_grad=False),
+        norm_eval=True,
         style="pytorch",
+        init_cfg=dict(type="Pretrained", checkpoint=resnet50_checkpoint),
     ),
     image_neck=dict(
         type="GeneralizedLSSFPN",
@@ -97,7 +107,7 @@ camera_encoder = dict(
         out_channels=256,
         start_level=0,
         num_outs=3,
-        norm_cfg=dict(type="BN2d", requires_grad=True),
+        norm_cfg=group_norm,
         act_cfg=dict(type="ReLU", inplace=True),
         upsample_cfg=dict(mode="bilinear", align_corners=False),
     ),
@@ -126,7 +136,7 @@ bbox_head = dict(
     use_direction_classifier=True,
     anchor_generator=dict(
         type="Anchor3DRangeGenerator",
-        ranges=[[0.0, -40.0, -1.0, 80.0, 40.0, -1.0]],
+        ranges=[[0.0, -40.0, -1.8, 80.0, 40.0, -1.8]],
         sizes=[[3.9, 1.6, 1.56]],
         rotations=[0.0, 1.5707963267948966],
         reshape_out=False,
