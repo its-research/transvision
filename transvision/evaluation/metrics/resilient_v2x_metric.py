@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 
 import numpy as np
@@ -88,6 +89,69 @@ def _plain_diagnostic(value: object) -> dict[str, object] | None:
     }
 
 
+def _plain_controlled_baseline_diagnostic(
+    value: object,
+) -> dict[str, object] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError("controlled baseline diagnostic must be a mapping")
+    branch_order = ("lidar_ego", "lidar_rsu", "camera_ego", "camera_rsu")
+    if value.get("schema_version") != 1:
+        raise ValueError("controlled baseline diagnostic schema_version must be 1")
+    if tuple(value.get("branch_order", ())) != branch_order:
+        raise ValueError("controlled baseline diagnostic branch_order is invalid")
+    method = value.get("method")
+    sample_id = value.get("sample_id")
+    if type(method) is not str or not method:
+        raise ValueError("controlled baseline diagnostic method must be non-empty")
+    if type(sample_id) is not str or not sample_id:
+        raise ValueError("controlled baseline diagnostic sample_id must be non-empty")
+    support = value.get("support")
+    ages = value.get("age_intervals")
+    if not isinstance(support, Mapping) or set(support) != set(branch_order):
+        raise ValueError("controlled baseline diagnostic support keys are invalid")
+    if not isinstance(ages, Mapping) or set(ages) != set(branch_order):
+        raise ValueError("controlled baseline diagnostic age keys are invalid")
+
+    plain_support: dict[str, bool] = {}
+    plain_ages: dict[str, float | None] = {}
+    for key in branch_order:
+        supported = support[key]
+        age = ages[key]
+        if type(supported) is not bool:
+            raise ValueError("controlled baseline support values must be boolean")
+        if supported:
+            if type(age) not in (int, float) or not math.isfinite(float(age)):
+                raise ValueError(
+                    "supported controlled baseline ages must be finite numbers"
+                )
+            normalized_age = float(age)
+            if normalized_age < 0.0:
+                raise ValueError(
+                    "supported controlled baseline ages must be non-negative"
+                )
+        else:
+            if age is not None:
+                raise ValueError(
+                    "unsupported controlled baseline ages must be null"
+                )
+            normalized_age = None
+        plain_support[key] = supported
+        plain_ages[key] = normalized_age
+
+    return {
+        "diagnostic_type": "controlled_baseline",
+        "schema_version": 1,
+        "sample_id": sample_id,
+        "method": method,
+        "overall_supported": any(plain_support.values()),
+        "branch_order": list(branch_order),
+        "support": plain_support,
+        "age_intervals": plain_ages,
+    }
+
+
 @METRICS.register_module()
 class ResilientV2XMetric(BaseMetric):
     """Evaluate the predictions produced by the current Runner exactly once."""
@@ -129,6 +193,28 @@ class ResilientV2XMetric(BaseMetric):
                 raise ValueError("prediction and ground truth instances are required")
             predicted_boxes = _box_tensor(_field(predictions, "bboxes_3d"))
             target_boxes = _box_tensor(_field(targets, "bboxes_3d"))
+            resilient_diagnostic = metainfo.get("resilient_v2x_diagnostics")
+            controlled_diagnostic = metainfo.get(
+                "controlled_baseline_diagnostics"
+            )
+            if resilient_diagnostic is not None and controlled_diagnostic is not None:
+                raise ValueError(
+                    "data sample must not contain both resilient and controlled "
+                    "baseline diagnostics"
+                )
+            diagnostic = (
+                _plain_diagnostic(resilient_diagnostic)
+                if resilient_diagnostic is not None
+                else _plain_controlled_baseline_diagnostic(controlled_diagnostic)
+            )
+            if (
+                isinstance(diagnostic, Mapping)
+                and diagnostic.get("diagnostic_type") == "controlled_baseline"
+                and diagnostic.get("sample_id") != sample_id
+            ):
+                raise ValueError(
+                    "controlled baseline diagnostic sample_id does not match sample"
+                )
             self.results.append(
                 {
                     "sample_id": sample_id,
@@ -143,9 +229,7 @@ class ResilientV2XMetric(BaseMetric):
                     "ground_truth_labels": _numpy(
                         _field(targets, "labels_3d")
                     ),
-                    "diagnostic": _plain_diagnostic(
-                        metainfo.get("resilient_v2x_diagnostics")
-                    ),
+                    "diagnostic": diagnostic,
                 }
             )
 

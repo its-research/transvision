@@ -56,6 +56,12 @@ from .feature_io import (
     bev_xy_to_yx as bev_xy_to_yx,
     scatter_sparse_bev_history as scatter_sparse_bev_history,
 )
+from .baseline_inputs import (
+    CONTROLLED_BRANCH_KEYS as CONTROLLED_BRANCH_KEYS,
+    ControlledBaselineInputBatch as ControlledBaselineInputBatch,
+    ControlledBaselineInputSelector as ControlledBaselineInputSelector,
+    select_controlled_baseline_inputs as select_controlled_baseline_inputs,
+)
 
 __all__ = (
     "Agent",
@@ -93,4 +99,8 @@ __all__ = (
     "bernoulli_kl_from_logits",
     "distillation_losses",
     "ResilientFeatureBatch",
+    "CONTROLLED_BRANCH_KEYS",
+    "ControlledBaselineInputBatch",
+    "ControlledBaselineInputSelector",
+    "select_controlled_baseline_inputs",
 )

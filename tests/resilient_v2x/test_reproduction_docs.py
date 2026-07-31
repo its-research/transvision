@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+ROOT_README = ROOT / "README.md"
 REPRODUCTION = ROOT / "docs" / "resilient_v2x" / "reproduction.md"
 COVERAGE = ROOT / "docs" / "resilient_v2x" / "paper-coverage.md"
 CORE_API = ROOT / "docs" / "resilient_v2x" / "core-api.md"
@@ -204,3 +205,86 @@ def test_config_readme_links_both_long_form_documents() -> None:
     readme = _read(CONFIG_README)
     assert "../../docs/resilient_v2x/reproduction.md" in readme
     assert "../../docs/resilient_v2x/paper-coverage.md" in readme
+
+
+def test_root_readme_lists_all_paper_result_tables_without_claiming_results() -> None:
+    readme = _read(ROOT_README)
+    table_labels = (
+        "tab:normal_comparison",
+        "tab:latency",
+        "tab:modality_missing",
+        "tab:joint_degradation",
+        "tab:ablation",
+        "tab:sensitivity_p",
+        "tab:duration_complexity",
+    )
+    for label in table_labels:
+        assert readme.count(f"`{label}`") == 1
+
+    evidence_boundaries = (
+        "没有任何满足提交条件的受控实测结果",
+        "—（待测）",
+        "数值†",
+        "数值‡",
+        "至少 3 个随机种子",
+        "受控主故障协议中的 L-Fail 和 C-Fail 均为 `E+R`",
+        "E-only / R-only agent-scope 诊断",
+        "尚未创建这 16 个诊断 ID",
+        "没有注册任何 V2XSet result ID",
+        "提交门禁补充结果",
+        "69.33‡",
+        "同协议方法差值",
+        "V2XSet-Standard",
+        "V2XSet-Pair",
+        "旧失败检查点及其 AP 均不满足这些门槛",
+    )
+    for boundary in evidence_boundaries:
+        assert boundary in readme
+
+    assert (
+        "| V2XSet-Standard | 原生 multi-agent、LiDAR-only | "
+        "—（待测：需 adapter） | —（补充待测：需 adapter） | "
+        "—（待测：需 adapter） | —（待测：需 adapter） | N/A | N/A |"
+    ) in readme
+
+
+def test_root_readme_separates_published_non_comparable_baselines() -> None:
+    readme = _read(ROOT_README)
+    required = (
+        "公开论文的外部对照（不可回填受控主表）",
+        "How2comm / DAIR-V2X 默认噪声",
+        "100 ms",
+        "0.2 m /\n0.2°",
+        "1 MB",
+        "| V2X-ViT | LiDAR | How2comm / DAIR-V2X 默认噪声 | 51.68 | 39.97 |",
+        "| CoBEVT | LiDAR | How2comm / DAIR-V2X 默认噪声 | 56.08 | 41.45 |",
+        "mAP/NDS = 35.56/41.21；64.68/69.28；68.52/71.38",
+        "这里的两个 BEVFusion 是不同论文",
+        "固定引用包含完整 `0/200/300 ms` 序列的表 1",
+    )
+    for statement in required:
+        assert statement in readme
+
+
+def test_root_readme_registers_controlled_baseline_implementations() -> None:
+    readme = _read(ROOT_README)
+    required = (
+        "受控适配实现状态",
+        "ResilientTemporalDataset",
+        "模型不包含本文方法的 PTF、repair、DER、teacher 或 distillation 路径",
+        "configs/resilient_v2x/baselines/v2x_vit.py",
+        "configs/resilient_v2x/baselines/cobevt.py",
+        "configs/resilient_v2x/baselines/coformernet.py",
+        "configs/resilient_v2x/baselines/bevfusion.py",
+        "configs/resilient_v2x/baselines/ffnet.py",
+        "transvision/models/resilient_v2x/baseline_inputs.py",
+        "transvision/models/detectors/controlled_v2x_baseline.py",
+        "bit-exact reproduction",
+        "| V2X-ViT-style | 本仓受控适配已实现",
+        "| CoBEVT-style | 本仓受控适配已实现",
+        "| CoFormerNet-style | 本仓受控适配已实现",
+        "| MIT-HAN BEVFusion-style | 本仓受控适配已实现",
+        "| FFNet-style | 本仓受控适配已实现",
+    )
+    for statement in required:
+        assert statement in readme

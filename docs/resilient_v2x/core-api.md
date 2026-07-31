@@ -47,7 +47,30 @@ must preserve every existing name and its order.
 34. `distillation_losses`
 35. `ResilientFeatureBatch`
 
-No wildcard import defines this surface.
+The controlled-comparison input surface is appended after that frozen prefix:
+
+36. `CONTROLLED_BRANCH_KEYS`
+37. `ControlledBaselineInputBatch`
+38. `ControlledBaselineInputSelector`
+39. `select_controlled_baseline_inputs`
+
+No wildcard import defines this surface. The first 35 names and their order
+remain frozen; the four controlled-baseline names follow the same append-only
+compatibility rule.
+
+## Controlled-baseline input contract
+
+`CONTROLLED_BRANCH_KEYS` fixes the branch order to
+`[L_E,L_R,C_E,C_R]`. `ControlledBaselineInputBatch` carries the four selected
+BEV feature tensors, per-sample support masks, and causal ages without exposing
+the paper method's PTF, dynamic router, teacher, or DER path.
+
+`ControlledBaselineInputSelector` and
+`select_controlled_baseline_inputs` select one causal source per branch, align
+supported source features into the target frame, and leave unsupported inputs
+exactly neutral. The shared fusion contract rejects any sample for which all
+four branches are unavailable. Geometry is evaluated in FP32 before the
+selected features are returned to the baseline fusion module.
 
 ## Public signatures
 

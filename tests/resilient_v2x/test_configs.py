@@ -12,6 +12,56 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG_ROOT = ROOT / "configs" / "resilient_v2x"
 MAIN = CONFIG_ROOT / "dair_resilient_v2x.py"
 TEACHER = CONFIG_ROOT / "dair_clean_teacher.py"
+BASELINE_ROOT = CONFIG_ROOT / "baselines"
+
+CONTROLLED_BASELINES = {
+    "bevfusion.py": {
+        "baseline_name": "bevfusion",
+        "baseline_cfg": {
+            "age_decay": 0.25,
+            "hidden_channels": 256,
+            "norm_groups": 32,
+        },
+    },
+    "cobevt.py": {
+        "baseline_name": "cobevt",
+        "baseline_cfg": {
+            "age_decay": 0.25,
+            "num_heads": 8,
+            "dropout": 0.0,
+            "mlp_ratio": 2.0,
+        },
+    },
+    "ffnet.py": {
+        "baseline_name": "ffnet",
+        "baseline_cfg": {
+            "age_decay": 0.0,
+            "hidden_channels": 256,
+            "norm_groups": 32,
+            "max_displacement_per_age": 1.0,
+        },
+    },
+    "coformernet.py": {
+        "baseline_name": "coformernet",
+        "baseline_cfg": {
+            "age_decay": 0.25,
+            "num_heads": 8,
+            "window_size": 4,
+            "dropout": 0.0,
+            "mlp_ratio": 2.0,
+        },
+    },
+    "v2x_vit.py": {
+        "baseline_name": "v2x_vit",
+        "baseline_cfg": {
+            "age_decay": 0.25,
+            "num_heads": 8,
+            "window_sizes": (2, 4),
+            "dropout": 0.0,
+            "mlp_ratio": 2.0,
+        },
+    },
+}
 
 
 def _merge(base: object, update: object) -> object:
@@ -84,9 +134,80 @@ def test_official_mmengine_loader_accepts_every_config_when_available() -> None:
     for path in sorted(CONFIG_ROOT.rglob("*.py")):
         config = mmengine.Config.fromfile(path)
         if "experiment" in config:
-            assert config.model.type == "ResilientV2XNet"
+            assert config.model.type in {
+                "ControlledCooperativeBaselineNet",
+                "ResilientV2XNet",
+            }
             assert config.test_dataloader.dataset.type == ("ResilientTemporalDataset")
             assert config.test_dataloader.dataset.split == "val"
+
+
+def test_controlled_baselines_share_protocol_without_resilient_modules() -> None:
+    main = _load_config(MAIN)
+    main_model = main["model"]
+    assert isinstance(main_model, dict)
+    found = {
+        path.name
+        for path in BASELINE_ROOT.glob("*.py")
+        if path.name != "_base_.py"
+    }
+    assert found == set(CONTROLLED_BASELINES)
+
+    shared_model_fields = {
+        "grid_spec",
+        "lidar_encoder",
+        "camera_encoder",
+        "bbox_head",
+        "data_preprocessor",
+    }
+    forbidden_model_fields = {
+        "teacher",
+        "teacher_checkpoint",
+        "distillation",
+        "ptf_mode",
+        "routing_mode",
+        "use_reliability",
+        "use_delay_metadata",
+        "delta_t_ms",
+    }
+    expected_model_fields = {
+        "type",
+        "baseline_name",
+        "baseline_cfg",
+        *shared_model_fields,
+    }
+    for name, expected in CONTROLLED_BASELINES.items():
+        config = _load_config(BASELINE_ROOT / name)
+        model = config["model"]
+        assert isinstance(model, dict)
+        assert set(model) == expected_model_fields
+        assert model["type"] == "ControlledCooperativeBaselineNet"
+        assert model["baseline_name"] == expected["baseline_name"]
+        assert model["baseline_cfg"] == expected["baseline_cfg"]
+        assert forbidden_model_fields.isdisjoint(model)
+        for field in shared_model_fields:
+            assert model[field] == main_model[field]
+
+        experiment = config["experiment"]
+        assert experiment["stage"] == "controlled_baseline"
+        assert experiment["protocol"] == (
+            "causal multimodal cooperative detection"
+        )
+        assert experiment["claim_status"] == (
+            "controlled adaptation; not an exact source-paper reproduction"
+        )
+
+        train = _dataset(config, "train")
+        assert train["include_clean_teacher"] is False
+        expected_train = copy.deepcopy(_dataset(main, "train"))
+        expected_train["include_clean_teacher"] = False
+        assert train == expected_train
+        assert _dataset(config, "val") == _dataset(main, "val")
+        assert _dataset(config, "test") == _dataset(main, "test")
+        assert config["val_evaluator"] == main["val_evaluator"]
+        assert config["test_evaluator"] == main["test_evaluator"]
+        assert config["optim_wrapper"] == main["optim_wrapper"]
+        assert config["train_cfg"] == main["train_cfg"]
 
 
 def test_main_model_matches_paper_architecture_contract() -> None:

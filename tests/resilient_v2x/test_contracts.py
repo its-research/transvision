@@ -66,6 +66,15 @@ CORE_PUBLIC_API = (
     "ResilientFeatureBatch",
 )
 
+CONTROLLED_BASELINE_PUBLIC_API = (
+    "CONTROLLED_BRANCH_KEYS",
+    "ControlledBaselineInputBatch",
+    "ControlledBaselineInputSelector",
+    "select_controlled_baseline_inputs",
+)
+
+PUBLIC_API = CORE_PUBLIC_API + CONTROLLED_BASELINE_PUBLIC_API
+
 BRANCH_ORDER = (
     (Agent.EGO, Modality.LIDAR),
     (Agent.RSU, Modality.LIDAR),
@@ -1095,7 +1104,7 @@ def test_core_api_document_covers_all_symbols_and_required_semantics() -> None:
     assert path.is_file()
     text = path.read_text(encoding="utf-8")
 
-    for name in CORE_PUBLIC_API:
+    for name in PUBLIC_API:
         assert f"`{name}`" in text
     for phrase in (
         "frozen 35-name prefix",
@@ -1144,14 +1153,15 @@ def test_core_api_document_covers_all_symbols_and_required_semantics() -> None:
 
 
 def test_package_exports_only_stable_core_api() -> None:
-    assert resilient_v2x.__all__ == CORE_PUBLIC_API
-    assert len(resilient_v2x.__all__) == 35
-    assert len(set(resilient_v2x.__all__)) == 35
+    assert resilient_v2x.__all__ == PUBLIC_API
+    assert len(resilient_v2x.__all__) == 39
+    assert len(set(resilient_v2x.__all__)) == 39
 
 
 def test_public_core_api_imports_and_frozen_prefix() -> None:
     assert resilient_v2x.__all__[:35] == CORE_PUBLIC_API
-    for name in CORE_PUBLIC_API:
+    assert resilient_v2x.__all__[35:] == CONTROLLED_BASELINE_PUBLIC_API
+    for name in PUBLIC_API:
         assert getattr(resilient_v2x, name) is not None
 
     assert resilient_v2x.Agent.EGO.value == "ego"
@@ -1167,7 +1177,7 @@ def test_public_core_api_imports_and_frozen_prefix() -> None:
 
 
 def test_all_public_core_imports_do_not_load_custom_ops() -> None:
-    names = ", ".join(CORE_PUBLIC_API)
+    names = ", ".join(PUBLIC_API)
     code = (
         "import sys; "
         f"from transvision.models.resilient_v2x import {names}; "
