@@ -10,6 +10,10 @@ ENV PATH=/opt/resilient-v2x/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/b
     PYTHONNOUSERSITE=1 \
     RESILIENT_V2X_CONTAINER_IMAGE_DIGEST=sha256:bd746eb3b9953805ebe644847a227e218b5da775f47007c69930569a75c9ad7d
 
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends git openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=micromamba /bin/micromamba /bin/micromamba
 COPY environments/resilient_v2x/bootstrap-linux-64.explicit.txt /tmp/bootstrap-linux-64.explicit.txt
 RUN micromamba create --yes --prefix /opt/bootstrap --file /tmp/bootstrap-linux-64.explicit.txt \
@@ -29,6 +33,7 @@ COPY configs /workspace/transvision/configs
 COPY tools /workspace/transvision/tools
 COPY scripts/build_resilient_v2x_ops.sh /workspace/transvision/scripts/build_resilient_v2x_ops.sh
 RUN /opt/resilient-v2x/bin/python -c "import sys, torch, torchvision, cv2, mmengine, mmcv, mmdet, mmdet3d; assert sys.version_info[:2] == (3, 10); assert torch.__version__ == '2.0.1+cu118'; assert torchvision.__version__ == '0.15.2+cu118'; assert torch.version.cuda == '11.8'; assert cv2.__version__ == '4.11.0'; assert mmengine.__version__ == '0.10.7'; assert mmcv.__version__ == '2.1.0'; assert mmdet.__version__ == '3.2.0'; assert mmdet3d.__version__ == '1.3.0'" \
+    && /opt/resilient-v2x/bin/pip install --no-cache-dir clearml==2.1.2 \
     && /bin/bash scripts/build_resilient_v2x_ops.sh \
     && groupadd --gid 10001 resilient-v2x \
     && useradd --uid 10001 --gid 10001 --create-home --shell /bin/bash resilient-v2x \

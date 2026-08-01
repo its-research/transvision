@@ -288,6 +288,42 @@ def _load_setup_module(monkeypatch: pytest.MonkeyPatch):
     return module, captured
 
 
+def test_cuda_extension_architecture_can_be_selected_by_torch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module, _ = _load_setup_module(monkeypatch)
+
+    def fake_extension(**kwargs):
+        return types.SimpleNamespace(**kwargs)
+
+    torch = types.ModuleType("torch")
+    torch.cuda = types.SimpleNamespace(is_available=lambda: True)
+    torch_utils = types.ModuleType("torch.utils")
+    torch_cpp_extension = types.ModuleType("torch.utils.cpp_extension")
+    torch_cpp_extension.CppExtension = fake_extension
+    torch_cpp_extension.CUDAExtension = fake_extension
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "torch.utils", torch_utils)
+    monkeypatch.setitem(sys.modules, "torch.utils.cpp_extension", torch_cpp_extension)
+    monkeypatch.setenv("FORCE_CUDA", "1")
+
+    def nvcc_arguments():
+        extension = module.make_cuda_ext(
+            name="native",
+            module="transvision.models",
+            sources=("native.cpp",),
+            sources_cuda=("native.cu",),
+        )
+        return extension.extra_compile_args["nvcc"]
+
+    monkeypatch.delenv("TORCH_CUDA_ARCH_LIST", raising=False)
+    legacy = nvcc_arguments()
+    assert "-gencode=arch=compute_86,code=sm_86" in legacy
+
+    monkeypatch.setenv("TORCH_CUDA_ARCH_LIST", "12.0")
+    assert not any(argument.startswith("-gencode=") for argument in nvcc_arguments())
+
+
 def test_lazy_build_delegates_to_pytorch_compiler_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
     module, _ = _load_setup_module(monkeypatch)
     calls = []

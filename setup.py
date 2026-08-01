@@ -25,7 +25,9 @@ def parse_requirements(fname: Path = CONSTRAINTS_FILE) -> list[str]:
     ]
 
 
-def make_cuda_ext(name, module, sources, sources_cuda=(), extra_args=(), extra_include_path=()):
+def make_cuda_ext(
+    name, module, sources, sources_cuda=(), extra_args=(), extra_include_path=()
+):
     import torch
     from torch.utils.cpp_extension import CppExtension, CUDAExtension
 
@@ -40,11 +42,14 @@ def make_cuda_ext(name, module, sources, sources_cuda=(), extra_args=(), extra_i
             "-D__CUDA_NO_HALF_OPERATORS__",
             "-D__CUDA_NO_HALF_CONVERSIONS__",
             "-D__CUDA_NO_HALF2_OPERATORS__",
-            "-gencode=arch=compute_70,code=sm_70",
-            "-gencode=arch=compute_75,code=sm_75",
-            "-gencode=arch=compute_80,code=sm_80",
-            "-gencode=arch=compute_86,code=sm_86",
         ]
+        if not os.getenv("TORCH_CUDA_ARCH_LIST"):
+            extra_compile_args["nvcc"] += [
+                "-gencode=arch=compute_70,code=sm_70",
+                "-gencode=arch=compute_75,code=sm_75",
+                "-gencode=arch=compute_80,code=sm_80",
+                "-gencode=arch=compute_86,code=sm_86",
+            ]
         sources = list(sources) + list(sources_cuda)
     else:
         print("Compiling {} without CUDA".format(name))
