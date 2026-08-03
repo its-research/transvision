@@ -118,15 +118,12 @@ STUDENT_HANDOFF_KEYS = frozenset(
     }
 )
 SCRIPT_IDENTITY_KEYS = (
-    "binary",
     "repository",
     "branch",
     "version_num",
-    "tag",
     "working_dir",
     "entry_point",
     "diff",
-    "requirements",
 )
 
 
@@ -190,7 +187,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--paper-controller-summary-artifact",
-        default="paper_controller_summary",
+        default="paper_experiment_summary",
     )
     parser.add_argument("--template-task-id", required=True)
     parser.add_argument("--teacher-task-id", required=True)
@@ -235,15 +232,10 @@ def _task_parameters(task: object) -> dict[str, object]:
 
 
 def _task_script(task: object) -> dict[str, object]:
-    data = getattr(task, "data", None)
-    script_object = getattr(data, "script", None)
-    to_dict = getattr(script_object, "to_dict", None)
-    script = to_dict() if callable(to_dict) else None
-    if not isinstance(script, Mapping):
-        getter = getattr(task, "get_script", None)
-        if not callable(getter):
-            raise RuntimeError("task cannot enumerate its script")
-        script = getter()
+    getter = getattr(task, "get_script", None)
+    if not callable(getter):
+        raise RuntimeError("task cannot enumerate its script")
+    script = getter()
     if not isinstance(script, Mapping):
         raise RuntimeError("task returned an invalid script mapping")
     return {key: script.get(key) for key in SCRIPT_IDENTITY_KEYS}
@@ -260,9 +252,11 @@ def _task_docker(task: object) -> str:
 
 
 def _parameter_matches(actual: object, expected: object) -> bool:
-    if type(actual) is bool or type(expected) is bool:
+    if type(expected) is bool:
+        if type(actual) is bool:
+            return actual is expected
         return str(actual).casefold() == str(expected).casefold()
-    if type(actual) is int or type(expected) is int:
+    if type(expected) is int:
         return str(actual) == str(expected)
     return actual == expected
 
@@ -295,29 +289,9 @@ def _validate_docker_command(command: str) -> None:
     )
     if not has_host_network:
         raise RuntimeError("template Docker command must use host networking")
-    expected_endpoints = {
-        endpoint.partition("=")[0]: endpoint for endpoint in EXPECTED_ENDPOINTS
-    }
-    observed_endpoints: dict[str, list[str]] = {}
-    for token in tokens:
-        candidate = token
-        for prefix in ("--env=", "-e"):
-            if candidate.startswith(prefix):
-                candidate = candidate[len(prefix) :]
-                break
-        key = candidate.partition("=")[0]
-        if key in expected_endpoints:
-            observed_endpoints.setdefault(key, []).append(candidate)
-    # Agents inherit ClearML server configuration when these flags are absent.
-    # If a task spells out any endpoint, require the complete exact .34 set.
-    if observed_endpoints:
-        if set(observed_endpoints) != set(expected_endpoints):
-            raise RuntimeError(
-                "template Docker command has incomplete ClearML endpoints"
-            )
-        for key, expected in expected_endpoints.items():
-            if any(value != expected for value in observed_endpoints[key]):
-                raise RuntimeError(f"template Docker endpoint mismatch: {key}")
+    for endpoint in EXPECTED_ENDPOINTS:
+        if endpoint not in tokens:
+            raise RuntimeError(f"template Docker endpoint missing: {endpoint}")
 
 
 def _validate_source_parameters(parameters: Mapping[str, object]) -> dict[str, object]:
@@ -476,9 +450,7 @@ def _set_and_validate_parameters(
                 f"cloned task parameter {key} mismatch: "
                 f"expected {value!r}, got {observed.get(key)!r}"
             )
-    leaked = [
-        key for key in STUDENT_HANDOFF_KEYS if observed.get(key) not in (None, "")
-    ]
+    leaked = [key for key in STUDENT_HANDOFF_KEYS if observed.get(key) not in (None, "")]
     if leaked:
         raise RuntimeError(f"cloned task leaked student handoff parameters: {leaked}")
     teacher_keys = (
@@ -490,9 +462,7 @@ def _set_and_validate_parameters(
     if not EXPERIMENT_BY_NAME[experiment].requires_teacher and any(
         observed.get(key) not in (None, "", False, "False") for key in teacher_keys
     ):
-        raise RuntimeError(
-            f"teacher-free experiment {experiment!r} leaked teacher data"
-        )
+        raise RuntimeError(f"teacher-free experiment {experiment!r} leaked teacher data")
 
 
 def _artifact_payload(task: object, name: str) -> dict[str, object]:
@@ -540,9 +510,7 @@ def _validate_teacher_reference(task_class: object, args: argparse.Namespace) ->
         and str(getattr(model, "id", "") or "") == args.teacher_model_id
     ]
     if len(candidates) != 1:
-        raise RuntimeError(
-            "teacher handoff must resolve exactly one pinned OutputModel"
-        )
+        raise RuntimeError("teacher handoff must resolve exactly one pinned OutputModel")
     model = candidates[0]
     if str(getattr(model, "task", "") or "") != args.teacher_task_id:
         raise RuntimeError("teacher OutputModel ownership mismatch")
@@ -633,7 +601,10 @@ def _resolve_gate_task_id(
 
 
 def _task_name(index: int, experiment: str, controller_task_id: str) -> str:
-    return f"ResilientV2X post-main {index:02d} {experiment} [{controller_task_id}]"
+    return (
+        f"ResilientV2X post-main {index:02d} {experiment} "
+        f"[{controller_task_id}]"
+    )
 
 
 def _task_parent(task: object) -> str:
@@ -745,7 +716,9 @@ def _validate_completed_experiment(
         "training_dataset_id": expected_parameters["Args/training_dataset_id"],
         "native_build_task_id": BUILD_TASK_ID,
         "native_bundle_sha256": expected_parameters["Args/native_bundle_sha256"],
-        "build_manifest_sha256": expected_parameters["Args/build_manifest_sha256"],
+        "build_manifest_sha256": expected_parameters[
+            "Args/build_manifest_sha256"
+        ],
         "base_image_manifest_digest": BASE_IMAGE_AMD64_MANIFEST_DIGEST,
         "predecessor_task_id": predecessor_task_id,
         "gpus": EXPECTED_GPU_COUNT,
@@ -942,11 +915,7 @@ def _validate_progress(
         if task_id is not None:
             task_ids.append(_clearml_id(task_id, f"progress task {experiment}"))
         if state == "completed":
-            if (
-                reached_incomplete
-                or task_id is None
-                or not isinstance(step.get("result"), Mapping)
-            ):
+            if reached_incomplete or task_id is None:
                 raise RuntimeError("training progress completed steps are not a prefix")
         else:
             reached_incomplete = True
@@ -1103,26 +1072,10 @@ def run_training_suite(
                     expected=expected_parameters,
                     experiment=experiment,
                 )
-            elif _normalized_task_status(task) == "created":
-                # Recover the narrow crash window after clone creation but
-                # before its complete parameter replacement was persisted.
-                _validate_clone_identity(task, identity=template_identity)
-                _set_and_validate_parameters(
-                    task,
-                    expected=expected_parameters,
-                    experiment=experiment,
-                )
             task_id = _clearml_id(getattr(task, "id", ""), f"{experiment} task")
-            recovered_status = _normalized_task_status(task)
-            # A server-side completed task is still unvalidated controller state.
-            recovered_state = (
-                "running"
-                if recovered_status == "completed"
-                else _state_from_status(recovered_status)
-            )
             step.update(
                 {
-                    "state": recovered_state,
+                    "state": _state_from_status(_normalized_task_status(task)),
                     "task_id": task_id,
                     "task_name": task_name,
                     "predecessor_task_id": predecessor_task_id,
@@ -1184,23 +1137,16 @@ def run_training_suite(
                 _save_progress(controller_task, progress)
             raise
         _reload(task)
-        try:
-            result = _validate_completed_experiment(
-                task,
-                experiment=experiment,
-                predecessor_task_id=predecessor_task_id,
-                expected_parameters=expected_parameters,
-                identity=template_identity,
-                teacher_task_id=teacher_task_id,
-                teacher_model_id=teacher_model_id,
-                teacher_checkpoint_sha256=teacher_sha,
-            )
-        except (RuntimeError, ValueError) as error:
-            step["state"] = "failed"
-            step["failure_status"] = "completion_validation_failed"
-            step["failure_message"] = str(error)
-            _save_progress(controller_task, progress)
-            raise
+        result = _validate_completed_experiment(
+            task,
+            experiment=experiment,
+            predecessor_task_id=predecessor_task_id,
+            expected_parameters=expected_parameters,
+            identity=template_identity,
+            teacher_task_id=teacher_task_id,
+            teacher_model_id=teacher_model_id,
+            teacher_checkpoint_sha256=teacher_sha,
+        )
         step["state"] = "completed"
         step["result"] = result
         step["completed_at"] = _now()
@@ -1235,11 +1181,7 @@ def run_training_suite(
     return summary
 
 
-def _current_controller_task(
-    task_class: object,
-    *,
-    auto_connect_arg_parser: bool = False,
-) -> object:
+def _current_controller_task(task_class: object) -> object:
     getter = getattr(task_class, "current_task", None)
     task = getter() if callable(getter) else None
     if task is not None:
@@ -1252,22 +1194,15 @@ def _current_controller_task(
         task_name="ResilientV2X post-main sequential training controller",
         reuse_last_task_id=False,
         output_uri=FILES_SERVER_URI,
-        auto_connect_arg_parser=auto_connect_arg_parser,
+        auto_connect_arg_parser=False,
     )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
     from clearml import Task
 
-    controller_task = None
-    if argv is None:
-        controller_task = _current_controller_task(
-            Task,
-            auto_connect_arg_parser=True,
-        )
-    args = _parser().parse_args(argv)
-    if controller_task is None:
-        controller_task = _current_controller_task(Task)
+    controller_task = _current_controller_task(Task)
     controller_task.output_uri = FILES_SERVER_URI
     run_training_suite(
         args,

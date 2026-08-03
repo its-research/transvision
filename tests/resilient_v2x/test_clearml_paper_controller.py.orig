@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,11 +17,13 @@ STUDENT_MODEL_ID = "d" * 32
 VALIDATION_TASK_ID = "e" * 32
 DATASET_ID = "f" * 32
 SOURCE_DATASET_ID = "1" * 32
-PROJECT_ID = "2" * 32
 
 
 def _load_controller():
-    path = ROOT / "tools/resilient_v2x/clearml_5090_paper_controller.py"
+    path = (
+        ROOT
+        / "tools/resilient_v2x/clearml_5090_paper_controller.py"
+    )
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -95,7 +96,9 @@ class _Task:
         self.output_uri = output_uri
         self.data = SimpleNamespace(
             script=SimpleNamespace(
-                entry_point=("tools/resilient_v2x/clearml_5090_bootstrap.py")
+                entry_point=(
+                    "tools/resilient_v2x/clearml_5090_bootstrap.py"
+                )
             )
         )
         self.on_reload = on_reload
@@ -230,14 +233,20 @@ def _write_summary(
     artifacts = {
         "validation_summary": _Artifact(
             path,
-            url=("http://10.100.34.118:8081/task/artifacts/validation_summary.json"),
+            url=(
+                "http://10.100.34.118:8081/task/artifacts/"
+                "validation_summary.json"
+            ),
         )
     }
     for condition_name in conditions:
         artifact_name = f"validation_{condition_name}"
         artifacts[artifact_name] = _Artifact(
             tmp_path,
-            url=(f"http://10.100.34.118:8081/task/artifacts/{artifact_name}.zip"),
+            url=(
+                "http://10.100.34.118:8081/task/artifacts/"
+                f"{artifact_name}.zip"
+            ),
         )
     return path, artifacts
 
@@ -265,7 +274,10 @@ def _workflow(
         name=module.CLEAN_TEACHER_MODEL_NAME,
         task=TEACHER_TASK_ID,
         model_id=TEACHER_MODEL_ID,
-        url=("http://10.100.34.118:8081/models/teacher_epoch_50.pth"),
+        url=(
+            "http://10.100.34.118:8081/models/"
+            "teacher_epoch_50.pth"
+        ),
         local_copy=teacher_checkpoint,
     )
     teacher_task = _Task(
@@ -336,7 +348,10 @@ def _workflow(
                     "task_id": TEACHER_TASK_ID,
                     "model_id": TEACHER_MODEL_ID,
                     "name": module.CLEAN_TEACHER_MODEL_NAME,
-                    "url": ("http://10.100.34.118:8081/models/teacher_epoch_50.pth"),
+                    "url": (
+                        "http://10.100.34.118:8081/models/"
+                        "teacher_epoch_50.pth"
+                    ),
                     "sha256": teacher_sha256,
                     "expected_sha256": teacher_sha256,
                 },
@@ -366,27 +381,14 @@ def _workflow(
     class Tasks:
         draft: _Task | None = None
         enqueued_queue: str | None = None
-        project_requests: list[str] = []
 
         @staticmethod
         def get_task(*, task_id: str):
             return tasks[task_id]
 
         @classmethod
-        def get_project_id(
-            cls,
-            *,
-            project_name: str,
-            search_hidden: bool = True,
-        ):
-            assert search_hidden is True
-            cls.project_requests.append(project_name)
-            return PROJECT_ID
-
-        @classmethod
         def clone(cls, **kwargs):
             assert kwargs["source_task"] is student_task
-            assert kwargs["project"] == PROJECT_ID
             assert student_task.status == "completed"
             assert events[-1] == "student_model_downloaded"
             events.append("validation_cloned")
@@ -477,7 +479,6 @@ def test_controller_runs_only_after_student_completion_and_verifies_results(
         "validation_completed",
     ]
     assert tasks.enqueued_queue == module.WORKER_QUEUE == "GPU4-5090"
-    assert tasks.project_requests == ["ResilientV2X/Training"]
     assert result.validation_task_id == VALIDATION_TASK_ID
     assert result.student_model_id == STUDENT_MODEL_ID
     assert result.student_checkpoint_sha256 == student_sha256
@@ -568,138 +569,19 @@ def test_bootstrap_entry_point_accepts_only_reviewed_path_or_basename() -> None:
         "/workspace/tools/resilient_v2x/clearml_5090_bootstrap.py",
     ):
         task = SimpleNamespace(
-            data=SimpleNamespace(script=SimpleNamespace(entry_point=entry_point))
-        )
-        assert (
-            module._require_bootstrap_entry_point(
-                task,
-                context="test task",
+            data=SimpleNamespace(
+                script=SimpleNamespace(entry_point=entry_point)
             )
-            == entry_point
         )
+        assert module._require_bootstrap_entry_point(
+            task,
+            context="test task",
+        ) == entry_point
 
     wrong = SimpleNamespace(
-        data=SimpleNamespace(script=SimpleNamespace(entry_point="other_bootstrap.py"))
+        data=SimpleNamespace(
+            script=SimpleNamespace(entry_point="other_bootstrap.py")
+        )
     )
     with pytest.raises(RuntimeError, match="sealed RTX5090 bootstrap"):
         module._require_bootstrap_entry_point(wrong, context="test task")
-
-
-def test_main_publishes_durable_controller_handoff(
-    monkeypatch,
-    capsys,
-) -> None:
-    module = _load_controller()
-    result = module.ControllerResult(
-        validation_task_id=VALIDATION_TASK_ID,
-        student_model_id=STUDENT_MODEL_ID,
-        student_checkpoint_sha256="5" * 64,
-        validation_summary_sha256="6" * 64,
-        condition_count=12,
-    )
-
-    class CurrentController:
-        id = "7" * 32
-        output_uri = None
-
-        def __init__(self) -> None:
-            self.parameters: dict[str, object] = {}
-            self.summary: dict[str, object] | None = None
-            self.flush_calls = 0
-
-        def set_parameter(self, *, name: str, value: object) -> None:
-            self.parameters[name] = value
-
-        def upload_artifact(
-            self,
-            name: str,
-            *,
-            artifact_object: str,
-            wait_on_upload: bool,
-        ) -> bool:
-            assert name == "paper_controller_summary"
-            assert wait_on_upload is True
-            self.summary = json.loads(Path(artifact_object).read_text(encoding="utf-8"))
-            return True
-
-        def flush(self, *, wait_for_uploads: bool) -> None:
-            assert wait_for_uploads is True
-            self.flush_calls += 1
-
-    current = CurrentController()
-
-    class Tasks:
-        @staticmethod
-        def current_task():
-            return current
-
-    observed: dict[str, object] = {}
-
-    def fake_run(task_class, **kwargs):
-        observed["task_class"] = task_class
-        observed.update(kwargs)
-        return result
-
-    monkeypatch.setitem(sys.modules, "clearml", SimpleNamespace(Task=Tasks))
-    monkeypatch.setattr(module, "run_paper_controller", fake_run)
-    assert (
-        module.main(
-            [
-                "--student-task-id",
-                STUDENT_TASK_ID,
-                "--teacher-task-id",
-                TEACHER_TASK_ID,
-                "--teacher-model-id",
-                TEACHER_MODEL_ID,
-                "--teacher-checkpoint-sha256",
-                "8" * 64,
-            ]
-        )
-        == 0
-    )
-
-    assert observed["task_class"] is Tasks
-    assert "controller_task" not in observed
-    assert current.parameters["Controller/validation_task_id"] == VALIDATION_TASK_ID
-    assert current.output_uri == module.FILES_SERVER_URI
-    assert current.flush_calls == 2
-    assert current.summary is not None
-    summary = module._require_sealed_document(
-        current.summary,
-        expected_type=module.PAPER_CONTROLLER_SUMMARY_DOCUMENT_TYPE,
-        context="paper controller summary",
-    )
-    assert summary["controller_task_id"] == current.id
-    assert summary["student_task_id"] == STUDENT_TASK_ID
-    assert summary["validation_task_id"] == VALIDATION_TASK_ID
-    assert summary["student_model"]["model_id"] == STUDENT_MODEL_ID
-    assert summary["condition_count"] == 12
-    printed = json.loads(capsys.readouterr().out)
-    assert printed["event"] == "resilient_v2x_paper_validation_complete"
-
-
-def test_remote_controller_connects_before_argparse() -> None:
-    module = _load_controller()
-    current = object()
-    calls: list[dict[str, object]] = []
-
-    class Tasks:
-        @staticmethod
-        def current_task():
-            return None
-
-        @staticmethod
-        def init(**kwargs):
-            calls.append(dict(kwargs))
-            return current
-
-    assert module._connect_controller_task(Tasks) is current
-    assert calls == [
-        {
-            "project_name": "ResilientV2X/Training",
-            "task_name": "ResilientV2X paper validation controller",
-            "reuse_last_task_id": False,
-            "output_uri": module.FILES_SERVER_URI,
-            "auto_connect_arg_parser": True,
-        }
-    ]

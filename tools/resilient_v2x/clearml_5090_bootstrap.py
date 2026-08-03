@@ -77,6 +77,57 @@ FILES_SERVER_URI = (
     f"http://{EXPECTED_FILES_SERVER_HOST}:{EXPECTED_FILES_SERVER_PORT}"
 )
 EXPERIMENT_MAX_EPOCHS = 50
+CLEARML_TRAIN_BASELINE_SHA256 = (
+    "75be98d06f36eaa39dae07b2c4274d1441c001a697d155924c5176eff0d039ba"
+)
+CLEARML_TRAIN_METRICS_COMPAT_SHA256 = (
+    "30dad14e7364e5311ce58ae8f1b797798bd994618c9020613c4928c79b8a7b14"
+)
+CLEARML_TRAIN_METRICS_REPLACEMENTS = (
+    (
+        '''    candidates = sorted(work_dir.rglob("scalars.json"))
+    if len(candidates) != 1:
+        raise ValueError(
+            f"expected exactly one scalars.json under {work_dir}, found {len(candidates)}"
+        )
+''',
+        '''    candidates = sorted(work_dir.rglob("scalars.json"))
+    metric_source = "scalars.json"
+    if not candidates:
+        candidates = sorted(
+            path
+            for path in work_dir.rglob("*.json")
+            if len(path.name) == 20
+            and path.name[8] == "_"
+            and path.name.endswith(".json")
+            and (path.name[:8] + path.name[9:15]).isdigit()
+        )
+        metric_source = "MMEngine timestamped metric log"
+    if len(candidates) != 1:
+        raise ValueError(
+            f"expected exactly one {metric_source} under {work_dir}, "
+            f"found {len(candidates)}"
+        )
+''',
+    ),
+    (
+        '''    metric_rows: list[dict[str, object]] = []
+    for line_number, line in enumerate(
+        scalars.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+''',
+        '''    metric_rows: list[dict[str, object]] = []
+    metric_content = scalars.read_text(encoding="utf-8")
+    metric_lines = (
+        metric_content.splitlines()
+        if metric_source == "scalars.json"
+        else [metric_content]
+    )
+    for line_number, line in enumerate(metric_lines, start=1):
+''',
+    ),
+)
 
 
 class ExperimentSpec(NamedTuple):
@@ -473,6 +524,57 @@ def _safe_extract_zstd(archive: Path, destination: Path) -> Path:
                     target = _validated_member_path(member, destination, observed)
                     _extract_member(bundle, member, target)
     return destination
+
+
+def _apply_source_runner_metrics_compatibility(source_root: Path) -> Path:
+    """Patch the sealed runner only when its complete baseline identity matches."""
+
+    source_root = source_root.resolve(strict=True)
+    target = source_root / "tools/resilient_v2x/clearml_train.py"
+    if target.is_symlink() or not target.is_file():
+        raise ValueError(f"source training runner is not a regular file: {target}")
+    target = target.resolve(strict=True)
+    try:
+        target.relative_to(source_root)
+    except ValueError as error:
+        raise ValueError(f"source training runner escaped source root: {target}") from error
+
+    original = target.read_bytes()
+    actual_sha256 = hashlib.sha256(original).hexdigest()
+    if actual_sha256 == CLEARML_TRAIN_METRICS_COMPAT_SHA256:
+        return target
+    if actual_sha256 != CLEARML_TRAIN_BASELINE_SHA256:
+        raise ValueError(
+            "source training runner identity does not match the sealed baseline: "
+            f"{actual_sha256}"
+        )
+
+    patched = original.decode("utf-8")
+    for old, new in CLEARML_TRAIN_METRICS_REPLACEMENTS:
+        if patched.count(old) != 1:
+            raise ValueError("source training runner compatibility anchor is not unique")
+        patched = patched.replace(old, new)
+    encoded = patched.encode("utf-8")
+    patched_sha256 = hashlib.sha256(encoded).hexdigest()
+    if patched_sha256 != CLEARML_TRAIN_METRICS_COMPAT_SHA256:
+        raise ValueError(
+            "source training runner compatibility result has an invalid identity: "
+            f"{patched_sha256}"
+        )
+
+    temporary = target.with_name(f"{target.name}.metrics-compat.tmp")
+    if temporary.exists() or temporary.is_symlink():
+        raise FileExistsError(f"compatibility temporary path already exists: {temporary}")
+    mode = target.stat().st_mode & 0o777
+    try:
+        with temporary.open("xb") as output:
+            output.write(encoded)
+        temporary.chmod(mode)
+        os.replace(temporary, target)
+    finally:
+        if temporary.exists() or temporary.is_symlink():
+            temporary.unlink()
+    return target
 
 
 def _extract_member(
@@ -1885,6 +1987,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     source_root = _safe_extract_zstd(source_archive, WORKSPACE)
+    _apply_source_runner_metrics_compatibility(source_root)
     bundle_root = _safe_extract_tar(
         bundle_path,
         Path("/tmp/resilient-v2x-5090-native-bundle"),

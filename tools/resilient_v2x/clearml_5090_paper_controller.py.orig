@@ -31,11 +31,15 @@ CLEAN_TEACHER_MODEL_NAME = "ResilientV2X clean teacher"
 DISTILLED_STUDENT_MODEL_NAME = "ResilientV2X distilled student"
 VALIDATION_SUMMARY_DOCUMENT_TYPE = "resilient_v2x_validation_summary"
 CONDITION_RESULT_DOCUMENT_TYPE = "resilient_v2x_condition_result"
-PAPER_CONTROLLER_SUMMARY_DOCUMENT_TYPE = "resilient_v2x_paper_controller_summary"
+PAPER_CONTROLLER_SUMMARY_DOCUMENT_TYPE = (
+    "resilient_v2x_paper_controller_summary"
+)
 BOOTSTRAP_ENTRY_POINT = "tools/resilient_v2x/clearml_5090_bootstrap.py"
 CLEARML_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
-TERMINAL_NONCOMPLETED_STATUSES = frozenset({"failed", "stopped", "closed", "published"})
+TERMINAL_NONCOMPLETED_STATUSES = frozenset(
+    {"failed", "stopped", "closed", "published"}
+)
 EXPECTED_CONDITIONS = tuple(
     f"delay_{delay_ms:03d}_{condition}"
     for delay_ms in (0, 100, 200, 300)
@@ -81,7 +85,9 @@ class ControllerResult(NamedTuple):
 
 def _clearml_id_argument(value: str) -> str:
     if CLEARML_ID_PATTERN.fullmatch(value) is None:
-        raise argparse.ArgumentTypeError("value must be a lowercase 32-hex ClearML ID")
+        raise argparse.ArgumentTypeError(
+            "value must be a lowercase 32-hex ClearML ID"
+        )
     return value
 
 
@@ -177,41 +183,6 @@ def _task_id(task: object, *, context: str) -> str:
     return value
 
 
-def _project_id(task_class: object, project: str) -> str:
-    if CLEARML_ID_PATTERN.fullmatch(project) is not None:
-        return project
-    getter = getattr(task_class, "get_project_id", None)
-    if not callable(getter):
-        raise RuntimeError("ClearML Task class cannot resolve a project ID")
-    try:
-        value = getter(project_name=project, search_hidden=True)
-    except TypeError:
-        value = getter(project_name=project)
-    result = str(value or "")
-    if CLEARML_ID_PATTERN.fullmatch(result) is None:
-        raise RuntimeError(
-            f"ClearML project does not resolve to an ID: {project!r}"
-        )
-    return result
-
-
-def _connect_controller_task(task_class: object) -> object:
-    current_getter = getattr(task_class, "current_task", None)
-    current = current_getter() if callable(current_getter) else None
-    if current is not None:
-        return current
-    initializer = getattr(task_class, "init", None)
-    if not callable(initializer):
-        raise RuntimeError("ClearML Task class cannot initialize the controller")
-    return initializer(
-        project_name="ResilientV2X/Training",
-        task_name="ResilientV2X paper validation controller",
-        reuse_last_task_id=False,
-        output_uri=FILES_SERVER_URI,
-        auto_connect_arg_parser=True,
-    )
-
-
 def _reload(task: object) -> None:
     reloader = getattr(task, "reload", None)
     if callable(reloader):
@@ -260,7 +231,8 @@ def _require_files_server_url(uri: object, *, context: str) -> str:
         or (parsed.path and not parsed.path.startswith("/"))
     ):
         raise RuntimeError(
-            f"{context} must use the trusted files server {FILES_SERVER_URI}: {value!r}"
+            f"{context} must use the trusted files server {FILES_SERVER_URI}: "
+            f"{value!r}"
         )
     return value
 
@@ -308,7 +280,8 @@ def _require_bootstrap_entry_point(task: object, *, context: str) -> str:
         or normalized.endswith(f"/{BOOTSTRAP_ENTRY_POINT}")
     ):
         raise RuntimeError(
-            f"{context} does not execute the sealed RTX5090 bootstrap: {entry_point!r}"
+            f"{context} does not execute the sealed RTX5090 bootstrap: "
+            f"{entry_point!r}"
         )
     return entry_point
 
@@ -685,7 +658,9 @@ def _require_validation_draft(
     expected_parameters: Mapping[str, object],
 ) -> None:
     if _normalized_task_status(task) != "created":
-        raise RuntimeError("validation task must remain created until all checks pass")
+        raise RuntimeError(
+            "validation task must remain created until all checks pass"
+        )
     _task_id(task, context="validation draft")
     _require_bootstrap_entry_point(task, context="validation draft")
     parameters = _parameters(task, context="validation draft")
@@ -748,51 +723,6 @@ def _document_content_sha256(document: Mapping[str, object]) -> str:
     payload = dict(document)
     payload.pop("content_sha256", None)
     return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
-
-
-def _upload_controller_summary(
-    controller_task: object | None,
-    *,
-    student_task_id: str,
-    result: ControllerResult,
-) -> None:
-    if controller_task is None:
-        return
-    controller_task_id = _task_id(controller_task, context="paper controller task")
-    summary: dict[str, object] = {
-        "schema_version": 1,
-        "document_type": PAPER_CONTROLLER_SUMMARY_DOCUMENT_TYPE,
-        "controller_task_id": controller_task_id,
-        "student_task_id": student_task_id,
-        "validation_task_id": result.validation_task_id,
-        "student_model": {
-            "name": DISTILLED_STUDENT_MODEL_NAME,
-            "model_id": result.student_model_id,
-            "checkpoint_sha256": result.student_checkpoint_sha256,
-        },
-        "validation_summary_sha256": result.validation_summary_sha256,
-        "condition_count": result.condition_count,
-        "worker_queue": WORKER_QUEUE,
-    }
-    summary["content_sha256"] = _document_content_sha256(summary)
-    controller_task.output_uri = FILES_SERVER_URI
-    uploader = getattr(controller_task, "upload_artifact", None)
-    if not callable(uploader):
-        raise RuntimeError("paper controller task cannot upload its summary")
-    with tempfile.TemporaryDirectory(
-        prefix="resilient-v2x-paper-controller-"
-    ) as temporary_dir:
-        path = Path(temporary_dir) / "paper_controller_summary.json"
-        path.write_bytes(_canonical_json_bytes(summary) + b"\n")
-        if not uploader(
-            "paper_controller_summary",
-            artifact_object=str(path),
-            wait_on_upload=True,
-        ):
-            raise RuntimeError("failed to upload paper_controller_summary")
-    flusher = getattr(controller_task, "flush", None)
-    if callable(flusher):
-        flusher(wait_for_uploads=True)
 
 
 def _require_sealed_document(
@@ -863,7 +793,9 @@ def _require_condition_result(
     for role, expected_sha256 in checkpoint_shas.items():
         checkpoint = checkpoints.get(role)
         if not isinstance(checkpoint, Mapping):
-            raise RuntimeError(f"condition {condition_name} has no {role} checkpoint")
+            raise RuntimeError(
+                f"condition {condition_name} has no {role} checkpoint"
+            )
         if checkpoint.get("sha256") != expected_sha256:
             raise RuntimeError(
                 f"condition {condition_name} {role} checkpoint SHA mismatch"
@@ -880,9 +812,7 @@ def _require_condition_result(
         if type(metric) not in {int, float} or not math.isfinite(float(metric)):
             raise RuntimeError(f"condition {condition_name} has invalid metric {key}")
         if not 0.0 <= float(metric) <= 100.0:
-            raise RuntimeError(
-                f"condition {condition_name} metric {key} is out of range"
-            )
+            raise RuntimeError(f"condition {condition_name} metric {key} is out of range")
 
 
 def _download_validation_summary(
@@ -1074,7 +1004,7 @@ def run_paper_controller(
             "completed and its unique epoch-50 OutputModel SHA was verified."
         ),
         parent=student_task_id,
-        project=_project_id(task_class, project),
+        project=project,
     )
     validation_task_id = _task_id(draft, context="cloned validation task")
     if validation_task_id == student_task_id:
@@ -1124,22 +1054,18 @@ def run_paper_controller(
         teacher_sha256=teacher_pin.checkpoint_sha256,
         student_sha256=observed_student_sha256,
     )
-    result = ControllerResult(
+    return ControllerResult(
         validation_task_id=validation_task_id,
         student_model_id=student_model_id,
         student_checkpoint_sha256=observed_student_sha256,
         validation_summary_sha256=summary_sha256,
         condition_count=condition_count,
     )
-    return result
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    from clearml import Task
-
-    if argv is None:
-        _connect_controller_task(Task)
     args = _parser().parse_args(argv)
+    from clearml import Task
 
     result = run_paper_controller(
         Task,
@@ -1155,17 +1081,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         poll_seconds=args.poll_seconds,
         timeout_seconds=args.timeout_seconds,
     )
-    controller_task = Task.current_task()
-    _record_validation_task_id(
-        controller_task,
-        result.validation_task_id,
-    )
-    _upload_controller_summary(
-        controller_task,
-        student_task_id=args.student_task_id,
-        result=result,
-    )
-
     print(
         json.dumps(
             {

@@ -428,16 +428,31 @@ def _metrics_from_scalars(
     expected_sample_count: int,
 ) -> tuple[Path, dict[str, object]]:
     candidates = sorted(work_dir.rglob("scalars.json"))
+    metric_source = "scalars.json"
+    if not candidates:
+        candidates = sorted(
+            path
+            for path in work_dir.rglob("*.json")
+            if len(path.name) == 20
+            and path.name[8] == "_"
+            and path.name.endswith(".json")
+            and (path.name[:8] + path.name[9:15]).isdigit()
+        )
+        metric_source = "MMEngine timestamped metric log"
     if len(candidates) != 1:
         raise ValueError(
-            f"expected exactly one scalars.json under {work_dir}, found {len(candidates)}"
+            f"expected exactly one {metric_source} under {work_dir}, "
+            f"found {len(candidates)}"
         )
     scalars = candidates[0].resolve(strict=True)
     metric_rows: list[dict[str, object]] = []
-    for line_number, line in enumerate(
-        scalars.read_text(encoding="utf-8").splitlines(),
-        start=1,
-    ):
+    metric_content = scalars.read_text(encoding="utf-8")
+    metric_lines = (
+        metric_content.splitlines()
+        if metric_source == "scalars.json"
+        else [metric_content]
+    )
+    for line_number, line in enumerate(metric_lines, start=1):
         if not line:
             raise ValueError(f"empty JSONL row in {scalars}:{line_number}")
         row = json.loads(line)

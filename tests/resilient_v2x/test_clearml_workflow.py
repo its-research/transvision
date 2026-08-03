@@ -359,6 +359,30 @@ def test_scalars_reject_ambiguous_multiple_files(tmp_path: Path) -> None:
         runner._metrics_from_scalars(tmp_path, 2)
 
 
+def test_metrics_accept_mmengine_timestamped_logger_fallback(tmp_path: Path) -> None:
+    runner = _load_script("clearml_train.py")
+    expected = _metrics()
+    logger_path = tmp_path / "run/20260803_120102.json"
+    logger_path.parent.mkdir(parents=True)
+    logger_path.write_text(json.dumps(expected), encoding="utf-8")
+
+    actual_path, actual_metrics = runner._metrics_from_scalars(tmp_path, 2)
+
+    assert actual_path == logger_path.resolve()
+    assert actual_metrics == expected
+
+
+def test_metrics_reject_ambiguous_mmengine_logger_fallback(tmp_path: Path) -> None:
+    runner = _load_script("clearml_train.py")
+    for timestamp in ("20260803_120102", "20260803_120103"):
+        logger_path = tmp_path / "run" / f"{timestamp}.json"
+        logger_path.parent.mkdir(parents=True, exist_ok=True)
+        logger_path.write_text(json.dumps(_metrics()), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="timestamped metric log"):
+        runner._metrics_from_scalars(tmp_path, 2)
+
+
 def test_condition_result_writer_is_canonical_and_sealed(tmp_path: Path) -> None:
     from transvision.evaluation.resilient_v2x_evidence import read_document
 
@@ -522,6 +546,35 @@ def test_rtx5090_bootstrap_extracts_valid_tar(tmp_path: Path) -> None:
     destination = bootstrap._safe_extract_tar(archive, tmp_path / "extract")
 
     assert (destination / "nested/value.txt").read_bytes() == b"ok"
+
+
+def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
+    tmp_path: Path,
+) -> None:
+    bootstrap = _load_script("clearml_5090_bootstrap.py")
+    patched = (ROOT / "tools/resilient_v2x/clearml_train.py").read_text(
+        encoding="utf-8"
+    )
+    baseline = patched
+    for old, new in bootstrap.CLEARML_TRAIN_METRICS_REPLACEMENTS:
+        assert baseline.count(new) == 1
+        baseline = baseline.replace(new, old)
+    assert hashlib.sha256(baseline.encode("utf-8")).hexdigest() == (
+        bootstrap.CLEARML_TRAIN_BASELINE_SHA256
+    )
+    assert hashlib.sha256(patched.encode("utf-8")).hexdigest() == (
+        bootstrap.CLEARML_TRAIN_METRICS_COMPAT_SHA256
+    )
+
+    source_root = tmp_path / "source"
+    runner_path = source_root / "tools/resilient_v2x/clearml_train.py"
+    runner_path.parent.mkdir(parents=True)
+    runner_path.write_text(baseline, encoding="utf-8")
+
+    actual_path = bootstrap._apply_source_runner_metrics_compatibility(source_root)
+
+    assert actual_path == runner_path.resolve()
+    assert runner_path.read_text(encoding="utf-8") == patched
 
 
 def test_rtx5090_embedded_smoke_scripts_compile() -> None:

@@ -644,3 +644,33 @@ def test_controller_source_never_uses_pipeline_controller() -> None:
     ).read_text(encoding="utf-8")
     assert "from clearml import PipelineController" not in source
     assert "PipelineController(" not in source
+
+
+def test_remote_controller_initialization_enables_argparse_connection() -> None:
+    module = _load_controller()
+    current = object()
+    calls: list[dict[str, object]] = []
+
+    class Tasks:
+        @staticmethod
+        def current_task():
+            return None
+
+        @staticmethod
+        def init(**kwargs):
+            calls.append(dict(kwargs))
+            return current
+
+    assert module._current_controller_task(
+        Tasks,
+        auto_connect_arg_parser=True,
+    ) is current
+    assert calls == [
+        {
+            "project_name": module.DEFAULT_PROJECT,
+            "task_name": "ResilientV2X post-main sequential training controller",
+            "reuse_last_task_id": False,
+            "output_uri": module.FILES_SERVER_URI,
+            "auto_connect_arg_parser": True,
+        }
+    ]
