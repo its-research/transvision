@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG_ROOT = ROOT / "configs" / "resilient_v2x"
 MAIN = CONFIG_ROOT / "dair_resilient_v2x.py"
 TEACHER = CONFIG_ROOT / "dair_clean_teacher.py"
+VEHICLE = CONFIG_ROOT / "dair_vehicle_pretrain.py"
 BASELINE_ROOT = CONFIG_ROOT / "baselines"
 
 CONTROLLED_BASELINES = {
@@ -137,6 +138,7 @@ def test_official_mmengine_loader_accepts_every_config_when_available() -> None:
             assert config.model.type in {
                 "ControlledCooperativeBaselineNet",
                 "ResilientV2XNet",
+                "VehiclePointPillarsPretrainNet",
             }
             assert config.test_dataloader.dataset.type == ("ResilientTemporalDataset")
             assert config.test_dataloader.dataset.split == "val"
@@ -400,6 +402,34 @@ def test_dataset_and_runtime_are_seeded_and_runner_compatible() -> None:
         "point_cloud_range": [0.0, -40.0, -3.0, 80.0, 40.0, 1.0],
         "prediction_output": None,
     }
+
+
+def test_vehicle_pretrain_reuses_exact_lidar_encoder_and_head() -> None:
+    vehicle = _load_config(VEHICLE)
+    main = _load_config(MAIN)
+    model = vehicle["model"]
+    assert model == {
+        "type": "VehiclePointPillarsPretrainNet",
+        "lidar_encoder": main["model"]["lidar_encoder"],
+        "bbox_head": main["model"]["bbox_head"],
+        "data_preprocessor": main["model"]["data_preprocessor"],
+    }
+    for split in ("train", "val", "test"):
+        dataset = _dataset(vehicle, split)
+        assert dataset["load_lidar"] is True
+        assert dataset["load_camera"] is False
+    train = _dataset(vehicle, "train")
+    assert train["include_clean_teacher"] is False
+    assert train["transport_overlay_path"] is None
+    assert train["fault_overlay_path"] is None
+    assert vehicle["default_hooks"]["checkpoint"]["filename_tmpl"] == (
+        "vehicle_epoch_{}.pth"
+    )
+    assert vehicle["experiment"]["stage"] == "vehicle_pretrain"
+    assert vehicle["vehicle_pretrain_contract"]["shared_checkpoint_prefixes"] == (
+        "lidar_encoder.",
+        "bbox_head.",
+    )
 
 
 def test_clean_teacher_is_zero_latency_and_has_no_recursive_teacher() -> None:

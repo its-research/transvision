@@ -13,6 +13,7 @@ from torch.nn import functional as F
 
 from transvision.models.resilient_v2x import (
     BEVGridSpec,
+    CONTROLLED_BRANCH_KEYS,
     FrozenTeacher,
     ResilientBatchSelections,
     ResilientFeatureBatch,
@@ -355,6 +356,132 @@ class SharedResNetLSSBEVEncoder(nn.Module):
         return _autocast_feature_output(bev)
 
 
+@MODELS.register_module()
+class VehiclePointPillarsPretrainNet(Base3DDetector):
+    """Pretrain the shared LiDAR encoder and Car head on current ego scans."""
+
+    def __init__(
+        self,
+        lidar_encoder: Mapping[str, object] | nn.Module,
+        bbox_head: Mapping[str, object] | nn.Module,
+        data_preprocessor: OptConfigType = None,
+        init_cfg: OptMultiConfig = None,
+        **kwargs: object,
+    ) -> None:
+        if kwargs:
+            unexpected = ", ".join(sorted(kwargs))
+            raise ValueError(f"unexpected vehicle pretraining options: {unexpected}")
+        super().__init__(data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+        self.lidar_encoder = _build_optional(lidar_encoder)
+        self.bbox_head = _build_optional(bbox_head)
+        if self.lidar_encoder is None or self.bbox_head is None:
+            raise ValueError("lidar_encoder and bbox_head are required")
+
+    @property
+    def with_bbox_head(self) -> bool:
+        return self.bbox_head is not None
+
+    def _vehicle_feature(self, inputs: Mapping[str, object]) -> Tensor:
+        points = inputs.get("lidar_points")
+        owners = inputs.get("lidar_owner")
+        availability = inputs.get("availability")
+        if not isinstance(points, (tuple, list)) or not isinstance(owners, Tensor):
+            raise ValueError("sparse LiDAR payloads and owner tensor are required")
+        if owners.ndim != 2 or owners.shape[1] != 3 or owners.dtype != torch.long:
+            raise ValueError("lidar_owner must be int64 [K,3]")
+        if len(points) != owners.shape[0]:
+            raise ValueError("lidar payload and owner counts must match")
+        if not isinstance(availability, Tensor) or availability.ndim != 4:
+            raise ValueError("availability must define the batch dimension")
+        batch_size = int(availability.shape[0])
+        mask = (owners[:, 1] == 0) & (owners[:, 2] == 0)
+        selected = torch.nonzero(mask, as_tuple=False).flatten()
+        if selected.numel() != batch_size:
+            raise RuntimeError(
+                "vehicle pretraining requires exactly one current ego LiDAR "
+                "payload per sample"
+            )
+        batch_indices = owners[selected, 0]
+        order = torch.argsort(batch_indices, stable=True)
+        selected = selected[order]
+        batch_indices = batch_indices[order]
+        expected = torch.arange(batch_size, device=owners.device)
+        if not torch.equal(batch_indices, expected):
+            raise RuntimeError(
+                "current ego LiDAR payloads must cover every batch sample exactly once"
+            )
+        selected_points = tuple(points[index] for index in selected.cpu().tolist())
+        feature = self.lidar_encoder(selected_points)
+        if not isinstance(feature, Tensor) or feature.shape[0] != batch_size:
+            raise RuntimeError("lidar_encoder returned an invalid vehicle batch")
+        return feature
+
+    def extract_feat(
+        self,
+        batch_inputs_dict: Mapping[str, object],
+        batch_input_metas: Sequence[Mapping[str, object]] | None = None,
+        **kwargs: object,
+    ) -> list[Tensor]:
+        return [self._vehicle_feature(batch_inputs_dict)]
+
+    def _forward(
+        self,
+        batch_inputs: Mapping[str, object],
+        batch_data_samples: OptSampleList = None,
+        **kwargs: object,
+    ) -> object:
+        return self.bbox_head(self.extract_feat(batch_inputs))
+
+    def loss(
+        self,
+        batch_inputs_dict: Mapping[str, object],
+        batch_data_samples: list[Det3DDataSample],
+        **kwargs: object,
+    ) -> dict[str, Tensor]:
+        return dict(
+            self.bbox_head.loss(
+                self.extract_feat(batch_inputs_dict),
+                batch_data_samples,
+            )
+        )
+
+    def predict(
+        self,
+        batch_inputs_dict: Mapping[str, object],
+        batch_data_samples: list[Det3DDataSample],
+        **kwargs: object,
+    ) -> list[Det3DDataSample]:
+        outputs = self.bbox_head.predict(
+            self.extract_feat(batch_inputs_dict),
+            batch_data_samples,
+        )
+        results = self.add_pred_to_datasample(batch_data_samples, outputs)
+        for sample in results:
+            sample_id = sample.metainfo.get(
+                "sample_id",
+                sample.metainfo.get("sample_idx"),
+            )
+            sample.set_metainfo(
+                {
+                    "controlled_baseline_diagnostics": {
+                        "schema_version": 1,
+                        "sample_id": sample_id,
+                        "method": "vehicle_pointpillars_pretrain",
+                        "branch_order": CONTROLLED_BRANCH_KEYS,
+                        "support": {
+                            key: key == "lidar_ego"
+                            for key in CONTROLLED_BRANCH_KEYS
+                        },
+                        "age_intervals": {
+                            key: (0.0 if key == "lidar_ego" else None)
+                            for key in CONTROLLED_BRANCH_KEYS
+                        },
+                    }
+                }
+            )
+        return results
+
+
 def _nested_tensor(value: object, path: Sequence[str | int]) -> Tensor:
     current = value
     for item in path:
@@ -660,5 +787,6 @@ class ResilientV2XNet(Base3DDetector):
 __all__ = (
     "SharedPointPillarsBEVEncoder",
     "SharedResNetLSSBEVEncoder",
+    "VehiclePointPillarsPretrainNet",
     "ResilientV2XNet",
 )

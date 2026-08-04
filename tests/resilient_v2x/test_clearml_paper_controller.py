@@ -322,7 +322,7 @@ def _workflow(
                 "dataset_id": DATASET_ID,
                 "runtime_profile": "rtx5090",
                 "gpus": 4,
-                "global_batch_size": 4,
+                "global_batch_size": 8,
                 "max_epochs": 50,
                 "amp": False,
                 "checkpoint_policy": "final_epoch",

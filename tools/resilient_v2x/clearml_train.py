@@ -74,6 +74,10 @@ RTX5090_HEADLESS_CFG_OPTIONS = (
     "visualizer.type=Visualizer",
     "visualizer.vis_backends.0._scope_=mmengine",
 )
+RTX5090_VEHICLE_TRAIN_BATCH_SIZE_PER_GPU = 8
+RTX5090_VEHICLE_EVAL_BATCH_SIZE_PER_GPU = 16
+RTX5090_TRAIN_BATCH_SIZE_PER_GPU = 2
+RTX5090_EVAL_BATCH_SIZE_PER_GPU = 4
 LEGACY_TASK_TAGS = (
     "4gpu",
     "A100",
@@ -88,10 +92,29 @@ RTX5090_TASK_TAGS = (
     "sm120",
     "FP32",
     "DDP",
-    "global-batch-4",
+    "train-global-batch-8",
+    "vehicle-global-batch-32",
     "lr-1e-4-unscaled",
     "manifest-05c247d7",
 )
+
+
+def _batch_profile(runtime_profile: str) -> dict[str, int]:
+    if runtime_profile == "legacy":
+        return {
+            "vehicle_train_per_gpu": 1,
+            "vehicle_eval_per_gpu": 1,
+            "train_per_gpu": 1,
+            "eval_per_gpu": 1,
+        }
+    if runtime_profile == "rtx5090":
+        return {
+            "vehicle_train_per_gpu": RTX5090_VEHICLE_TRAIN_BATCH_SIZE_PER_GPU,
+            "vehicle_eval_per_gpu": RTX5090_VEHICLE_EVAL_BATCH_SIZE_PER_GPU,
+            "train_per_gpu": RTX5090_TRAIN_BATCH_SIZE_PER_GPU,
+            "eval_per_gpu": RTX5090_EVAL_BATCH_SIZE_PER_GPU,
+        }
+    raise ValueError(f"unknown runtime profile: {runtime_profile!r}")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -100,7 +123,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpus", type=int, choices=(4,), default=4)
     parser.add_argument(
         "--stage",
-        choices=("all", "teacher", "student", "validate"),
+        choices=("all", "vehicle", "vehicle_teacher", "teacher", "student", "validate"),
         default="all",
     )
     parser.add_argument("--teacher-checkpoint", type=Path)
@@ -575,6 +598,25 @@ def _checkpoint(work_dir: Path, prefix: str, epoch: int) -> Path:
     return checkpoint.resolve(strict=True)
 
 
+def _best_checkpoint(work_dir: Path, prefix: str) -> Path:
+    candidates = sorted(
+        work_dir.glob(
+            "best_resilient_v2x_car_bev_ap_r40_0.70_"
+            f"{prefix}_epoch_*.pth"
+        )
+    )
+    if len(candidates) != 1:
+        raise ValueError(
+            f"expected exactly one best {prefix} checkpoint, found {len(candidates)}"
+        )
+    checkpoint = candidates[0]
+    if checkpoint.is_symlink():
+        checkpoint = checkpoint.resolve(strict=True)
+    if not checkpoint.is_file() or checkpoint.stat().st_size <= 0:
+        raise ValueError(f"best {prefix} checkpoint is invalid: {checkpoint}")
+    return checkpoint.resolve(strict=True)
+
+
 def _overlay_environment(
     dataset_root: Path,
     base_env: Mapping[str, str],
@@ -685,6 +727,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.runtime_profile == "rtx5090":
         _validate_rtx5090_runtime_contract(_capture_rtx5090_runtime_contract())
+    batch_profile = _batch_profile(args.runtime_profile)
 
     from clearml import Dataset, Task, TaskTypes
 
@@ -744,7 +787,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         "dataset_id": args.dataset_id,
         "dataset_local_copy": str(dataset_root),
         "gpus": args.gpus,
-        "global_batch_size": args.gpus,
+        "global_batch_size": args.gpus * batch_profile["train_per_gpu"],
+        "train_batch_size_per_gpu": batch_profile["train_per_gpu"],
+        "eval_batch_size_per_gpu": batch_profile["eval_per_gpu"],
+        "vehicle_global_batch_size": (
+            args.gpus * batch_profile["vehicle_train_per_gpu"]
+        ),
+        "vehicle_train_batch_size_per_gpu": batch_profile["vehicle_train_per_gpu"],
+        "vehicle_eval_batch_size_per_gpu": batch_profile["vehicle_eval_per_gpu"],
         "learning_rate": 0.0001,
         "auto_scale_lr": False,
         "max_epochs": args.max_epochs,
@@ -785,23 +835,68 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     runtime_cfg_options = _runtime_cfg_options(args.runtime_profile)
-    common_train_args = [
-        "--launcher",
-        "pytorch",
-        "--cfg-options",
-        f"train_cfg.max_epochs={args.max_epochs}",
-        *runtime_cfg_options,
-    ]
-    if args.amp:
-        common_train_args.insert(0, "--amp")
+    def train_args(train_batch_size: int, eval_batch_size: int) -> list[str]:
+        result = [
+            "--launcher",
+            "pytorch",
+            "--cfg-options",
+            f"train_cfg.max_epochs={args.max_epochs}",
+            f"train_dataloader.batch_size={train_batch_size}",
+            f"val_dataloader.batch_size={eval_batch_size}",
+            f"test_dataloader.batch_size={eval_batch_size}",
+            *runtime_cfg_options,
+        ]
+        if args.amp:
+            result.insert(0, "--amp")
+        return result
+
+    vehicle_train_args = train_args(
+        batch_profile["vehicle_train_per_gpu"],
+        batch_profile["vehicle_eval_per_gpu"],
+    )
+    model_train_args = train_args(
+        batch_profile["train_per_gpu"],
+        batch_profile["eval_per_gpu"],
+    )
+
+    vehicle_checkpoint: Path | None = None
+    if args.stage in ("vehicle", "vehicle_teacher"):
+        vehicle_dir = work_root / "vehicle"
+        _run(
+            _torchrun(
+                args.gpus,
+                "tools/train.py",
+                "configs/resilient_v2x/dair_vehicle_pretrain.py",
+                "--work-dir",
+                str(vehicle_dir),
+                *vehicle_train_args,
+            ),
+            env=env,
+        )
+        vehicle_checkpoint = _best_checkpoint(vehicle_dir, "vehicle")
+        _upload_model(
+            task,
+            "ResilientV2X vehicle PointPillars pretrain",
+            vehicle_checkpoint,
+            args.runtime_profile,
+        )
+
+    if args.stage == "vehicle":
+        task.flush(wait_for_uploads=True)
+        return 0
 
     teacher_checkpoint = (
         args.teacher_checkpoint.resolve(strict=True)
         if args.teacher_checkpoint is not None
         else None
     )
-    if args.stage in ("all", "teacher"):
+    if args.stage in ("all", "teacher", "vehicle_teacher"):
         teacher_dir = work_root / "teacher"
+        teacher_env = dict(env)
+        if vehicle_checkpoint is not None:
+            teacher_env["RESILIENT_V2X_VEHICLE_PRETRAIN_CHECKPOINT"] = str(
+                vehicle_checkpoint
+            )
         _run(
             _torchrun(
                 args.gpus,
@@ -809,9 +904,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "configs/resilient_v2x/dair_clean_teacher.py",
                 "--work-dir",
                 str(teacher_dir),
-                *common_train_args,
+                *model_train_args,
             ),
-            env=env,
+            env=teacher_env,
         )
         teacher_checkpoint = _checkpoint(teacher_dir, "teacher", args.max_epochs)
         _upload_model(
@@ -821,7 +916,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.runtime_profile,
         )
 
-    if args.stage == "teacher":
+    if args.stage in ("teacher", "vehicle_teacher"):
         task.flush(wait_for_uploads=True)
         return 0
     if teacher_checkpoint is None and args.stage in ("all", "student", "validate"):
@@ -843,7 +938,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "configs/resilient_v2x/dair_resilient_v2x.py",
                 "--work-dir",
                 str(student_dir),
-                *common_train_args,
+                *model_train_args,
             ),
             env=student_env,
         )
@@ -891,11 +986,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     str(condition_dir),
                     "--launcher",
                     "pytorch",
-                    *(
-                        ["--cfg-options", *runtime_cfg_options]
-                        if runtime_cfg_options
-                        else []
-                    ),
+                    "--cfg-options",
+                    f"test_dataloader.batch_size={batch_profile['eval_per_gpu']}",
+                    *runtime_cfg_options,
                 ),
                 env=condition_env,
             )

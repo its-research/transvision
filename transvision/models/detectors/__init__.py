@@ -8,6 +8,7 @@ from .resilient_v2x import (
     ResilientV2XNet,
     SharedPointPillarsBEVEncoder,
     SharedResNetLSSBEVEncoder,
+    VehiclePointPillarsPretrainNet,
 )
 from .v2x_voxelnet import V2XVoxelNet
 
@@ -20,6 +21,7 @@ __all__ = [
     "FeatureFlowNet",
     "SharedPointPillarsBEVEncoder",
     "SharedResNetLSSBEVEncoder",
+    "VehiclePointPillarsPretrainNet",
     "ResilientV2XNet",
     "V2XVoxelNet",
 ]

@@ -26,6 +26,45 @@ BASE_IMAGE_CONFIG_DIGEST = (
     "sha256:3812e520c0e86bb621878970370f52cbacaa32921bf0e4b2ae6a2028a5cf95fb"
 )
 BUILD_TASK_ID = "86a3ee30dcc749408ba19ba2088adb4c"
+NATIVE_BUILD_SOURCE_DATASET_ID = "bcbd15ae7e454e9885bc4250a3de774e"
+NATIVE_BUILD_SOURCE_ARCHIVE_NAME = (
+    "resilient-v2x-source-cf61ef3c5432.tar.zst"
+)
+NATIVE_BUILD_SOURCE_ARCHIVE_BYTES = 1142675
+NATIVE_BUILD_SOURCE_ARCHIVE_SHA256 = (
+    "b20eccf308934eae82bf0bf032d0baa2c795d57efa6e55fe731501d50e5d7289"
+)
+NATIVE_COMPATIBLE_PYTHON_ONLY_CHANGES = (
+    "configs/resilient_v2x/dair_clean_teacher.py",
+    "configs/resilient_v2x/dair_vehicle_pretrain.py",
+    "tests/resilient_v2x/test_clearml_paper_controller.py",
+    "tests/resilient_v2x/test_clearml_suite.py",
+    "tests/resilient_v2x/test_clearml_workflow.py",
+    "tests/resilient_v2x/test_configs.py",
+    "tests/resilient_v2x/test_controlled_baseline_detectors.py",
+    "tools/resilient_v2x/clearml_5090_bootstrap.py",
+    "tools/resilient_v2x/clearml_5090_paper_controller.py",
+    "tools/resilient_v2x/clearml_train.py",
+    "transvision/models/detectors/__init__.py",
+    "transvision/models/detectors/resilient_v2x.py",
+
+)
+NATIVE_BUILD_INPUT_SHA256 = {
+    "setup.py": "904623e7d97254aca735a78a6c200dc609187d1ad1505c4b972855aa6215f9b3",
+    "transvision/models/bev_pool/__init__.py": "3be2a83be8ea38b65417ac35b4d377f914c3d2edc087758ab7dcfefe2c1e9a2e",
+    "transvision/models/bev_pool/bev_pool.py": "70b229d501b8d991de030d9629590794257ef312a72a9750114a528cf018919f",
+    "transvision/models/bev_pool/src/bev_pool.cpp": "4a7e86d4109017b6b2ce0481cabdfe8e987f8b4ff3293e71ebfcfbee51d8ba5c",
+    "transvision/models/bev_pool/src/bev_pool_cuda.cu": "56983ddb7edf2077aca5887b63a68cf9b4828a7caae3ac9b0c14fe1b045f6cdb",
+    "transvision/models/voxel/__init__.py": "daa16f1184d7368c0f5744f1c23e80cb7b0c25e25ec159d773b51c071a4e211a",
+    "transvision/models/voxel/scatter_points.py": "284c0f55bd1deb79c1d35e0d4a74b5e02ca9f19615f8eb2f33c30fe25d4c8449",
+    "transvision/models/voxel/src/scatter_points_cpu.cpp": "77943c3a33938fce32171cabafb4311a4dfbf71a7e19940b1113fb11e8769e40",
+    "transvision/models/voxel/src/scatter_points_cuda.cu": "c9d8fcfc175adc223faa34017873934fbd8f7744a0242ee8104a91dbe22cf29b",
+    "transvision/models/voxel/src/voxelization.cpp": "d66e0b9d3a86c2d19364144e0ac0ab799cbf62cc4f18959c9f2aaf7bd4a0d00c",
+    "transvision/models/voxel/src/voxelization.h": "69762ef078fac20e33ab93ca292f93d3e239a452218c825c1e50fcca84bd4003",
+    "transvision/models/voxel/src/voxelization_cpu.cpp": "5ea70fa45c47f9ca2c2fa4abf4efc2f7be03fd4b63473c898d07bb94fc266255",
+    "transvision/models/voxel/src/voxelization_cuda.cu": "fef995a3b331a51ed70bf2fb797a0aaeae1be96cf8c1b164a2dc6e1e412e0cd6",
+    "transvision/models/voxel/voxelize.py": "e817555e4bc1656192c3a2ad8258ca677e7568b40d80c294432afe18e9f32534",
+}
 NATIVE_BUNDLE_ARTIFACT = "rtx5090_native_bundle"
 BUILD_MANIFEST_ARTIFACT = "rtx5090_build_manifest"
 PIP_FREEZE_ARTIFACT = "rtx5090_pip_freeze"
@@ -77,11 +116,13 @@ FILES_SERVER_URI = (
     f"http://{EXPECTED_FILES_SERVER_HOST}:{EXPECTED_FILES_SERVER_PORT}"
 )
 EXPERIMENT_MAX_EPOCHS = 50
+RTX5090_TRAIN_BATCH_SIZE_PER_GPU = 2
+RTX5090_EVAL_BATCH_SIZE_PER_GPU = 4
 CLEARML_TRAIN_BASELINE_SHA256 = (
-    "6f4ad1a40f1d038f5ab39dffdd0ec9fdaf9f64f4e2a505baaeaa8f45780b3d5d"
+    "8673ddf756179261c58fdde461ffefdc6e3df67490987bc8cafc013a7bf1c4ee"
 )
 CLEARML_TRAIN_METRICS_COMPAT_SHA256 = (
-    "070031b684e2f76bd9e41f26b8024d1e9fbfde0d9c2b783d05cf3f9d1b864e6a"
+    "9c43663a238ae44a23583c66c9119cab23a8011253d816b65bad945574eb4ffd"
 )
 CLEARML_TRAIN_METRICS_REPLACEMENTS = (
     (
@@ -235,7 +276,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpus", type=int, choices=(4,), default=4)
     parser.add_argument(
         "--stage",
-        choices=("all", "teacher", "student", "validate"),
+        choices=("all", "vehicle", "vehicle_teacher", "teacher", "student", "validate"),
         default="all",
     )
     parser.add_argument("--max-epochs", type=_positive_integer, default=50)
@@ -352,7 +393,7 @@ def _validate_arguments(args: argparse.Namespace) -> None:
                 "--allow-failed-teacher-task requires a complete remote "
                 "teacher handoff"
             )
-        if args.stage in ("all", "teacher"):
+        if args.stage in ("all", "vehicle", "vehicle_teacher", "teacher"):
             if has_teacher or has_student or args.allow_failed_teacher_task:
                 raise ValueError(f"stage {args.stage!r} forbids checkpoint handoff")
         elif args.stage == "student":
@@ -463,6 +504,14 @@ def _verify_file(
     if _sha256(path) != expected_sha256:
         raise ValueError(f"file SHA-256 mismatch: {path}")
     return path
+
+
+def _validate_native_build_inputs(source_root: Path) -> None:
+    for relative_path, expected_sha256 in NATIVE_BUILD_INPUT_SHA256.items():
+        _verify_file(
+            source_root.joinpath(*PurePosixPath(relative_path).parts),
+            expected_sha256=expected_sha256,
+        )
 
 
 def _require_new_directory(path: Path) -> Path:
@@ -720,9 +769,10 @@ def _validate_build_manifest(
     if manifest.get("base_image") != expected_base_image:
         raise ValueError("native build manifest base image contract mismatch")
     expected_scalars = {
-        "source_dataset_id": args.source_dataset_id,
-        "source_archive_bytes": args.source_archive_bytes,
-        "source_archive_sha256": args.source_archive_sha256,
+        "source_dataset_id": NATIVE_BUILD_SOURCE_DATASET_ID,
+        "source_archive_name": NATIVE_BUILD_SOURCE_ARCHIVE_NAME,
+        "source_archive_bytes": NATIVE_BUILD_SOURCE_ARCHIVE_BYTES,
+        "source_archive_sha256": NATIVE_BUILD_SOURCE_ARCHIVE_SHA256,
         "amp": False,
     }
     for field, expected_value in expected_scalars.items():
@@ -1049,6 +1099,24 @@ model = MODELS.build(config.model).cuda()
 parameters = sum(parameter.numel() for parameter in model.parameters())
 if parameters <= 0:
     raise RuntimeError("teacher model has no parameters")
+vehicle_config = Config.fromfile(
+    "configs/resilient_v2x/dair_vehicle_pretrain.py"
+)
+vehicle = MODELS.build(vehicle_config.model).cuda()
+vehicle_parameters = sum(parameter.numel() for parameter in vehicle.parameters())
+if vehicle_parameters <= 0:
+    raise RuntimeError("vehicle pretraining model has no parameters")
+vehicle_keys = set(vehicle.state_dict())
+teacher_keys = set(model.state_dict())
+transfer_keys = {
+    key
+    for key in vehicle_keys
+    if key.startswith("lidar_encoder.") or key.startswith("bbox_head.")
+}
+if not transfer_keys or transfer_keys != vehicle_keys:
+    raise RuntimeError("vehicle checkpoint contains non-transfer model parameters")
+if not transfer_keys.issubset(teacher_keys):
+    raise RuntimeError("vehicle checkpoint keys are not a teacher state subset")
 torch.cuda.synchronize()
 print(
     json.dumps(
@@ -1059,6 +1127,9 @@ print(
             "visualizer_backend": type(backends[0]).__name__,
             "scalars_json": True,
             "parameters": parameters,
+            "vehicle_model": type(vehicle).__name__,
+            "vehicle_parameters": vehicle_parameters,
+            "vehicle_transfer_keys": len(transfer_keys),
         },
         sort_keys=True,
     )
@@ -1396,6 +1467,9 @@ def _ddp_training_command(
         "pytorch",
         "--cfg-options",
         f"train_cfg.max_epochs={max_epochs}",
+        f"train_dataloader.batch_size={RTX5090_TRAIN_BATCH_SIZE_PER_GPU}",
+        f"val_dataloader.batch_size={RTX5090_EVAL_BATCH_SIZE_PER_GPU}",
+        f"test_dataloader.batch_size={RTX5090_EVAL_BATCH_SIZE_PER_GPU}",
         *RTX5090_HEADLESS_CFG_OPTIONS,
     ]
 
@@ -1608,7 +1682,9 @@ def _experiment_run_contract(
         },
         "predecessor_task_id": predecessor_task_id,
         "gpus": 4,
-        "global_batch_size": 4,
+        "global_batch_size": args.gpus * RTX5090_TRAIN_BATCH_SIZE_PER_GPU,
+        "train_batch_size_per_gpu": RTX5090_TRAIN_BATCH_SIZE_PER_GPU,
+        "eval_batch_size_per_gpu": RTX5090_EVAL_BATCH_SIZE_PER_GPU,
         "launcher": "pytorch",
         "ddp_processes": 4,
         "max_epochs": EXPERIMENT_MAX_EPOCHS,
@@ -1987,6 +2063,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     source_root = _safe_extract_zstd(source_archive, WORKSPACE)
+    _validate_native_build_inputs(source_root)
+    print(
+        json.dumps(
+            {
+                "event": "native_bundle_python_source_compatibility_pass",
+                "native_build_source_dataset_id": NATIVE_BUILD_SOURCE_DATASET_ID,
+                "runtime_source_dataset_id": args.source_dataset_id,
+                "runtime_source_archive_sha256": args.source_archive_sha256,
+                "native_build_inputs": len(NATIVE_BUILD_INPUT_SHA256),
+                "python_only_changed_paths": list(
+                    NATIVE_COMPATIBLE_PYTHON_ONLY_CHANGES
+                ),
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
     _apply_source_runner_metrics_compatibility(source_root)
     bundle_root = _safe_extract_tar(
         bundle_path,

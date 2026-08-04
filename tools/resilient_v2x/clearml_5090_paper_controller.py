@@ -25,6 +25,7 @@ FILES_SERVER_URI = "http://10.100.34.118:8081"
 FILES_SERVER_HOST = "10.100.34.118"
 FILES_SERVER_PORT = 8081
 EXPECTED_GPUS = 4
+EXPECTED_TRAIN_BATCH_SIZE_PER_GPU = 2
 EXPECTED_MAX_EPOCHS = 50
 EXPECTED_CONDITION_COUNT = 12
 CLEAN_TEACHER_MODEL_NAME = "ResilientV2X clean teacher"
@@ -366,7 +367,7 @@ def _require_run_contract(
         "dataset_id": dataset_id,
         "runtime_profile": "rtx5090",
         "gpus": EXPECTED_GPUS,
-        "global_batch_size": EXPECTED_GPUS,
+        "global_batch_size": EXPECTED_GPUS * EXPECTED_TRAIN_BATCH_SIZE_PER_GPU,
         "max_epochs": EXPECTED_MAX_EPOCHS,
         "amp": False,
         "checkpoint_policy": "final_epoch",

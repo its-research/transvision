@@ -129,6 +129,28 @@ def test_fixed_suite_is_exactly_the_reviewed_thirteen() -> None:
     assert bootstrap.BUILD_TASK_ID == "86a3ee30dcc749408ba19ba2088adb4c"
 
 
+def test_vehicle_runtime_reuses_native_bundle_only_for_audited_python_changes() -> None:
+    bootstrap = _load_script("clearml_5090_bootstrap.py")
+    assert bootstrap.NATIVE_BUILD_SOURCE_DATASET_ID == (
+        "bcbd15ae7e454e9885bc4250a3de774e"
+    )
+    assert len(bootstrap.NATIVE_BUILD_INPUT_SHA256) == 14
+    assert set(bootstrap.NATIVE_BUILD_INPUT_SHA256) >= {
+        "setup.py",
+        "transvision/models/bev_pool/src/bev_pool_cuda.cu",
+        "transvision/models/voxel/src/voxelization_cuda.cu",
+    }
+    assert bootstrap.NATIVE_COMPATIBLE_PYTHON_ONLY_CHANGES
+    assert all(
+        path.endswith(".py")
+        for path in bootstrap.NATIVE_COMPATIBLE_PYTHON_ONLY_CHANGES
+    )
+    assert not any(
+        path.endswith((".cu", ".cpp", ".cuh", ".h"))
+        for path in bootstrap.NATIVE_COMPATIBLE_PYTHON_ONLY_CHANGES
+    )
+
+
 def test_original_stage_arguments_remain_valid_and_unchanged() -> None:
     bootstrap, args = _bootstrap_args(
         "--stage",
@@ -144,6 +166,22 @@ def test_original_stage_arguments_remain_valid_and_unchanged() -> None:
     )
     assert command[-2:] == ["--teacher-checkpoint", "teacher.pth"]
     assert "--experiment-from-task" not in command
+
+
+def test_vehicle_pretrain_stages_forbid_checkpoint_handoffs() -> None:
+    bootstrap, vehicle = _bootstrap_args("--stage", "vehicle")
+    bootstrap._validate_arguments(vehicle)
+    _, vehicle_teacher = _bootstrap_args("--stage", "vehicle_teacher")
+    bootstrap._validate_arguments(vehicle_teacher)
+
+    _, invalid = _bootstrap_args(
+        "--stage",
+        "vehicle_teacher",
+        "--teacher-checkpoint",
+        "teacher.pth",
+    )
+    with pytest.raises(ValueError, match="forbids checkpoint handoff"):
+        bootstrap._validate_arguments(invalid)
 
 
 def test_experiment_arguments_enforce_predecessor_and_teacher_policy() -> None:
@@ -196,6 +234,9 @@ def test_training_commands_are_4gpu_ddp_and_training_only(tmp_path: Path) -> Non
     assert not any("conditions/" in value for value in command)
     assert "train_cfg.val_interval" not in " ".join(command)
     assert set(bootstrap.RTX5090_HEADLESS_CFG_OPTIONS) <= set(command)
+    assert "train_dataloader.batch_size=2" in command
+    assert "val_dataloader.batch_size=4" in command
+    assert "test_dataloader.batch_size=4" in command
 
 
 def test_baseline_plan_is_single_process_dry_run_then_sealed(tmp_path: Path) -> None:
@@ -277,6 +318,9 @@ def test_run_contract_binds_command_config_and_training_only_policy(
     assert contract["seed"] == 20250218
     assert contract["learning_rate"] == 0.0001
     assert contract["auto_scale_lr"] is False
+    assert contract["global_batch_size"] == 8
+    assert contract["train_batch_size_per_gpu"] == 2
+    assert contract["eval_batch_size_per_gpu"] == 4
     assert contract["precision"] == "FP32"
     assert contract["per_epoch_validation"] is True
     assert contract["condition_evaluation"] is False

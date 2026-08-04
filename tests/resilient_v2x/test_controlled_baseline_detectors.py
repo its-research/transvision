@@ -16,6 +16,9 @@ from torch import nn
 from transvision.models.detectors.controlled_v2x_baseline import (
     ControlledCooperativeBaselineNet,
 )
+from transvision.models.detectors.resilient_v2x import (
+    VehiclePointPillarsPretrainNet,
+)
 from transvision.models.resilient_v2x import (
     Agent,
     BranchSelection,
@@ -388,3 +391,69 @@ def test_all_missing_batch_reaches_fusion_and_is_rejected(
         match="at least one supported branch",
     ):
         model.extract_controlled_feature(inputs)
+
+
+def test_vehicle_pretrain_selects_only_current_ego_lidar() -> None:
+    encoded = torch.stack(
+        (
+            torch.full((256, 2, 2), 3.0),
+            torch.full((256, 2, 2), 7.0),
+        )
+    )
+    lidar_encoder = _RecordingLidarEncoder(encoded)
+    model = VehiclePointPillarsPretrainNet(
+        lidar_encoder=lidar_encoder,
+        bbox_head=_DummyHead(),
+    )
+    points = tuple(torch.full((1, 4), float(index)) for index in range(4))
+    inputs = {
+        "lidar_points": points,
+        "lidar_owner": torch.tensor(
+            (
+                (0, 1, 0),
+                (0, 0, 0),
+                (1, 0, 1),
+                (1, 0, 0),
+            ),
+            dtype=torch.long,
+        ),
+        "availability": torch.ones(2, 2, 2, 4, dtype=torch.bool),
+    }
+    samples = [Det3DDataSample(), Det3DDataSample()]
+    samples[0].set_metainfo({"sample_id": "vehicle-a"})
+    samples[1].set_metainfo({"sample_id": "vehicle-b"})
+
+    features = model.extract_feat(inputs)
+    assert lidar_encoder.calls == 1
+    assert torch.equal(features[0], encoded)
+    assert set(model.loss(inputs, samples)) == {"loss_dummy"}
+    predictions = model.predict(inputs, samples)
+    assert [
+        value.metainfo["controlled_baseline_diagnostics"]["sample_id"]
+        for value in predictions
+    ] == ["vehicle-a", "vehicle-b"]
+    for value in predictions:
+        diagnostic = value.metainfo["controlled_baseline_diagnostics"]
+        assert diagnostic["method"] == "vehicle_pointpillars_pretrain"
+        assert diagnostic["support"] == {
+            "lidar_ego": True,
+            "lidar_rsu": False,
+            "camera_ego": False,
+            "camera_rsu": False,
+        }
+        assert diagnostic["age_intervals"]["lidar_ego"] == 0.0
+
+
+def test_vehicle_pretrain_rejects_missing_current_ego_payload() -> None:
+    model = VehiclePointPillarsPretrainNet(
+        lidar_encoder=_RecordingLidarEncoder(torch.zeros(1, 256, 2, 2)),
+        bbox_head=_DummyHead(),
+    )
+    inputs = {
+        "lidar_points": (torch.zeros(1, 4),),
+        "lidar_owner": torch.tensor(((0, 1, 0),), dtype=torch.long),
+        "availability": torch.ones(1, 2, 2, 4, dtype=torch.bool),
+    }
+
+    with pytest.raises(RuntimeError, match="exactly one current ego"):
+        model.extract_feat(inputs)
