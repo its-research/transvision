@@ -44,22 +44,29 @@ log_level = "INFO"
 
 optim_wrapper = dict(
     type="OptimWrapper",
-    optimizer=dict(type="AdamW", lr=0.0001, weight_decay=0.01),
+    optimizer=dict(
+        type="AdamW",
+        lr=0.0001,
+        betas=(0.95, 0.99),
+        weight_decay=0.01,
+    ),
     clip_grad=dict(max_norm=35, norm_type=2),
 )
 param_scheduler = [
     dict(
-        type="LinearLR",
-        start_factor=0.1,
-        by_epoch=False,
+        type="CosineAnnealingLR",
+        T_max=20,
+        eta_min=0.001,
+        by_epoch=True,
         begin=0,
-        end=500,
+        end=20,
+        convert_to_iter_based=True,
     ),
     dict(
         type="CosineAnnealingLR",
-        begin=0,
+        begin=20,
         end=50,
-        T_max=50,
+        T_max=30,
         by_epoch=True,
         eta_min=0.000001,
         convert_to_iter_based=True,
@@ -80,7 +87,8 @@ implementation_choices_runtime = dict(
     learning_rate=0.0001,
     weight_decay=0.01,
     max_epochs=50,
-    warmup_iterations=500,
+    peak_learning_rate=0.001,
+    peak_learning_rate_epoch=20,
     gradient_clip_norm=35,
     single_gpu_reference_batch_size=1,
     deterministic_cuda=False,

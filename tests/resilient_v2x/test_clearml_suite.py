@@ -126,7 +126,7 @@ def test_fixed_suite_is_exactly_the_reviewed_thirteen() -> None:
         "bevfusion",
         "ffnet",
     }
-    assert bootstrap.BUILD_TASK_ID == "fd1e5732a2604e3d8b5300cf1f931e1f"
+    assert bootstrap.BUILD_TASK_ID == "86a3ee30dcc749408ba19ba2088adb4c"
 
 
 def test_original_stage_arguments_remain_valid_and_unchanged() -> None:

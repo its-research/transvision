@@ -34,6 +34,9 @@ EXPECTED_EVALUATION_SAMPLE_IDS_SHA256 = (
     "a8d8184f7fd9d1212ae29cddb427f48a0cad39e7843d95d5ac609a8a4286cf3a"
 )
 EXPECTED_EVALUATION_SAMPLE_COUNT = 1_337
+MAX_DETECTIONS = 100
+MIN_REFERENCE_BEV_AP_R40_070 = 1.0
+MIN_REFERENCE_3D_AP_R40_070_EXCLUSIVE = 0.0
 PREDICTION_DOCUMENT_TYPE = "resilient_v2x_predictions"
 CONDITION_RESULT_DOCUMENT_TYPE = "resilient_v2x_condition_result"
 VALIDATION_SUMMARY_DOCUMENT_TYPE = "resilient_v2x_validation_summary"
@@ -320,7 +323,7 @@ def _validate_prediction_document(
         raise ValueError("prediction point cloud range is invalid")
     if document.get("iou_thresholds") != [0.5, 0.7]:
         raise ValueError("prediction IoU thresholds are invalid")
-    if document.get("max_detections") != 100:
+    if document.get("max_detections") != MAX_DETECTIONS:
         raise ValueError("prediction max_detections is invalid")
 
     expected_sample_ids = evaluation.get("sample_ids")
@@ -376,7 +379,7 @@ def _validate_prediction_document(
             or not isinstance(ground_truth_boxes, list)
             or len(predicted_boxes) != len(predicted_scores)
             or len(predicted_boxes) != len(predicted_labels)
-            or len(predicted_boxes) > 100
+            or len(predicted_boxes) > MAX_DETECTIONS
             or len(ground_truth_boxes) != len(ground_truth_labels)
             or any(not _finite_number(score) for score in predicted_scores)
             or any(type(label) is not int or label < 0 for label in predicted_labels)
@@ -493,7 +496,10 @@ def _metrics_from_scalars(
         raise ValueError("scalar sample count does not match the evaluation cohort")
     if counts["resilient_v2x/car_ground_truth_count"] <= 0:
         raise ValueError("evaluation cohort must contain car ground truth")
-    if counts["resilient_v2x/car_prediction_count"] > expected_sample_count * 100:
+    if (
+        counts["resilient_v2x/car_prediction_count"]
+        > expected_sample_count * MAX_DETECTIONS
+    ):
         raise ValueError("prediction count exceeds max_detections times sample count")
     if counts["resilient_v2x/unsupported_sample_count"] > expected_sample_count:
         raise ValueError("unsupported sample count exceeds sample count")
@@ -502,6 +508,24 @@ def _metrics_from_scalars(
         if not 0.0 <= value <= 100.0:
             raise ValueError(f"{key} must be an AP percentage in [0, 100]")
     return scalars, metrics
+
+
+def _validate_formal_reference_metrics(metrics: Mapping[str, object]) -> None:
+    """Reject the known high-IoU collapse before publishing formal evidence."""
+
+    bev_ap70 = float(metrics["resilient_v2x/car_bev_ap_r40_0.70"])
+    three_d_ap70 = float(metrics["resilient_v2x/car_3d_ap_r40_0.70"])
+    if bev_ap70 < MIN_REFERENCE_BEV_AP_R40_070:
+        raise RuntimeError(
+            "delay_000_full BEV AP@0.7 failed the recovery gate: "
+            f"{bev_ap70:.6f} < {MIN_REFERENCE_BEV_AP_R40_070:.6f}"
+        )
+    if three_d_ap70 <= MIN_REFERENCE_3D_AP_R40_070_EXCLUSIVE:
+        raise RuntimeError(
+            "delay_000_full 3D AP@0.7 failed the recovery gate: "
+            f"{three_d_ap70:.6f} must be greater than "
+            f"{MIN_REFERENCE_3D_AP_R40_070_EXCLUSIVE:.6f}"
+        )
 
 
 def _write_sealed_document(
@@ -885,6 +909,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise ValueError(
                     f"{condition_name} prediction and scalar sample counts differ"
                 )
+            if condition_name == "delay_000_full":
+                _validate_formal_reference_metrics(metrics)
 
             transport_stem = f"RESILIENT_V2X_TEST_TRANSPORT_DELAY_{delay_ms:03d}"
             transport_sha256 = condition_env[f"{transport_stem}_SHA256"]

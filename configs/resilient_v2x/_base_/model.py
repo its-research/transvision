@@ -6,7 +6,12 @@ choices not reported by the paper are recorded in ``implementation_choices``.
 """
 
 point_cloud_range = [0.0, -40.0, -3.0, 80.0, 40.0, 1.0]
-voxel_size = [0.4, 0.4, 4.0]
+# Keep the detector head at 0.625 m rather than the previous 0.8 m.  The old
+# 0.4 m pillars followed by the fixed x2 SECOND stride left too few anchors
+# for the strict Car assigner and made high-IoU recall collapse.  0.3125 m
+# divides the fixed 80 m ranges exactly and produces a PTF-compatible 128x128
+# feature grid.
+voxel_size = [0.3125, 0.3125, 4.0]
 group_norm = dict(type="GN", num_groups=32, eps=0.001)
 resnet50_checkpoint = __import__("os").getenv(
     "RESILIENT_V2X_RESNET50_CHECKPOINT",
@@ -15,20 +20,21 @@ resnet50_checkpoint = __import__("os").getenv(
 bev_grid = dict(
     x_min=0.0,
     y_min=-40.0,
-    resolution=0.8,
-    height=100,
-    width=100,
+    resolution=0.625,
+    height=128,
+    width=128,
 )
 
 implementation_choices_model = dict(
     status="implementation choice; the paper does not report these values",
     point_cloud_range=point_cloud_range,
     voxel_size=voxel_size,
-    bev_resolution_m=0.8,
+    bev_resolution_m=0.625,
     image_size=(256, 704),
     camera_depth_bins=(1.0, 81.0, 1.0),
-    anchor_size_lwh=(3.9, 1.6, 1.56),
+    anchor_size_lwh=(4.35, 1.91, 1.59),
     anchor_z_bottom=-1.8,
+    car_assigner_iou=(0.5, 0.35, 0.35),
     lidar_normalization="GroupNorm; independent of sparse payload batch composition",
     camera_normalization="frozen ImageNet BatchNorm plus GroupNorm LSS neck",
     image_backbone_checkpoint=resnet50_checkpoint,
@@ -67,7 +73,7 @@ lidar_encoder = dict(
     middle_encoder=dict(
         type="PointPillarsScatter",
         in_channels=64,
-        output_shape=(200, 200),
+        output_shape=(256, 256),
     ),
     backbone=dict(
         type="SECOND",
@@ -84,8 +90,8 @@ lidar_encoder = dict(
         out_channels=[64, 96, 96],
         norm_cfg=group_norm,
     ),
-    output_height=100,
-    output_width=100,
+    output_height=128,
+    output_width=128,
 )
 
 camera_encoder = dict(
@@ -117,14 +123,14 @@ camera_encoder = dict(
         out_channels=256,
         image_size=(256, 704),
         feature_size=(32, 88),
-        xbound=(0.0, 80.0, 0.8),
-        ybound=(-40.0, 40.0, 0.8),
+        xbound=(0.0, 80.0, 0.625),
+        ybound=(-40.0, 40.0, 0.625),
         zbound=(-5.0, 3.0, 8.0),
         dbound=(1.0, 81.0, 1.0),
         downsample=1,
     ),
-    output_height=100,
-    output_width=100,
+    output_height=128,
+    output_width=128,
     view_transform_output_order="xy",
 )
 
@@ -137,7 +143,7 @@ bbox_head = dict(
     anchor_generator=dict(
         type="Anchor3DRangeGenerator",
         ranges=[[0.0, -40.0, -1.8, 80.0, 40.0, -1.8]],
-        sizes=[[3.9, 1.6, 1.56]],
+        sizes=[[4.35, 1.91, 1.59]],
         rotations=[0.0, 1.5707963267948966],
         reshape_out=False,
     ),
@@ -165,9 +171,9 @@ bbox_head = dict(
             dict(
                 type="Max3DIoUAssigner",
                 iou_calculator=dict(type="mmdet3d.BboxOverlapsNearest3D"),
-                pos_iou_thr=0.6,
-                neg_iou_thr=0.45,
-                min_pos_iou=0.45,
+                pos_iou_thr=0.5,
+                neg_iou_thr=0.35,
+                min_pos_iou=0.35,
                 ignore_iof_thr=-1,
             )
         ],
@@ -179,9 +185,9 @@ bbox_head = dict(
         use_rotate_nms=True,
         nms_across_levels=False,
         nms_thr=0.01,
-        score_thr=0.1,
+        score_thr=0.05,
         min_bbox_size=0,
-        nms_pre=1000,
+        nms_pre=2000,
         max_num=100,
     ),
 )

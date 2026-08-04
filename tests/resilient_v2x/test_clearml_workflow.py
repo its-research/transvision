@@ -383,6 +383,21 @@ def test_metrics_reject_ambiguous_mmengine_logger_fallback(tmp_path: Path) -> No
         runner._metrics_from_scalars(tmp_path, 2)
 
 
+def test_formal_reference_quality_gate_rejects_high_iou_collapse() -> None:
+    runner = _load_script("clearml_train.py")
+    runner._validate_formal_reference_metrics(_metrics())
+
+    low_bev = _metrics()
+    low_bev["resilient_v2x/car_bev_ap_r40_0.70"] = 0.165
+    with pytest.raises(RuntimeError, match="BEV AP@0.7 failed"):
+        runner._validate_formal_reference_metrics(low_bev)
+
+    zero_3d = _metrics()
+    zero_3d["resilient_v2x/car_3d_ap_r40_0.70"] = 0.0
+    with pytest.raises(RuntimeError, match="3D AP@0.7 failed"):
+        runner._validate_formal_reference_metrics(zero_3d)
+
+
 def test_condition_result_writer_is_canonical_and_sealed(tmp_path: Path) -> None:
     from transvision.evaluation.resilient_v2x_evidence import read_document
 

@@ -234,9 +234,9 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert model["grid_spec"] == {
         "x_min": 0.0,
         "y_min": -40.0,
-        "resolution": 0.8,
-        "height": 100,
-        "width": 100,
+        "resolution": 0.625,
+        "height": 128,
+        "width": 128,
     }
     assert model["ptf_mode"] == "nonlinear"
     assert model["routing_mode"] == "dynamic"
@@ -254,10 +254,10 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert lidar["middle_encoder"] == {
         "type": "PointPillarsScatter",
         "in_channels": 64,
-        "output_shape": (200, 200),
+        "output_shape": (256, 256),
     }
     assert sum(lidar["neck"]["out_channels"]) == 256
-    assert (lidar["output_height"], lidar["output_width"]) == (100, 100)
+    assert (lidar["output_height"], lidar["output_width"]) == (128, 128)
 
     camera = model["camera_encoder"]
     assert isinstance(camera, dict)
@@ -277,9 +277,9 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert camera["image_neck"]["norm_cfg"]["type"] == "GN"
     assert camera["view_transform"]["type"] == "LSSTransform"
     assert camera["view_transform"]["out_channels"] == 256
-    assert camera["view_transform"]["xbound"] == (0.0, 80.0, 0.8)
-    assert camera["view_transform"]["ybound"] == (-40.0, 40.0, 0.8)
-    assert (camera["output_height"], camera["output_width"]) == (100, 100)
+    assert camera["view_transform"]["xbound"] == (0.0, 80.0, 0.625)
+    assert camera["view_transform"]["ybound"] == (-40.0, 40.0, 0.625)
+    assert (camera["output_height"], camera["output_width"]) == (128, 128)
     assert camera["view_transform_output_order"] == "xy"
 
     head = model["bbox_head"]
@@ -288,6 +288,17 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert head["num_classes"] == 1
     assert head["in_channels"] == head["feat_channels"] == 256
     assert "train_cfg" in head and "test_cfg" in head
+    assert head["anchor_generator"]["sizes"] == [[4.35, 1.91, 1.59]]
+    assert head["train_cfg"]["assigner"][0] == {
+        "type": "Max3DIoUAssigner",
+        "iou_calculator": {"type": "mmdet3d.BboxOverlapsNearest3D"},
+        "pos_iou_thr": 0.5,
+        "neg_iou_thr": 0.35,
+        "min_pos_iou": 0.35,
+        "ignore_iof_thr": -1,
+    }
+    assert head["test_cfg"]["score_thr"] == 0.05
+    assert head["test_cfg"]["max_num"] == 100
 
     teacher = model["teacher"]
     assert isinstance(teacher, dict)
@@ -378,6 +389,7 @@ def test_dataset_and_runtime_are_seeded_and_runner_compatible() -> None:
     assert config["optim_wrapper"]["optimizer"] == {
         "type": "AdamW",
         "lr": 0.0001,
+        "betas": (0.95, 0.99),
         "weight_decay": 0.01,
     }
     assert config["val_evaluator"] == config["test_evaluator"]
