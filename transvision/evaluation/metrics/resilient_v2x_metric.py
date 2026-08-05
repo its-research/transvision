@@ -9,6 +9,7 @@ from mmengine.evaluator import BaseMetric
 
 from transvision.evaluation.resilient_v2x_detection import (
     DetectionSample,
+    detection_geometry_diagnostics,
     evaluate_car_ap,
     filter_detection_sample_to_range,
 )
@@ -252,6 +253,13 @@ class ResilientV2XMetric(BaseMetric):
             evaluated,
             iou_thresholds=self.iou_thresholds,
             max_detections=self.max_detections,
+        )
+        metrics.update(
+            detection_geometry_diagnostics(
+                evaluated,
+                max_detections=self.max_detections,
+                bev_match_iou=0.5,
+            )
         )
         diagnostics = [result.get("diagnostic") for result in results]
         if all(isinstance(value, Mapping) for value in diagnostics):

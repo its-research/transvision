@@ -156,9 +156,10 @@ def _polygon_area(polygon: np.ndarray) -> float:
     return abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))) / 2.0
 
 
-def rotated_bev_intersection(first: np.ndarray, second: np.ndarray) -> float:
-    first_box = _boxes(np.asarray(first).reshape(1, -1), "first")[0]
-    second_box = _boxes(np.asarray(second).reshape(1, -1), "second")[0]
+def _rotated_bev_intersection_validated(
+    first_box: np.ndarray,
+    second_box: np.ndarray,
+) -> float:
     intersection = _clip_polygon(
         _bev_corners(first_box),
         _bev_corners(second_box),
@@ -166,21 +167,34 @@ def rotated_bev_intersection(first: np.ndarray, second: np.ndarray) -> float:
     return _polygon_area(intersection)
 
 
-def box_iou(
-    first: np.ndarray,
-    second: np.ndarray,
-    mode: Literal["bev", "3d"],
-) -> float:
-    if mode not in ("bev", "3d"):
-        raise DetectionEvaluationError("mode must be 'bev' or '3d'")
+def rotated_bev_intersection(first: np.ndarray, second: np.ndarray) -> float:
     first_box = _boxes(np.asarray(first).reshape(1, -1), "first")[0]
     second_box = _boxes(np.asarray(second).reshape(1, -1), "second")[0]
-    bev_intersection = rotated_bev_intersection(first_box, second_box)
+    return _rotated_bev_intersection_validated(first_box, second_box)
+
+
+def _box_ious(
+    first: np.ndarray,
+    second: np.ndarray,
+) -> tuple[float, float]:
+    """Return BEV and 3D IoU from one rotated intersection calculation."""
+
+    first_box = _boxes(np.asarray(first).reshape(1, -1), "first")[0]
+    second_box = _boxes(np.asarray(second).reshape(1, -1), "second")[0]
+    # A rectangle is contained by its circumcircle.  Disjoint circumcircles
+    # therefore prove zero overlap without entering polygon clipping.
+    center_delta = first_box[:2] - second_box[:2]
+    maximum_distance = 0.5 * (
+        math.hypot(float(first_box[3]), float(first_box[4]))
+        + math.hypot(float(second_box[3]), float(second_box[4]))
+    )
+    if float(np.dot(center_delta, center_delta)) > maximum_distance**2:
+        return 0.0, 0.0
+    bev_intersection = _rotated_bev_intersection_validated(first_box, second_box)
     first_bev = float(first_box[3] * first_box[4])
     second_bev = float(second_box[3] * second_box[4])
-    if mode == "bev":
-        union = first_bev + second_bev - bev_intersection
-        return bev_intersection / union if union > 0 else 0.0
+    bev_union = first_bev + second_bev - bev_intersection
+    bev_iou = bev_intersection / bev_union if bev_union > 0 else 0.0
     # LiDARInstance3DBoxes stores z at the bottom face (origin z=0), matching
     # the DAIR manifest's explicit z_bottom field.
     first_bottom = first_box[2]
@@ -195,7 +209,19 @@ def box_iou(
     first_volume = first_bev * float(first_box[5])
     second_volume = second_bev * float(second_box[5])
     union = first_volume + second_volume - intersection
-    return intersection / union if union > 0 else 0.0
+    iou_3d = intersection / union if union > 0 else 0.0
+    return bev_iou, iou_3d
+
+
+def box_iou(
+    first: np.ndarray,
+    second: np.ndarray,
+    mode: Literal["bev", "3d"],
+) -> float:
+    if mode not in ("bev", "3d"):
+        raise DetectionEvaluationError("mode must be 'bev' or '3d'")
+    bev_iou, iou_3d = _box_ious(first, second)
+    return bev_iou if mode == "bev" else iou_3d
 
 
 def _validated_point_cloud_range(value: object) -> tuple[float, ...]:
@@ -238,6 +264,86 @@ def filter_detection_sample_to_range(
         ground_truth_boxes=sample.ground_truth_boxes[target_mask],
         ground_truth_labels=sample.ground_truth_labels[target_mask],
     )
+
+
+def detection_geometry_diagnostics(
+    samples: tuple[DetectionSample, ...] | list[DetectionSample],
+    *,
+    max_detections: int = 100,
+    bev_match_iou: float = 0.5,
+) -> dict[str, float]:
+    """Diagnose vertical geometry after a strong BEV-only association."""
+
+    if not isinstance(samples, (tuple, list)) or not samples:
+        raise DetectionEvaluationError("samples must be a non-empty sequence")
+    if any(not isinstance(sample, DetectionSample) for sample in samples):
+        raise DetectionEvaluationError("samples contain an invalid record")
+    if type(max_detections) is not int or max_detections <= 0:
+        raise DetectionEvaluationError("max_detections must be positive")
+    if not isinstance(bev_match_iou, (int, float)) or not 0 < bev_match_iou <= 1:
+        raise DetectionEvaluationError("bev_match_iou must be in (0,1]")
+
+    predicted_z: list[float] = []
+    predicted_height: list[float] = []
+    target_z: list[float] = []
+    target_height: list[float] = []
+    matched_abs_z_error: list[float] = []
+    matched_vertical_iou: list[float] = []
+    matched_3d_iou: list[float] = []
+
+    for sample in samples:
+        targets = sample.ground_truth_boxes[sample.ground_truth_labels == 0]
+        target_z.extend(float(value) for value in targets[:, 2])
+        target_height.extend(float(value) for value in targets[:, 5])
+        valid = np.flatnonzero(sample.predicted_labels == 0)
+        order = valid[np.argsort(-sample.predicted_scores[valid], kind="stable")][
+            :max_detections
+        ]
+        predictions = sample.predicted_boxes[order]
+        predicted_z.extend(float(value) for value in predictions[:, 2])
+        predicted_height.extend(float(value) for value in predictions[:, 5])
+        if not targets.shape[0]:
+            continue
+        for predicted in predictions:
+            pair_ious = np.asarray(
+                [_box_ious(predicted, target) for target in targets],
+                dtype=np.float64,
+            )
+            target_index = int(np.argmax(pair_ious[:, 0]))
+            target = targets[target_index]
+            if float(pair_ious[target_index, 0]) < float(bev_match_iou):
+                continue
+            predicted_bottom = float(predicted[2])
+            predicted_top = predicted_bottom + float(predicted[5])
+            target_bottom = float(target[2])
+            target_top = target_bottom + float(target[5])
+            intersection = max(
+                0.0,
+                min(predicted_top, target_top)
+                - max(predicted_bottom, target_bottom),
+            )
+            union = float(predicted[5]) + float(target[5]) - intersection
+            matched_abs_z_error.append(abs(predicted_bottom - target_bottom))
+            matched_vertical_iou.append(intersection / union if union > 0 else 0.0)
+            matched_3d_iou.append(float(pair_ious[target_index, 1]))
+
+    def median(values: list[float]) -> float:
+        return (
+            float(np.median(np.asarray(values, dtype=np.float64)))
+            if values
+            else 0.0
+        )
+
+    return {
+        "diagnostic_pred_z_bottom_p50": median(predicted_z),
+        "diagnostic_gt_z_bottom_p50": median(target_z),
+        "diagnostic_pred_height_p50": median(predicted_height),
+        "diagnostic_gt_height_p50": median(target_height),
+        "diagnostic_bev_match_050_count": float(len(matched_abs_z_error)),
+        "diagnostic_bev_match_050_abs_z_error_p50": median(matched_abs_z_error),
+        "diagnostic_bev_match_050_vertical_iou_p50": median(matched_vertical_iou),
+        "diagnostic_bev_match_050_3d_iou_p50": median(matched_3d_iou),
+    }
 
 
 def _ap_r40(recall: np.ndarray, precision: np.ndarray) -> float:
@@ -313,7 +419,19 @@ def evaluate_car_ap(
         "car_ground_truth_count": float(gt_count),
         "car_prediction_count": float(len(predictions)),
     }
-    for mode in ("bev", "3d"):
+    overlap_cache: list[tuple[np.ndarray, np.ndarray]] = []
+    for _, sample_id, _, predicted_box in predictions:
+        boxes = ground_truth[sample_id]
+        if boxes.shape[0] == 0:
+            pair_ious = np.empty((0, 2), dtype=np.float64)
+        else:
+            pair_ious = np.asarray(
+                [_box_ious(predicted_box, target) for target in boxes],
+                dtype=np.float64,
+            )
+        overlap_cache.append((pair_ious[:, 0], pair_ious[:, 1]))
+
+    for mode_index, mode in enumerate(("bev", "3d")):
         for threshold in iou_thresholds:
             matched = {
                 sample_id: np.zeros(boxes.shape[0], dtype=bool)
@@ -321,16 +439,12 @@ def evaluate_car_ap(
             }
             true_positive = np.zeros(len(predictions), dtype=np.float64)
             false_positive = np.zeros(len(predictions), dtype=np.float64)
-            for prediction_index, (_, sample_id, _, predicted_box) in enumerate(
-                predictions
-            ):
+            for prediction_index, (_, sample_id, _, _) in enumerate(predictions):
                 boxes = ground_truth[sample_id]
                 if boxes.shape[0] == 0:
                     false_positive[prediction_index] = 1.0
                     continue
-                overlaps = np.asarray(
-                    [box_iou(predicted_box, target, mode) for target in boxes]
-                )
+                overlaps = overlap_cache[prediction_index][mode_index].copy()
                 overlaps[matched[sample_id]] = -1.0
                 target_index = int(np.argmax(overlaps))
                 if overlaps[target_index] >= threshold:
@@ -355,6 +469,7 @@ def evaluate_car_ap(
 __all__ = (
     "DetectionEvaluationError",
     "DetectionSample",
+    "detection_geometry_diagnostics",
     "rotated_bev_intersection",
     "box_iou",
     "filter_detection_sample_to_range",

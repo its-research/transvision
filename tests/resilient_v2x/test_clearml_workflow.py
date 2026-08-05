@@ -436,7 +436,7 @@ def test_runtime_profile_cli_is_closed_and_defaults_to_legacy() -> None:
         )
 
 
-def test_vehicle_pretrain_stages_are_closed_and_best_checkpoint_is_selected(
+def test_vehicle_pretrain_stages_are_closed_and_final_checkpoint_is_selected(
     tmp_path: Path,
 ) -> None:
     runner = _load_script("clearml_train.py")
@@ -452,12 +452,9 @@ def test_vehicle_pretrain_stages_are_closed_and_best_checkpoint_is_selected(
         .stage
         == "vehicle_teacher"
     )
-    checkpoint = (
-        tmp_path
-        / "best_resilient_v2x_car_bev_ap_r40_0.70_vehicle_epoch_17.pth"
-    )
+    checkpoint = tmp_path / "vehicle_epoch_50.pth"
     checkpoint.write_bytes(b"vehicle checkpoint")
-    assert runner._best_checkpoint(tmp_path, "vehicle") == checkpoint.resolve()
+    assert runner._checkpoint(tmp_path, "vehicle", 50) == checkpoint.resolve()
 
 
 def test_rtx5090_runtime_keeps_local_visualization_backend_headless() -> None:

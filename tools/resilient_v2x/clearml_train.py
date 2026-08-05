@@ -589,31 +589,13 @@ def _torchrun(gpus: int, entry_point: str, *arguments: str) -> list[str]:
 
 
 def _checkpoint(work_dir: Path, prefix: str, epoch: int) -> Path:
-    filename = (
-        f"teacher_epoch_{epoch}.pth" if prefix == "teacher" else f"epoch_{epoch}.pth"
-    )
+    filename = {
+        "teacher": f"teacher_epoch_{epoch}.pth",
+        "vehicle": f"vehicle_epoch_{epoch}.pth",
+    }.get(prefix, f"epoch_{epoch}.pth")
     checkpoint = work_dir / filename
     if not checkpoint.is_file():
         raise FileNotFoundError(f"final epoch checkpoint is missing: {checkpoint}")
-    return checkpoint.resolve(strict=True)
-
-
-def _best_checkpoint(work_dir: Path, prefix: str) -> Path:
-    candidates = sorted(
-        work_dir.glob(
-            "best_resilient_v2x_car_bev_ap_r40_0.70_"
-            f"{prefix}_epoch_*.pth"
-        )
-    )
-    if len(candidates) != 1:
-        raise ValueError(
-            f"expected exactly one best {prefix} checkpoint, found {len(candidates)}"
-        )
-    checkpoint = candidates[0]
-    if checkpoint.is_symlink():
-        checkpoint = checkpoint.resolve(strict=True)
-    if not checkpoint.is_file() or checkpoint.stat().st_size <= 0:
-        raise ValueError(f"best {prefix} checkpoint is invalid: {checkpoint}")
     return checkpoint.resolve(strict=True)
 
 
@@ -873,7 +855,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             env=env,
         )
-        vehicle_checkpoint = _best_checkpoint(vehicle_dir, "vehicle")
+        # The high-IoU metric can remain tied at zero throughout early vehicle
+        # pretraining. MMEngine then labels epoch 1 as "best", silently
+        # discarding all later optimization when the teacher is initialized.
+        # The run contract already promises final-epoch handoff, so select the
+        # exact requested epoch just as the teacher and student stages do.
+        vehicle_checkpoint = _checkpoint(
+            vehicle_dir,
+            "vehicle",
+            args.max_epochs,
+        )
         _upload_model(
             task,
             "ResilientV2X vehicle PointPillars pretrain",

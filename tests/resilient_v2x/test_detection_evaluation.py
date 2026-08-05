@@ -3,9 +3,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from transvision.evaluation import resilient_v2x_detection as detection
 from transvision.evaluation.resilient_v2x_detection import (
     DetectionEvaluationError,
     DetectionSample,
+    detection_geometry_diagnostics,
     box_iou,
     evaluate_car_ap,
     filter_detection_sample_to_range,
@@ -54,6 +56,52 @@ def test_ap_r40_is_perfect_for_one_exact_prediction_per_sample() -> None:
     assert metrics["car_bev_ap_r40_0.70"] == pytest.approx(100.0)
     assert metrics["car_3d_ap_r40_0.50"] == pytest.approx(100.0)
     assert metrics["car_3d_ap_r40_0.70"] == pytest.approx(100.0)
+
+
+def test_ap_reuses_pair_overlap_and_skips_distant_polygons(monkeypatch) -> None:
+    calls = 0
+    original = detection._rotated_bev_intersection_validated
+
+    def counted(first: np.ndarray, second: np.ndarray) -> float:
+        nonlocal calls
+        calls += 1
+        return original(first, second)
+
+    monkeypatch.setattr(
+        detection,
+        "_rotated_bev_intersection_validated",
+        counted,
+    )
+    distant = BOX.copy()
+    distant[0] = 20.0
+    evaluate_car_ap(
+        [
+            _sample("a", [distant, BOX], [0.95, 0.9]),
+            _sample("b", [distant, BOX], [0.85, 0.8]),
+        ]
+    )
+    assert calls == 2
+
+
+def test_geometry_diagnostics_expose_vertical_offset_after_bev_match() -> None:
+    target = np.array([0.0, 0.0, -1.8, 4.0, 2.0, 1.6, 0.0])
+    prediction = target.copy()
+    prediction[2] = -1.0
+    sample = DetectionSample(
+        sample_id="geometry",
+        predicted_boxes=prediction.reshape(1, 7),
+        predicted_scores=np.array([0.9]),
+        predicted_labels=np.zeros(1, dtype=np.int64),
+        ground_truth_boxes=target.reshape(1, 7),
+        ground_truth_labels=np.zeros(1, dtype=np.int64),
+    )
+
+    metrics = detection_geometry_diagnostics([sample])
+
+    assert metrics["diagnostic_bev_match_050_count"] == 1.0
+    assert metrics["diagnostic_bev_match_050_abs_z_error_p50"] == pytest.approx(0.8)
+    assert metrics["diagnostic_bev_match_050_vertical_iou_p50"] == pytest.approx(1 / 3)
+    assert metrics["diagnostic_bev_match_050_3d_iou_p50"] == pytest.approx(1 / 3)
 
 
 def test_high_score_false_positive_reduces_ap_and_matching_is_one_to_one() -> None:

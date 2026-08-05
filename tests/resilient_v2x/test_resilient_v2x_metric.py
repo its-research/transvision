@@ -36,6 +36,10 @@ def test_metric_accepts_mmengine_dictionary_conversion() -> None:
     assert metric.results[0]["sample_id"] == "sample-0"
     metrics = evaluator.evaluate(size=1)
     assert metrics["resilient_v2x/car_3d_ap_r40_0.70"] == 100.0
+    assert metrics["resilient_v2x/diagnostic_bev_match_050_count"] == 1.0
+    assert (
+        metrics["resilient_v2x/diagnostic_bev_match_050_abs_z_error_p50"] == 0.0
+    )
 
 
 def test_metric_preserves_controlled_baseline_diagnostic_in_evidence(

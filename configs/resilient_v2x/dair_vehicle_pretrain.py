@@ -45,7 +45,7 @@ vehicle_pretrain_contract = dict(
     agent="ego",
     horizon=0,
     shared_checkpoint_prefixes=("lidar_encoder.", "bbox_head."),
-    checkpoint_selection="best validation BEV AP R40 at IoU 0.7",
+    checkpoint_selection="exact final epoch for downstream teacher transfer",
 )
 
 experiment = dict(

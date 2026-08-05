@@ -42,9 +42,13 @@ NATIVE_COMPATIBLE_PYTHON_ONLY_CHANGES = (
     "tests/resilient_v2x/test_clearml_workflow.py",
     "tests/resilient_v2x/test_configs.py",
     "tests/resilient_v2x/test_controlled_baseline_detectors.py",
+    "tests/resilient_v2x/test_detection_evaluation.py",
+    "tests/resilient_v2x/test_resilient_v2x_metric.py",
     "tools/resilient_v2x/clearml_5090_bootstrap.py",
     "tools/resilient_v2x/clearml_5090_paper_controller.py",
     "tools/resilient_v2x/clearml_train.py",
+    "transvision/evaluation/metrics/resilient_v2x_metric.py",
+    "transvision/evaluation/resilient_v2x_detection.py",
     "transvision/models/detectors/__init__.py",
     "transvision/models/detectors/resilient_v2x.py",
 
@@ -119,10 +123,10 @@ EXPERIMENT_MAX_EPOCHS = 50
 RTX5090_TRAIN_BATCH_SIZE_PER_GPU = 2
 RTX5090_EVAL_BATCH_SIZE_PER_GPU = 4
 CLEARML_TRAIN_BASELINE_SHA256 = (
-    "8673ddf756179261c58fdde461ffefdc6e3df67490987bc8cafc013a7bf1c4ee"
+    "6ea88906c9a9c8bd5122d23f78306edcbb92ada629e0189df6e6817824c2f631"
 )
 CLEARML_TRAIN_METRICS_COMPAT_SHA256 = (
-    "9c43663a238ae44a23583c66c9119cab23a8011253d816b65bad945574eb4ffd"
+    "52cb5c508000ab96333b6e7ce5ba490587f144f3b97ea148974be87716a629a5"
 )
 CLEARML_TRAIN_METRICS_REPLACEMENTS = (
     (
@@ -1150,12 +1154,23 @@ def _run_smoke(
     source_root: Path,
     env: Mapping[str, str],
 ) -> None:
-    result = _run(
-        [str(python), "-c", script],
-        cwd=source_root,
-        env=env,
-        capture=True,
-    )
+    try:
+        result = _run(
+            [str(python), "-c", script],
+            cwd=source_root,
+            env=env,
+            capture=True,
+        )
+    except subprocess.CalledProcessError as error:
+        if error.stdout:
+            print(error.stdout, end="" if error.stdout.endswith("\n") else "\n")
+        if error.stderr:
+            print(
+                error.stderr,
+                end="" if error.stderr.endswith("\n") else "\n",
+                file=sys.stderr,
+            )
+        raise
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     if not lines:
         raise RuntimeError(f"{expected_event} produced no output")
