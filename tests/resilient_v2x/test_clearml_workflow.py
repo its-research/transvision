@@ -122,7 +122,7 @@ def _write_scalars(root: Path, metrics: dict[str, object], name: str) -> Path:
 def test_upload_selection_matches_manifest_runtime_payload() -> None:
     upload = _load_script("upload_clearml_dataset.py")
     manifest, _ = upload._load_manifest(
-        ROOT / "artifacts/resilient_v2x/dair/temporal_manifest_v2.json"
+        ROOT / "artifacts/resilient_v2x/dair_complemented/temporal_manifest_v2.json"
     )
     paths = upload._runtime_relative_paths(manifest)
     assert len(paths) == 25_646
@@ -134,7 +134,7 @@ def test_upload_selection_matches_manifest_runtime_payload() -> None:
 
 def test_v2_overlays_bind_current_manifest() -> None:
     runner = _load_script("clearml_train.py")
-    artifact_root = ROOT / "artifacts/resilient_v2x/dair_v2"
+    artifact_root = ROOT / "artifacts/resilient_v2x/dair_v2_complemented"
     training = json.loads(
         (artifact_root / "training_overlays.json").read_text(encoding="utf-8")
     )
@@ -271,7 +271,7 @@ def test_checkpoint_policy_selects_exact_final_epoch(tmp_path: Path) -> None:
 def test_evaluation_contract_is_canonical_and_content_addressed() -> None:
     runner = _load_script("clearml_train.py")
     contract = runner._load_evaluation_contract(
-        ROOT / "artifacts/resilient_v2x/dair_v2/evaluation_overlays.json"
+        ROOT / "artifacts/resilient_v2x/dair_v2_complemented/evaluation_overlays.json"
     )
 
     assert contract["content_sha256"] == (
@@ -596,11 +596,19 @@ def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
         assert baseline.count(new) == 1
         baseline = baseline.replace(new, old)
     assert hashlib.sha256(baseline.encode("utf-8")).hexdigest() == (
-        bootstrap.CLEARML_TRAIN_BASELINE_SHA256
+        bootstrap.CLEARML_TRAIN_COMPLEMENTED_BASELINE_SHA256
     )
     assert hashlib.sha256(patched.encode("utf-8")).hexdigest() == (
-        bootstrap.CLEARML_TRAIN_METRICS_COMPAT_SHA256
+        bootstrap.CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256
     )
+    assert bootstrap.CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES == {
+        bootstrap.CLEARML_TRAIN_BASELINE_SHA256: (
+            bootstrap.CLEARML_TRAIN_METRICS_COMPAT_SHA256
+        ),
+        bootstrap.CLEARML_TRAIN_COMPLEMENTED_BASELINE_SHA256: (
+            bootstrap.CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256
+        ),
+    }
 
     source_root = tmp_path / "source"
     runner_path = source_root / "tools/resilient_v2x/clearml_train.py"
@@ -611,6 +619,10 @@ def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
 
     assert actual_path == runner_path.resolve()
     assert runner_path.read_text(encoding="utf-8") == patched
+
+    runner_path.write_text(patched + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="does not match the sealed baseline"):
+        bootstrap._apply_source_runner_metrics_compatibility(source_root)
 
 
 def test_rtx5090_embedded_smoke_scripts_compile() -> None:

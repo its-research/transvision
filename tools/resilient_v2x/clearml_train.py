@@ -22,13 +22,13 @@ OFFICIAL_SPLIT_SHA256 = (
     "d048aeeca548fb194c548b798e6fc08488c4dd350ad223a154c028ed0a58de6c"
 )
 EXPECTED_MANIFEST_CONTENT_SHA256 = (
-    "05c247d77a5bc38130d7ecdc54fd8edb23cc5cafa74b81f6a350c73a2e836572"
+    "715ac6f7a14225e20327eed0650c55abdc0cb98431830164e84545238099645d"
 )
 EXPECTED_RESNET_SHA256 = (
     "0676ba61b6795bbe1773cffd859882e5e297624d384b6993f7c9e683e722fb8a"
 )
 EXPECTED_EVALUATION_INDEX_CONTENT_SHA256 = (
-    "04a0ac5065ebaad829f4dfe7663aa0a4d436e7d587078063e09b316b46cc14b6"
+    "77bd4585dbb02901f862b8da6aa208a504674b824a3d55cf15005aacbeeeaaff"
 )
 EXPECTED_EVALUATION_SAMPLE_IDS_SHA256 = (
     "a8d8184f7fd9d1212ae29cddb427f48a0cad39e7843d95d5ac609a8a4286cf3a"
@@ -84,7 +84,7 @@ LEGACY_TASK_TAGS = (
     "DDP",
     "global-batch-4",
     "lr-1e-4-unscaled",
-    "manifest-05c247d7",
+    "manifest-715ac6f7",
 )
 RTX5090_TASK_TAGS = (
     "4gpu",
@@ -95,7 +95,7 @@ RTX5090_TASK_TAGS = (
     "train-global-batch-8",
     "vehicle-global-batch-32",
     "lr-1e-4-unscaled",
-    "manifest-05c247d7",
+    "manifest-715ac6f7",
 )
 
 

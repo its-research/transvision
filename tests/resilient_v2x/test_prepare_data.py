@@ -1846,6 +1846,34 @@ def test_official_lowercase_car_label_is_canonicalized(tmp_path: Path) -> None:
     assert manifest.samples[0].ground_truth[0].class_name == "Car"
 
 
+def test_float32_world_corner_quantization_is_accepted() -> None:
+    module = importlib.import_module("tools.resilient_v2x.prepare_data")
+    path = FIXTURE_ROOT / "cooperative/label_world/000000.json"
+    labels = json.loads(path.read_text())
+    corners = np.asarray(labels[0]["world_8_points"], dtype=np.float64)
+    yaw = 0.37
+    rotation = np.asarray(
+        [[math.cos(yaw), -math.sin(yaw)], [math.sin(yaw), math.cos(yaw)]],
+        dtype=np.float64,
+    )
+    corners[:, :2] = corners[:, :2] @ rotation.T
+    corners += np.asarray([6000.123, 4000.456, 0.0])
+    labels[0]["world_8_points"] = corners.astype(np.float32).tolist()
+
+    boxes = module._ground_truth(labels, np.eye(4, dtype=np.float64))
+
+    assert len(boxes) == 1
+    assert boxes[0].length == pytest.approx(
+        labels[0]["3d_dimensions"]["l"], abs=2e-3
+    )
+    assert boxes[0].width == pytest.approx(
+        labels[0]["3d_dimensions"]["w"], abs=2e-3
+    )
+    assert boxes[0].height == pytest.approx(
+        labels[0]["3d_dimensions"]["h"], abs=2e-3
+    )
+
+
 @pytest.mark.parametrize(
     "label_failure",
     (

@@ -128,6 +128,18 @@ CLEARML_TRAIN_BASELINE_SHA256 = (
 CLEARML_TRAIN_METRICS_COMPAT_SHA256 = (
     "52cb5c508000ab96333b6e7ce5ba490587f144f3b97ea148974be87716a629a5"
 )
+CLEARML_TRAIN_COMPLEMENTED_BASELINE_SHA256 = (
+    "1c2cc5a8083700940e8b342e15190043724731c0a5230fcc6c449eba9f675e49"
+)
+CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256 = (
+    "164522419bb3c0c1e9153684613f7b8b477caf7e5acfbbc6bb242bc338700bd0"
+)
+CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES = {
+    CLEARML_TRAIN_BASELINE_SHA256: CLEARML_TRAIN_METRICS_COMPAT_SHA256,
+    CLEARML_TRAIN_COMPLEMENTED_BASELINE_SHA256: (
+        CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256
+    ),
+}
 CLEARML_TRAIN_METRICS_REPLACEMENTS = (
     (
         '''    candidates = sorted(work_dir.rglob("scalars.json"))
@@ -594,9 +606,15 @@ def _apply_source_runner_metrics_compatibility(source_root: Path) -> Path:
 
     original = target.read_bytes()
     actual_sha256 = hashlib.sha256(original).hexdigest()
-    if actual_sha256 == CLEARML_TRAIN_METRICS_COMPAT_SHA256:
+    compatible_identities = frozenset(
+        CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES.values()
+    )
+    if actual_sha256 in compatible_identities:
         return target
-    if actual_sha256 != CLEARML_TRAIN_BASELINE_SHA256:
+    expected_patched_sha256 = CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES.get(
+        actual_sha256
+    )
+    if expected_patched_sha256 is None:
         raise ValueError(
             "source training runner identity does not match the sealed baseline: "
             f"{actual_sha256}"
@@ -609,7 +627,7 @@ def _apply_source_runner_metrics_compatibility(source_root: Path) -> Path:
         patched = patched.replace(old, new)
     encoded = patched.encode("utf-8")
     patched_sha256 = hashlib.sha256(encoded).hexdigest()
-    if patched_sha256 != CLEARML_TRAIN_METRICS_COMPAT_SHA256:
+    if patched_sha256 != expected_patched_sha256:
         raise ValueError(
             "source training runner compatibility result has an invalid identity: "
             f"{patched_sha256}"

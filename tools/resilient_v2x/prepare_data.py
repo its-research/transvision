@@ -49,6 +49,9 @@ _ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 _UNSIGNED_DECIMAL = re.compile(r"^[1-9][0-9]*$")
 _FINITE_DECIMAL = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$")
 _CUBOID_ATOL = 1e-5
+_CUBOID_CORNER_QUANTIZATION_ATOL = 1e-3
+_CUBOID_DIMENSION_QUANTIZATION_ATOL = 5e-3
+_CUBOID_ORTHOGONAL_DOT_ATOL = 5e-3
 _CUBOID_RTOL = 1e-6
 
 
@@ -867,12 +870,7 @@ def _ground_truth(
             (length_vector, height_vector),
             (width_vector, height_vector),
         ):
-            if not np.isclose(
-                float(np.dot(first, second)),
-                0.0,
-                atol=_CUBOID_ATOL,
-                rtol=_CUBOID_RTOL,
-            ):
+            if abs(float(np.dot(first, second))) > _CUBOID_ORTHOGONAL_DOT_ATOL:
                 raise ValueError("annotation cuboid edges are not orthogonal")
         expected = np.stack(
             (
@@ -889,7 +887,7 @@ def _ground_truth(
         if not np.allclose(
             corners,
             expected,
-            atol=_CUBOID_ATOL,
+            atol=_CUBOID_CORNER_QUANTIZATION_ATOL,
             rtol=_CUBOID_RTOL,
         ):
             raise ValueError("annotation corners do not form a canonical cuboid")
@@ -905,7 +903,7 @@ def _ground_truth(
         if not np.allclose(
             np.asarray((length, width, height)),
             np.asarray(declared),
-            atol=_CUBOID_ATOL,
+            atol=_CUBOID_DIMENSION_QUANTIZATION_ATOL,
             rtol=_CUBOID_RTOL,
         ):
             raise ValueError("annotation dimensions disagree with corners")
@@ -1484,14 +1482,17 @@ def _preflight_records(
             "annotation path",
         )
         annotation_entry = inventory_by_path[annotation_path]
-        labels = _ground_truth(
-            _json_from_inventory(
-                data_root,
-                annotation_path,
-                inventory_by_path,
-            ),
-            world_from_ego,
-        )
+        try:
+            labels = _ground_truth(
+                _json_from_inventory(
+                    data_root,
+                    annotation_path,
+                    inventory_by_path,
+                ),
+                world_from_ego,
+            )
+        except ValueError as error:
+            raise ValueError(f"{annotation_path}: {error}") from error
         normalized.append(
             {
                 "sample_id": item["sample_id"],
