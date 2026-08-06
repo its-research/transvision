@@ -14,6 +14,15 @@ MAIN = CONFIG_ROOT / "dair_resilient_v2x.py"
 TEACHER = CONFIG_ROOT / "dair_clean_teacher.py"
 VEHICLE = CONFIG_ROOT / "dair_vehicle_pretrain.py"
 BASELINE_ROOT = CONFIG_ROOT / "baselines"
+FFNET_BASELINE = (
+    ROOT / "configs" / "ffnet" / "config_basemodel_veh_only_complemented.py"
+)
+FFNET_OFFICIAL = (
+    ROOT
+    / "configs"
+    / "ffnet"
+    / "config_basemodel_official_3class_complemented.py"
+)
 
 CONTROLLED_BASELINES = {
     "bevfusion.py": {
@@ -149,9 +158,7 @@ def test_controlled_baselines_share_protocol_without_resilient_modules() -> None
     main_model = main["model"]
     assert isinstance(main_model, dict)
     found = {
-        path.name
-        for path in BASELINE_ROOT.glob("*.py")
-        if path.name != "_base_.py"
+        path.name for path in BASELINE_ROOT.glob("*.py") if path.name != "_base_.py"
     }
     assert found == set(CONTROLLED_BASELINES)
 
@@ -160,6 +167,7 @@ def test_controlled_baselines_share_protocol_without_resilient_modules() -> None
         "lidar_encoder",
         "camera_encoder",
         "bbox_head",
+        "detection_projection",
         "data_preprocessor",
     }
     forbidden_model_fields = {
@@ -192,9 +200,7 @@ def test_controlled_baselines_share_protocol_without_resilient_modules() -> None
 
         experiment = config["experiment"]
         assert experiment["stage"] == "controlled_baseline"
-        assert experiment["protocol"] == (
-            "causal multimodal cooperative detection"
-        )
+        assert experiment["protocol"] == ("causal multimodal cooperative detection")
         assert experiment["claim_status"] == (
             "controlled adaptation; not an exact source-paper reproduction"
         )
@@ -222,6 +228,7 @@ def test_main_model_matches_paper_architecture_contract() -> None:
         "lidar_encoder",
         "camera_encoder",
         "bbox_head",
+        "detection_projection",
         "data_preprocessor",
         "ptf_mode",
         "routing_mode",
@@ -250,15 +257,27 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert isinstance(lidar, dict)
     assert lidar["type"] == "SharedPointPillarsBEVEncoder"
     assert lidar["voxel_encoder"]["type"] == "PillarFeatureNet"
-    assert lidar["voxel_encoder"]["norm_cfg"]["type"] == "GN"
-    assert lidar["backbone"]["norm_cfg"]["type"] == "GN"
-    assert lidar["neck"]["norm_cfg"]["type"] == "GN"
+    expected_spatial_norm = {"type": "BN", "eps": 0.001, "momentum": 0.01}
+    assert lidar["voxel_encoder"]["norm_cfg"] == {
+        "type": "BN1d",
+        "eps": 0.001,
+        "momentum": 0.01,
+    }
+    assert lidar["backbone"]["norm_cfg"] == expected_spatial_norm
+    assert lidar["neck"]["norm_cfg"] == expected_spatial_norm
     assert lidar["middle_encoder"] == {
         "type": "PointPillarsScatter",
         "in_channels": 64,
         "output_shape": (256, 256),
     }
-    assert sum(lidar["neck"]["out_channels"]) == 256
+    assert sum(lidar["neck"]["out_channels"]) == 384
+    assert lidar["output_projection"] == {
+        "type": "BEVChannelProjection",
+        "in_channels": 384,
+        "out_channels": 256,
+        "num_groups": 32,
+    }
+    assert lidar["output_channels"] == 256
     assert (lidar["output_height"], lidar["output_width"]) == (128, 128)
 
     camera = model["camera_encoder"]
@@ -288,7 +307,13 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert isinstance(head, dict)
     assert head["type"] == "Anchor3DHead"
     assert head["num_classes"] == 1
-    assert head["in_channels"] == head["feat_channels"] == 256
+    assert head["in_channels"] == head["feat_channels"] == 384
+    assert model["detection_projection"] == {
+        "type": "BEVChannelProjection",
+        "in_channels": 256,
+        "out_channels": 384,
+        "num_groups": 32,
+    }
     assert "train_cfg" in head and "test_cfg" in head
     assert head["anchor_generator"]["sizes"] == [[4.35, 1.91, 1.59]]
     assert head["train_cfg"]["assigner"][0] == {
@@ -310,6 +335,7 @@ def test_main_model_matches_paper_architecture_contract() -> None:
         "lidar_encoder",
         "camera_encoder",
         "bbox_head",
+        "detection_projection",
         "ptf_mode",
         "routing_mode",
         "use_reliability",
@@ -404,20 +430,100 @@ def test_dataset_and_runtime_are_seeded_and_runner_compatible() -> None:
     }
 
 
-def test_vehicle_pretrain_reuses_exact_lidar_encoder_and_head() -> None:
+def test_vehicle_pretrain_uses_ffnet_grid_with_transfer_compatible_shapes() -> None:
     vehicle = _load_config(VEHICLE)
     main = _load_config(MAIN)
     model = vehicle["model"]
-    assert model == {
-        "type": "VehiclePointPillarsPretrainNet",
-        "lidar_encoder": main["model"]["lidar_encoder"],
-        "bbox_head": main["model"]["bbox_head"],
-        "data_preprocessor": main["model"]["data_preprocessor"],
-    }
+    assert model["type"] == "VehiclePointPillarsPretrainNet"
+    assert model["data_preprocessor"] == main["model"]["data_preprocessor"]
+    encoder = model["lidar_encoder"]
+    main_encoder = main["model"]["lidar_encoder"]
+    assert encoder["voxelize_cfg"]["voxel_size"] == [0.16, 0.16, 4.0]
+    assert encoder["middle_encoder"]["output_shape"] == (576, 576)
+    assert (encoder["output_height"], encoder["output_width"]) == (288, 288)
+    assert encoder["output_projection"] is None
+    assert encoder["output_channels"] == 384
+    assert main_encoder["output_projection"]["in_channels"] == 384
+    assert main_encoder["output_projection"]["out_channels"] == 256
+    for component in ("voxel_encoder", "backbone", "neck"):
+        vehicle_component = dict(encoder[component])
+        main_component = dict(main_encoder[component])
+        vehicle_component.pop("voxel_size", None)
+        vehicle_component.pop("point_cloud_range", None)
+        main_component.pop("voxel_size", None)
+        main_component.pop("point_cloud_range", None)
+        assert vehicle_component == main_component
+    head = model["bbox_head"]
+    main_head = main["model"]["bbox_head"]
+    assert head["in_channels"] == head["feat_channels"] == 384
+    for key in (
+        "num_classes",
+        "in_channels",
+        "feat_channels",
+        "use_direction_classifier",
+        "bbox_coder",
+        "loss_cls",
+        "loss_bbox",
+        "loss_dir",
+    ):
+        assert head[key] == main_head[key]
+    assert head["anchor_generator"]["type"] == ("AlignedAnchor3DRangeGenerator")
+    assert head["anchor_generator"]["sizes"] == [[3.9, 1.6, 1.56]]
+    assert head["assign_per_class"] is True
+    assert head["test_cfg"]["score_thr"] == 0.2
+    assert head["test_cfg"]["max_num"] == 300
+    assert vehicle["val_evaluator"]["max_detections"] == 300
+    assert vehicle["train_cfg"]["max_epochs"] == 80
+    assert vehicle["train_cfg"]["val_interval"] == 10
+    assert vehicle["param_scheduler"] == [
+        {
+            "type": "CosineAnnealingLR",
+            "T_max": 32,
+            "eta_min": 0.001,
+            "by_epoch": True,
+            "begin": 0,
+            "end": 32,
+            "convert_to_iter_based": True,
+        },
+        {
+            "type": "CosineAnnealingLR",
+            "T_max": 48,
+            "eta_min": 0.00000001,
+            "by_epoch": True,
+            "begin": 32,
+            "end": 80,
+            "convert_to_iter_based": True,
+        },
+        {
+            "type": "CosineAnnealingMomentum",
+            "T_max": 32,
+            "eta_min": 0.85 / 0.95,
+            "by_epoch": True,
+            "begin": 0,
+            "end": 32,
+            "convert_to_iter_based": True,
+        },
+        {
+            "type": "CosineAnnealingMomentum",
+            "T_max": 48,
+            "eta_min": 1,
+            "begin": 32,
+            "end": 80,
+            "convert_to_iter_based": True,
+        },
+    ]
     for split in ("train", "val", "test"):
         dataset = _dataset(vehicle, split)
         assert dataset["load_lidar"] is True
         assert dataset["load_camera"] is False
+        assert dataset["point_cloud_range"] == [
+            0.0,
+            -46.08,
+            -3.0,
+            92.16,
+            46.08,
+            1.0,
+        ]
     train = _dataset(vehicle, "train")
     assert train["include_clean_teacher"] is False
     assert train["transport_overlay_path"] is None
@@ -430,6 +536,84 @@ def test_vehicle_pretrain_reuses_exact_lidar_encoder_and_head() -> None:
         "lidar_encoder.",
         "bbox_head.",
     )
+    assert vehicle["vehicle_pretrain_contract"]["expected_global_batch_size"] == 8
+    contract = vehicle["vehicle_pretrain_contract"]
+    assert contract["expected_dataset_passes"] == 80
+    assert contract["expected_optimizer_steps_80e"] == 48240
+
+
+def test_ffnet_baseline_packs_required_3d_box_metadata_for_validation() -> None:
+    config = _load_config(FFNET_BASELINE)
+    for pipeline_name in ("train_pipeline", "test_pipeline"):
+        pack = config[pipeline_name][-1]
+        assert pack["type"] == "Pack3DDetDAIRInputs"
+        assert {"sample_id", "box_mode_3d", "box_type_3d"} <= set(
+            pack["meta_keys"]
+        )
+
+
+def test_ffnet_baseline_preserves_official_cyclic_learning_rate() -> None:
+    config = _load_config(FFNET_BASELINE)
+    assert config["optim_wrapper"]["optimizer"]["lr"] == pytest.approx(1e-3)
+    schedulers = config["param_scheduler"]
+    assert schedulers[0]["eta_min"] == pytest.approx(1e-2)
+    assert schedulers[1]["eta_min"] == pytest.approx(1e-7)
+    assert schedulers[0]["begin"] == 0
+    assert schedulers[0]["end"] == 16
+    assert schedulers[1]["begin"] == 16
+    assert schedulers[1]["end"] == 40
+    contract = config["ffnet_reproduction_contract"]
+    assert contract["initial_learning_rate"] == pytest.approx(1e-3)
+    assert contract["peak_learning_rate"] == pytest.approx(1e-2)
+    assert contract["final_learning_rate"] == pytest.approx(1e-7)
+
+
+def test_ffnet_official_config_restores_three_classes_and_legacy_9d_pfn() -> None:
+    config = _load_config(FFNET_OFFICIAL)
+    model = config["model"]
+    encoder = model["voxel_encoder"]
+    head = model["bbox_head"]
+
+    assert encoder["type"] == "FFNetLegacyPillarFeatureNet"
+    assert encoder["in_channels"] == 4
+    assert encoder["with_cluster_center"] is True
+    assert encoder["with_voxel_center"] is True
+    assert encoder["with_distance"] is False
+    assert encoder["legacy"] is True
+    assert model["mode"] == "fusion"
+    assert model["legacy_voxel_coordinate_order"] is True
+    assert model["data_preprocessor"]["infrastructure_intensity_scale"] == 1.0
+    assert head["num_classes"] == 3
+    assert head["dir_offset"] == 0.0
+    assert head["dir_limit_offset"] == 1.0
+    assert head["assign_per_class"] is False
+    assert head["anchor_generator"]["sizes"] == [
+        [0.6, 0.8, 1.73],
+        [0.6, 1.76, 1.73],
+        [1.6, 3.9, 1.56],
+    ]
+    assert config["test_evaluator"]["car_label_index"] == 2
+    contract = config["ffnet_reproduction_contract"]
+    assert contract["training_world_size"] == 1
+    assert contract["global_batch_size"] == 2
+    assert contract["expected_optimizer_steps"] == 192920
+    assert contract["inference_mode"] == "fusion"
+    assert contract["prepared_infrastructure_intensity_scale"] == 1.0
+    assert contract["voxel_coordinate_order"].startswith("z-y-x")
+
+    source = (
+        ROOT
+        / "transvision/models/voxel_encoders/ffnet_legacy_pillar_encoder.py"
+    ).read_text(encoding="utf-8")
+    compile(source, "ffnet_legacy_pillar_encoder.py", "exec")
+    assert "decorated_channels += 3" in source
+    assert "decorated_channels += 2" in source
+    assert "features[:, :, :2]" in source
+
+    detector_source = (
+        ROOT / "transvision/models/detectors/v2x_voxelnet.py"
+    ).read_text(encoding="utf-8")
+    assert "coordinates[:, [2, 1, 0]]" in detector_source
 
 
 def test_clean_teacher_is_zero_latency_and_has_no_recursive_teacher() -> None:

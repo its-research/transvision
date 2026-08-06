@@ -13,6 +13,7 @@ _model_components = __import__(
         "bev_grid",
         "camera_encoder",
         "data_preprocessor",
+        "detection_projection",
         "lidar_encoder",
     ),
 )
@@ -20,6 +21,7 @@ bbox_head = _model_components.bbox_head
 bev_grid = _model_components.bev_grid
 camera_encoder = _model_components.camera_encoder
 data_preprocessor = _model_components.data_preprocessor
+detection_projection = _model_components.detection_projection
 lidar_encoder = _model_components.lidar_encoder
 del _model_components
 
@@ -35,6 +37,7 @@ model = dict(
     lidar_encoder=lidar_encoder,
     camera_encoder=camera_encoder,
     bbox_head=bbox_head,
+    detection_projection=detection_projection,
     data_preprocessor=data_preprocessor,
     baseline_name="v2x_vit",
     baseline_cfg=dict(

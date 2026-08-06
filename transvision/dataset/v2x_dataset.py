@@ -5,7 +5,7 @@ from typing import Callable, List, Union
 import numpy as np
 from mmdet3d.datasets.det3d_dataset import Det3DDataset
 from mmdet3d.registry import DATASETS
-from mmdet3d.structures import CameraInstance3DBoxes
+from mmdet3d.structures import CameraInstance3DBoxes, LiDARInstance3DBoxes
 
 
 @DATASETS.register_module()
@@ -29,10 +29,12 @@ class V2XDataset(Det3DDataset):
                  box_type_3d: str = 'LiDAR',
                  filter_empty_gt: bool = True,
                  test_mode: bool = False,
+                 boxes_in_lidar: bool = False,
                  pcd_limit_range: List[float] = [0, -46.08, -3, 92.16, 46.08, 1],
                  **kwargs) -> None:
 
         self.pcd_limit_range = pcd_limit_range
+        self.boxes_in_lidar = boxes_in_lidar
         assert load_type in ('frame_based', 'mv_image_based', 'fov_image_based')
         self.load_type = load_type
         super().__init__(
@@ -154,11 +156,15 @@ class V2XDataset(Det3DDataset):
                 ann_info['depths'] = np.zeros((0), dtype=np.float32)
 
         ann_info = self._remove_dontcare(ann_info)
-        # in kitti, lidar2cam = R0_rect @ Tr_velo_to_cam
-        lidar2cam = np.array(info['images']['CAM2']['lidar2cam'])
-        # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
-
-        gt_bboxes_3d = CameraInstance3DBoxes(ann_info['gt_bboxes_3d']).convert_to(self.box_mode_3d, np.linalg.inv(lidar2cam))
+        if self.boxes_in_lidar:
+            gt_bboxes_3d = LiDARInstance3DBoxes(ann_info['gt_bboxes_3d'])
+        else:
+            # in kitti, lidar2cam = R0_rect @ Tr_velo_to_cam
+            lidar2cam = np.array(info['images']['CAM2']['lidar2cam'])
+            # convert gt_bboxes_3d to velodyne coordinates with `lidar2cam`
+            gt_bboxes_3d = CameraInstance3DBoxes(
+                ann_info['gt_bboxes_3d']
+            ).convert_to(self.box_mode_3d, np.linalg.inv(lidar2cam))
         # vel = [0.0, 0.0]
         # gt_bboxes_3d = np.array([np.concatenate([new_gt, vel], axis=-1) for new_gt in gt_bboxes_3d])
         # ann_info['gt_bboxes_3d'] = LiDARInstance3DBoxes(gt_bboxes_3d, box_dim=9)

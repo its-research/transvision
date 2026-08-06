@@ -35,6 +35,10 @@ NATIVE_BUILD_SOURCE_ARCHIVE_SHA256 = (
     "b20eccf308934eae82bf0bf032d0baa2c795d57efa6e55fe731501d50e5d7289"
 )
 NATIVE_COMPATIBLE_PYTHON_ONLY_CHANGES = (
+    "configs/ffnet/config_basemodel_veh_only_complemented.py",
+    "configs/ffnet/config_basemodel_official_3class_complemented.py",
+    "configs/resilient_v2x/_base_/model.py",
+    "configs/resilient_v2x/baselines/_base_.py",
     "configs/resilient_v2x/dair_clean_teacher.py",
     "configs/resilient_v2x/dair_vehicle_pretrain.py",
     "tests/resilient_v2x/test_clearml_paper_controller.py",
@@ -47,10 +51,18 @@ NATIVE_COMPATIBLE_PYTHON_ONLY_CHANGES = (
     "tools/resilient_v2x/clearml_5090_bootstrap.py",
     "tools/resilient_v2x/clearml_5090_paper_controller.py",
     "tools/resilient_v2x/clearml_train.py",
+    "tools/resilient_v2x/prepare_ffnet_baseline.py",
+    "transvision/dataset/v2x_dataset.py",
     "transvision/evaluation/metrics/resilient_v2x_metric.py",
     "transvision/evaluation/resilient_v2x_detection.py",
+    "transvision/models/data_preprocessors/data_preprocessor.py",
     "transvision/models/detectors/__init__.py",
+    "transvision/models/detectors/controlled_v2x_baseline.py",
     "transvision/models/detectors/resilient_v2x.py",
+    "transvision/models/detectors/v2x_voxelnet.py",
+    "transvision/models/voxel_encoders/__init__.py",
+    "transvision/models/voxel_encoders/ffnet_legacy_pillar_encoder.py",
+    "transvision/register.py",
 
 )
 NATIVE_BUILD_INPUT_SHA256 = {
@@ -129,15 +141,27 @@ CLEARML_TRAIN_METRICS_COMPAT_SHA256 = (
     "52cb5c508000ab96333b6e7ce5ba490587f144f3b97ea148974be87716a629a5"
 )
 CLEARML_TRAIN_COMPLEMENTED_BASELINE_SHA256 = (
-    "1c2cc5a8083700940e8b342e15190043724731c0a5230fcc6c449eba9f675e49"
+    "d3edcccbf5c05779e8382270bbb271448de982b1153be8d3bd68ef9f50c9eff7"
 )
 CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256 = (
-    "164522419bb3c0c1e9153684613f7b8b477caf7e5acfbbc6bb242bc338700bd0"
+    "8435208ec277f84e3403fb6991fa9f3be920dfac3c5ab4f0fd2963a31bd29314"
+)
+CLEARML_TRAIN_FFNET_STAGE_SHA256 = (
+    "e9c8e5087cd2062883afa77a4039c42caff225f643dff1b0c5d923fc85a7f0e7"
+)
+CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256 = (
+    "95b1748429a7341f2ee304d84f764b5fbfcb544957250b44b3e5e11e6687be0c"
+)
+CLEARML_TRAIN_FFNET_OFFICIAL_METRICS_COMPAT_SHA256 = (
+    "4ebce86cd5ea4ca836125d0ae30302c4daa303fe0993272a09f81cf53003cd4d"
 )
 CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES = {
     CLEARML_TRAIN_BASELINE_SHA256: CLEARML_TRAIN_METRICS_COMPAT_SHA256,
     CLEARML_TRAIN_COMPLEMENTED_BASELINE_SHA256: (
         CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256
+    ),
+    CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256: (
+        CLEARML_TRAIN_FFNET_OFFICIAL_METRICS_COMPAT_SHA256
     ),
 }
 CLEARML_TRAIN_METRICS_REPLACEMENTS = (
@@ -292,7 +316,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpus", type=int, choices=(4,), default=4)
     parser.add_argument(
         "--stage",
-        choices=("all", "vehicle", "vehicle_teacher", "teacher", "student", "validate"),
+        choices=(
+            "all",
+            "ffnet",
+            "ffnet_official_eval",
+            "ffnet_official_train",
+            "vehicle",
+            "vehicle_teacher",
+            "teacher",
+            "student",
+            "validate",
+        ),
         default="all",
     )
     parser.add_argument("--max-epochs", type=_positive_integer, default=50)
@@ -409,7 +443,15 @@ def _validate_arguments(args: argparse.Namespace) -> None:
                 "--allow-failed-teacher-task requires a complete remote "
                 "teacher handoff"
             )
-        if args.stage in ("all", "vehicle", "vehicle_teacher", "teacher"):
+        if args.stage in (
+            "all",
+            "ffnet",
+            "ffnet_official_eval",
+            "ffnet_official_train",
+            "vehicle",
+            "vehicle_teacher",
+            "teacher",
+        ):
             if has_teacher or has_student or args.allow_failed_teacher_task:
                 raise ValueError(f"stage {args.stage!r} forbids checkpoint handoff")
         elif args.stage == "student":
@@ -607,7 +649,10 @@ def _apply_source_runner_metrics_compatibility(source_root: Path) -> Path:
     original = target.read_bytes()
     actual_sha256 = hashlib.sha256(original).hexdigest()
     compatible_identities = frozenset(
-        CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES.values()
+        (
+            *CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES.values(),
+            CLEARML_TRAIN_FFNET_STAGE_SHA256,
+        )
     )
     if actual_sha256 in compatible_identities:
         return target
@@ -1128,6 +1173,15 @@ vehicle = MODELS.build(vehicle_config.model).cuda()
 vehicle_parameters = sum(parameter.numel() for parameter in vehicle.parameters())
 if vehicle_parameters <= 0:
     raise RuntimeError("vehicle pretraining model has no parameters")
+pillar_modules = tuple(vehicle.lidar_encoder.voxel_encoder.modules())
+pillar_bn1d = sum(
+    isinstance(module, torch.nn.BatchNorm1d) for module in pillar_modules
+)
+pillar_bn2d = sum(
+    isinstance(module, torch.nn.BatchNorm2d) for module in pillar_modules
+)
+if pillar_bn1d <= 0 or pillar_bn2d != 0:
+    raise RuntimeError("PillarFeatureNet must use BN1d and must not contain BN2d")
 vehicle_keys = set(vehicle.state_dict())
 teacher_keys = set(model.state_dict())
 transfer_keys = {
@@ -1139,6 +1193,14 @@ if not transfer_keys or transfer_keys != vehicle_keys:
     raise RuntimeError("vehicle checkpoint contains non-transfer model parameters")
 if not transfer_keys.issubset(teacher_keys):
     raise RuntimeError("vehicle checkpoint keys are not a teacher state subset")
+vehicle_state = vehicle.state_dict()
+teacher_state = model.state_dict()
+for key in sorted(transfer_keys):
+    if vehicle_state[key].shape != teacher_state[key].shape:
+        raise RuntimeError(
+            f"vehicle checkpoint tensor shape differs from teacher for {key}: "
+            f"{tuple(vehicle_state[key].shape)} != {tuple(teacher_state[key].shape)}"
+        )
 torch.cuda.synchronize()
 print(
     json.dumps(

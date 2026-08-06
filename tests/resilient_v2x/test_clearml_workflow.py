@@ -596,10 +596,10 @@ def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
         assert baseline.count(new) == 1
         baseline = baseline.replace(new, old)
     assert hashlib.sha256(baseline.encode("utf-8")).hexdigest() == (
-        bootstrap.CLEARML_TRAIN_COMPLEMENTED_BASELINE_SHA256
+        bootstrap.CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256
     )
     assert hashlib.sha256(patched.encode("utf-8")).hexdigest() == (
-        bootstrap.CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256
+        bootstrap.CLEARML_TRAIN_FFNET_OFFICIAL_METRICS_COMPAT_SHA256
     )
     assert bootstrap.CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES == {
         bootstrap.CLEARML_TRAIN_BASELINE_SHA256: (
@@ -607,6 +607,9 @@ def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
         ),
         bootstrap.CLEARML_TRAIN_COMPLEMENTED_BASELINE_SHA256: (
             bootstrap.CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256
+        ),
+        bootstrap.CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256: (
+            bootstrap.CLEARML_TRAIN_FFNET_OFFICIAL_METRICS_COMPAT_SHA256
         ),
     }
 

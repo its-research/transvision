@@ -49,6 +49,7 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         camera_encoder: Mapping[str, object] | nn.Module,
         bbox_head: Mapping[str, object] | nn.Module,
         baseline_name: str,
+        detection_projection: Mapping[str, object] | nn.Module | None = None,
         baseline_cfg: Mapping[str, object] | None = None,
         data_preprocessor: OptConfigType = None,
         init_cfg: OptMultiConfig = None,
@@ -83,6 +84,11 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         self.lidar_encoder = _build_required(lidar_encoder, "lidar_encoder")
         self.camera_encoder = _build_required(camera_encoder, "camera_encoder")
         self.bbox_head = _build_required(bbox_head, "bbox_head")
+        self.detection_projection = (
+            None
+            if detection_projection is None
+            else _build_required(detection_projection, "detection_projection")
+        )
         self.input_selector = ControlledBaselineInputSelector(
             grid_spec=self.grid_spec,
             channels=self.channels,
@@ -246,6 +252,23 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
             )
         return fused, selected
 
+    def _head_feature(self, fused: Tensor) -> Tensor:
+        projected = (
+            fused
+            if self.detection_projection is None
+            else self.detection_projection(fused)
+        )
+        if (
+            not isinstance(projected, Tensor)
+            or projected.ndim != 4
+            or projected.shape[0] != fused.shape[0]
+            or projected.shape[2:] != fused.shape[2:]
+        ):
+            raise RuntimeError(
+                "detection projection must preserve batch and spatial shape"
+            )
+        return projected
+
     def extract_feat(
         self,
         batch_inputs_dict: Mapping[str, object],
@@ -253,7 +276,7 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         **kwargs: object,
     ) -> list[Tensor]:
         fused, _ = self.extract_controlled_feature(batch_inputs_dict)
-        return [fused]
+        return [self._head_feature(fused)]
 
     def _forward(
         self,
@@ -262,7 +285,7 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         **kwargs: object,
     ) -> object:
         fused, _ = self.extract_controlled_feature(batch_inputs)
-        return self.bbox_head([fused])
+        return self.bbox_head([self._head_feature(fused)])
 
     def loss(
         self,
@@ -271,7 +294,9 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         **kwargs: object,
     ) -> dict[str, Tensor]:
         fused, _ = self.extract_controlled_feature(batch_inputs_dict)
-        return dict(self.bbox_head.loss([fused], batch_data_samples))
+        return dict(
+            self.bbox_head.loss([self._head_feature(fused)], batch_data_samples)
+        )
 
     def predict(
         self,
@@ -280,7 +305,9 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         **kwargs: object,
     ) -> list[Det3DDataSample]:
         fused, selected = self.extract_controlled_feature(batch_inputs_dict)
-        outputs = self.bbox_head.predict([fused], batch_data_samples)
+        outputs = self.bbox_head.predict(
+            [self._head_feature(fused)], batch_data_samples
+        )
         results = self.add_pred_to_datasample(batch_data_samples, outputs)
         if len(results) != selected.branches.shape[0]:
             raise RuntimeError("prediction count does not match the baseline batch")

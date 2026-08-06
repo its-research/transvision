@@ -13,6 +13,8 @@ point_cloud_range = [0.0, -40.0, -3.0, 80.0, 40.0, 1.0]
 # feature grid.
 voxel_size = [0.3125, 0.3125, 4.0]
 group_norm = dict(type="GN", num_groups=32, eps=0.001)
+lidar_pillar_norm = dict(type="BN1d", eps=0.001, momentum=0.01)
+lidar_spatial_norm = dict(type="BN", eps=0.001, momentum=0.01)
 resnet50_checkpoint = __import__("os").getenv(
     "RESILIENT_V2X_RESNET50_CHECKPOINT",
     "https://download.pytorch.org/models/resnet50-0676ba61.pth",
@@ -35,7 +37,9 @@ implementation_choices_model = dict(
     anchor_size_lwh=(4.35, 1.91, 1.59),
     anchor_z_bottom=-1.8,
     car_assigner_iou=(0.5, 0.35, 0.35),
-    lidar_normalization="GroupNorm; independent of sparse payload batch composition",
+    lidar_normalization=(
+        "FFNet-compatible Pillar BN1d plus SECOND/FPN BN2d before projection"
+    ),
     camera_normalization="frozen ImageNet BatchNorm plus GroupNorm LSS neck",
     image_backbone_checkpoint=resnet50_checkpoint,
     distillation_temperature=2.0,
@@ -68,7 +72,7 @@ lidar_encoder = dict(
         with_distance=False,
         voxel_size=voxel_size,
         point_cloud_range=point_cloud_range,
-        norm_cfg=group_norm,
+        norm_cfg=lidar_pillar_norm,
     ),
     middle_encoder=dict(
         type="PointPillarsScatter",
@@ -81,15 +85,22 @@ lidar_encoder = dict(
         layer_nums=[3, 5, 5],
         layer_strides=[2, 2, 2],
         out_channels=[64, 128, 256],
-        norm_cfg=group_norm,
+        norm_cfg=lidar_spatial_norm,
     ),
     neck=dict(
         type="SECONDFPN",
         in_channels=[64, 128, 256],
         upsample_strides=[1, 2, 4],
-        out_channels=[64, 96, 96],
-        norm_cfg=group_norm,
+        out_channels=[128, 128, 128],
+        norm_cfg=lidar_spatial_norm,
     ),
+    output_projection=dict(
+        type="BEVChannelProjection",
+        in_channels=384,
+        out_channels=256,
+        num_groups=32,
+    ),
+    output_channels=256,
     output_height=128,
     output_width=128,
 )
@@ -137,8 +148,8 @@ camera_encoder = dict(
 bbox_head = dict(
     type="Anchor3DHead",
     num_classes=1,
-    in_channels=256,
-    feat_channels=256,
+    in_channels=384,
+    feat_channels=384,
     use_direction_classifier=True,
     anchor_generator=dict(
         type="Anchor3DRangeGenerator",
@@ -192,6 +203,12 @@ bbox_head = dict(
     ),
 )
 
+detection_projection = dict(
+    type="BEVChannelProjection",
+    in_channels=256,
+    out_channels=384,
+    num_groups=32,
+)
 data_preprocessor = dict(
     type="ResilientV2XDataPreprocessor",
     mean=(123.675, 116.28, 103.53),
@@ -210,6 +227,7 @@ clean_teacher_model = dict(
     bbox_head=bbox_head,
     data_preprocessor=data_preprocessor,
     ptf_mode="nonlinear",
+    detection_projection=detection_projection,
     routing_mode="dynamic",
     use_reliability=True,
     use_delay_metadata=True,

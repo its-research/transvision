@@ -32,6 +32,7 @@ class V2XVoxelNet(SingleStage3DDetector):
         data_preprocessor: OptConfigType = None,
         init_cfg: OptMultiConfig = None,
         mode: str = 'fusion',
+        legacy_voxel_coordinate_order: bool = False,
     ) -> None:
         super().__init__(
             backbone=backbone,
@@ -58,6 +59,13 @@ class V2XVoxelNet(SingleStage3DDetector):
         self.encoder = ReduceInfTC(768)
 
         self.mode = mode
+        self.legacy_voxel_coordinate_order = legacy_voxel_coordinate_order
+
+    def _coordinate_order(self, coordinates: Tensor) -> Tensor:
+        if not self.legacy_voxel_coordinate_order:
+            return coordinates
+        # The shared extension emits x-y-z. FFNet v0.17 expects z-y-x.
+        return coordinates[:, [2, 1, 0]]
 
     def generate_matrix(self, theta, x0, y0):
         import numpy as np
@@ -246,7 +254,7 @@ class V2XVoxelNet(SingleStage3DDetector):
         for res in points:
             res_voxels, res_coors, res_num_points = self.voxel_layer(res)
             voxels.append(res_voxels)
-            coors.append(res_coors)
+            coors.append(self._coordinate_order(res_coors))
             num_points.append(res_num_points)
         voxels = torch.cat(voxels, dim=0)
         num_points = torch.cat(num_points, dim=0)
@@ -265,7 +273,7 @@ class V2XVoxelNet(SingleStage3DDetector):
             res = res.contiguous()  # fix for runtime error input must be contiguous
             res_voxels, res_coors, res_num_points = self.inf_voxel_layer(res)
             voxels.append(res_voxels)
-            coors.append(res_coors)
+            coors.append(self._coordinate_order(res_coors))
             num_points.append(res_num_points)
         voxels = torch.cat(voxels, dim=0)
         num_points = torch.cat(num_points, dim=0)

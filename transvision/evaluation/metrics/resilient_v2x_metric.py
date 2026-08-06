@@ -163,6 +163,7 @@ class ResilientV2XMetric(BaseMetric):
         self,
         iou_thresholds: Sequence[float] = (0.5, 0.7),
         max_detections: int = 100,
+        car_label_index: int = 0,
         point_cloud_range: Sequence[float] | None = None,
         prediction_output: str | None = None,
         collect_device: str = "cpu",
@@ -171,6 +172,9 @@ class ResilientV2XMetric(BaseMetric):
         super().__init__(collect_device=collect_device, prefix=prefix)
         self.iou_thresholds = tuple(float(value) for value in iou_thresholds)
         self.max_detections = max_detections
+        if type(car_label_index) is not int or car_label_index < 0:
+            raise ValueError("car_label_index must be a non-negative integer")
+        self.car_label_index = car_label_index
         self.point_cloud_range = (
             None
             if point_cloud_range is None
@@ -253,12 +257,14 @@ class ResilientV2XMetric(BaseMetric):
             evaluated,
             iou_thresholds=self.iou_thresholds,
             max_detections=self.max_detections,
+            car_label_index=self.car_label_index,
         )
         metrics.update(
             detection_geometry_diagnostics(
                 evaluated,
                 max_detections=self.max_detections,
                 bev_match_iou=0.5,
+                car_label_index=self.car_label_index,
             )
         )
         diagnostics = [result.get("diagnostic") for result in results]

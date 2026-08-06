@@ -54,6 +54,17 @@ def _draft_ids(controller) -> dict[str, str]:
     }
 
 
+def test_official_ffnet_single_gpu_stage_is_closed_and_parseable() -> None:
+    _, bootstrap_args = _bootstrap_args("--stage", "ffnet_official_train")
+    runner = _load_script("clearml_train.py")
+    train_args = runner._parser().parse_args(
+        ["--dataset-id", "dataset", "--stage", "ffnet_official_train"]
+    )
+
+    assert bootstrap_args.stage == "ffnet_official_train"
+    assert train_args.stage == "ffnet_official_train"
+
+
 class _Model:
     def __init__(
         self,

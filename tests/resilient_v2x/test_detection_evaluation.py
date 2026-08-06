@@ -58,6 +58,22 @@ def test_ap_r40_is_perfect_for_one_exact_prediction_per_sample() -> None:
     assert metrics["car_3d_ap_r40_0.70"] == pytest.approx(100.0)
 
 
+def test_ap_r40_accepts_official_ffnet_car_label_index_two() -> None:
+    sample = DetectionSample(
+        sample_id="official-ffnet",
+        predicted_boxes=BOX.reshape(1, 7),
+        predicted_scores=np.array([0.9]),
+        predicted_labels=np.array([2], dtype=np.int64),
+        ground_truth_boxes=BOX.reshape(1, 7),
+        ground_truth_labels=np.array([2], dtype=np.int64),
+    )
+
+    metrics = evaluate_car_ap([sample], car_label_index=2)
+
+    assert metrics["car_prediction_count"] == 1.0
+    assert metrics["car_3d_ap_r40_0.70"] == pytest.approx(100.0)
+
+
 def test_ap_reuses_pair_overlap_and_skips_distant_polygons(monkeypatch) -> None:
     calls = 0
     original = detection._rotated_bev_intersection_validated
@@ -102,6 +118,22 @@ def test_geometry_diagnostics_expose_vertical_offset_after_bev_match() -> None:
     assert metrics["diagnostic_bev_match_050_abs_z_error_p50"] == pytest.approx(0.8)
     assert metrics["diagnostic_bev_match_050_vertical_iou_p50"] == pytest.approx(1 / 3)
     assert metrics["diagnostic_bev_match_050_3d_iou_p50"] == pytest.approx(1 / 3)
+
+
+def test_geometry_diagnostics_support_car_at_label_index_two() -> None:
+    sample = DetectionSample(
+        sample_id="geometry-label-two",
+        predicted_boxes=BOX.reshape(1, 7),
+        predicted_scores=np.array([0.9]),
+        predicted_labels=np.full(1, 2, dtype=np.int64),
+        ground_truth_boxes=BOX.reshape(1, 7),
+        ground_truth_labels=np.full(1, 2, dtype=np.int64),
+    )
+
+    metrics = detection_geometry_diagnostics([sample], car_label_index=2)
+
+    assert metrics["diagnostic_bev_match_050_count"] == 1.0
+    assert metrics["diagnostic_bev_match_050_3d_iou_p50"] == pytest.approx(1.0)
 
 
 def test_high_score_false_positive_reduces_ap_and_matching_is_one_to_one() -> None:

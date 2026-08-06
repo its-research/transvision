@@ -271,6 +271,7 @@ def detection_geometry_diagnostics(
     *,
     max_detections: int = 100,
     bev_match_iou: float = 0.5,
+    car_label_index: int = 0,
 ) -> dict[str, float]:
     """Diagnose vertical geometry after a strong BEV-only association."""
 
@@ -282,6 +283,8 @@ def detection_geometry_diagnostics(
         raise DetectionEvaluationError("max_detections must be positive")
     if not isinstance(bev_match_iou, (int, float)) or not 0 < bev_match_iou <= 1:
         raise DetectionEvaluationError("bev_match_iou must be in (0,1]")
+    if type(car_label_index) is not int or car_label_index < 0:
+        raise DetectionEvaluationError("car_label_index must be a non-negative integer")
 
     predicted_z: list[float] = []
     predicted_height: list[float] = []
@@ -292,10 +295,12 @@ def detection_geometry_diagnostics(
     matched_3d_iou: list[float] = []
 
     for sample in samples:
-        targets = sample.ground_truth_boxes[sample.ground_truth_labels == 0]
+        targets = sample.ground_truth_boxes[
+            sample.ground_truth_labels == car_label_index
+        ]
         target_z.extend(float(value) for value in targets[:, 2])
         target_height.extend(float(value) for value in targets[:, 5])
-        valid = np.flatnonzero(sample.predicted_labels == 0)
+        valid = np.flatnonzero(sample.predicted_labels == car_label_index)
         order = valid[np.argsort(-sample.predicted_scores[valid], kind="stable")][
             :max_detections
         ]
@@ -369,6 +374,7 @@ def evaluate_car_ap(
     *,
     iou_thresholds: tuple[float, ...] = (0.5, 0.7),
     max_detections: int = 100,
+    car_label_index: int = 0,
     point_cloud_range: tuple[float, ...] | list[float] | None = None,
 ) -> dict[str, float]:
     if not isinstance(samples, (tuple, list)) or not samples:
@@ -385,12 +391,18 @@ def evaluate_car_ap(
         raise DetectionEvaluationError("sample IDs must be unique")
     if type(max_detections) is not int or max_detections <= 0:
         raise DetectionEvaluationError("max_detections must be positive")
+    if type(car_label_index) is not int or car_label_index < 0:
+        raise DetectionEvaluationError(
+            "car_label_index must be a non-negative integer"
+        )
     for threshold in iou_thresholds:
         if not isinstance(threshold, (int, float)) or not 0 < threshold <= 1:
             raise DetectionEvaluationError("IoU thresholds must be in (0,1]")
 
     ground_truth = {
-        sample.sample_id: sample.ground_truth_boxes[sample.ground_truth_labels == 0]
+        sample.sample_id: sample.ground_truth_boxes[
+            sample.ground_truth_labels == car_label_index
+        ]
         for sample in samples
     }
     gt_count = sum(value.shape[0] for value in ground_truth.values())
@@ -399,7 +411,7 @@ def evaluate_car_ap(
 
     predictions: list[tuple[float, str, int, np.ndarray]] = []
     for sample in samples:
-        valid = np.flatnonzero(sample.predicted_labels == 0)
+        valid = np.flatnonzero(sample.predicted_labels == car_label_index)
         order = valid[np.argsort(-sample.predicted_scores[valid], kind="stable")][
             :max_detections
         ]

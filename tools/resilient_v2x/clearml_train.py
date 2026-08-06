@@ -27,6 +27,12 @@ EXPECTED_MANIFEST_CONTENT_SHA256 = (
 EXPECTED_RESNET_SHA256 = (
     "0676ba61b6795bbe1773cffd859882e5e297624d384b6993f7c9e683e722fb8a"
 )
+OFFICIAL_FFNET_REFERENCE_DATASET_ID = "2f54af9131bb44b99c855e7bc27660f6"
+OFFICIAL_FFNET_REFERENCE_FILENAME = "ffnet_without_prediction.pth"
+OFFICIAL_FFNET_REFERENCE_BYTES = 168_019_083
+OFFICIAL_FFNET_REFERENCE_SHA256 = (
+    "3da4737f05b2d7cc5793abb5032aaab26224609376ea6aa5fd1a0cc364b0acbd"
+)
 EXPECTED_EVALUATION_INDEX_CONTENT_SHA256 = (
     "77bd4585dbb02901f862b8da6aa208a504674b824a3d55cf15005aacbeeeaaff"
 )
@@ -74,8 +80,8 @@ RTX5090_HEADLESS_CFG_OPTIONS = (
     "visualizer.type=Visualizer",
     "visualizer.vis_backends.0._scope_=mmengine",
 )
-RTX5090_VEHICLE_TRAIN_BATCH_SIZE_PER_GPU = 8
-RTX5090_VEHICLE_EVAL_BATCH_SIZE_PER_GPU = 16
+RTX5090_VEHICLE_TRAIN_BATCH_SIZE_PER_GPU = 2
+RTX5090_VEHICLE_EVAL_BATCH_SIZE_PER_GPU = 4
 RTX5090_TRAIN_BATCH_SIZE_PER_GPU = 2
 RTX5090_EVAL_BATCH_SIZE_PER_GPU = 4
 LEGACY_TASK_TAGS = (
@@ -93,7 +99,7 @@ RTX5090_TASK_TAGS = (
     "FP32",
     "DDP",
     "train-global-batch-8",
-    "vehicle-global-batch-32",
+    "vehicle-global-batch-8",
     "lr-1e-4-unscaled",
     "manifest-715ac6f7",
 )
@@ -123,7 +129,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--gpus", type=int, choices=(4,), default=4)
     parser.add_argument(
         "--stage",
-        choices=("all", "vehicle", "vehicle_teacher", "teacher", "student", "validate"),
+        choices=(
+            "all",
+            "ffnet",
+            "ffnet_official_eval",
+            "ffnet_official_train",
+            "vehicle",
+            "vehicle_teacher",
+            "teacher",
+            "student",
+            "validate",
+        ),
         default="all",
     )
     parser.add_argument("--teacher-checkpoint", type=Path)
@@ -764,12 +780,39 @@ def main(argv: Sequence[str] | None = None) -> int:
     task_id = task.id
     work_root = ROOT / "work_dirs/clearml" / task_id
     work_root.mkdir(parents=True, exist_ok=True)
+    if args.stage in (
+        "ffnet",
+        "ffnet_official_eval",
+        "ffnet_official_train",
+    ):
+        from tools.resilient_v2x.prepare_ffnet_baseline import build_ffnet_infos
+
+        ffnet_info_root = work_root / "ffnet_infos"
+        ffnet_info_contract = build_ffnet_infos(
+            manifest_path,
+            ffnet_info_root,
+            data_root=data_root,
+        )
+        env["RESILIENT_V2X_FFNET_INFO_ROOT"] = str(ffnet_info_root)
+        if not task.upload_artifact(
+            "ffnet_info_contract",
+            artifact_object=ffnet_info_contract,
+            wait_on_upload=True,
+        ):
+            raise RuntimeError("failed to upload the FFNet info contract")
+    training_world_size = 1 if args.stage == "ffnet_official_train" else args.gpus
+    ffnet_stage = args.stage in (
+        "ffnet",
+        "ffnet_official_eval",
+        "ffnet_official_train",
+    )
     metadata = {
         "task_id": task_id,
         "dataset_id": args.dataset_id,
         "dataset_local_copy": str(dataset_root),
         "gpus": args.gpus,
-        "global_batch_size": args.gpus * batch_profile["train_per_gpu"],
+        "training_world_size": training_world_size,
+        "global_batch_size": training_world_size * batch_profile["train_per_gpu"],
         "train_batch_size_per_gpu": batch_profile["train_per_gpu"],
         "eval_batch_size_per_gpu": batch_profile["eval_per_gpu"],
         "vehicle_global_batch_size": (
@@ -777,8 +820,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
         "vehicle_train_batch_size_per_gpu": batch_profile["vehicle_train_per_gpu"],
         "vehicle_eval_batch_size_per_gpu": batch_profile["vehicle_eval_per_gpu"],
-        "learning_rate": 0.0001,
+        "learning_rate": 0.001 if ffnet_stage else 0.0001,
         "auto_scale_lr": False,
+        "expected_optimizer_steps": (
+            192920
+            if args.stage == "ffnet_official_train"
+            else 48240 if args.stage == "ffnet" else None
+        ),
         "max_epochs": args.max_epochs,
         "amp": args.amp,
         "runtime_profile": args.runtime_profile,
@@ -840,6 +888,118 @@ def main(argv: Sequence[str] | None = None) -> int:
         batch_profile["train_per_gpu"],
         batch_profile["eval_per_gpu"],
     )
+
+    if args.stage == "ffnet":
+        ffnet_dir = work_root / "ffnet_baseline"
+        _run(
+            _torchrun(
+                args.gpus,
+                "tools/train.py",
+                "configs/ffnet/config_basemodel_veh_only_complemented.py",
+                "--work-dir",
+                str(ffnet_dir),
+                *model_train_args,
+            ),
+            env=env,
+        )
+        checkpoint = _checkpoint(ffnet_dir, "ffnet", args.max_epochs)
+        _upload_model(
+            task,
+            "FFNet-B-V complemented manifest baseline",
+            checkpoint,
+            args.runtime_profile,
+        )
+        task.flush(wait_for_uploads=True)
+        return 0
+
+    if args.stage == "ffnet_official_train":
+        ffnet_dir = work_root / "ffnet_official_single_gpu_baseline"
+        _run(
+            _torchrun(
+                1,
+                "tools/train.py",
+                "configs/ffnet/config_basemodel_official_3class_complemented.py",
+                "--work-dir",
+                str(ffnet_dir),
+                *model_train_args,
+            ),
+            env=env,
+        )
+        checkpoint = _checkpoint(ffnet_dir, "ffnet_official", args.max_epochs)
+        _upload_model(
+            task,
+            "FFNet-B-F official three-class single-GPU complemented baseline",
+            checkpoint,
+            args.runtime_profile,
+        )
+        task.flush(wait_for_uploads=True)
+        return 0
+
+    if args.stage == "ffnet_official_eval":
+        reference_dataset = Dataset.get(
+            dataset_id=OFFICIAL_FFNET_REFERENCE_DATASET_ID,
+            only_completed=True,
+        )
+        reference_root = Path(
+            reference_dataset.get_local_copy()
+        ).resolve(strict=True)
+        reference_checkpoint = (
+            reference_root / "models" / OFFICIAL_FFNET_REFERENCE_FILENAME
+        ).resolve(strict=True)
+        if reference_checkpoint.stat().st_size != OFFICIAL_FFNET_REFERENCE_BYTES:
+            raise ValueError("official FFNet reference checkpoint size mismatch")
+        if _sha256(reference_checkpoint) != OFFICIAL_FFNET_REFERENCE_SHA256:
+            raise ValueError("official FFNet reference checkpoint SHA-256 mismatch")
+        reference_dir = work_root / "ffnet_official_reference_eval"
+        prediction_path = reference_dir / "predictions.json"
+        reference_env = dict(env)
+        reference_env["RESILIENT_V2X_FFNET_PREDICTION_OUTPUT"] = str(
+            prediction_path
+        )
+        _run(
+            _torchrun(
+                args.gpus,
+                "tools/test.py",
+                "configs/ffnet/config_basemodel_official_3class_complemented.py",
+                str(reference_checkpoint),
+                "--work-dir",
+                str(reference_dir),
+                "--launcher",
+                "pytorch",
+                "--cfg-options",
+                f"test_dataloader.batch_size={batch_profile['eval_per_gpu']}",
+                *runtime_cfg_options,
+            ),
+            env=reference_env,
+        )
+        if not prediction_path.is_file():
+            raise FileNotFoundError("FFNet reference evaluation produced no predictions")
+        if not task.upload_artifact(
+            "ffnet_official_reference_evidence",
+            artifact_object=str(reference_dir),
+            wait_on_upload=True,
+        ):
+            raise RuntimeError("failed to upload FFNet reference evidence")
+        if not task.upload_artifact(
+            "ffnet_official_reference_contract",
+            artifact_object={
+                "dataset_id": OFFICIAL_FFNET_REFERENCE_DATASET_ID,
+                "filename": OFFICIAL_FFNET_REFERENCE_FILENAME,
+                "size_bytes": OFFICIAL_FFNET_REFERENCE_BYTES,
+                "sha256": OFFICIAL_FFNET_REFERENCE_SHA256,
+                "config": (
+                    "configs/ffnet/"
+                    "config_basemodel_official_3class_complemented.py"
+                ),
+                "car_label_index": 2,
+                "inference_mode": "fusion",
+                "prediction_sha256": _sha256(prediction_path),
+            },
+            wait_on_upload=True,
+        ):
+            raise RuntimeError("failed to upload official FFNet reference contract")
+        task.flush(wait_for_uploads=True)
+        return 0
 
     vehicle_checkpoint: Path | None = None
     if args.stage in ("vehicle", "vehicle_teacher"):

@@ -77,6 +77,9 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
             bboxes data to ``Tensor`` type. Defaults to True.
         non_blocking (bool): Whether to block current process when transferring
             data to device. Defaults to False.
+        infrastructure_intensity_scale (float): Scale applied to the intensity
+            channel of infrastructure point clouds. Defaults to 255.0 for
+            compatibility with the original FFNet/TransVision data pipeline.
         batch_augments (List[dict], optional): Batch-level augmentations.
             Defaults to None.
     """
@@ -99,6 +102,7 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
                  rgb_to_bgr: bool = False,
                  boxtype2tensor: bool = True,
                  non_blocking: bool = False,
+                 infrastructure_intensity_scale: float = 255.0,
                  batch_augments: Optional[List[dict]] = None) -> None:
         super(Det3DDataDAIRPreprocessor, self).__init__(
             mean=mean,
@@ -118,9 +122,26 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
         self.voxel_type = voxel_type
         self.batch_first = batch_first
         self.max_voxels = max_voxels
+        self.infrastructure_intensity_scale = float(
+            infrastructure_intensity_scale
+        )
+        if (
+            not math.isfinite(self.infrastructure_intensity_scale)
+            or self.infrastructure_intensity_scale < 0.0
+        ):
+            raise ValueError(
+                "infrastructure_intensity_scale must be finite and non-negative"
+            )
         if voxel:
             self.voxel_layer = VoxelizationByGridShape(**voxel_layer)
             self.inf_voxel_layer = VoxelizationByGridShape(**voxel_layer)
+
+    def _scale_infrastructure_intensity(
+        self,
+        point_clouds: List[Tensor],
+    ) -> None:
+        for point_cloud in point_clouds:
+            point_cloud[:, 3].mul_(self.infrastructure_intensity_scale)
 
     def forward(self, data: Union[dict, List[dict]], training: bool = False) -> Union[dict, List[dict]]:
         """Perform normalization, padding and bgr2rgb conversion based on
@@ -175,8 +196,9 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
             #     batch_inputs['voxels'] = voxel_dict
 
         if 'infrastructure_points' in inputs:
-            for ii in range(len(inputs['infrastructure_points'])):
-                inputs['infrastructure_points'][ii][:, 3] = 255 * inputs['infrastructure_points'][ii][:, 3]
+            self._scale_infrastructure_intensity(
+                inputs['infrastructure_points']
+            )
             batch_inputs['infrastructure_points'] = inputs['infrastructure_points']
 
             # if self.voxel:
@@ -184,8 +206,9 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
             #     batch_inputs['infrastructure_voxels'] = voxel_dict
 
         if 'infrastructure_t0_points' in inputs:
-            for ii in range(len(inputs['infrastructure_t0_points'])):
-                inputs['infrastructure_t0_points'][ii][:, 3] = 255 * inputs['infrastructure_t0_points'][ii][:, 3]
+            self._scale_infrastructure_intensity(
+                inputs['infrastructure_t0_points']
+            )
             batch_inputs['infrastructure_t0_points'] = inputs['infrastructure_t0_points']
 
             # if self.voxel:
@@ -193,8 +216,9 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
             #     batch_inputs['infrastructure_t0_voxels'] = voxel_dict
 
         if 'infrastructure_t1_points' in inputs:
-            for ii in range(len(inputs['infrastructure_t1_points'])):
-                inputs['infrastructure_t1_points'][ii][:, 3] = 255 * inputs['infrastructure_t1_points'][ii][:, 3]
+            self._scale_infrastructure_intensity(
+                inputs['infrastructure_t1_points']
+            )
             batch_inputs['infrastructure_t1_points'] = inputs['infrastructure_t1_points']
 
             # if self.voxel:
@@ -202,8 +226,9 @@ class Det3DDataDAIRPreprocessor(DetDataPreprocessor):
             #     batch_inputs['infrastructure_t1_voxels'] = voxel_dict
 
         if 'infrastructure_t2_points' in inputs:
-            for ii in range(len(inputs['infrastructure_t2_points'])):
-                inputs['infrastructure_t2_points'][ii][:, 3] = 255 * inputs['infrastructure_t2_points'][ii][:, 3]
+            self._scale_infrastructure_intensity(
+                inputs['infrastructure_t2_points']
+            )
             batch_inputs['infrastructure_t2_points'] = inputs['infrastructure_t2_points']
 
             # if self.voxel:

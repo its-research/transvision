@@ -5,6 +5,7 @@ from .coformernet import CoFormerNet
 from .controlled_v2x_baseline import ControlledCooperativeBaselineNet
 from .feature_flownet import FeatureFlowNet
 from .resilient_v2x import (
+    BEVChannelProjection,
     ResilientV2XNet,
     SharedPointPillarsBEVEncoder,
     SharedResNetLSSBEVEncoder,
@@ -19,6 +20,7 @@ __all__ = [
     "CoFormerNet",
     "ControlledCooperativeBaselineNet",
     "FeatureFlowNet",
+    "BEVChannelProjection",
     "SharedPointPillarsBEVEncoder",
     "SharedResNetLSSBEVEncoder",
     "VehiclePointPillarsPretrainNet",

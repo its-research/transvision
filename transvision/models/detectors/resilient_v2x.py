@@ -80,6 +80,52 @@ def _initialize_nested_modules(modules: Sequence[nn.Module | None]) -> None:
 
 
 @MODELS.register_module()
+class BEVChannelProjection(nn.Module):
+    """Project BEV channels without changing the paper's spatial grid."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        num_groups: int = 32,
+    ) -> None:
+        super().__init__()
+        if type(in_channels) is not int or in_channels <= 0:
+            raise ValueError("in_channels must be positive")
+        if type(out_channels) is not int or out_channels <= 0:
+            raise ValueError("out_channels must be positive")
+        if (
+            type(num_groups) is not int
+            or num_groups <= 0
+            or out_channels % num_groups != 0
+        ):
+            raise ValueError("num_groups must divide out_channels")
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.projection = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=1,
+            bias=False,
+        )
+        self.normalization = nn.GroupNorm(
+            num_groups,
+            out_channels,
+            eps=0.001,
+        )
+        self.activation = nn.ReLU(inplace=True)
+
+    def forward(self, feature: Tensor) -> Tensor:
+        if (
+            not isinstance(feature, Tensor)
+            or feature.ndim != 4
+            or feature.shape[1] != self.in_channels
+        ):
+            raise ValueError("BEV channel projection input has an invalid shape")
+        return self.activation(self.normalization(self.projection(feature)))
+
+
+@MODELS.register_module()
 class SharedPointPillarsBEVEncoder(nn.Module):
     """One shared PointPillars/SECOND encoder for every agent and tick."""
 
@@ -91,6 +137,7 @@ class SharedPointPillarsBEVEncoder(nn.Module):
         neck: Mapping[str, object] | nn.Module,
         output_height: int,
         output_width: int,
+        output_channels: int = 256,
         voxel_encoder: Mapping[str, object] | nn.Module | None = None,
         output_projection: Mapping[str, object] | nn.Module | None = None,
         voxelize_reduce: bool = True,
@@ -104,6 +151,8 @@ class SharedPointPillarsBEVEncoder(nn.Module):
             raise ValueError("output_height must be positive")
         if type(output_width) is not int or output_width <= 0:
             raise ValueError("output_width must be positive")
+        if type(output_channels) is not int or output_channels <= 0:
+            raise ValueError("output_channels must be positive")
         self.voxel_layer = Voxelization(**dict(voxelize_cfg))
         self.voxelize_reduce = voxelize_reduce
         self.voxel_encoder = _build_optional(voxel_encoder)
@@ -115,6 +164,7 @@ class SharedPointPillarsBEVEncoder(nn.Module):
             raise ValueError("middle_encoder, backbone, and neck are required")
         self.output_height = output_height
         self.output_width = output_width
+        self.output_channels = output_channels
 
     def init_weights(self) -> None:
         _initialize_nested_modules(
@@ -164,7 +214,7 @@ class SharedPointPillarsBEVEncoder(nn.Module):
             device, dtype = _module_device_dtype(self)
             return torch.empty(
                 0,
-                256,
+                self.output_channels,
                 self.output_height,
                 self.output_width,
                 device=device,
@@ -191,12 +241,12 @@ class SharedPointPillarsBEVEncoder(nn.Module):
             encoded = _first_tensor(encoded, "PointPillars output projection")
         if encoded.shape != (
             batch_size,
-            256,
+            self.output_channels,
             self.output_height,
             self.output_width,
         ):
             raise RuntimeError(
-                "PointPillars encoder must output [K,256,grid_height,grid_width]"
+                "PointPillars encoder output channels or grid shape mismatch"
             )
         return _autocast_feature_output(encoded)
 
@@ -469,8 +519,7 @@ class VehiclePointPillarsPretrainNet(Base3DDetector):
                         "method": "vehicle_pointpillars_pretrain",
                         "branch_order": CONTROLLED_BRANCH_KEYS,
                         "support": {
-                            key: key == "lidar_ego"
-                            for key in CONTROLLED_BRANCH_KEYS
+                            key: key == "lidar_ego" for key in CONTROLLED_BRANCH_KEYS
                         },
                         "age_intervals": {
                             key: (0.0 if key == "lidar_ego" else None)
@@ -508,6 +557,7 @@ class ResilientV2XNet(Base3DDetector):
         lidar_encoder: Mapping[str, object] | nn.Module,
         camera_encoder: Mapping[str, object] | nn.Module,
         bbox_head: Mapping[str, object] | nn.Module,
+        detection_projection: Mapping[str, object] | nn.Module | None = None,
         data_preprocessor: OptConfigType = None,
         ptf_mode: Literal["nonlinear", "linear", "none"] = "nonlinear",
         routing_mode: Literal["dynamic", "static", "uniform", "concat"] = "dynamic",
@@ -527,6 +577,7 @@ class ResilientV2XNet(Base3DDetector):
         self.lidar_encoder = _build_optional(lidar_encoder)
         self.camera_encoder = _build_optional(camera_encoder)
         self.bbox_head = _build_optional(bbox_head)
+        self.detection_projection = _build_optional(detection_projection)
         if (
             self.lidar_encoder is None
             or self.camera_encoder is None
@@ -689,13 +740,33 @@ class ResilientV2XNet(Base3DDetector):
             selections=selections,
         )
 
+    def _head_feature(self, fused: Tensor) -> Tensor:
+        if not isinstance(fused, Tensor) or fused.ndim != 4:
+            raise ValueError("fused BEV feature must be rank-4")
+        projected = (
+            fused
+            if self.detection_projection is None
+            else self.detection_projection(fused)
+        )
+        projected = _first_tensor(projected, "detection projection")
+        if (
+            projected.shape[0] != fused.shape[0]
+            or projected.shape[2:] != fused.shape[2:]
+        ):
+            raise RuntimeError(
+                "detection projection must preserve batch and spatial shape"
+            )
+        return projected
+
     def extract_feat(
         self,
         batch_inputs_dict: Mapping[str, object],
         batch_input_metas: Sequence[Mapping[str, object]] | None = None,
         **kwargs,
     ) -> list[Tensor]:
-        return [self.extract_resilient_feature(batch_inputs_dict).fused]
+        return [
+            self._head_feature(self.extract_resilient_feature(batch_inputs_dict).fused)
+        ]
 
     def _forward(
         self,
@@ -704,7 +775,7 @@ class ResilientV2XNet(Base3DDetector):
         **kwargs,
     ) -> object:
         feature = self.extract_resilient_feature(batch_inputs)
-        return self.bbox_head([feature.fused])
+        return self.bbox_head([self._head_feature(feature.fused)])
 
     def predict(
         self,
@@ -714,7 +785,7 @@ class ResilientV2XNet(Base3DDetector):
     ) -> list[Det3DDataSample]:
         feature = self.extract_resilient_feature(batch_inputs_dict)
         outputs = self.bbox_head.predict(
-            [feature.fused],
+            [self._head_feature(feature.fused)],
             batch_data_samples,
         )
         results = self.add_pred_to_datasample(batch_data_samples, outputs)
@@ -749,11 +820,14 @@ class ResilientV2XNet(Base3DDetector):
                 teacher_feature = self.teacher.teacher.extract_resilient_feature(
                     clean_inputs
                 )
-                teacher_raw = self.teacher.teacher.bbox_head([teacher_feature.fused])
+                teacher_raw = self.teacher.teacher.bbox_head(
+                    [self.teacher.teacher._head_feature(teacher_feature.fused)]
+                )
                 teacher_logits = _nested_tensor(teacher_raw, path)
 
         student = self.extract_resilient_feature(batch_inputs_dict)
-        losses = dict(self.bbox_head.loss([student.fused], batch_data_samples))
+        student_head_feature = self._head_feature(student.fused)
+        losses = dict(self.bbox_head.loss([student_head_feature], batch_data_samples))
         if self.teacher is None:
             return losses
         if (
@@ -762,7 +836,7 @@ class ResilientV2XNet(Base3DDetector):
             or teacher_logits is None
         ):
             raise RuntimeError("teacher distillation state is incomplete")
-        student_raw = self.bbox_head([student.fused])
+        student_raw = self.bbox_head([student_head_feature])
         path = self.distillation_cfg["logit_path"]
         if not isinstance(path, (list, tuple)):
             raise RuntimeError("distillation logit_path is invalid")
@@ -785,6 +859,7 @@ class ResilientV2XNet(Base3DDetector):
 
 
 __all__ = (
+    "BEVChannelProjection",
     "SharedPointPillarsBEVEncoder",
     "SharedResNetLSSBEVEncoder",
     "VehiclePointPillarsPretrainNet",
