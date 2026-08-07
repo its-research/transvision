@@ -132,7 +132,7 @@ val_dataloader = dict(
 )
 test_dataloader = val_dataloader
 
-model = dict(mode="veh_only")
+model = dict(mode="veh_only", legacy_voxel_coordinate_order=True)
 
 # Preserve FFNet's published v0.17.1 basemodel optimization recipe.  The
 # generic v1.3 cyclic-40e base uses 1e-4, but the original FFNet config uses

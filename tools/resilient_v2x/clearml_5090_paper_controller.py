@@ -156,6 +156,11 @@ def _parser() -> argparse.ArgumentParser:
         default=0.0,
         help="zero waits indefinitely",
     )
+    parser.add_argument(
+        "--worker-queue",
+        default=WORKER_QUEUE,
+        help="ClearML queue for the cloned validate task (default: GPU4-5090)",
+    )
     return parser
 
 
@@ -756,6 +761,7 @@ def _upload_controller_summary(
     *,
     student_task_id: str,
     result: ControllerResult,
+    worker_queue: str = WORKER_QUEUE,
 ) -> None:
     if controller_task is None:
         return
@@ -773,7 +779,7 @@ def _upload_controller_summary(
         },
         "validation_summary_sha256": result.validation_summary_sha256,
         "condition_count": result.condition_count,
-        "worker_queue": WORKER_QUEUE,
+        "worker_queue": worker_queue,
     }
     summary["content_sha256"] = _document_content_sha256(summary)
     controller_task.output_uri = FILES_SERVER_URI
@@ -1000,6 +1006,7 @@ def run_paper_controller(
     name: str = "ResilientV2X RTX5090 formal 12-condition validation",
     poll_seconds: float = 30.0,
     timeout_seconds: float = 0.0,
+    worker_queue: str = WORKER_QUEUE,
     sleep_fn: Callable[[float], None] = time.sleep,
     monotonic_fn: Callable[[], float] = time.monotonic,
 ) -> ControllerResult:
@@ -1026,6 +1033,9 @@ def run_paper_controller(
         raise ValueError("expected student checkpoint SHA is invalid")
     if not project.strip() or not name.strip():
         raise ValueError("project and task name must be non-empty")
+    if type(worker_queue) is not str or not worker_queue.strip():
+        raise ValueError("worker queue must be non-empty")
+    worker_queue = worker_queue.strip()
 
     teacher_pin = ModelPin(
         teacher_task_id,
@@ -1104,7 +1114,7 @@ def run_paper_controller(
     )
     enqueue_response = task_class.enqueue(
         task=draft,
-        queue_name=WORKER_QUEUE,
+        queue_name=worker_queue,
         force=False,
     )
     if not _enqueue_acknowledged(enqueue_response):
@@ -1155,6 +1165,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         name=args.name,
         poll_seconds=args.poll_seconds,
         timeout_seconds=args.timeout_seconds,
+        worker_queue=args.worker_queue,
     )
     controller_task = Task.current_task()
     _record_validation_task_id(
@@ -1165,6 +1176,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         controller_task,
         student_task_id=args.student_task_id,
         result=result,
+        worker_queue=args.worker_queue,
     )
 
     print(
@@ -1172,7 +1184,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             {
                 "event": "resilient_v2x_paper_validation_complete",
                 **result._asdict(),
-                "worker_queue": WORKER_QUEUE,
+                "worker_queue": args.worker_queue,
             },
             sort_keys=True,
         ),

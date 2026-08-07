@@ -59,6 +59,8 @@ paper_model_contract = dict(
 
 lidar_encoder = dict(
     type="SharedPointPillarsBEVEncoder",
+    # Sealed CUDA voxelizer emits x-y-z; PointPillarsScatter expects z-y-x.
+    legacy_voxel_coordinate_order=True,
     voxelize_cfg=dict(
         max_num_points=32,
         point_cloud_range=point_cloud_range,

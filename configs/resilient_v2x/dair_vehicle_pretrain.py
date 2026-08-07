@@ -41,18 +41,19 @@ lidar_encoder["output_channels"] = 384
 
 # Vehicle validation uses the original FFNet 384-channel neck-to-head path.
 # The clean teacher keeps the same transferable neck/head weights and adds
-# 384-to-256-to-384 adapters around the paper's 256-channel fusion. DAIR boxes
-# use LiDAR bottom-center convention, hence anchor bottom z=-1.78.
+# 384-to-256-to-384 adapters around the paper's 256-channel fusion.
+# Match working FFNet-B-V anchors (z_center_car=-2.66 in v2x_voxelnet.py).
+# Using -1.78 starved MaxIoU positives and left ep10 with ~1 prediction.
 bbox_head["anchor_generator"] = dict(
     type="AlignedAnchor3DRangeGenerator",
     ranges=[
         [
             vehicle_point_cloud_range[0],
             vehicle_point_cloud_range[1],
-            -1.78,
+            -2.66,
             vehicle_point_cloud_range[3],
             vehicle_point_cloud_range[4],
-            -1.78,
+            -2.66,
         ]
     ],
     sizes=[[3.9, 1.6, 1.56]],
@@ -117,11 +118,13 @@ test_evaluator = val_evaluator
 # FFNet runs 40 epochs over RepeatDataset(times=2). This loader does not repeat
 # the dataset, so 80 epochs preserve the same number of data passes and place
 # the cyclic schedule boundary after the same amount of training data.
+# Mirror FFNet's published cyclic recipe: climb 1e-3 -> 1e-2, then decay.
+ffnet_base_lr = 0.001
 param_scheduler = [
     dict(
         type="CosineAnnealingLR",
         T_max=32,
-        eta_min=0.001,
+        eta_min=ffnet_base_lr * 10,
         by_epoch=True,
         begin=0,
         end=32,
@@ -130,7 +133,7 @@ param_scheduler = [
     dict(
         type="CosineAnnealingLR",
         T_max=48,
-        eta_min=0.00000001,
+        eta_min=ffnet_base_lr * 1e-4,
         by_epoch=True,
         begin=32,
         end=80,
@@ -158,6 +161,20 @@ param_scheduler = [
 # Validation every ten epochs follows the FFNet protocol and avoids spending
 # most of the run evaluating 1,789 frames.
 train_cfg = dict(max_epochs=80, val_interval=10)
+
+# FFNet-B-V uses AdamW lr=1e-3. The shared runtime profile defaults to 1e-4 for
+# the multimodal teacher/student; without this override the vehicle pretrain
+# inherits 1e-4 and stays near-zero AP while the official FFNet recipe learns.
+optim_wrapper = dict(
+    type="OptimWrapper",
+    optimizer=dict(
+        type="AdamW",
+        lr=0.001,
+        betas=(0.95, 0.99),
+        weight_decay=0.01,
+    ),
+    clip_grad=dict(max_norm=35, norm_type=2),
+)
 
 default_hooks = dict(
     checkpoint=dict(

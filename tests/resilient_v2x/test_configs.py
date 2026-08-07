@@ -256,6 +256,7 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     lidar = model["lidar_encoder"]
     assert isinstance(lidar, dict)
     assert lidar["type"] == "SharedPointPillarsBEVEncoder"
+    assert lidar["legacy_voxel_coordinate_order"] is True
     assert lidar["voxel_encoder"]["type"] == "PillarFeatureNet"
     expected_spatial_norm = {"type": "BN", "eps": 0.001, "momentum": 0.01}
     assert lidar["voxel_encoder"]["norm_cfg"] == {
@@ -469,6 +470,8 @@ def test_vehicle_pretrain_uses_ffnet_grid_with_transfer_compatible_shapes() -> N
         assert head[key] == main_head[key]
     assert head["anchor_generator"]["type"] == ("AlignedAnchor3DRangeGenerator")
     assert head["anchor_generator"]["sizes"] == [[3.9, 1.6, 1.56]]
+    assert head["anchor_generator"]["ranges"][0][2] == -2.66
+    assert head["anchor_generator"]["ranges"][0][5] == -2.66
     assert head["assign_per_class"] is True
     assert head["test_cfg"]["score_thr"] == 0.2
     assert head["test_cfg"]["max_num"] == 300
@@ -479,7 +482,7 @@ def test_vehicle_pretrain_uses_ffnet_grid_with_transfer_compatible_shapes() -> N
         {
             "type": "CosineAnnealingLR",
             "T_max": 32,
-            "eta_min": 0.001,
+            "eta_min": 0.01,
             "by_epoch": True,
             "begin": 0,
             "end": 32,
@@ -488,7 +491,7 @@ def test_vehicle_pretrain_uses_ffnet_grid_with_transfer_compatible_shapes() -> N
         {
             "type": "CosineAnnealingLR",
             "T_max": 48,
-            "eta_min": 0.00000001,
+            "eta_min": 0.0000001,
             "by_epoch": True,
             "begin": 32,
             "end": 80,

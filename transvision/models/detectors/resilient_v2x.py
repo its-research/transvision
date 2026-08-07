@@ -141,12 +141,15 @@ class SharedPointPillarsBEVEncoder(nn.Module):
         voxel_encoder: Mapping[str, object] | nn.Module | None = None,
         output_projection: Mapping[str, object] | nn.Module | None = None,
         voxelize_reduce: bool = True,
+        legacy_voxel_coordinate_order: bool = True,
     ) -> None:
         super().__init__()
         if not isinstance(voxelize_cfg, Mapping):
             raise ValueError("voxelize_cfg must be a mapping")
         if type(voxelize_reduce) is not bool:
             raise ValueError("voxelize_reduce must be boolean")
+        if type(legacy_voxel_coordinate_order) is not bool:
+            raise ValueError("legacy_voxel_coordinate_order must be boolean")
         if type(output_height) is not int or output_height <= 0:
             raise ValueError("output_height must be positive")
         if type(output_width) is not int or output_width <= 0:
@@ -155,6 +158,8 @@ class SharedPointPillarsBEVEncoder(nn.Module):
             raise ValueError("output_channels must be positive")
         self.voxel_layer = Voxelization(**dict(voxelize_cfg))
         self.voxelize_reduce = voxelize_reduce
+        # Sealed CUDA voxelizer emits x-y-z; PointPillarsScatter expects z-y-x.
+        self.legacy_voxel_coordinate_order = legacy_voxel_coordinate_order
         self.voxel_encoder = _build_optional(voxel_encoder)
         self.middle_encoder = _build_optional(middle_encoder)
         self.backbone = _build_optional(backbone)
@@ -165,6 +170,11 @@ class SharedPointPillarsBEVEncoder(nn.Module):
         self.output_height = output_height
         self.output_width = output_width
         self.output_channels = output_channels
+
+    def _coordinate_order(self, coordinates: Tensor) -> Tensor:
+        if not self.legacy_voxel_coordinate_order:
+            return coordinates
+        return coordinates[:, [2, 1, 0]]
 
     def init_weights(self) -> None:
         _initialize_nested_modules(
@@ -198,7 +208,12 @@ class SharedPointPillarsBEVEncoder(nn.Module):
                 raise RuntimeError("voxelizer returned an unsupported tuple")
             features.append(feature)
             coordinates.append(
-                F.pad(coordinate, (1, 0), mode="constant", value=batch_index)
+                F.pad(
+                    self._coordinate_order(coordinate),
+                    (1, 0),
+                    mode="constant",
+                    value=batch_index,
+                )
             )
         if not features:
             raise ValueError("PointPillars encoder requires at least one payload")
