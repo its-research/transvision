@@ -126,7 +126,7 @@ def _batch_profile(runtime_profile: str) -> dict[str, int]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-id", required=True)
-    parser.add_argument("--gpus", type=int, choices=(4,), default=4)
+    parser.add_argument("--gpus", type=int, choices=(4, 8), default=4)
     parser.add_argument(
         "--stage",
         choices=(
@@ -229,12 +229,17 @@ def _capture_rtx5090_runtime_contract() -> dict[str, object]:
 
 
 def _validate_rtx5090_runtime_contract(contract: Mapping[str, object]) -> None:
+    gpu_count = contract.get("gpu_count")
+    if gpu_count not in {4, 8}:
+        raise RuntimeError(
+            "RTX5090 runtime gpu_count mismatch: "
+            f"expected 4 or 8, got {gpu_count!r}"
+        )
     expected_scalars = {
         "python": [3, 12],
         "torch": "2.10.0+cu128",
         "torch_cuda": "12.8",
         "cuda_available": True,
-        "gpu_count": 4,
     }
     for field, expected in expected_scalars.items():
         if contract.get(field) != expected:
@@ -242,8 +247,10 @@ def _validate_rtx5090_runtime_contract(contract: Mapping[str, object]) -> None:
                 f"RTX5090 runtime {field} mismatch: "
                 f"expected {expected!r}, got {contract.get(field)!r}"
             )
-    if contract.get("capabilities") != [[12, 0]] * 4:
-        raise RuntimeError("RTX5090 runtime requires four compute-capability 12.0 GPUs")
+    if contract.get("capabilities") != [[12, 0]] * int(gpu_count):
+        raise RuntimeError(
+            "RTX5090 runtime requires compute-capability 12.0 on every visible GPU"
+        )
     arch_list = contract.get("torch_arch_list")
     if not isinstance(arch_list, list) or "sm_120" not in arch_list:
         raise RuntimeError("RTX5090 PyTorch runtime does not contain sm_120")
@@ -759,12 +766,30 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     import torch
 
-    if torch.cuda.device_count() != args.gpus:
+    visible_gpus = torch.cuda.device_count()
+    if args.runtime_profile == "rtx5090":
+        if visible_gpus not in {4, 8}:
+            raise RuntimeError(
+                f"RTX5090 expects 4 or 8 visible GPUs, got {visible_gpus}"
+            )
+        if args.gpus > visible_gpus:
+            raise RuntimeError(
+                f"requested {args.gpus} GPUs but only {visible_gpus} are visible"
+            )
+    elif visible_gpus != args.gpus:
         raise RuntimeError(
-            f"expected {args.gpus} visible GPUs, got {torch.cuda.device_count()}"
+            f"expected {args.gpus} visible GPUs, got {visible_gpus}"
         )
 
     env = _runtime_environment(os.environ, args.runtime_profile)
+    if (
+        args.runtime_profile == "rtx5090"
+        and visible_gpus == 8
+        and args.gpus == 4
+    ):
+        # GPU8-5090 workers expose all eight cards; a sibling worker commonly
+        # occupies physical 0-3. Pin teacher/student DDP onto 4-7.
+        env["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
     env.update(
         {
             "PYTHONPATH": str(ROOT),

@@ -147,7 +147,7 @@ CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256 = (
     "8435208ec277f84e3403fb6991fa9f3be920dfac3c5ab4f0fd2963a31bd29314"
 )
 CLEARML_TRAIN_FFNET_STAGE_SHA256 = (
-    "e9c8e5087cd2062883afa77a4039c42caff225f643dff1b0c5d923fc85a7f0e7"
+    "abef0798e6e8c53021d5cb143e5adad051c86eb41410a37039332cdbd48d1b7c"
 )
 CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256 = (
     "95b1748429a7341f2ee304d84f764b5fbfcb544957250b44b3e5e11e6687be0c"
@@ -313,7 +313,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--native-bundle-bytes", type=_positive_integer, required=True)
     parser.add_argument("--native-bundle-sha256", type=_sha256_argument, required=True)
     parser.add_argument("--build-manifest-sha256", type=_sha256_argument, required=True)
-    parser.add_argument("--gpus", type=int, choices=(4,), default=4)
+    parser.add_argument("--gpus", type=int, choices=(4, 8), default=4)
     parser.add_argument(
         "--stage",
         choices=(
@@ -747,11 +747,16 @@ def _capture_gpu_runtime() -> dict[str, object]:
 
 
 def _validate_gpu_runtime(contract: Mapping[str, object]) -> None:
+    gpu_count = contract.get("gpu_count")
+    if gpu_count not in {4, 8}:
+        raise RuntimeError(
+            "RTX5090 runtime gpu_count mismatch: "
+            f"expected 4 or 8, got {gpu_count!r}"
+        )
     expected = {
         "python": [3, 12],
         "torch": EXPECTED_TORCH,
         "torch_cuda": EXPECTED_TORCH_CUDA,
-        "gpu_count": EXPECTED_GPU_COUNT,
         "cuda_available": True,
     }
     for field, expected_value in expected.items():
@@ -761,7 +766,7 @@ def _validate_gpu_runtime(contract: Mapping[str, object]) -> None:
                 f"expected {expected_value!r}, got {contract.get(field)!r}"
             )
     capabilities = contract.get("capabilities")
-    if capabilities != [list(EXPECTED_CAPABILITY)] * EXPECTED_GPU_COUNT:
+    if capabilities != [list(EXPECTED_CAPABILITY)] * int(gpu_count):
         raise RuntimeError(f"RTX5090 GPU capability mismatch: {capabilities!r}")
     arch_list = contract.get("torch_arch_list")
     if not isinstance(arch_list, list) or "sm_120" not in arch_list:
@@ -1066,9 +1071,10 @@ if sys.version_info[:2] != (3, 12):
     raise RuntimeError(f"unexpected Python: {sys.version}")
 if torch.__version__ != "2.10.0+cu128" or torch.version.cuda != "12.8":
     raise RuntimeError(f"unexpected Torch runtime: {torch.__version__}/{torch.version.cuda}")
-if torch.cuda.device_count() != 4:
-    raise RuntimeError(f"expected 4 GPUs, got {torch.cuda.device_count()}")
-if any(torch.cuda.get_device_capability(i) != (12, 0) for i in range(4)):
+gpu_count = torch.cuda.device_count()
+if gpu_count not in {4, 8}:
+    raise RuntimeError(f"expected 4 or 8 GPUs, got {gpu_count}")
+if any(torch.cuda.get_device_capability(i) != (12, 0) for i in range(gpu_count)):
     raise RuntimeError("all GPUs must have compute capability 12.0")
 if "sm_120" not in torch.cuda.get_arch_list():
     raise RuntimeError("PyTorch build lacks sm_120")

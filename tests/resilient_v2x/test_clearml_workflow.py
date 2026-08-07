@@ -529,6 +529,15 @@ def test_rtx5090_runtime_contract_helper_requires_exact_runtime() -> None:
     }
 
     runner._validate_rtx5090_runtime_contract(contract)
+    eight_gpu = dict(contract)
+    eight_gpu["gpu_count"] = 8
+    eight_gpu["capabilities"] = [[12, 0]] * 8
+    runner._validate_rtx5090_runtime_contract(eight_gpu)
+    wrong_count = dict(contract)
+    wrong_count["gpu_count"] = 2
+    wrong_count["capabilities"] = [[12, 0]] * 2
+    with pytest.raises(RuntimeError, match="gpu_count mismatch"):
+        runner._validate_rtx5090_runtime_contract(wrong_count)
     wrong_packages = dict(contract)
     wrong_packages["packages"] = {
         **contract["packages"],
