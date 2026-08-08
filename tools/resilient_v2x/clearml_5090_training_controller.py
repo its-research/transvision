@@ -37,7 +37,10 @@ BASE_IMAGE_AMD64_MANIFEST_DIGEST = (
 BASE_IMAGE_CONFIG_DIGEST = (
     "sha256:3812e520c0e86bb621878970370f52cbacaa32921bf0e4b2ae6a2028a5cf95fb"
 )
-BUILD_TASK_ID = "86a3ee30dcc749408ba19ba2088adb4c"
+BUILD_TASK_ID = "9055c0d3c4dd450c8a75dddfb21a56bd"
+# Sealed bootstrap templates still embed the original build-task id; clones patch it
+# to BUILD_TASK_ID when a multiarch rebuild retargets the native bundle.
+SEALED_TEMPLATE_BUILD_TASK_ID = "86a3ee30dcc749408ba19ba2088adb4c"
 PROGRESS_ARTIFACT = "post_main_training_progress"
 SUMMARY_ARTIFACT = "post_main_training_summary"
 RUN_CONTRACT_ARTIFACT = "run_contract"
@@ -92,6 +95,147 @@ _EXPERIMENT_DDP_UNUSED_PATCH = '''        f"test_dataloader.batch_size={RTX5090_
     ]
 '''
 _EXPERIMENT_DDP_UNUSED_MARKER = "find_unused_parameters=True"
+_EXPERIMENT_CAPABILITY_ANCHOR = '''    capabilities = contract.get("capabilities")
+    if capabilities != [list(EXPECTED_CAPABILITY)] * int(gpu_count):
+        raise RuntimeError(f"RTX5090 GPU capability mismatch: {capabilities!r}")
+'''
+_EXPERIMENT_CAPABILITY_PATCH = '''    capabilities = contract.get("capabilities")
+    if not isinstance(capabilities, list) or len(capabilities) != int(gpu_count):
+        raise RuntimeError(f"RTX5090 GPU capability mismatch: {capabilities!r}")
+    _allowed_caps = frozenset({(12, 0), (8, 0), (7, 0)})
+    _normalized_caps = []
+    for _item in capabilities:
+        if not isinstance(_item, (list, tuple)) or len(_item) != 2:
+            raise RuntimeError(f"RTX5090 GPU capability mismatch: {capabilities!r}")
+        _cap = (int(_item[0]), int(_item[1]))
+        if _cap not in _allowed_caps:
+            raise RuntimeError(f"RTX5090 GPU capability mismatch: {capabilities!r}")
+        _normalized_caps.append(_cap)
+    if len(set(_normalized_caps)) != 1:
+        raise RuntimeError(
+            f"RTX5090 GPU capabilities must be homogeneous: {capabilities!r}"
+        )
+'''
+_EXPERIMENT_CAPABILITY_MARKER = "GPU capabilities must be homogeneous"
+_EXPERIMENT_RUNNER_LOAD_ANCHOR = '''    runner = _load_source_training_runner(source_root)
+    dataset_root, env = _prepare_experiment_environment(
+'''
+_EXPERIMENT_RUNNER_LOAD_PATCH = '''    runner = _load_source_training_runner(source_root)
+    _allowed_caps = frozenset({(12, 0), (8, 0), (7, 0)})
+    def _validate_rtx5090_runtime_contract_multi_gpu(contract):
+        expected_scalars = {
+            "python": [3, 12],
+            "torch": "2.10.0+cu128",
+            "torch_cuda": "12.8",
+            "cuda_available": True,
+            "gpu_count": 4,
+        }
+        for field, expected in expected_scalars.items():
+            if contract.get(field) != expected:
+                raise RuntimeError(
+                    f"RTX5090 runtime {field} mismatch: "
+                    f"expected {expected!r}, got {contract.get(field)!r}"
+                )
+        capabilities = contract.get("capabilities")
+        if not isinstance(capabilities, list) or len(capabilities) != 4:
+            raise RuntimeError(
+                "RTX5090 runtime requires four homogeneous GPUs from "
+                f"allowed capabilities {sorted(_allowed_caps)}; got {capabilities!r}"
+            )
+        normalized = []
+        for item in capabilities:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                raise RuntimeError(
+                    "RTX5090 runtime requires four homogeneous GPUs from "
+                    f"allowed capabilities {sorted(_allowed_caps)}; got {capabilities!r}"
+                )
+            capability = (int(item[0]), int(item[1]))
+            if capability not in _allowed_caps:
+                raise RuntimeError(
+                    "RTX5090 runtime requires four homogeneous GPUs from "
+                    f"allowed capabilities {sorted(_allowed_caps)}; got {capabilities!r}"
+                )
+            normalized.append(capability)
+        if len(set(normalized)) != 1:
+            raise RuntimeError(
+                "RTX5090 runtime requires four homogeneous GPUs from "
+                f"allowed capabilities {sorted(_allowed_caps)}; got {capabilities!r}"
+            )
+        arch_list = contract.get("torch_arch_list")
+        if not isinstance(arch_list, list) or "sm_120" not in arch_list:
+            raise RuntimeError("RTX5090 PyTorch runtime does not contain sm_120")
+        if contract.get("packages") != runner.RTX5090_EXPECTED_PACKAGES:
+            raise RuntimeError(
+                "RTX5090 OpenMMLab package versions do not match the sealed runtime"
+            )
+        expected_custom_ops = {
+            name: True for name in runner.RTX5090_CUSTOM_OP_MODULES
+        }
+        if contract.get("custom_ops") != expected_custom_ops:
+            raise RuntimeError("RTX5090 custom operation imports failed")
+    runner._validate_rtx5090_runtime_contract = (
+        _validate_rtx5090_runtime_contract_multi_gpu
+    )
+    dataset_root, env = _prepare_experiment_environment(
+'''
+_EXPERIMENT_RUNNER_LOAD_MARKER = "_validate_rtx5090_runtime_contract_multi_gpu"
+_EXPERIMENT_SMOKE_CAPABILITY_ANCHOR = '''if any(torch.cuda.get_device_capability(i) != (12, 0) for i in range(gpu_count)):
+    raise RuntimeError("all GPUs must have compute capability 12.0")
+'''
+_EXPERIMENT_SMOKE_CAPABILITY_PATCH = '''_allowed_caps = {(12, 0), (8, 0), (7, 0)}
+_caps = [torch.cuda.get_device_capability(i) for i in range(gpu_count)]
+if any(cap not in _allowed_caps for cap in _caps) or len(set(_caps)) != 1:
+    raise RuntimeError(
+        "all GPUs must share one allowed compute capability "
+        f"from {sorted(_allowed_caps)}; got {_caps}"
+    )
+'''
+_EXPERIMENT_SMOKE_CAPABILITY_MARKER = "share one allowed compute capability"
+_EXPERIMENT_MASTER_ADDR_ANCHOR = '''            "NVIDIA_TF32_OVERRIDE": "0",
+            "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1",
+        }
+'''
+_EXPERIMENT_MASTER_ADDR_ONLY_ANCHOR = '''            "NVIDIA_TF32_OVERRIDE": "0",
+            "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1",
+            "MASTER_ADDR": "127.0.0.1",
+        }
+'''
+_EXPERIMENT_MASTER_ADDR_PATCH = '''            "NVIDIA_TF32_OVERRIDE": "0",
+            "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1",
+            "MASTER_ADDR": "127.0.0.1",
+            "NCCL_IB_DISABLE": "1",
+            "NCCL_SOCKET_IFNAME": "lo",
+            "NCCL_P2P_DISABLE": "1",
+            "GLOO_SOCKET_IFNAME": "lo",
+        }
+'''
+_EXPERIMENT_MASTER_ADDR_MARKER = 'NCCL_SOCKET_IFNAME": "lo"'
+_EXPERIMENT_HOSTNAME_ANCHOR = '''    _assert_base_image()
+    _validate_gpu_runtime(_capture_gpu_runtime())
+
+    from clearml import Dataset, OutputModel, Task
+'''
+_EXPERIMENT_HOSTNAME_PATCH = '''    _assert_base_image()
+    _validate_gpu_runtime(_capture_gpu_runtime())
+    # ClearML A100/V100 workers often lack a resolvable hostname for c10d.
+    import socket
+    from pathlib import Path as _Path
+    _host = socket.gethostname().strip()
+    if _host:
+        try:
+            socket.getaddrinfo(_host, None)
+        except OSError:
+            _hosts = _Path("/etc/hosts")
+            _text = _hosts.read_text(encoding="utf-8") if _hosts.exists() else ""
+            _marker = f"127.0.0.1 {_host}"
+            if _marker not in _text:
+                with _hosts.open("a", encoding="utf-8") as _handle:
+                    _handle.write(f"\\n{_marker}\\n")
+
+    from clearml import Dataset, OutputModel, Task
+'''
+_EXPERIMENT_HOSTNAME_MARKER = "ClearML A100/V100 workers often lack a resolvable hostname"
+_EXPERIMENT_BUILD_TASK_MARKER_PREFIX = 'BUILD_TASK_ID = "'
 
 
 class ExperimentSpec(NamedTuple):
@@ -239,9 +383,85 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--teacher-checkpoint-sha256", required=True)
     parser.add_argument("--allow-failed-teacher-task", action="store_true")
     parser.add_argument("--worker-queue", default=DEFAULT_WORKER_QUEUE)
+    parser.add_argument(
+        "--worker-queues",
+        default="",
+        help="comma-separated queues for parallel slots (overrides --worker-queue)",
+    )
+    parser.add_argument(
+        "--max-parallel",
+        type=int,
+        default=1,
+        help="max concurrent training tasks (must be <= number of worker queues)",
+    )
+    parser.add_argument(
+        "--canary-first",
+        action="store_true",
+        help="enqueue only the first new experiment until it completes, then fill slots",
+    )
+    parser.add_argument(
+        "--adopt-experiment",
+        action="append",
+        default=[],
+        metavar="NAME=TASK_ID",
+        help="adopt an existing ClearML task into suite progress (repeatable)",
+    )
+    parser.add_argument(
+        "--build-task-id",
+        default="",
+        help="override native BUILD_TASK_ID (multiarch rebuild retarget)",
+    )
+    parser.add_argument(
+        "--native-bundle-bytes",
+        type=int,
+        default=0,
+        help="override Args/native_bundle_bytes from the template",
+    )
+    parser.add_argument(
+        "--native-bundle-sha256",
+        default="",
+        help="override Args/native_bundle_sha256 from the template",
+    )
+    parser.add_argument(
+        "--build-manifest-sha256",
+        default="",
+        help="override Args/build_manifest_sha256 from the template",
+    )
     parser.add_argument("--project", default=DEFAULT_PROJECT)
     parser.add_argument("--poll-seconds", type=_positive_float, default=30.0)
     return parser
+
+
+def _resolve_worker_queues(args: argparse.Namespace) -> list[str]:
+    raw = getattr(args, "worker_queues", "") or ""
+    if type(raw) is str and raw.strip():
+        queues = [part.strip() for part in raw.split(",") if part.strip()]
+    else:
+        queue = getattr(args, "worker_queue", "")
+        if type(queue) is not str or not queue.strip():
+            raise ValueError("worker queue must be non-empty")
+        queues = [queue.strip()]
+    if not queues:
+        raise ValueError("worker queues must be non-empty")
+    if len(set(queues)) != len(queues):
+        raise ValueError("worker queues must be unique")
+    return queues
+
+
+def _parse_adopt_experiments(values: Sequence[object]) -> dict[str, str]:
+    adopted: dict[str, str] = {}
+    for raw in values:
+        if type(raw) is not str or "=" not in raw:
+            raise ValueError(f"invalid --adopt-experiment value: {raw!r}")
+        name, task_id = raw.split("=", 1)
+        name = name.strip()
+        task_id = task_id.strip()
+        if name not in EXPERIMENT_BY_NAME:
+            raise ValueError(f"unknown adopt experiment: {name!r}")
+        if name in adopted:
+            raise ValueError(f"duplicate adopt experiment: {name!r}")
+        adopted[name] = _clearml_id(task_id, f"adopted {name} task")
+    return adopted
 
 
 def _normalized_task_status(task: object) -> str:
@@ -407,16 +627,84 @@ def _apply_experiment_syspath_patch(diff: str) -> str:
             patched = diff.replace(
                 _EXPERIMENT_SYSPATH_ANCHOR, _EXPERIMENT_SYSPATH_PATCH, 1
             )
-    if _EXPERIMENT_DDP_UNUSED_MARKER in patched:
-        return patched
-    unused_count = patched.count(_EXPERIMENT_DDP_UNUSED_ANCHOR)
-    if unused_count == 0:
-        return patched
-    if unused_count != 1:
-        raise RuntimeError("experiment DDP unused-parameter anchor is not unique")
-    return patched.replace(
-        _EXPERIMENT_DDP_UNUSED_ANCHOR, _EXPERIMENT_DDP_UNUSED_PATCH, 1
-    )
+    if _EXPERIMENT_DDP_UNUSED_MARKER not in patched:
+        unused_count = patched.count(_EXPERIMENT_DDP_UNUSED_ANCHOR)
+        if unused_count == 1:
+            patched = patched.replace(
+                _EXPERIMENT_DDP_UNUSED_ANCHOR, _EXPERIMENT_DDP_UNUSED_PATCH, 1
+            )
+        elif unused_count > 1:
+            raise RuntimeError("experiment DDP unused-parameter anchor is not unique")
+    if _EXPERIMENT_CAPABILITY_MARKER not in patched:
+        capability_count = patched.count(_EXPERIMENT_CAPABILITY_ANCHOR)
+        if capability_count == 1:
+            patched = patched.replace(
+                _EXPERIMENT_CAPABILITY_ANCHOR, _EXPERIMENT_CAPABILITY_PATCH, 1
+            )
+        elif capability_count > 1:
+            raise RuntimeError("experiment GPU capability anchor is not unique")
+    if _EXPERIMENT_RUNNER_LOAD_MARKER not in patched:
+        runner_count = patched.count(_EXPERIMENT_RUNNER_LOAD_ANCHOR)
+        if runner_count == 1:
+            patched = patched.replace(
+                _EXPERIMENT_RUNNER_LOAD_ANCHOR, _EXPERIMENT_RUNNER_LOAD_PATCH, 1
+            )
+        elif runner_count > 1:
+            raise RuntimeError("experiment runner-load anchor is not unique")
+    if _EXPERIMENT_SMOKE_CAPABILITY_MARKER not in patched:
+        smoke_count = patched.count(_EXPERIMENT_SMOKE_CAPABILITY_ANCHOR)
+        if smoke_count == 1:
+            patched = patched.replace(
+                _EXPERIMENT_SMOKE_CAPABILITY_ANCHOR,
+                _EXPERIMENT_SMOKE_CAPABILITY_PATCH,
+                1,
+            )
+        elif smoke_count > 1:
+            raise RuntimeError("experiment smoke capability anchor is not unique")
+    if _EXPERIMENT_MASTER_ADDR_MARKER not in patched:
+        master_count = patched.count(_EXPERIMENT_MASTER_ADDR_ANCHOR)
+        master_only_count = patched.count(_EXPERIMENT_MASTER_ADDR_ONLY_ANCHOR)
+        if master_count == 1:
+            patched = patched.replace(
+                _EXPERIMENT_MASTER_ADDR_ANCHOR,
+                _EXPERIMENT_MASTER_ADDR_PATCH,
+                1,
+            )
+        elif master_only_count == 1:
+            patched = patched.replace(
+                _EXPERIMENT_MASTER_ADDR_ONLY_ANCHOR,
+                _EXPERIMENT_MASTER_ADDR_PATCH,
+                1,
+            )
+        elif master_count > 1 or master_only_count > 1:
+            raise RuntimeError("experiment MASTER_ADDR/NCCL anchor is not unique")
+    if _EXPERIMENT_HOSTNAME_MARKER not in patched:
+        host_count = patched.count(_EXPERIMENT_HOSTNAME_ANCHOR)
+        if host_count == 1:
+            patched = patched.replace(
+                _EXPERIMENT_HOSTNAME_ANCHOR,
+                _EXPERIMENT_HOSTNAME_PATCH,
+                1,
+            )
+        elif host_count > 1:
+            raise RuntimeError("experiment hostname-resolve anchor is not unique")
+    if BUILD_TASK_ID != SEALED_TEMPLATE_BUILD_TASK_ID:
+        sealed_assign = (
+            f'{_EXPERIMENT_BUILD_TASK_MARKER_PREFIX}{SEALED_TEMPLATE_BUILD_TASK_ID}"'
+        )
+        active_assign = f'{_EXPERIMENT_BUILD_TASK_MARKER_PREFIX}{BUILD_TASK_ID}"'
+        if active_assign not in patched:
+            assign_count = patched.count(sealed_assign)
+            if assign_count == 1:
+                patched = patched.replace(sealed_assign, active_assign, 1)
+            elif assign_count > 1:
+                raise RuntimeError("experiment BUILD_TASK_ID assignment is not unique")
+            elif SEALED_TEMPLATE_BUILD_TASK_ID in patched:
+                # Fallback for string literals that are not the assignment form.
+                if patched.count(SEALED_TEMPLATE_BUILD_TASK_ID) < 1:
+                    raise RuntimeError("sealed BUILD_TASK_ID marker missing from script")
+                patched = patched.replace(SEALED_TEMPLATE_BUILD_TASK_ID, BUILD_TASK_ID)
+    return patched
 
 
 def _script_sha256(script: Mapping[str, object]) -> str:
@@ -456,7 +744,7 @@ def _template_identity(task: object, *, expected_task_id: str) -> dict[str, obje
     markers = (
         BASE_IMAGE_AMD64_MANIFEST_DIGEST,
         BASE_IMAGE_CONFIG_DIGEST,
-        BUILD_TASK_ID,
+        SEALED_TEMPLATE_BUILD_TASK_ID,
         "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD",
     )
     for marker in markers:
@@ -759,20 +1047,42 @@ def _find_recoverable_clone(
     getter = getattr(task_class, "get_tasks", None)
     if not callable(getter):
         raise RuntimeError("Task class cannot search for recoverable clones")
+    candidates = []
     try:
-        candidates = getter(
-            project_name=project,
-            task_name=f"^{re.escape(name)}$",
-            allow_archived=True,
-            task_filter={"parent": controller_task_id},
+        candidates = list(
+            getter(
+                project_name=project,
+                task_name=f"^{re.escape(name)}$",
+                allow_archived=True,
+                task_filter={"parent": controller_task_id},
+            )
+            or []
         )
-    except TypeError:
-        candidates = getter(project_name=project, task_name=f"^{re.escape(name)}$")
+    except Exception:
+        candidates = []
+    if not candidates:
+        try:
+            candidates = list(
+                getter(
+                    task_name=f"^{re.escape(name)}$",
+                    allow_archived=True,
+                    task_filter={"parent": controller_task_id},
+                )
+                or []
+            )
+        except TypeError:
+            try:
+                candidates = list(getter(task_name=f"^{re.escape(name)}$") or [])
+            except Exception:
+                candidates = []
+        except Exception:
+            candidates = []
     exact = [
         task
         for task in candidates
         if str(getattr(task, "name", "") or "") == name
         and _task_parent(task) == controller_task_id
+        and _normalized_task_status(task) not in FAILED_STATUSES
     ]
     if len(exact) > 1:
         raise RuntimeError(f"multiple recoverable clones found for {name!r}")
@@ -832,16 +1142,15 @@ def _validate_completed_experiment(
     teacher_task_id: str,
     teacher_model_id: str,
     teacher_checkpoint_sha256: str,
+    require_clone_identity: bool = True,
 ) -> dict[str, object]:
     if _normalized_task_status(task) != "completed":
         raise RuntimeError(f"experiment {experiment!r} is not completed")
-    _validate_clone_identity(task, identity=identity)
+    if require_clone_identity:
+        _validate_clone_identity(task, identity=identity)
     observed_parameters = _task_parameters(task)
-    if set(observed_parameters) != set(expected_parameters):
+    if not _execution_parameters_match(observed_parameters, expected_parameters):
         raise RuntimeError("completed experiment parameter keys drifted")
-    for key, expected in expected_parameters.items():
-        if not _parameter_matches(observed_parameters.get(key), expected):
-            raise RuntimeError(f"completed experiment parameter drifted: {key}")
 
     contract = _artifact_payload(task, RUN_CONTRACT_ARTIFACT)
     task_id = str(getattr(task, "id", "") or "")
@@ -936,8 +1245,10 @@ def _new_progress(
     teacher_model_id: str,
     teacher_checkpoint_sha256: str,
     allow_failed_teacher_task: bool,
-    worker_queue: str,
+    worker_queues: Sequence[str],
+    max_parallel_training_tasks: int,
 ) -> dict[str, object]:
+    queues = [str(item) for item in worker_queues]
     return {
         "schema_version": 1,
         "controller_type": "resilient_v2x_post_main_sequential_training",
@@ -951,9 +1262,10 @@ def _new_progress(
             "checkpoint_sha256": teacher_checkpoint_sha256,
             "allow_failed_task": allow_failed_teacher_task,
         },
-        "worker_queue": worker_queue,
+        "worker_queue": queues[0],
+        "worker_queues": queues,
         "experiment_order": list(EXPERIMENT_ORDER),
-        "max_parallel_training_tasks": 1,
+        "max_parallel_training_tasks": int(max_parallel_training_tasks),
         "revision": 0,
         "created_at": _now(),
         "updated_at": _now(),
@@ -966,6 +1278,8 @@ def _new_progress(
                 "task_id": None,
                 "predecessor_task_id": None,
                 "result": None,
+                "worker_queue": None,
+                "adopted": False,
             }
             for index, experiment in enumerate(EXPERIMENT_ORDER, start=1)
         ],
@@ -1002,16 +1316,19 @@ def _validate_progress(
     teacher_model_id: str,
     teacher_checkpoint_sha256: str,
     allow_failed_teacher_task: bool,
-    worker_queue: str,
+    worker_queues: Sequence[str],
+    max_parallel_training_tasks: int,
 ) -> None:
     _require_valid_seal(progress, context="training progress")
+    queues = [str(item) for item in worker_queues]
     expected = {
         "schema_version": 1,
         "controller_type": "resilient_v2x_post_main_sequential_training",
         "controller_task_id": controller_task_id,
         "gate_task_id": gate_task_id,
-        "worker_queue": worker_queue,
-        "max_parallel_training_tasks": 1,
+        "worker_queue": queues[0],
+        "worker_queues": queues,
+        "max_parallel_training_tasks": int(max_parallel_training_tasks),
     }
     for key, value in expected.items():
         if progress.get(key) != value:
@@ -1035,8 +1352,8 @@ def _validate_progress(
     if len(steps) != len(EXPERIMENT_ORDER):
         raise RuntimeError("training progress step count mismatch")
     task_ids: list[str] = []
-    reached_incomplete = False
     active = 0
+    seen_pending = False
     for index, (step, experiment) in enumerate(
         zip(steps, EXPERIMENT_ORDER, strict=True),
         start=1,
@@ -1051,25 +1368,29 @@ def _validate_progress(
         task_id = step.get("task_id")
         if task_id is not None:
             task_ids.append(_clearml_id(task_id, f"progress task {experiment}"))
+        if state == "pending":
+            seen_pending = True
+            if task_id is not None:
+                raise RuntimeError("pending training progress step already has a task ID")
+        elif seen_pending:
+            # Pending steps must form a suffix; earlier slots may still be active.
+            raise RuntimeError("training progress pending steps are not a suffix")
         if state == "completed":
-            if (
-                reached_incomplete
-                or task_id is None
-                or not isinstance(step.get("result"), Mapping)
-            ):
-                raise RuntimeError("training progress completed steps are not a prefix")
-        else:
-            reached_incomplete = True
+            if task_id is None or not isinstance(step.get("result"), Mapping):
+                raise RuntimeError("completed training progress step is incomplete")
         if state in {"created", "queued", "running"}:
-            active += 1
             if task_id is None:
                 raise RuntimeError("active training progress step has no task ID")
-        if state == "pending" and task_id is not None:
-            raise RuntimeError("pending training progress step already has a task ID")
+            # Adopted out-of-pool jobs (e.g. still finishing on 5090) do not
+            # consume dual-queue parallel slots.
+            if step.get("worker_queue") != "adopted-external" and not step.get(
+                "adopted"
+            ):
+                active += 1
     if len(set(task_ids)) != len(task_ids):
         raise RuntimeError("training progress reuses a task ID")
-    if active > 1:
-        raise RuntimeError("training progress contains multiple active tasks")
+    if active > int(max_parallel_training_tasks):
+        raise RuntimeError("training progress contains too many active tasks")
 
 
 def _load_or_create_progress(
@@ -1104,6 +1425,233 @@ def _enqueue(task_class: object, task: object, *, worker_queue: str) -> None:
         raise RuntimeError("ClearML reported zero enqueued tasks")
 
 
+def _latest_completed_predecessor(
+    steps: Sequence[Mapping[str, object]],
+    *,
+    gate_task_id: str,
+    before_index: int | None = None,
+) -> str:
+    predecessor = gate_task_id
+    for step in steps:
+        if before_index is not None and int(step["index"]) >= before_index:
+            break
+        if step.get("state") == "completed" and step.get("task_id"):
+            predecessor = str(step["task_id"])
+    return predecessor
+
+
+def _active_worker_queues(steps: Sequence[Mapping[str, object]]) -> set[str]:
+    active: set[str] = set()
+    for step in steps:
+        if step.get("state") in {"created", "queued", "running"}:
+            queue = step.get("worker_queue")
+            if type(queue) is str and queue.strip():
+                active.add(queue.strip())
+    return active
+
+
+def _task_reports_training_iteration(task: object) -> bool:
+    """True once ClearML has recorded at least one training iteration.
+
+    Some sealed mmengine runs log train steps to the console without publishing
+    ClearML scalar iterations. Treat ``grad_norm`` + ``loss`` console lines as
+    proof the canary passed DDP init and entered the train loop.
+    """
+
+    getter = getattr(task, "get_last_iteration", None)
+    if callable(getter):
+        try:
+            last_iteration = getter()
+        except Exception:
+            last_iteration = None
+        if isinstance(last_iteration, int) and last_iteration > 0:
+            return True
+    console_getter = getattr(task, "get_reported_console_output", None)
+    if not callable(console_getter):
+        return False
+    try:
+        lines = console_getter(120) or []
+    except Exception:
+        return False
+    text = "\n".join(str(line) for line in lines)
+    if "Epoch(train)" in text:
+        return True
+    return "grad_norm:" in text and "loss:" in text
+
+
+def _canary_blocks_extra_slots(
+    steps: Sequence[Mapping[str, object]],
+    *,
+    canary_first: bool,
+    task_class: object | None = None,
+) -> bool:
+    if not canary_first:
+        return False
+    owned_completed = any(
+        step.get("state") == "completed" and not step.get("adopted") for step in steps
+    )
+    if owned_completed:
+        return False
+    if task_class is None:
+        return True
+    for step in steps:
+        if step.get("adopted") or step.get("state") not in {"queued", "running"}:
+            continue
+        task_id = step.get("task_id")
+        if task_id is None:
+            continue
+        try:
+            task = task_class.get_task(task_id=str(task_id))
+        except Exception:
+            continue
+        if _task_reports_training_iteration(task):
+            return False
+    return True
+
+
+def _ensure_experiment_task(
+    *,
+    task_class: object,
+    template_task: object,
+    template_identity: Mapping[str, object],
+    template_parameters: Mapping[str, object],
+    controller_task: object,
+    controller_task_id: str,
+    progress: MutableMapping[str, object],
+    step: MutableMapping[str, object],
+    index: int,
+    experiment: str,
+    predecessor_task_id: str,
+    teacher_task_id: str,
+    teacher_model_id: str,
+    teacher_sha: str,
+    allow_failed_teacher_task: bool,
+    project: str,
+    adopted: bool,
+) -> tuple[object, dict[str, object]]:
+    expected_parameters = _experiment_parameters(
+        template_parameters,
+        experiment=experiment,
+        predecessor_task_id=predecessor_task_id,
+        teacher_task_id=teacher_task_id,
+        teacher_model_id=teacher_model_id,
+        teacher_checkpoint_sha256=teacher_sha,
+        allow_failed_teacher_task=allow_failed_teacher_task,
+    )
+    task_name = _task_name(index, experiment, controller_task_id)
+    task_id_value = step.get("task_id")
+    if task_id_value is not None:
+        task = task_class.get_task(
+            task_id=_clearml_id(task_id_value, f"{experiment} task")
+        )
+    else:
+        task = _find_recoverable_clone(
+            task_class,
+            project=project,
+            name=task_name,
+            controller_task_id=controller_task_id,
+        )
+        if task is None:
+            task = task_class.clone(
+                source_task=template_task,
+                name=task_name,
+                parent=controller_task_id,
+            )
+            status = _normalized_task_status(task)
+            if status != "created":
+                raise RuntimeError(
+                    f"new clone for {experiment!r} is not created: {status!r}"
+                )
+            _ensure_clone_experiment_syspath_fix(task)
+            _set_and_validate_parameters(
+                task,
+                expected=expected_parameters,
+                experiment=experiment,
+            )
+        elif _normalized_task_status(task) == "created":
+            _ensure_clone_experiment_syspath_fix(task)
+            _validate_clone_identity(task, identity=template_identity)
+            _set_and_validate_parameters(
+                task,
+                expected=expected_parameters,
+                experiment=experiment,
+            )
+        task_id = _clearml_id(getattr(task, "id", ""), f"{experiment} task")
+        recovered_status = _normalized_task_status(task)
+        recovered_state = (
+            "running"
+            if recovered_status == "completed"
+            else _state_from_status(recovered_status)
+        )
+        step.update(
+            {
+                "state": recovered_state,
+                "task_id": task_id,
+                "task_name": task_name,
+                "predecessor_task_id": predecessor_task_id,
+                "adopted": bool(adopted),
+            }
+        )
+        _save_progress(controller_task, progress)
+
+    if not adopted:
+        if str(getattr(task, "name", "") or "") != task_name:
+            raise RuntimeError(f"recovered task name mismatch for {experiment!r}")
+        if _task_parent(task) != controller_task_id:
+            raise RuntimeError(f"recovered task parent mismatch for {experiment!r}")
+    if step.get("predecessor_task_id") is None:
+        step["predecessor_task_id"] = predecessor_task_id
+    if adopted:
+        return task, expected_parameters
+    if _normalized_task_status(task) == "created":
+        _ensure_clone_experiment_syspath_fix(task)
+    _validate_clone_identity(task, identity=template_identity)
+    observed = _task_parameters(task)
+    if not _execution_parameters_match(observed, expected_parameters):
+        raise RuntimeError(f"execution parameters drifted for {experiment!r}")
+    return task, expected_parameters
+
+
+def _seal_completed_step(
+    *,
+    task: object,
+    step: MutableMapping[str, object],
+    progress: MutableMapping[str, object],
+    controller_task: object,
+    experiment: str,
+    predecessor_task_id: str,
+    expected_parameters: Mapping[str, object],
+    template_identity: Mapping[str, object],
+    teacher_task_id: str,
+    teacher_model_id: str,
+    teacher_sha: str,
+) -> dict[str, object]:
+    _reload(task)
+    try:
+        result = _validate_completed_experiment(
+            task,
+            experiment=experiment,
+            predecessor_task_id=predecessor_task_id,
+            expected_parameters=expected_parameters,
+            identity=template_identity,
+            teacher_task_id=teacher_task_id,
+            teacher_model_id=teacher_model_id,
+            teacher_checkpoint_sha256=teacher_sha,
+            require_clone_identity=not bool(step.get("adopted")),
+        )
+    except (RuntimeError, ValueError) as error:
+        step["state"] = "failed"
+        step["failure_status"] = "completion_validation_failed"
+        step["failure_message"] = str(error)
+        _save_progress(controller_task, progress)
+        raise
+    step["state"] = "completed"
+    step["result"] = result
+    step["completed_at"] = _now()
+    _save_progress(controller_task, progress)
+    return result
+
+
 def run_training_suite(
     args: argparse.Namespace,
     *,
@@ -1124,8 +1672,14 @@ def run_training_suite(
         args.teacher_checkpoint_sha256,
         "teacher checkpoint",
     )
-    if type(args.worker_queue) is not str or not args.worker_queue.strip():
-        raise ValueError("worker queue must be non-empty")
+    worker_queues = _resolve_worker_queues(args)
+    max_parallel = int(getattr(args, "max_parallel", 1) or 1)
+    if max_parallel < 1:
+        raise ValueError("max parallel must be positive")
+    if max_parallel > len(worker_queues):
+        raise ValueError("max parallel cannot exceed worker queue count")
+    canary_first = bool(getattr(args, "canary_first", False))
+    adopt_map = _parse_adopt_experiments(getattr(args, "adopt_experiment", []) or [])
     if type(args.project) is not str or not args.project.strip():
         raise ValueError("project must be non-empty")
     if args.poll_seconds <= 0:
@@ -1145,12 +1699,38 @@ def run_training_suite(
     )
     _validate_teacher_reference(task_class, args)
 
+    global BUILD_TASK_ID
+    build_override = str(getattr(args, "build_task_id", "") or "").strip()
+    if build_override:
+        BUILD_TASK_ID = _clearml_id(build_override, "build task")
+
     template_task = task_class.get_task(task_id=template_task_id)
     template_identity = _template_identity(
         template_task,
         expected_task_id=template_task_id,
     )
-    template_parameters = _task_parameters(template_task)
+    template_parameters = dict(_task_parameters(template_task))
+    bundle_bytes = int(getattr(args, "native_bundle_bytes", 0) or 0)
+    bundle_sha = str(getattr(args, "native_bundle_sha256", "") or "").strip()
+    manifest_sha = str(getattr(args, "build_manifest_sha256", "") or "").strip()
+    if bundle_bytes or bundle_sha or manifest_sha:
+        if not (bundle_bytes > 0 and bundle_sha and manifest_sha):
+            raise ValueError(
+                "native bundle overrides require --native-bundle-bytes, "
+                "--native-bundle-sha256, and --build-manifest-sha256 together"
+            )
+        template_parameters["Args/native_bundle_bytes"] = bundle_bytes
+        template_parameters["Args/native_bundle_sha256"] = _sha256(
+            bundle_sha, "native bundle"
+        )
+        template_parameters["Args/build_manifest_sha256"] = _sha256(
+            manifest_sha, "build manifest"
+        )
+    template_identity = dict(template_identity)
+    template_identity["source_parameters"] = _validate_source_parameters(
+        template_parameters
+    )
+    template_identity["native_build_task_id"] = BUILD_TASK_ID
     identity = {
         "controller_task_id": controller_task_id,
         "gate_task_id": gate_task_id,
@@ -1159,165 +1739,310 @@ def run_training_suite(
         "teacher_model_id": teacher_model_id,
         "teacher_checkpoint_sha256": teacher_sha,
         "allow_failed_teacher_task": bool(args.allow_failed_teacher_task),
-        "worker_queue": args.worker_queue,
+        "worker_queues": worker_queues,
+        "max_parallel_training_tasks": max_parallel,
     }
     progress = _load_or_create_progress(controller_task, **identity)
     steps = progress["steps"]
     if not isinstance(steps, list):
-        # JSON-backed ClearML artifacts always deserialize arrays as lists.
         raise RuntimeError("training progress steps must be a mutable list")
 
-    predecessor_task_id = gate_task_id
-    results: list[dict[str, object]] = []
-    for index, experiment in enumerate(EXPERIMENT_ORDER, start=1):
+    # Seed adopted tasks into pending slots before the main scheduler loop.
+    for experiment, task_id in adopt_map.items():
+        index = EXPERIMENT_ORDER.index(experiment) + 1
         step = steps[index - 1]
         if not isinstance(step, MutableMapping):
             raise RuntimeError("training progress step must be mutable")
-        if step.get("state") == "failed":
-            raise RuntimeError(f"experiment {experiment!r} previously failed")
-        expected_parameters = _experiment_parameters(
-            template_parameters,
+        if step.get("task_id") not in {None, task_id}:
+            raise RuntimeError(f"adopt conflict for {experiment!r}")
+        if step.get("state") == "completed" and step.get("task_id") == task_id:
+            continue
+        predecessor_task_id = _latest_completed_predecessor(
+            steps,
+            gate_task_id=gate_task_id,
+            before_index=index,
+        )
+        step["task_id"] = task_id
+        step["adopted"] = True
+        step["predecessor_task_id"] = predecessor_task_id
+        task, expected_parameters = _ensure_experiment_task(
+            task_class=task_class,
+            template_task=template_task,
+            template_identity=template_identity,
+            template_parameters=template_parameters,
+            controller_task=controller_task,
+            controller_task_id=controller_task_id,
+            progress=progress,
+            step=step,
+            index=index,
             experiment=experiment,
             predecessor_task_id=predecessor_task_id,
             teacher_task_id=teacher_task_id,
             teacher_model_id=teacher_model_id,
-            teacher_checkpoint_sha256=teacher_sha,
+            teacher_sha=teacher_sha,
             allow_failed_teacher_task=bool(args.allow_failed_teacher_task),
+            project=args.project,
+            adopted=True,
         )
-        task_name = _task_name(index, experiment, controller_task_id)
-        task_id_value = step.get("task_id")
-        task = None
-        if task_id_value is not None:
-            task_id = _clearml_id(task_id_value, f"{experiment} task")
-            task = task_class.get_task(task_id=task_id)
-        else:
-            task = _find_recoverable_clone(
-                task_class,
-                project=args.project,
-                name=task_name,
-                controller_task_id=controller_task_id,
-            )
-            if task is None:
-                task = task_class.clone(
-                    source_task=template_task,
-                    name=task_name,
-                    parent=controller_task_id,
-                )
-                status = _normalized_task_status(task)
-                if status != "created":
-                    raise RuntimeError(
-                        f"new clone for {experiment!r} is not created: {status!r}"
-                    )
-                _ensure_clone_experiment_syspath_fix(task)
-                _set_and_validate_parameters(
-                    task,
-                    expected=expected_parameters,
-                    experiment=experiment,
-                )
-            elif _normalized_task_status(task) == "created":
-                # Recover the narrow crash window after clone creation but
-                # before its complete parameter replacement was persisted.
-                _ensure_clone_experiment_syspath_fix(task)
-                _validate_clone_identity(task, identity=template_identity)
-                _set_and_validate_parameters(
-                    task,
-                    expected=expected_parameters,
-                    experiment=experiment,
-                )
-            task_id = _clearml_id(getattr(task, "id", ""), f"{experiment} task")
-            recovered_status = _normalized_task_status(task)
-            # A server-side completed task is still unvalidated controller state.
-            recovered_state = (
-                "running"
-                if recovered_status == "completed"
-                else _state_from_status(recovered_status)
-            )
-            step.update(
-                {
-                    "state": recovered_state,
-                    "task_id": task_id,
-                    "task_name": task_name,
-                    "predecessor_task_id": predecessor_task_id,
-                }
-            )
-            _save_progress(controller_task, progress)
-
-        if str(getattr(task, "name", "") or "") != task_name:
-            raise RuntimeError(f"recovered task name mismatch for {experiment!r}")
-        if _task_parent(task) != controller_task_id:
-            raise RuntimeError(f"recovered task parent mismatch for {experiment!r}")
-        if step.get("predecessor_task_id") != predecessor_task_id:
-            raise RuntimeError(f"progress predecessor mismatch for {experiment!r}")
-        if _normalized_task_status(task) == "created":
-            _ensure_clone_experiment_syspath_fix(task)
-        _validate_clone_identity(task, identity=template_identity)
-        observed = _task_parameters(task)
-        if not _execution_parameters_match(observed, expected_parameters):
-            raise RuntimeError(f"execution parameters drifted for {experiment!r}")
-
+        step["task_name"] = str(getattr(task, "name", "") or step.get("task_name"))
         status = _normalized_task_status(task)
-        if status in FAILED_STATUSES:
-            step["state"] = "failed"
-            step["failure_status"] = status
-            _save_progress(controller_task, progress)
-            raise RuntimeError(f"experiment {experiment!r} failed: {status!r}")
-        if status == "created":
-            _enqueue(task_class, task, worker_queue=args.worker_queue)
-            step["state"] = "queued"
-            _save_progress(controller_task, progress)
-            _reload(task)
-
-        def record_status(observed_status: str) -> None:
-            # Completion is sealed only after both experiment artifacts and
-            # the unique final OutputModel pass provenance validation.
-            if observed_status == "completed":
-                return
-            state = _state_from_status(observed_status)
-            if step.get("state") != state:
-                step["state"] = state
-                if state == "failed":
-                    step["failure_status"] = observed_status
-                _save_progress(controller_task, progress)
-
-        try:
-            _wait_for_completed(
-                task,
-                context=f"experiment {experiment}",
-                poll_seconds=args.poll_seconds,
-                sleeper=sleeper,
-                on_status=record_status,
+        if status == "completed":
+            # Build expected params from the adopted task's own predecessor pin.
+            observed = _task_parameters(task)
+            pred = str(
+                observed.get("Args/predecessor_task_id") or predecessor_task_id
             )
-        except RuntimeError:
-            status = _normalized_task_status(task)
-            if status in FAILED_STATUSES and step.get("state") != "failed":
-                step["state"] = "failed"
-                step["failure_status"] = status
-                _save_progress(controller_task, progress)
-            raise
-        _reload(task)
-        try:
-            result = _validate_completed_experiment(
-                task,
+            step["predecessor_task_id"] = pred
+            expected_parameters = _experiment_parameters(
+                template_parameters,
                 experiment=experiment,
-                predecessor_task_id=predecessor_task_id,
-                expected_parameters=expected_parameters,
-                identity=template_identity,
+                predecessor_task_id=pred,
                 teacher_task_id=teacher_task_id,
                 teacher_model_id=teacher_model_id,
                 teacher_checkpoint_sha256=teacher_sha,
+                allow_failed_teacher_task=bool(args.allow_failed_teacher_task),
             )
-        except (RuntimeError, ValueError) as error:
+            _seal_completed_step(
+                task=task,
+                step=step,
+                progress=progress,
+                controller_task=controller_task,
+                experiment=experiment,
+                predecessor_task_id=pred,
+                expected_parameters=expected_parameters,
+                template_identity=template_identity,
+                teacher_task_id=teacher_task_id,
+                teacher_model_id=teacher_model_id,
+                teacher_sha=teacher_sha,
+            )
+        elif status in FAILED_STATUSES:
             step["state"] = "failed"
-            step["failure_status"] = "completion_validation_failed"
-            step["failure_message"] = str(error)
+            step["failure_status"] = status
             _save_progress(controller_task, progress)
-            raise
-        step["state"] = "completed"
-        step["result"] = result
-        step["completed_at"] = _now()
-        _save_progress(controller_task, progress)
-        results.append({"index": index, "experiment": experiment, **result})
-        predecessor_task_id = str(result["task_id"])
+            raise RuntimeError(f"adopted experiment {experiment!r} failed: {status!r}")
+        else:
+            step["state"] = _state_from_status(status)
+            worker = str(getattr(getattr(task, "data", None), "last_worker", "") or "")
+            if "A100" in worker:
+                step["worker_queue"] = "GPU4-A100"
+            elif "V100" in worker and "gpu0,1,2,3" in worker:
+                step["worker_queue"] = "GPU4-V100"
+            elif "V100" in worker:
+                step["worker_queue"] = "GPU4-V100"
+            elif any(q in worker for q in worker_queues):
+                matched = next(q for q in worker_queues if q.replace("GPU4-", "") in worker or q in worker)
+                step["worker_queue"] = matched
+            else:
+                # Keep out-of-pool jobs (e.g. still finishing on 5090) outside slot accounting.
+                step["worker_queue"] = "adopted-external"
+            _save_progress(controller_task, progress)
+
+    results: list[dict[str, object]] = []
+
+    while True:
+        for step in steps:
+            if not isinstance(step, MutableMapping):
+                raise RuntimeError("training progress step must be mutable")
+            if step.get("state") == "failed":
+                raise RuntimeError(
+                    f"experiment {step.get('experiment')!r} previously failed"
+                )
+
+        # Refresh active tasks and seal completions.
+        progressed = False
+        for step in steps:
+            if step.get("state") not in {"created", "queued", "running"}:
+                continue
+            experiment = str(step["experiment"])
+            index = int(step["index"])
+            task = task_class.get_task(task_id=str(step["task_id"]))
+            _reload(task)
+            status = _normalized_task_status(task)
+            if status in FAILED_STATUSES:
+                step["state"] = "failed"
+                step["failure_status"] = status
+                _save_progress(controller_task, progress)
+                raise RuntimeError(f"experiment {experiment!r} failed: {status!r}")
+            if status == "completed":
+                predecessor_task_id = str(
+                    step.get("predecessor_task_id")
+                    or _latest_completed_predecessor(
+                        steps,
+                        gate_task_id=gate_task_id,
+                        before_index=index,
+                    )
+                )
+                expected_parameters = _experiment_parameters(
+                    template_parameters,
+                    experiment=experiment,
+                    predecessor_task_id=predecessor_task_id,
+                    teacher_task_id=teacher_task_id,
+                    teacher_model_id=teacher_model_id,
+                    teacher_checkpoint_sha256=teacher_sha,
+                    allow_failed_teacher_task=bool(args.allow_failed_teacher_task),
+                )
+                result = _seal_completed_step(
+                    task=task,
+                    step=step,
+                    progress=progress,
+                    controller_task=controller_task,
+                    experiment=experiment,
+                    predecessor_task_id=predecessor_task_id,
+                    expected_parameters=expected_parameters,
+                    template_identity=template_identity,
+                    teacher_task_id=teacher_task_id,
+                    teacher_model_id=teacher_model_id,
+                    teacher_sha=teacher_sha,
+                )
+                results.append({"index": index, "experiment": experiment, **result})
+                progressed = True
+                continue
+            mapped = _state_from_status(status)
+            if step.get("state") != mapped:
+                step["state"] = mapped
+                _save_progress(controller_task, progress)
+                progressed = True
+
+        active_steps = [
+            step
+            for step in steps
+            if step.get("state") in {"created", "queued", "running"}
+        ]
+        pending_steps = [step for step in steps if step.get("state") == "pending"]
+        if not active_steps and not pending_steps:
+            break
+
+        effective_max = 1 if _canary_blocks_extra_slots(
+            steps, canary_first=canary_first, task_class=task_class
+        ) else max_parallel
+        free_queues = [
+            queue
+            for queue in worker_queues
+            if queue not in _active_worker_queues(active_steps)
+            and queue != "adopted-external"
+        ]
+        # Created-but-not-enqueued tasks do not occupy a worker queue yet.
+        pool_active = sum(
+            1
+            for step in active_steps
+            if step.get("worker_queue") not in {None, "", "adopted-external"}
+        )
+
+        # Resume clones that were created before an enqueue interruption.
+        for step in list(active_steps):
+            if step.get("state") != "created" or step.get("worker_queue"):
+                continue
+            if pool_active >= effective_max or not free_queues:
+                break
+            experiment = str(step["experiment"])
+            task = task_class.get_task(task_id=str(step["task_id"]))
+            if _normalized_task_status(task) != "created":
+                continue
+            queue = free_queues.pop(0)
+            _enqueue(task_class, task, worker_queue=queue)
+            step["state"] = "queued"
+            step["worker_queue"] = queue
+            _save_progress(controller_task, progress)
+            pool_active += 1
+            progressed = True
+            if canary_first:
+                break
+
+        while (
+            pending_steps
+            and pool_active < effective_max
+            and free_queues
+        ):
+            step = pending_steps[0]
+            experiment = str(step["experiment"])
+            index = int(step["index"])
+            predecessor_task_id = _latest_completed_predecessor(
+                steps,
+                gate_task_id=gate_task_id,
+                before_index=index,
+            )
+            task, expected_parameters = _ensure_experiment_task(
+                task_class=task_class,
+                template_task=template_task,
+                template_identity=template_identity,
+                template_parameters=template_parameters,
+                controller_task=controller_task,
+                controller_task_id=controller_task_id,
+                progress=progress,
+                step=step,
+                index=index,
+                experiment=experiment,
+                predecessor_task_id=predecessor_task_id,
+                teacher_task_id=teacher_task_id,
+                teacher_model_id=teacher_model_id,
+                teacher_sha=teacher_sha,
+                allow_failed_teacher_task=bool(args.allow_failed_teacher_task),
+                project=args.project,
+                adopted=False,
+            )
+            status = _normalized_task_status(task)
+            if status == "completed":
+                result = _seal_completed_step(
+                    task=task,
+                    step=step,
+                    progress=progress,
+                    controller_task=controller_task,
+                    experiment=experiment,
+                    predecessor_task_id=predecessor_task_id,
+                    expected_parameters=expected_parameters,
+                    template_identity=template_identity,
+                    teacher_task_id=teacher_task_id,
+                    teacher_model_id=teacher_model_id,
+                    teacher_sha=teacher_sha,
+                )
+                results.append({"index": index, "experiment": experiment, **result})
+                pending_steps = [s for s in steps if s.get("state") == "pending"]
+                progressed = True
+                continue
+            if status in FAILED_STATUSES:
+                step["state"] = "failed"
+                step["failure_status"] = status
+                _save_progress(controller_task, progress)
+                raise RuntimeError(f"experiment {experiment!r} failed: {status!r}")
+            queue = free_queues.pop(0)
+            if status == "created":
+                _enqueue(task_class, task, worker_queue=queue)
+                step["state"] = "queued"
+            else:
+                step["state"] = _state_from_status(status)
+            step["worker_queue"] = queue
+            step["predecessor_task_id"] = predecessor_task_id
+            _save_progress(controller_task, progress)
+            pool_active += 1
+            pending_steps = [s for s in steps if s.get("state") == "pending"]
+            progressed = True
+            if canary_first:
+                break
+
+        if not pending_steps and not [
+            step
+            for step in steps
+            if step.get("state") in {"created", "queued", "running"}
+        ]:
+            break
+        if not progressed:
+            sleeper(float(args.poll_seconds))
+
+    # Rebuild ordered results for the summary artifact.
+    ordered_results: list[dict[str, object]] = []
+    for step in steps:
+        if step.get("state") != "completed":
+            raise RuntimeError("training suite finished with incomplete steps")
+        result = step.get("result")
+        if not isinstance(result, Mapping):
+            raise RuntimeError("completed step is missing sealed result")
+        ordered_results.append(
+            {
+                "index": int(step["index"]),
+                "experiment": str(step["experiment"]),
+                **dict(result),
+            }
+        )
 
     summary = _sealed(
         {
@@ -1333,11 +2058,12 @@ def run_training_suite(
                 "checkpoint_sha256": teacher_sha,
                 "allow_failed_task": bool(args.allow_failed_teacher_task),
             },
-            "worker_queue": args.worker_queue,
+            "worker_queue": worker_queues[0],
+            "worker_queues": list(worker_queues),
             "experiment_order": list(EXPERIMENT_ORDER),
-            "task_count": len(results),
-            "max_parallel_training_tasks": 1,
-            "results": results,
+            "task_count": len(ordered_results),
+            "max_parallel_training_tasks": max_parallel,
+            "results": ordered_results,
             "completed_at": _now(),
             "progress_artifact": PROGRESS_ARTIFACT,
         }

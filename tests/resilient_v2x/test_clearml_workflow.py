@@ -557,6 +557,14 @@ def test_rtx5090_runtime_contract_helper_requires_exact_runtime() -> None:
     }
 
     runner._validate_rtx5090_runtime_contract(contract)
+    for capability in ([8, 0], [7, 0]):
+        other = dict(contract)
+        other["capabilities"] = [capability] * 4
+        runner._validate_rtx5090_runtime_contract(other)
+    mixed = dict(contract)
+    mixed["capabilities"] = [[12, 0], [12, 0], [12, 0], [8, 0]]
+    with pytest.raises(RuntimeError, match="homogeneous"):
+        runner._validate_rtx5090_runtime_contract(mixed)
     wrong_packages = dict(contract)
     wrong_packages["packages"] = {
         **contract["packages"],
@@ -656,7 +664,18 @@ def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
         bootstrap._apply_source_runner_metrics_compatibility(source_root)
 
 
-def test_rtx5090_embedded_smoke_scripts_compile() -> None:
+def test_rtx5090_build_normalizes_multiarch_cuda_list() -> None:
+    build = _load_script("clearml_5090_build.py")
+    assert build.DEFAULT_TORCH_CUDA_ARCH_LIST == "7.0;8.0;12.0"
+    assert (
+        build._normalize_torch_cuda_arch_list("7.0;8.0;12.0;7.0")
+        == "7.0;8.0;12.0"
+    )
+    assert build._required_nvcc_compute_archs("7.0;8.0;12.0") == frozenset(
+        {"compute_70", "compute_80", "compute_120"}
+    )
+    assert build._required_nvcc_compute_archs("12.0") == frozenset({"compute_120"})
+
     for script_name in ("clearml_5090_build.py", "clearml_5090_bootstrap.py"):
         module = _load_script(script_name)
         model_smoke = module.MODEL_SMOKE

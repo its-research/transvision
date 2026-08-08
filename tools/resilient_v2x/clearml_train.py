@@ -242,8 +242,32 @@ def _validate_rtx5090_runtime_contract(contract: Mapping[str, object]) -> None:
                 f"RTX5090 runtime {field} mismatch: "
                 f"expected {expected!r}, got {contract.get(field)!r}"
             )
-    if contract.get("capabilities") != [[12, 0]] * 4:
-        raise RuntimeError("RTX5090 runtime requires four compute-capability 12.0 GPUs")
+    capabilities = contract.get("capabilities")
+    allowed = frozenset({(12, 0), (8, 0), (7, 0)})
+    if not isinstance(capabilities, list) or len(capabilities) != 4:
+        raise RuntimeError(
+            "RTX5090 runtime requires four homogeneous GPUs from "
+            f"allowed capabilities {sorted(allowed)}; got {capabilities!r}"
+        )
+    normalized = []
+    for item in capabilities:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise RuntimeError(
+                "RTX5090 runtime requires four homogeneous GPUs from "
+                f"allowed capabilities {sorted(allowed)}; got {capabilities!r}"
+            )
+        capability = (int(item[0]), int(item[1]))
+        if capability not in allowed:
+            raise RuntimeError(
+                "RTX5090 runtime requires four homogeneous GPUs from "
+                f"allowed capabilities {sorted(allowed)}; got {capabilities!r}"
+            )
+        normalized.append(capability)
+    if len(set(normalized)) != 1:
+        raise RuntimeError(
+            "RTX5090 runtime requires four homogeneous GPUs from "
+            f"allowed capabilities {sorted(allowed)}; got {capabilities!r}"
+        )
     arch_list = contract.get("torch_arch_list")
     if not isinstance(arch_list, list) or "sm_120" not in arch_list:
         raise RuntimeError("RTX5090 PyTorch runtime does not contain sm_120")

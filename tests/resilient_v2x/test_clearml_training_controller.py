@@ -293,12 +293,15 @@ class _FakeTasks:
         )
 
     def enqueue(self, *, task: _FakeTask, queue_name: str):
-        assert queue_name == "GPU4-5090"
+        assert queue_name in {"GPU4-5090", "GPU4-A100", "GPU4-V100"}
         if self.enqueue_failures:
             self.enqueue_failures -= 1
             self.events.append("enqueue-error")
             raise RuntimeError("simulated enqueue interruption")
-        assert not self.active, "the controller attempted parallel training"
+        if getattr(self, "allow_parallel", False):
+            pass
+        else:
+            assert not self.active, "the controller attempted parallel training"
         experiment = task.parameters["Args/experiment_from_task"]
         self.events.append(f"enqueue:{experiment}")
         self.active.add(task.id)
@@ -369,6 +372,10 @@ def _args(**overrides):
         "teacher_checkpoint_sha256": TEACHER_SHA,
         "allow_failed_teacher_task": True,
         "worker_queue": "GPU4-5090",
+        "worker_queues": "",
+        "max_parallel": 1,
+        "canary_first": False,
+        "adopt_experiment": [],
         "project": "ResilientV2X/Training",
         "poll_seconds": 0.01,
     }
@@ -646,6 +653,75 @@ def test_controller_source_never_uses_pipeline_controller() -> None:
     assert "from clearml import PipelineController" not in source
     assert "PipelineController(" not in source
 
+
+
+
+def test_experiment_syspath_patch_allows_a100_v100_smoke_capability() -> None:
+    module = _load_controller()
+    smoke = (
+        "if any(torch.cuda.get_device_capability(i) != (12, 0) for i in range(gpu_count)):\n"
+        '    raise RuntimeError("all GPUs must have compute capability 12.0")\n'
+    )
+    patched = module._apply_experiment_syspath_patch(smoke)
+    assert module._EXPERIMENT_SMOKE_CAPABILITY_MARKER in patched
+    assert "all GPUs must have compute capability 12.0" not in patched
+    assert "(8, 0)" in patched and "(7, 0)" in patched
+
+
+def test_find_recoverable_clone_skips_failed_tasks() -> None:
+    module = _load_controller()
+
+    class Tasks:
+        @staticmethod
+        def get_tasks(**_kwargs):
+            return [
+                SimpleNamespace(
+                    name="ResilientV2X post-main 03 router_static [ctrl]",
+                    parent="ctrl",
+                    status="failed",
+                )
+            ]
+
+    found = module._find_recoverable_clone(
+        Tasks,
+        project="ResilientV2X/Training",
+        name="ResilientV2X post-main 03 router_static [ctrl]",
+        controller_task_id="ctrl",
+    )
+    assert found is None
+
+
+def test_canary_unblocks_after_first_training_iteration() -> None:
+    module = _load_controller()
+
+    class Task:
+        def __init__(self, last_iteration):
+            self._last = last_iteration
+
+        def get_last_iteration(self):
+            return self._last
+
+    class Tasks:
+        @staticmethod
+        def get_task(task_id):
+            return Task(1 if task_id == "canary" else 0)
+
+    steps = [
+        {"state": "completed", "adopted": True, "task_id": "old"},
+        {"state": "running", "adopted": False, "task_id": "canary"},
+    ]
+    assert module._canary_blocks_extra_slots(
+        steps, canary_first=True, task_class=Tasks
+    ) is False
+    assert module._canary_blocks_extra_slots(
+        [{"state": "running", "adopted": False, "task_id": "x"}],
+        canary_first=True,
+        task_class=type(
+            "T",
+            (),
+            {"get_task": staticmethod(lambda task_id: Task(0))},
+        ),
+    ) is True
 
 def test_remote_controller_initialization_enables_argparse_connection() -> None:
     module = _load_controller()

@@ -15,17 +15,19 @@
 | :--- | :---: | ---: | ---: | ---: | ---: | :--- |
 | FFNet-B-V | 0 ms | 51.60 | 29.99 | 56.62 | 49.15 | 官方代码库结果（TransVision benchmark） |
 | FFNet-B-F | 0 ms | 55.48 | 31.54 | 63.15 | 54.27 | 官方代码库结果（TransVision benchmark） |
-| FFNet-B-F（本次复现） | 0 ms | —（训练中） | —（训练中） | —（训练中） | —（训练中） | 本仓 ClearML 复现 |
+| FFNet-B-F（本次复现） | 0 ms | 65.16 | 39.60 | 71.27 | **62.44** | 本仓 ClearML 复现 |
 | FFNet | 0 ms | 55.81 | 30.23 | **63.54** | 54.16 | 论文原始结果（FFNet Table 2） |
 | FFNet | 200 ms | 55.37 | 31.66 | 63.20 | **54.69** | 论文原始结果（FFNet Table 2） |
 | FFNet (w/o pred) | 200 ms | 50.27 | 27.57 | 57.93 | 48.16 | 论文原始结果（FFNet Table 2） |
 | TF-L-V | 0 ms | 56.40 | 34.69 | 62.08 | 52.48 | 官方代码库结果（TransVision benchmark） |
 | TF-L-F | 0 ms | **58.46** | **37.28** | 62.73 | 54.21 | 官方代码库结果（TransVision benchmark） |
-| CoFormerNet | sync | 55.41 | 36.15 | 60.82 | 51.35 | 本仓 ClearML 复现 |
+| CoFormerNet | sync | 55.34 | 35.95 | 60.65 | 51.26 | 本仓 ClearML 复现 |
 
 `conf=0.2`
 
-CoFormerNet 复现结果：ClearML [`f7ec1cf7add24170b67e2ed807567c10`](http://10.100.34.118:8080/projects/8fb6dbc7a09a4163961d4992f218ee26/experiments/f7ec1cf7add24170b67e2ed807567c10/output/log)，DAIR-V2X-C `vic-sync`，LiDAR-only，1783 个验证样本，评测范围 `[0,-46.08,-3,92.16,46.08,1]`。
+FFNet-B-F 本次复现：ClearML [`9859bc7fbb694ca1b26f2a641711b4d2`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/9859bc7fbb694ca1b26f2a641711b4d2/output/log)，official 3-class complemented，40 epoch，final val（1789 samples）。
+
+CoFormerNet 复现结果：ClearML [`2ea50800c8ff4bb3b0f87b4058d16ccc`](http://10.100.34.118:8080/projects/8fb6dbc7a09a4163961d4992f218ee26/experiments/2ea50800c8ff4bb3b0f87b4058d16ccc/output/log)（fusion formal eval），DAIR-V2X-C `vic-sync`，LiDAR-only，1789 个验证样本，评测范围 `[0,-46.08,-3,92.16,46.08,1]`。veh-only formal：3D@0.5/0.7 = 55.55/36.27，BEV@0.5/0.7 = 60.89/51.39。
 
 - FF-B-V：FFNet Basemodel veh-only（re-implementation）
 - FF-B-F：FFNet Basemodel fusion（re-implementation）

@@ -25,7 +25,7 @@ BASE_IMAGE_AMD64_MANIFEST_DIGEST = (
 BASE_IMAGE_CONFIG_DIGEST = (
     "sha256:3812e520c0e86bb621878970370f52cbacaa32921bf0e4b2ae6a2028a5cf95fb"
 )
-BUILD_TASK_ID = "86a3ee30dcc749408ba19ba2088adb4c"
+BUILD_TASK_ID = "9055c0d3c4dd450c8a75dddfb21a56bd"
 NATIVE_BUILD_SOURCE_DATASET_ID = "bcbd15ae7e454e9885bc4250a3de774e"
 NATIVE_BUILD_SOURCE_ARCHIVE_NAME = (
     "resilient-v2x-source-cf61ef3c5432.tar.zst"
@@ -95,6 +95,8 @@ EXPECTED_TORCH = "2.10.0+cu128"
 EXPECTED_TORCH_CUDA = "12.8"
 EXPECTED_GPU_COUNT = 4
 EXPECTED_CAPABILITY = (12, 0)
+# Sealed 5090 plus capacity-matched A100/V100 ablation workers.
+ALLOWED_GPU_CAPABILITIES = frozenset({(12, 0), (8, 0), (7, 0)})
 EXPECTED_PACKAGES = {
     "mmcv": "2.1.0",
     "mmengine": "0.10.7",
@@ -150,10 +152,10 @@ CLEARML_TRAIN_FFNET_STAGE_SHA256 = (
     "74db909e1463e1405f9cd3678cf4fc455fc1d44439559ba6ad901c69307c696a"
 )
 CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256 = (
-    "95b1748429a7341f2ee304d84f764b5fbfcb544957250b44b3e5e11e6687be0c"
+    "c338ed1afd32b23e1b2dc8a4e270994217e3913f7185de00354890f548e65c07"
 )
 CLEARML_TRAIN_FFNET_OFFICIAL_METRICS_COMPAT_SHA256 = (
-    "4ebce86cd5ea4ca836125d0ae30302c4daa303fe0993272a09f81cf53003cd4d"
+    "44b64c59cfd55279efc6a65524e0200ec8ac38522953d1bdb621b704ffd84723"
 )
 CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES = {
     CLEARML_TRAIN_BASELINE_SHA256: CLEARML_TRAIN_METRICS_COMPAT_SHA256,
@@ -200,12 +202,30 @@ CLEARML_TRAIN_METRICS_REPLACEMENTS = (
 ''',
         '''    metric_rows: list[dict[str, object]] = []
     metric_content = scalars.read_text(encoding="utf-8")
-    metric_lines = (
-        metric_content.splitlines()
-        if metric_source == "scalars.json"
-        else [metric_content]
-    )
-    for line_number, line in enumerate(metric_lines, start=1):
+    # MMEngine may emit JSONL, a single JSON object, or concatenated objects
+    # without newlines; parse with raw_decode across the whole payload.
+    decoder = json.JSONDecoder()
+    offset = 0
+    length = len(metric_content)
+    while offset < length:
+        while offset < length and metric_content[offset].isspace():
+            offset += 1
+        if offset >= length:
+            break
+        try:
+            row, end = decoder.raw_decode(metric_content, offset)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                f"invalid JSON in {scalars} ({metric_source}) at offset {offset}"
+            ) from error
+        if not isinstance(row, dict):
+            raise ValueError(f"non-object JSON payload in {scalars} at offset {offset}")
+        metrics = {
+            key: value for key, value in row.items() if key.startswith("resilient_v2x/")
+        }
+        if metrics:
+            metric_rows.append(metrics)
+        offset = end
 ''',
     ),
 )
@@ -767,8 +787,20 @@ def _validate_gpu_runtime(contract: Mapping[str, object]) -> None:
                 f"expected {expected_value!r}, got {contract.get(field)!r}"
             )
     capabilities = contract.get("capabilities")
-    if capabilities != [list(EXPECTED_CAPABILITY)] * int(gpu_count):
+    if not isinstance(capabilities, list) or len(capabilities) != int(gpu_count):
         raise RuntimeError(f"RTX5090 GPU capability mismatch: {capabilities!r}")
+    normalized = []
+    for item in capabilities:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise RuntimeError(f"RTX5090 GPU capability mismatch: {capabilities!r}")
+        capability = (int(item[0]), int(item[1]))
+        if capability not in ALLOWED_GPU_CAPABILITIES:
+            raise RuntimeError(f"RTX5090 GPU capability mismatch: {capabilities!r}")
+        normalized.append(capability)
+    if len(set(normalized)) != 1:
+        raise RuntimeError(
+            f"RTX5090 GPU capabilities must be homogeneous: {capabilities!r}"
+        )
     arch_list = contract.get("torch_arch_list")
     if not isinstance(arch_list, list) or "sm_120" not in arch_list:
         raise RuntimeError("PyTorch build does not contain sm_120")
@@ -997,6 +1029,28 @@ def _create_runtime_venv(path: Path, env: Mapping[str, str]) -> Path:
     return python
 
 
+def _pin_hostname_to_loopback() -> None:
+    """Ensure gethostname() resolves inside ClearML workers (A100/V100)."""
+
+    import socket
+
+    host = socket.gethostname().strip()
+    if not host:
+        return
+    try:
+        socket.getaddrinfo(host, None)
+        return
+    except OSError:
+        pass
+    hosts_path = Path("/etc/hosts")
+    existing = hosts_path.read_text(encoding="utf-8") if hosts_path.exists() else ""
+    marker = f"127.0.0.1 {host}"
+    if marker in existing:
+        return
+    with hosts_path.open("a", encoding="utf-8") as handle:
+        handle.write(f"\n{marker}\n")
+
+
 def _runtime_environment(
     base_env: Mapping[str, str],
     *,
@@ -1023,6 +1077,13 @@ def _runtime_environment(
             "PYTHONPATH": str(source_root),
             "NVIDIA_TF32_OVERRIDE": "0",
             "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1",
+            # ClearML A100/V100 workers may have unresolved hostnames (c10d).
+            "MASTER_ADDR": "127.0.0.1",
+            # Single-node DDP under docker --network host: avoid wrong NIC / IB.
+            "NCCL_IB_DISABLE": "1",
+            "NCCL_SOCKET_IFNAME": "lo",
+            "NCCL_P2P_DISABLE": "1",
+            "GLOO_SOCKET_IFNAME": "lo",
         }
     )
     if any("resilient-v2x-cuda" in value for value in env.values()):
@@ -1074,8 +1135,13 @@ if torch.__version__ != "2.10.0+cu128" or torch.version.cuda != "12.8":
     raise RuntimeError(f"unexpected Torch runtime: {torch.__version__}/{torch.version.cuda}")
 if torch.cuda.device_count() != 4:
     raise RuntimeError(f"expected 4 GPUs, got {torch.cuda.device_count()}")
-if any(torch.cuda.get_device_capability(i) != (12, 0) for i in range(4)):
-    raise RuntimeError("all GPUs must have compute capability 12.0")
+_allowed_caps = {(12, 0), (8, 0), (7, 0)}
+_caps = [torch.cuda.get_device_capability(i) for i in range(4)]
+if any(cap not in _allowed_caps for cap in _caps) or len(set(_caps)) != 1:
+    raise RuntimeError(
+        "all GPUs must share one allowed compute capability "
+        f"from {sorted(_allowed_caps)}; got {_caps}"
+    )
 if "sm_120" not in torch.cuda.get_arch_list():
     raise RuntimeError("PyTorch build lacks sm_120")
 for name, version in expected.items():
@@ -2142,6 +2208,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     _compile_embedded_smoke_scripts()
     _assert_base_image()
     _validate_gpu_runtime(_capture_gpu_runtime())
+    _pin_hostname_to_loopback()
 
     from clearml import Dataset, OutputModel, Task
 

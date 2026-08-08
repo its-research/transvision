@@ -25,7 +25,10 @@ TOOLCHAIN_ARCHIVE_SHA256 = (
 EXPECTED_TORCH = "2.10.0+cu128"
 EXPECTED_TORCH_CUDA = "12.8"
 EXPECTED_GPU_COUNT = 4
+ALLOWED_BUILD_GPU_COUNTS = frozenset({4, 8})
 EXPECTED_CAPABILITY = (12, 0)
+ALLOWED_BUILD_CAPABILITIES = frozenset({(12, 0), (8, 0), (7, 0)})
+DEFAULT_TORCH_CUDA_ARCH_LIST = "7.0;8.0;12.0"
 BASE_IMAGE_MANIFEST_DIGEST = (
     "sha256:dbc586035fffb2bc030e807290d43e8d4edf44ee864fa5c832db44ed099fc415"
 )
@@ -69,6 +72,37 @@ def _sha256_argument(value: str) -> str:
     return value
 
 
+def _normalize_torch_cuda_arch_list(value: str) -> str:
+    # Accept comma or semicolon separators so ClearML CLI argv cannot be split by ';'.
+    normalized_input = str(value).replace(",", ";")
+    parts = [part.strip() for part in normalized_input.split(";") if part.strip()]
+    if not parts:
+        raise argparse.ArgumentTypeError(
+            "torch CUDA arch list must contain at least one arch"
+        )
+    normalized: list[str] = []
+    for part in parts:
+        if not re.fullmatch(r"\d+\.\d+", part):
+            raise argparse.ArgumentTypeError(
+                f"invalid CUDA arch entry {part!r}; expected forms like 7.0"
+            )
+        if part not in normalized:
+            normalized.append(part)
+    return ";".join(normalized)
+
+
+def _required_nvcc_compute_archs(arch_list: str) -> frozenset[str]:
+    mapping = {
+        "7.0": "compute_70",
+        "8.0": "compute_80",
+        "12.0": "compute_120",
+    }
+    required = {mapping[part] for part in arch_list.split(";") if part in mapping}
+    if not required:
+        raise ValueError(f"unsupported TORCH_CUDA_ARCH_LIST: {arch_list!r}")
+    return frozenset(required)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-dataset-id", required=True)
@@ -76,6 +110,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-archive-bytes", type=_positive_integer, required=True)
     parser.add_argument("--source-archive-sha256", type=_sha256_argument, required=True)
     parser.add_argument("--toolchain-dataset-id", default=TOOLCHAIN_DATASET_ID)
+    parser.add_argument(
+        "--torch-cuda-arch-list",
+        type=_normalize_torch_cuda_arch_list,
+        default=DEFAULT_TORCH_CUDA_ARCH_LIST,
+        help=(
+            "CUDA arches for MMCV/project extensions as comma- or semicolon-separated "
+            f"values (default: {DEFAULT_TORCH_CUDA_ARCH_LIST.replace(';', ',')})"
+        ),
+    )
     return parser
 
 
@@ -92,6 +135,9 @@ def _validate_arguments(args: argparse.Namespace) -> None:
         or SHA256_PATTERN.fullmatch(args.source_archive_sha256) is None
     ):
         raise ValueError("--source-archive-sha256 must be a lowercase SHA-256")
+    args.torch_cuda_arch_list = _normalize_torch_cuda_arch_list(
+        args.torch_cuda_arch_list
+    )
 
 
 def _assert_base_image() -> None:
@@ -240,7 +286,7 @@ def _verify_bundle_member_types(archive: Path) -> None:
             )
 
 
-def _assert_gpu_runtime() -> dict[str, object]:
+def _assert_gpu_runtime(*, arch_list: str = DEFAULT_TORCH_CUDA_ARCH_LIST) -> dict[str, object]:
     import torch
 
     if sys.version_info[:2] != (3, 12):
@@ -255,16 +301,30 @@ def _assert_gpu_runtime() -> dict[str, object]:
         )
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is unavailable")
-    if torch.cuda.device_count() != EXPECTED_GPU_COUNT:
+    gpu_count = torch.cuda.device_count()
+    if gpu_count not in ALLOWED_BUILD_GPU_COUNTS:
         raise RuntimeError(
-            f"expected {EXPECTED_GPU_COUNT} GPUs, found {torch.cuda.device_count()}"
+            f"expected {sorted(ALLOWED_BUILD_GPU_COUNTS)} GPUs, found {gpu_count}"
         )
+    arch_to_capability = {
+        "7.0": (7, 0),
+        "8.0": (8, 0),
+        "12.0": (12, 0),
+    }
+    allowed_host = {
+        arch_to_capability[part]
+        for part in arch_list.split(";")
+        if part in arch_to_capability
+    } & ALLOWED_BUILD_CAPABILITIES
+    if not allowed_host:
+        raise RuntimeError(f"no allowed host capability for arch list {arch_list!r}")
     devices = []
-    for index in range(EXPECTED_GPU_COUNT):
+    for index in range(gpu_count):
         capability = torch.cuda.get_device_capability(index)
-        if capability != EXPECTED_CAPABILITY:
+        if capability not in allowed_host:
             raise RuntimeError(
-                f"GPU {index} capability {capability} != {EXPECTED_CAPABILITY}"
+                f"GPU {index} capability {capability} not in {sorted(allowed_host)} "
+                f"for TORCH_CUDA_ARCH_LIST={arch_list!r}"
             )
         devices.append(
             {
@@ -273,6 +333,8 @@ def _assert_gpu_runtime() -> dict[str, object]:
                 "capability": list(capability),
             }
         )
+    if len({tuple(device["capability"]) for device in devices}) != 1:
+        raise RuntimeError(f"build host GPUs must be homogeneous: {devices!r}")
     if "sm_120" not in torch.cuda.get_arch_list():
         raise RuntimeError("PyTorch build does not contain sm_120")
     return {
@@ -417,13 +479,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from clearml import Dataset, Task
 
+    arch_list = args.torch_cuda_arch_list
+    task_name = (
+        "RTX5090 native dependency build"
+        if arch_list == "12.0"
+        else f"RTX5090 native dependency build multiarch {arch_list.replace(';', '+')}"
+    )
     task = Task.init(
         project_name="ResilientV2X/Training",
-        task_name="RTX5090 native dependency build",
+        task_name=task_name,
         task_type=Task.TaskTypes.testing,
         reuse_last_task_id=False,
     )
-    runtime = _assert_gpu_runtime()
+    runtime = _assert_gpu_runtime(arch_list=arch_list)
     print(json.dumps({"event": "runtime_verified", **runtime}, sort_keys=True))
 
     source_dataset = Dataset.get(
@@ -466,7 +534,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "FORCE_CUDA": "1",
             "MAX_JOBS": "8",
             "MMCV_WITH_OPS": "1",
-            "TORCH_CUDA_ARCH_LIST": "12.0",
+            "TORCH_CUDA_ARCH_LIST": arch_list,
             "NVIDIA_TF32_OVERRIDE": "0",
             "PYTHONPATH": str(source_root),
             "PATH": f"{cuda_home / 'bin'}:{env.get('PATH', '')}",
@@ -489,6 +557,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         env=env,
         capture=True,
     ).stdout.splitlines()
+    architecture_text = "\n".join(architectures)
+    required_compute = _required_nvcc_compute_archs(arch_list)
     required_cuda_files = (
         cuda_target / "include/cusparse.h",
         cuda_target / "include/cublas_v2.h",
@@ -499,18 +569,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         cuda_target / "lib/libcublasLt.so.12",
         cuda_target / "lib/libcusolver.so.11",
     )
+    missing_compute = sorted(
+        name for name in required_compute if name not in architecture_text
+    )
     if (
         "release 12.8" not in nvcc
-        or "compute_120" not in architectures
+        or missing_compute
         or any(not path.is_file() for path in required_cuda_files)
     ):
-        raise RuntimeError("portable CUDA toolchain contract failed")
+        raise RuntimeError(
+            "portable CUDA toolchain contract failed: "
+            f"missing_compute={missing_compute}"
+        )
     print(
         json.dumps(
             {
                 "event": "toolchain_verified",
                 "nvcc": nvcc.strip().splitlines()[-1],
-                "compute_120": True,
+                "torch_cuda_arch_list": arch_list,
+                "required_compute": sorted(required_compute),
             },
             sort_keys=True,
         )
