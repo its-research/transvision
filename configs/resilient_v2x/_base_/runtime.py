@@ -41,6 +41,8 @@ visualizer = dict(
 )
 log_processor = dict(type="LogProcessor", window_size=50, by_epoch=True)
 log_level = "INFO"
+# Ablations (e.g. ptf_none) leave modules unused in the loss path under DDP.
+find_unused_parameters = True
 
 optim_wrapper = dict(
     type="OptimWrapper",
@@ -73,7 +75,7 @@ param_scheduler = [
     ),
 ]
 
-train_cfg = dict(type="EpochBasedTrainLoop", max_epochs=50, val_interval=1)
+train_cfg = dict(type="EpochBasedTrainLoop", max_epochs=50, val_interval=10)
 val_cfg = dict(type="ValLoop")
 test_cfg = dict(type="TestLoop")
 auto_scale_lr = dict(enable=False, base_batch_size=1)
@@ -87,6 +89,7 @@ implementation_choices_runtime = dict(
     learning_rate=0.0001,
     weight_decay=0.01,
     max_epochs=50,
+    val_interval=10,
     peak_learning_rate=0.001,
     peak_learning_rate_epoch=20,
     gradient_clip_norm=35,

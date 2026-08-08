@@ -243,11 +243,12 @@ def test_training_commands_are_4gpu_ddp_and_training_only(tmp_path: Path) -> Non
     assert "tools/train.py" in command
     assert "tools/test.py" not in command
     assert not any("conditions/" in value for value in command)
-    assert "train_cfg.val_interval" not in " ".join(command)
+    assert "train_cfg.val_interval=10" in command
     assert set(bootstrap.RTX5090_HEADLESS_CFG_OPTIONS) <= set(command)
     assert "train_dataloader.batch_size=2" in command
     assert "val_dataloader.batch_size=4" in command
     assert "test_dataloader.batch_size=4" in command
+    assert "find_unused_parameters=True" in command
 
 
 def test_baseline_plan_is_single_process_dry_run_then_sealed(tmp_path: Path) -> None:
@@ -333,7 +334,9 @@ def test_run_contract_binds_command_config_and_training_only_policy(
     assert contract["train_batch_size_per_gpu"] == 2
     assert contract["eval_batch_size_per_gpu"] == 4
     assert contract["precision"] == "FP32"
-    assert contract["per_epoch_validation"] is True
+    assert contract["val_interval"] == 10
+    assert bootstrap.RTX5090_VAL_INTERVAL == 10
+    assert contract["per_epoch_validation"] is False
     assert contract["condition_evaluation"] is False
 
 

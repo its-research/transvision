@@ -147,7 +147,7 @@ CLEARML_TRAIN_COMPLEMENTED_METRICS_COMPAT_SHA256 = (
     "8435208ec277f84e3403fb6991fa9f3be920dfac3c5ab4f0fd2963a31bd29314"
 )
 CLEARML_TRAIN_FFNET_STAGE_SHA256 = (
-    "abef0798e6e8c53021d5cb143e5adad051c86eb41410a37039332cdbd48d1b7c"
+    "74db909e1463e1405f9cd3678cf4fc455fc1d44439559ba6ad901c69307c696a"
 )
 CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256 = (
     "95b1748429a7341f2ee304d84f764b5fbfcb544957250b44b3e5e11e6687be0c"
@@ -283,6 +283,7 @@ TEACHER_DEPENDENT_EXPERIMENTS = frozenset(
 BASELINE_EXPERIMENTS = frozenset(
     spec.name for spec in EXPERIMENT_SPECS if spec.kind == "baseline"
 )
+RTX5090_VAL_INTERVAL = 10
 RTX5090_HEADLESS_CFG_OPTIONS = (
     "visualizer._scope_=mmengine",
     "visualizer.type=Visualizer",
@@ -1071,10 +1072,9 @@ if sys.version_info[:2] != (3, 12):
     raise RuntimeError(f"unexpected Python: {sys.version}")
 if torch.__version__ != "2.10.0+cu128" or torch.version.cuda != "12.8":
     raise RuntimeError(f"unexpected Torch runtime: {torch.__version__}/{torch.version.cuda}")
-gpu_count = torch.cuda.device_count()
-if gpu_count not in {4, 8}:
-    raise RuntimeError(f"expected 4 or 8 GPUs, got {gpu_count}")
-if any(torch.cuda.get_device_capability(i) != (12, 0) for i in range(gpu_count)):
+if torch.cuda.device_count() != 4:
+    raise RuntimeError(f"expected 4 GPUs, got {torch.cuda.device_count()}")
+if any(torch.cuda.get_device_capability(i) != (12, 0) for i in range(4)):
     raise RuntimeError("all GPUs must have compute capability 12.0")
 if "sm_120" not in torch.cuda.get_arch_list():
     raise RuntimeError("PyTorch build lacks sm_120")
@@ -1568,9 +1568,11 @@ def _ddp_training_command(
         "pytorch",
         "--cfg-options",
         f"train_cfg.max_epochs={max_epochs}",
+        f"train_cfg.val_interval={RTX5090_VAL_INTERVAL}",
         f"train_dataloader.batch_size={RTX5090_TRAIN_BATCH_SIZE_PER_GPU}",
         f"val_dataloader.batch_size={RTX5090_EVAL_BATCH_SIZE_PER_GPU}",
         f"test_dataloader.batch_size={RTX5090_EVAL_BATCH_SIZE_PER_GPU}",
+        "find_unused_parameters=True",
         *RTX5090_HEADLESS_CFG_OPTIONS,
     ]
 
@@ -1645,6 +1647,10 @@ def _prepare_experiment_environment(
             "RESILIENT_V2X_RESNET50_CHECKPOINT": str(resnet_checkpoint),
         }
     )
+    # Overlay helpers import sealed package modules in-process.
+    source_root_str = str(source_root)
+    if source_root_str not in sys.path:
+        sys.path.insert(0, source_root_str)
     return dataset_root, runner._overlay_environment(dataset_root, env)
 
 
@@ -1795,7 +1801,8 @@ def _experiment_run_contract(
         "amp": False,
         "precision": "FP32",
         "runtime_profile": "rtx5090",
-        "per_epoch_validation": True,
+        "val_interval": RTX5090_VAL_INTERVAL,
+        "per_epoch_validation": False,
         "condition_evaluation": False,
         "condition_evaluation_reason": (
             "the 12-condition matrix remains outside individual training tasks"

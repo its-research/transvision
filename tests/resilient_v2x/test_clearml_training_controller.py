@@ -151,7 +151,8 @@ class _FakeTask:
             "amp": False,
             "precision": "FP32",
             "runtime_profile": "rtx5090",
-            "per_epoch_validation": True,
+            "val_interval": 10,
+            "per_epoch_validation": False,
             "condition_evaluation": False,
             "teacher": teacher,
         }

@@ -340,6 +340,34 @@ def test_scalars_reject_incomplete_metric_row(tmp_path: Path) -> None:
         runner._metrics_from_scalars(tmp_path, 2)
 
 
+def test_scalars_allow_diagnostic_metric_extras(tmp_path: Path) -> None:
+    runner = _load_script("clearml_train.py")
+    metrics = _metrics()
+    metrics["resilient_v2x/diagnostic_pred_z_bottom_p50"] = -1.5
+    scalars = _write_scalars(tmp_path, metrics, "run/scalars.json")
+
+    actual_path, actual_metrics = runner._metrics_from_scalars(tmp_path, 2)
+
+    assert actual_path == scalars.resolve()
+    assert actual_metrics["resilient_v2x/diagnostic_pred_z_bottom_p50"] == -1.5
+
+
+def test_scalars_accept_concatenated_json_objects(tmp_path: Path) -> None:
+    runner = _load_script("clearml_train.py")
+    first = _metrics()
+    first["resilient_v2x/car_bev_ap_r40_0.70"] = 1.0
+    second = _metrics()
+    second["resilient_v2x/car_bev_ap_r40_0.70"] = 59.5
+    path = tmp_path / "run/20260808_120102.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(first) + json.dumps(second), encoding="utf-8")
+
+    actual_path, actual_metrics = runner._metrics_from_scalars(tmp_path, 2)
+
+    assert actual_path == path.resolve()
+    assert actual_metrics["resilient_v2x/car_bev_ap_r40_0.70"] == 59.5
+
+
 def test_scalars_reject_nonfinite_metric(tmp_path: Path) -> None:
     runner = _load_script("clearml_train.py")
     nonfinite = _metrics()
@@ -529,15 +557,6 @@ def test_rtx5090_runtime_contract_helper_requires_exact_runtime() -> None:
     }
 
     runner._validate_rtx5090_runtime_contract(contract)
-    eight_gpu = dict(contract)
-    eight_gpu["gpu_count"] = 8
-    eight_gpu["capabilities"] = [[12, 0]] * 8
-    runner._validate_rtx5090_runtime_contract(eight_gpu)
-    wrong_count = dict(contract)
-    wrong_count["gpu_count"] = 2
-    wrong_count["capabilities"] = [[12, 0]] * 2
-    with pytest.raises(RuntimeError, match="gpu_count mismatch"):
-        runner._validate_rtx5090_runtime_contract(wrong_count)
     wrong_packages = dict(contract)
     wrong_packages["packages"] = {
         **contract["packages"],

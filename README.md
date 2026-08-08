@@ -33,7 +33,7 @@ CoFormerNet 复现结果：ClearML [`f7ec1cf7add24170b67e2ed807567c10`](http://1
 
 ## ResilientV2X Results
 
-受控证据：ClearML [`63b337e0e31c4a08a6ef0007321f653a`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/63b337e0e31c4a08a6ef0007321f653a/output/log)，seed `20250218`，dataset `f24a09190df8449fa0192fb3fda6c25a`，1337 个验证样本，10583 个 Car ground truth，`content_sha256=1403ce66639a47ab9f622e268a9438f9e3bc9146a7eaf5506adda058bfc7a7e2`。
+受控证据：ClearML [`2992081bc95949f198e062c136810736`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/2992081bc95949f198e062c136810736/output/log)，seed `20250218`，student [`77afadda645f44748e1236eb91b5e664`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/77afadda645f44748e1236eb91b5e664/output/log)，dataset `fc242933c3ac43c2b47aaa3bd7f4a920`，1337 个验证样本，11330 个 Car ground truth，`content_sha256=5b3c9a9c77de823caafc7050317d99d2095ecfa5a005519d0d5d5f64da9af721`。
 
 受控协议：DAIR-V2X-C、v2 manifest、官方 validation split、Car-only、LiDAR + Camera、评测范围 `[0,-40,-3,80,40,1]`。L-Fail 和 C-Fail 使用 `E+R`。AP 与 PDR 单位均为 `%`。
 
@@ -57,7 +57,7 @@ CoFormerNet 复现结果：ClearML [`f7ec1cf7add24170b67e2ed807567c10`](http://1
 | CoFormerNet-style | LiDAR + Camera | PointPillars + ResNet-50/LSS | —（待测） |
 | MIT-HAN BEVFusion-style | LiDAR + Camera | PointPillars + ResNet-50/LSS | —（待测） |
 | FFNet-style | LiDAR + Camera | PointPillars + ResNet-50/LSS | —（待测） |
-| Resilient V2X（seed `20250218`） | LiDAR + Camera | PointPillars + ResNet-50/LSS | 0.165¶ |
+| Resilient V2X（seed `20250218`） | LiDAR + Camera | PointPillars + ResNet-50/LSS | 59.975¶ |
 
 ### RSU 时延比较
 
@@ -72,7 +72,7 @@ CoFormerNet 复现结果：ClearML [`f7ec1cf7add24170b67e2ed807567c10`](http://1
 | FFNet-style | L + C | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） |
 | [FFNet](https://proceedings.neurips.cc/paper_files/paper/2023/file/6ca5d2665de83394f437dad0c3746907-Paper-Conference.pdf) | LiDAR | 54.16‡ | N/A | 54.69‡ | 52.44‡ | 3.2§ |
 | [CoFormerNet](https://doi.org/10.3390/s24134101) | LiDAR | 54.59‡ | N/A | 54.65‡ | 53.29‡ | 2.4§ |
-| Resilient V2X（seed `20250218`） | L + C | 0.165¶ | 0.135¶ | 0.148¶ | 0.158¶ | 4.5¶ |
+| Resilient V2X（seed `20250218`） | L + C | 59.975¶ | 57.936¶ | 57.868¶ | 57.829¶ | 3.6¶ |
 
 ### 单模态故障
 
@@ -85,7 +85,7 @@ CoFormerNet 复现结果：ClearML [`f7ec1cf7add24170b67e2ed807567c10`](http://1
 | CoFormerNet-style | —（待测） | —（待测） | —（待测） |
 | MIT-HAN BEVFusion-style | —（待测） | —（待测） | —（待测） |
 | FFNet-style | —（待测） | —（待测） | —（待测） |
-| Resilient V2X（seed `20250218`） | 2.794¶ / 0.165¶ | 2.768¶ / 0.130¶（↓21.5¶） | 2.416¶ / 0.135¶（↓18.1¶） |
+| Resilient V2X（seed `20250218`） | 68.955¶ / 59.975¶ | 69.319¶ / 48.915¶（↓18.4¶） | 68.940¶ / 60.005¶（↑0.1¶） |
 
 ### 模态故障与时延联合退化
 
@@ -93,9 +93,9 @@ CoFormerNet 复现结果：ClearML [`f7ec1cf7add24170b67e2ed807567c10`](http://1
 
 | 条件 | 0 ms | 100 ms | 200 ms | 300 ms |
 | :--- | ---: | ---: | ---: | ---: |
-| Full | 0.165¶ | 0.135¶ | 0.148¶ | 0.158¶ |
-| L-Fail（E+R） | 0.130¶ | 0.132¶ | 0.130¶ | 0.000¶ |
-| C-Fail（E+R） | 0.135¶ | 0.122¶ | 0.091¶ | 0.000¶ |
+| Full | 59.975¶ | 57.936¶ | 57.868¶ | 57.829¶ |
+| L-Fail（E+R） | 48.915¶ | 49.018¶ | 49.106¶ | 44.636¶ |
+| C-Fail（E+R） | 60.005¶ | 57.919¶ | 57.897¶ | 57.865¶ |
 
 ### 容量匹配消融
 
@@ -103,7 +103,7 @@ CoFormerNet 复现结果：ClearML [`f7ec1cf7add24170b67e2ed807567c10`](http://1
 
 | 变体 | Full | L-Fail | 300 ms |
 | :--- | ---: | ---: | ---: |
-| Full nonlinear PTF + DER | 0.165¶ | 0.130¶ | 0.158¶ |
+| Full nonlinear PTF + DER | 59.975¶ | 48.915¶ | 57.829¶ |
 | No PTF | —（待测） | —（待测） | —（待测） |
 | Linear PTF | —（待测） | —（待测） | —（待测） |
 | Static three-expert | —（待测） | —（待测） | —（待测） |
@@ -135,7 +135,7 @@ CoFormerNet 复现结果：ClearML [`f7ec1cf7add24170b67e2ed807567c10`](http://1
 
 | 数据集 / 条件 | BEV AP@0.5 mean | std | BEV AP@0.7 mean | std | 3D AP@0.5 mean | std | 3D AP@0.7 mean | std | 完成种子数 |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| DAIR-V2X-C / Resilient V2X / Full / 0 ms | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） | 1 / ≥3 |
+| DAIR-V2X-C / Resilient V2X / Full / 0 ms | 68.955¶ | —（待测） | 59.975¶ | —（待测） | 65.372¶ | —（待测） | 35.142¶ | —（待测） | 1 / ≥3 |
 
 ### 补充结果
 

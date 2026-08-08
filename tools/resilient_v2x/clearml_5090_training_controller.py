@@ -51,6 +51,47 @@ WAITABLE_STATUSES = frozenset({"created", "queued", "in_progress"})
 PROGRESS_STATES = frozenset(
     {"pending", "created", "queued", "running", "completed", "failed"}
 )
+_EXPERIMENT_SYSPATH_ANCHOR = '''    env.update(
+        {
+            "PYTHONPATH": str(source_root),
+            "NVIDIA_TF32_OVERRIDE": "0",
+            "RESILIENT_V2X_DATA_ROOT": str(data_root),
+            "RESILIENT_V2X_MANIFEST": str(manifest_path),
+            "RESILIENT_V2X_SPLIT_SHA256": runner.OFFICIAL_SPLIT_SHA256,
+            "RESILIENT_V2X_RESNET50_CHECKPOINT": str(resnet_checkpoint),
+        }
+    )
+    return dataset_root, runner._overlay_environment(dataset_root, env)
+'''
+_EXPERIMENT_SYSPATH_PATCH = '''    env.update(
+        {
+            "PYTHONPATH": str(source_root),
+            "NVIDIA_TF32_OVERRIDE": "0",
+            "RESILIENT_V2X_DATA_ROOT": str(data_root),
+            "RESILIENT_V2X_MANIFEST": str(manifest_path),
+            "RESILIENT_V2X_SPLIT_SHA256": runner.OFFICIAL_SPLIT_SHA256,
+            "RESILIENT_V2X_RESNET50_CHECKPOINT": str(resnet_checkpoint),
+        }
+    )
+    # Overlay helpers import sealed package modules in-process.
+    source_root_str = str(source_root)
+    if source_root_str not in sys.path:
+        sys.path.insert(0, source_root_str)
+    return dataset_root, runner._overlay_environment(dataset_root, env)
+'''
+_EXPERIMENT_SYSPATH_MARKER = (
+    "Overlay helpers import sealed package modules in-process"
+)
+_EXPERIMENT_DDP_UNUSED_ANCHOR = '''        f"test_dataloader.batch_size={RTX5090_EVAL_BATCH_SIZE_PER_GPU}",
+        *RTX5090_HEADLESS_CFG_OPTIONS,
+    ]
+'''
+_EXPERIMENT_DDP_UNUSED_PATCH = '''        f"test_dataloader.batch_size={RTX5090_EVAL_BATCH_SIZE_PER_GPU}",
+        "find_unused_parameters=True",
+        *RTX5090_HEADLESS_CFG_OPTIONS,
+    ]
+'''
+_EXPERIMENT_DDP_UNUSED_MARKER = "find_unused_parameters=True"
 
 
 class ExperimentSpec(NamedTuple):
@@ -348,6 +389,57 @@ def _validate_source_parameters(parameters: Mapping[str, object]) -> dict[str, o
     return source
 
 
+def _apply_experiment_syspath_patch(diff: str) -> str:
+    """Ensure experiment bootstrap can import sealed package modules in-process."""
+
+    if type(diff) is not str:
+        raise RuntimeError("standalone script diff must be a string")
+    if _EXPERIMENT_SYSPATH_MARKER in diff:
+        patched = diff
+    else:
+        anchor_count = diff.count(_EXPERIMENT_SYSPATH_ANCHOR)
+        if anchor_count == 0:
+            # Unit-test fixtures and unrelated scripts stay unchanged.
+            patched = diff
+        elif anchor_count != 1:
+            raise RuntimeError("experiment sys.path compatibility anchor is not unique")
+        else:
+            patched = diff.replace(
+                _EXPERIMENT_SYSPATH_ANCHOR, _EXPERIMENT_SYSPATH_PATCH, 1
+            )
+    if _EXPERIMENT_DDP_UNUSED_MARKER in patched:
+        return patched
+    unused_count = patched.count(_EXPERIMENT_DDP_UNUSED_ANCHOR)
+    if unused_count == 0:
+        return patched
+    if unused_count != 1:
+        raise RuntimeError("experiment DDP unused-parameter anchor is not unique")
+    return patched.replace(
+        _EXPERIMENT_DDP_UNUSED_ANCHOR, _EXPERIMENT_DDP_UNUSED_PATCH, 1
+    )
+
+
+def _script_sha256(script: Mapping[str, object]) -> str:
+    return hashlib.sha256(_canonical_json(script).encode("utf-8")).hexdigest()
+
+
+def _ensure_clone_experiment_syspath_fix(task: object) -> None:
+    """Patch a freshly cloned suite task before identity/enqueue checks."""
+
+    script = _task_script(task)
+    diff = script.get("diff")
+    patched = _apply_experiment_syspath_patch(str(diff or ""))
+    if patched == diff:
+        return
+    task_id = str(getattr(task, "id", "") or "")
+    if not task_id:
+        raise RuntimeError("cloned task has no ID for sys.path patch")
+    from clearml.backend_api.session.client import APIClient
+
+    APIClient().tasks.edit(task=task_id, script={"diff": patched})
+    _reload(task)
+
+
 def _template_identity(task: object, *, expected_task_id: str) -> dict[str, object]:
     if _normalized_task_status(task) != "completed":
         raise RuntimeError("bootstrap template task must be completed")
@@ -374,12 +466,12 @@ def _template_identity(task: object, *, expected_task_id: str) -> dict[str, obje
     _validate_docker_command(docker)
     parameters = _task_parameters(task)
     source_parameters = _validate_source_parameters(parameters)
+    patched_script = dict(script)
+    patched_script["diff"] = _apply_experiment_syspath_patch(diff)
     return {
         "task_id": expected_task_id,
         "entry_point": EXPECTED_ENTRYPOINT,
-        "script_sha256": hashlib.sha256(
-            _canonical_json(script).encode("utf-8")
-        ).hexdigest(),
+        "script_sha256": _script_sha256(patched_script),
         "docker_command": docker,
         "docker_image": EXPECTED_DOCKER_IMAGE,
         "base_image_manifest_digest": BASE_IMAGE_AMD64_MANIFEST_DIGEST,
@@ -395,9 +487,7 @@ def _validate_clone_identity(
     identity: Mapping[str, object],
 ) -> None:
     script = _task_script(task)
-    observed_script_sha = hashlib.sha256(
-        _canonical_json(script).encode("utf-8")
-    ).hexdigest()
+    observed_script_sha = _script_sha256(script)
     if observed_script_sha != identity.get("script_sha256"):
         raise RuntimeError("cloned task script drifted from the verified template")
     if script.get("entry_point") != EXPECTED_ENTRYPOINT:
@@ -453,6 +543,26 @@ def _experiment_parameters(
     return result
 
 
+def _execution_parameters_match(
+    observed: Mapping[str, object],
+    expected: Mapping[str, object],
+) -> bool:
+    """Compare sealed execution params, tolerating empty inherited dynamic keys."""
+
+    missing = set(expected) - set(observed)
+    if missing:
+        return False
+    extras = set(observed) - set(expected)
+    for key in extras:
+        if key not in DYNAMIC_PARAMETER_KEYS:
+            return False
+        if observed.get(key) not in (None, "", False, "False"):
+            return False
+    return all(
+        _parameter_matches(observed.get(key), value) for key, value in expected.items()
+    )
+
+
 def _set_and_validate_parameters(
     task: object,
     *,
@@ -464,18 +574,17 @@ def _set_and_validate_parameters(
         raise RuntimeError("cloned task cannot replace its parameters")
     setter(dict(expected))
     observed = _task_parameters(task)
-    if set(observed) != set(expected):
+    if not _execution_parameters_match(observed, expected):
         missing = sorted(set(expected) - set(observed))
-        extra = sorted(set(observed) - set(expected))
+        extra = sorted(
+            key
+            for key in set(observed) - set(expected)
+            if key not in DYNAMIC_PARAMETER_KEYS
+            or observed.get(key) not in (None, "", False, "False")
+        )
         raise RuntimeError(
             f"cloned task parameter keys mismatch; missing={missing}, extra={extra}"
         )
-    for key, value in expected.items():
-        if not _parameter_matches(observed.get(key), value):
-            raise RuntimeError(
-                f"cloned task parameter {key} mismatch: "
-                f"expected {value!r}, got {observed.get(key)!r}"
-            )
     leaked = [
         key for key in STUDENT_HANDOFF_KEYS if observed.get(key) not in (None, "")
     ]
@@ -754,7 +863,8 @@ def _validate_completed_experiment(
         "amp": False,
         "precision": "FP32",
         "runtime_profile": "rtx5090",
-        "per_epoch_validation": True,
+        "val_interval": 10,
+        "per_epoch_validation": False,
         "condition_evaluation": False,
     }
     for key, expected in expected_contract.items():
@@ -1098,6 +1208,7 @@ def run_training_suite(
                     raise RuntimeError(
                         f"new clone for {experiment!r} is not created: {status!r}"
                     )
+                _ensure_clone_experiment_syspath_fix(task)
                 _set_and_validate_parameters(
                     task,
                     expected=expected_parameters,
@@ -1106,6 +1217,7 @@ def run_training_suite(
             elif _normalized_task_status(task) == "created":
                 # Recover the narrow crash window after clone creation but
                 # before its complete parameter replacement was persisted.
+                _ensure_clone_experiment_syspath_fix(task)
                 _validate_clone_identity(task, identity=template_identity)
                 _set_and_validate_parameters(
                     task,
@@ -1136,12 +1248,11 @@ def run_training_suite(
             raise RuntimeError(f"recovered task parent mismatch for {experiment!r}")
         if step.get("predecessor_task_id") != predecessor_task_id:
             raise RuntimeError(f"progress predecessor mismatch for {experiment!r}")
+        if _normalized_task_status(task) == "created":
+            _ensure_clone_experiment_syspath_fix(task)
         _validate_clone_identity(task, identity=template_identity)
         observed = _task_parameters(task)
-        if set(observed) != set(expected_parameters) or any(
-            not _parameter_matches(observed.get(key), value)
-            for key, value in expected_parameters.items()
-        ):
+        if not _execution_parameters_match(observed, expected_parameters):
             raise RuntimeError(f"execution parameters drifted for {experiment!r}")
 
         status = _normalized_task_status(task)

@@ -322,7 +322,7 @@ def _workflow(
                 "dataset_id": DATASET_ID,
                 "runtime_profile": "rtx5090",
                 "gpus": 4,
-                "global_batch_size": 8,
+                "global_batch_size": 4,
                 "max_epochs": 50,
                 "amp": False,
                 "checkpoint_policy": "final_epoch",
@@ -553,39 +553,11 @@ def test_validation_must_complete_and_contain_exactly_twelve_conditions(
         _run(module, tasks, teacher_sha256)
 
 
-def test_cli_defaults_worker_queue_to_gpu4_and_allows_override() -> None:
+def test_cli_does_not_offer_an_alternate_worker_queue() -> None:
     module = _load_controller()
     destinations = {action.dest for action in module._parser()._actions}
-    assert "worker_queue" in destinations
+    assert "worker_queue" not in destinations
     assert module.WORKER_QUEUE == "GPU4-5090"
-    args = module._parser().parse_args(
-        [
-            "--student-task-id",
-            "a" * 32,
-            "--teacher-task-id",
-            "b" * 32,
-            "--teacher-model-id",
-            "c" * 32,
-            "--teacher-checkpoint-sha256",
-            "d" * 64,
-        ]
-    )
-    assert args.worker_queue == "GPU4-5090"
-    args_gpu8 = module._parser().parse_args(
-        [
-            "--student-task-id",
-            "a" * 32,
-            "--teacher-task-id",
-            "b" * 32,
-            "--teacher-model-id",
-            "c" * 32,
-            "--teacher-checkpoint-sha256",
-            "d" * 64,
-            "--worker-queue",
-            "GPU8-5090",
-        ]
-    )
-    assert args_gpu8.worker_queue == "GPU8-5090"
 
 
 def test_bootstrap_entry_point_accepts_only_reviewed_path_or_basename() -> None:

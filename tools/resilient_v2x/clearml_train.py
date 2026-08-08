@@ -126,7 +126,7 @@ def _batch_profile(runtime_profile: str) -> dict[str, int]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-id", required=True)
-    parser.add_argument("--gpus", type=int, choices=(4, 8), default=4)
+    parser.add_argument("--gpus", type=int, choices=(4,), default=4)
     parser.add_argument(
         "--stage",
         choices=(
@@ -229,17 +229,12 @@ def _capture_rtx5090_runtime_contract() -> dict[str, object]:
 
 
 def _validate_rtx5090_runtime_contract(contract: Mapping[str, object]) -> None:
-    gpu_count = contract.get("gpu_count")
-    if gpu_count not in {4, 8}:
-        raise RuntimeError(
-            "RTX5090 runtime gpu_count mismatch: "
-            f"expected 4 or 8, got {gpu_count!r}"
-        )
     expected_scalars = {
         "python": [3, 12],
         "torch": "2.10.0+cu128",
         "torch_cuda": "12.8",
         "cuda_available": True,
+        "gpu_count": 4,
     }
     for field, expected in expected_scalars.items():
         if contract.get(field) != expected:
@@ -247,10 +242,8 @@ def _validate_rtx5090_runtime_contract(contract: Mapping[str, object]) -> None:
                 f"RTX5090 runtime {field} mismatch: "
                 f"expected {expected!r}, got {contract.get(field)!r}"
             )
-    if contract.get("capabilities") != [[12, 0]] * int(gpu_count):
-        raise RuntimeError(
-            "RTX5090 runtime requires compute-capability 12.0 on every visible GPU"
-        )
+    if contract.get("capabilities") != [[12, 0]] * 4:
+        raise RuntimeError("RTX5090 runtime requires four compute-capability 12.0 GPUs")
     arch_list = contract.get("torch_arch_list")
     if not isinstance(arch_list, list) or "sm_120" not in arch_list:
         raise RuntimeError("RTX5090 PyTorch runtime does not contain sm_120")
@@ -496,30 +489,43 @@ def _metrics_from_scalars(
     scalars = candidates[0].resolve(strict=True)
     metric_rows: list[dict[str, object]] = []
     metric_content = scalars.read_text(encoding="utf-8")
-    metric_lines = (
-        metric_content.splitlines()
-        if metric_source == "scalars.json"
-        else [metric_content]
-    )
-    for line_number, line in enumerate(metric_lines, start=1):
-        if not line:
-            raise ValueError(f"empty JSONL row in {scalars}:{line_number}")
-        row = json.loads(line)
+    # MMEngine may emit JSONL, a single JSON object, or concatenated objects
+    # without newlines; parse with raw_decode across the whole payload.
+    decoder = json.JSONDecoder()
+    offset = 0
+    length = len(metric_content)
+    while offset < length:
+        while offset < length and metric_content[offset].isspace():
+            offset += 1
+        if offset >= length:
+            break
+        try:
+            row, end = decoder.raw_decode(metric_content, offset)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                f"invalid JSON in {scalars} ({metric_source}) at offset {offset}"
+            ) from error
         if not isinstance(row, dict):
-            raise ValueError(f"non-object JSONL row in {scalars}:{line_number}")
+            raise ValueError(f"non-object JSON payload in {scalars} at offset {offset}")
         metrics = {
             key: value for key, value in row.items() if key.startswith("resilient_v2x/")
         }
         if metrics:
             metric_rows.append(metrics)
-    if len(metric_rows) != 1:
+        offset = end
+    if not metric_rows:
         raise ValueError(
-            f"expected exactly one ResilientV2X metric row, found {len(metric_rows)}"
+            f"expected at least one ResilientV2X metric row in {scalars}, found 0"
         )
-    metrics = metric_rows[0]
-    if set(metrics) != REQUIRED_METRIC_KEYS:
-        missing = sorted(REQUIRED_METRIC_KEYS - set(metrics))
-        extra = sorted(set(metrics) - REQUIRED_METRIC_KEYS)
+    # Prefer the last resilient row when logs contain repeated dumps.
+    metrics = metric_rows[-1]
+    missing = sorted(REQUIRED_METRIC_KEYS - set(metrics))
+    extra = sorted(
+        key
+        for key in set(metrics) - REQUIRED_METRIC_KEYS
+        if not key.startswith("resilient_v2x/diagnostic_")
+    )
+    if missing or extra:
         raise ValueError(
             f"metric keys are incomplete: missing={missing}, extra={extra}"
         )
@@ -766,30 +772,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     import torch
 
-    visible_gpus = torch.cuda.device_count()
-    if args.runtime_profile == "rtx5090":
-        if visible_gpus not in {4, 8}:
-            raise RuntimeError(
-                f"RTX5090 expects 4 or 8 visible GPUs, got {visible_gpus}"
-            )
-        if args.gpus > visible_gpus:
-            raise RuntimeError(
-                f"requested {args.gpus} GPUs but only {visible_gpus} are visible"
-            )
-    elif visible_gpus != args.gpus:
+    if torch.cuda.device_count() != args.gpus:
         raise RuntimeError(
-            f"expected {args.gpus} visible GPUs, got {visible_gpus}"
+            f"expected {args.gpus} visible GPUs, got {torch.cuda.device_count()}"
         )
 
     env = _runtime_environment(os.environ, args.runtime_profile)
-    if (
-        args.runtime_profile == "rtx5090"
-        and visible_gpus == 8
-        and args.gpus == 4
-    ):
-        # GPU8-5090 workers expose all eight cards; a sibling worker commonly
-        # occupies physical 0-3. Pin teacher/student DDP onto 4-7.
-        env["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
     env.update(
         {
             "PYTHONPATH": str(ROOT),
@@ -853,6 +841,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else 48240 if args.stage == "ffnet" else None
         ),
         "max_epochs": args.max_epochs,
+        "val_interval": 10,
         "amp": args.amp,
         "runtime_profile": args.runtime_profile,
         "python_safe_path": env.get("PYTHONSAFEPATH"),
@@ -896,6 +885,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "pytorch",
             "--cfg-options",
             f"train_cfg.max_epochs={args.max_epochs}",
+            "train_cfg.val_interval=10",
             f"train_dataloader.batch_size={train_batch_size}",
             f"val_dataloader.batch_size={eval_batch_size}",
             f"test_dataloader.batch_size={eval_batch_size}",

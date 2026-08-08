@@ -25,8 +25,11 @@ FILES_SERVER_URI = "http://10.100.34.118:8081"
 FILES_SERVER_HOST = "10.100.34.118"
 FILES_SERVER_PORT = 8081
 EXPECTED_GPUS = 4
-EXPECTED_TRAIN_BATCH_SIZE_PER_GPU = 2
+EXPECTED_TRAIN_BATCH_SIZE_PER_GPU = 1
 EXPECTED_MAX_EPOCHS = 50
+_CUDA_VISIBLE_DEVICES_ARG = re.compile(
+    r"(?:--env|-e)\s+CUDA_VISIBLE_DEVICES=[^\s]+"
+)
 EXPECTED_CONDITION_COUNT = 12
 CLEAN_TEACHER_MODEL_NAME = "ResilientV2X clean teacher"
 DISTILLED_STUDENT_MODEL_NAME = "ResilientV2X distilled student"
@@ -155,11 +158,6 @@ def _parser() -> argparse.ArgumentParser:
         type=_nonnegative_float,
         default=0.0,
         help="zero waits indefinitely",
-    )
-    parser.add_argument(
-        "--worker-queue",
-        default=WORKER_QUEUE,
-        help="ClearML queue for the cloned validate task (default: GPU4-5090)",
     )
     return parser
 
@@ -673,6 +671,44 @@ def _set_parameter(task: object, name: str, value: object) -> None:
     setter(name=name, value=value)
 
 
+def _strip_cuda_visible_devices(docker_arguments: str) -> str:
+    """Drop host GPU pin envs so GPU4-5090 workers keep remapped device 0..N-1."""
+    cleaned = _CUDA_VISIBLE_DEVICES_ARG.sub("", docker_arguments)
+    return " ".join(cleaned.split())
+
+
+def _prepare_validation_worker_runtime(task: object) -> None:
+    """Ensure the cloned validate task can run on GPU4-5090 without a CUDA pin."""
+    setter = getattr(task, "set_base_docker", None)
+    if not callable(setter):
+        return
+    container = _nested_value(task, "data", "container")
+    if isinstance(container, Mapping):
+        image = str(container.get("image") or "")
+        arguments = str(container.get("arguments") or "")
+        setup = str(container.get("setup_shell_script") or "")
+    else:
+        image = str(getattr(container, "image", "") or "") if container else ""
+        arguments = (
+            str(getattr(container, "arguments", "") or "") if container else ""
+        )
+        setup = (
+            str(getattr(container, "setup_shell_script", "") or "")
+            if container
+            else ""
+        )
+    if not image:
+        return
+    cleaned = _strip_cuda_visible_devices(arguments)
+    if cleaned == arguments:
+        return
+    setter(
+        docker_image=image,
+        docker_arguments=cleaned,
+        docker_setup_bash_script=setup,
+    )
+
+
 def _require_empty_output_state(task: object) -> None:
     getter = getattr(task, "get_models", None)
     if callable(getter):
@@ -761,7 +797,6 @@ def _upload_controller_summary(
     *,
     student_task_id: str,
     result: ControllerResult,
-    worker_queue: str = WORKER_QUEUE,
 ) -> None:
     if controller_task is None:
         return
@@ -779,7 +814,7 @@ def _upload_controller_summary(
         },
         "validation_summary_sha256": result.validation_summary_sha256,
         "condition_count": result.condition_count,
-        "worker_queue": worker_queue,
+        "worker_queue": WORKER_QUEUE,
     }
     summary["content_sha256"] = _document_content_sha256(summary)
     controller_task.output_uri = FILES_SERVER_URI
@@ -1006,7 +1041,6 @@ def run_paper_controller(
     name: str = "ResilientV2X RTX5090 formal 12-condition validation",
     poll_seconds: float = 30.0,
     timeout_seconds: float = 0.0,
-    worker_queue: str = WORKER_QUEUE,
     sleep_fn: Callable[[float], None] = time.sleep,
     monotonic_fn: Callable[[], float] = time.monotonic,
 ) -> ControllerResult:
@@ -1033,9 +1067,6 @@ def run_paper_controller(
         raise ValueError("expected student checkpoint SHA is invalid")
     if not project.strip() or not name.strip():
         raise ValueError("project and task name must be non-empty")
-    if type(worker_queue) is not str or not worker_queue.strip():
-        raise ValueError("worker queue must be non-empty")
-    worker_queue = worker_queue.strip()
 
     teacher_pin = ModelPin(
         teacher_task_id,
@@ -1106,6 +1137,7 @@ def run_paper_controller(
     }
     for key in sorted(expected_parameters):
         _set_parameter(draft, key, expected_parameters[key])
+    _prepare_validation_worker_runtime(draft)
     _reload(draft)
     _require_validation_draft(
         draft,
@@ -1114,7 +1146,7 @@ def run_paper_controller(
     )
     enqueue_response = task_class.enqueue(
         task=draft,
-        queue_name=worker_queue,
+        queue_name=WORKER_QUEUE,
         force=False,
     )
     if not _enqueue_acknowledged(enqueue_response):
@@ -1165,7 +1197,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         name=args.name,
         poll_seconds=args.poll_seconds,
         timeout_seconds=args.timeout_seconds,
-        worker_queue=args.worker_queue,
     )
     controller_task = Task.current_task()
     _record_validation_task_id(
@@ -1176,7 +1207,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         controller_task,
         student_task_id=args.student_task_id,
         result=result,
-        worker_queue=args.worker_queue,
     )
 
     print(
@@ -1184,7 +1214,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             {
                 "event": "resilient_v2x_paper_validation_complete",
                 **result._asdict(),
-                "worker_queue": args.worker_queue,
+                "worker_queue": WORKER_QUEUE,
             },
             sort_keys=True,
         ),

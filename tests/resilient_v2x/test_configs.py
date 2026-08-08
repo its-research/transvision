@@ -412,6 +412,7 @@ def test_dataset_and_runtime_are_seeded_and_runner_compatible() -> None:
     }
     assert config["env_cfg"]["cudnn_benchmark"] is False
     assert config["train_cfg"]["max_epochs"] == 50
+    assert config["train_cfg"]["val_interval"] == 10
     assert config["default_hooks"]["checkpoint"]["save_best"] == (
         "resilient_v2x/car_bev_ap_r40_0.70"
     )
@@ -633,8 +634,6 @@ def test_clean_teacher_is_zero_latency_and_has_no_recursive_teacher() -> None:
     assert train["fault_overlay_path"] is None
     assert train["fault_overlay_sha256"] is None
     assert config["experiment"]["stage"] == "clean_teacher"
-    assert config["train_cfg"]["val_interval"] == 10
-    assert config["train_cfg"]["max_epochs"] == 50
 
 
 def test_paper_delay_fault_table_is_complete_and_causally_ordered() -> None:
