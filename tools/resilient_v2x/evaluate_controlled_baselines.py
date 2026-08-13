@@ -9,6 +9,7 @@ import gc
 import hashlib
 import json
 import keyword
+import math
 import os
 import pprint
 import re
@@ -31,20 +32,73 @@ from transvision.dataset.resilient_v2x_schedule import (  # noqa: E402
     ScheduleError,
     read_overlay,
 )
+from transvision.evaluation.resilient_v2x_evidence import (  # noqa: E402
+    read_document,
+    sha256_file,
+)
 
 
-BASELINES = ("v2x_vit", "cobevt", "coformernet", "bevfusion", "ffnet")
+BASELINES = (
+    "ego_only",
+    "late_fusion",
+    "fcooper",
+    "attfuse",
+    "v2vnet",
+    "disconet",
+    "when2com",
+    "where2comm",
+    "how2comm",
+    "v2x_vit",
+    "cobevt",
+    "coformernet",
+    "bevfusion",
+    "ffnet",
+)
+PRIMARY_METHODS = ("resilient_v2x",)
+ABLATIONS = (
+    "ptf_none",
+    "ptf_linear",
+    "router_static",
+    "router_uniform",
+    "no_reliability",
+    "no_delay_metadata",
+    "no_distillation",
+    "concat_capacity_matched",
+)
+IMPROVEMENTS = (
+    "support_residual",
+    "linear_no_distillation",
+    "no_distillation_peak_lr_3e4",
+)
+EVALUATION_SUBJECTS = PRIMARY_METHODS + BASELINES + ABLATIONS + IMPROVEMENTS
 DELAYS = (0, 100, 200, 300)
 CONDITIONS = ("Full", "L-Fail", "C-Fail")
-DEFAULT_OVERLAY_INDEX = Path(
-    "artifacts/resilient_v2x/dair_v2/evaluation_overlays.json"
-)
+DEFAULT_OVERLAY_INDEX = Path("artifacts/resilient_v2x/dair_v2/evaluation_overlays.json")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 EVALUATION_INDEX_TYPE = "resilient_v2x_evaluation_overlays"
+PREDICTION_DOCUMENT_TYPE = "resilient_v2x_predictions"
+PROTOCOL_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 BASELINE_CONFIGS = {
     name: ROOT / "configs" / "resilient_v2x" / "baselines" / f"{name}.py"
     for name in BASELINES
+}
+PRIMARY_METHOD_CONFIGS = {
+    "resilient_v2x": ROOT / "configs" / "resilient_v2x" / "dair_resilient_v2x.py",
+}
+ABLATION_CONFIGS = {
+    name: ROOT / "configs" / "resilient_v2x" / "ablations" / f"{name}.py"
+    for name in ABLATIONS
+}
+IMPROVEMENT_CONFIGS = {
+    name: ROOT / "configs" / "resilient_v2x" / "improvements" / f"{name}.py"
+    for name in IMPROVEMENTS
+}
+EVALUATION_CONFIGS = {
+    **PRIMARY_METHOD_CONFIGS,
+    **BASELINE_CONFIGS,
+    **ABLATION_CONFIGS,
+    **IMPROVEMENT_CONFIGS,
 }
 CONDITION_CONFIGS = {
     **{
@@ -524,6 +578,12 @@ def _resolved_condition_config(
     resolved["resume"] = False
     resolved["launcher"] = "none"
     resolved["work_dir"] = str(output_dir)
+    resolved["visualizer"] = {
+        "_scope_": "mmengine",
+        "type": "Visualizer",
+        "name": "visualizer",
+        "vis_backends": [{"_scope_": "mmengine", "type": "LocalVisBackend"}],
+    }
 
     dataloader = _mapping(resolved.get("test_dataloader"), "test_dataloader")
     dataset = _mapping(dataloader.get("dataset"), "test_dataloader.dataset")
@@ -563,11 +623,26 @@ def build_evaluation_plan(
     work_dir: Path,
     delays: Sequence[int] = DELAYS,
     conditions: Sequence[str] = CONDITIONS,
+    protocol_id: str = "custom",
+    expected_ground_truth_count: int | None = None,
 ) -> dict[str, object]:
     """Resolve configs and provenance for a controlled evaluation matrix."""
 
-    if baseline not in BASELINES:
-        raise ControlledBaselineEvaluationError(f"unsupported baseline: {baseline}")
+    if baseline not in EVALUATION_SUBJECTS:
+        raise ControlledBaselineEvaluationError(
+            f"unsupported evaluation subject: {baseline}"
+        )
+    if (
+        type(protocol_id) is not str
+        or PROTOCOL_ID_PATTERN.fullmatch(protocol_id) is None
+    ):
+        raise ControlledBaselineEvaluationError("protocol_id is not canonical")
+    if expected_ground_truth_count is not None and (
+        type(expected_ground_truth_count) is not int or expected_ground_truth_count <= 0
+    ):
+        raise ControlledBaselineEvaluationError(
+            "expected_ground_truth_count must be a positive integer"
+        )
     selected_delays = _ordered_subset(delays, DELAYS, "delays")
     selected_conditions = _ordered_subset(conditions, CONDITIONS, "conditions")
 
@@ -638,25 +713,43 @@ def build_evaluation_plan(
             "overlay index temporal manifest content hash does not match "
             "RESILIENT_V2X_MANIFEST"
         )
+    sample_ids = _evaluation_sample_ids(index)
+    sample_ids_digest = _sha256(
+        index.get("sample_ids_sha256"),
+        "overlay index.sample_ids_sha256",
+    )
 
     transports, faults = _index_overlays(
         index,
         index_path.parent,
         manifest_digest,
     )
-    baseline_config_path = BASELINE_CONFIGS[baseline]
+    baseline_config_path = EVALUATION_CONFIGS[baseline]
     baseline_config = _load_python_config(baseline_config_path)
     baseline_config_digest = _sha256_file(
         baseline_config_path,
         "baseline config",
     )
     baseline_model = _mapping(baseline_config.get("model"), "baseline model")
-    if baseline_model.get("type") != "ControlledCooperativeBaselineNet":
-        raise ControlledBaselineEvaluationError(
-            "baseline config does not use ControlledCooperativeBaselineNet"
-        )
-    if baseline_model.get("baseline_name") != baseline:
-        raise ControlledBaselineEvaluationError("baseline config name mismatch")
+    if baseline in BASELINES:
+        if baseline_model.get("type") != "ControlledCooperativeBaselineNet":
+            raise ControlledBaselineEvaluationError(
+                "baseline config does not use ControlledCooperativeBaselineNet"
+            )
+        if baseline_model.get("baseline_name") != baseline:
+            raise ControlledBaselineEvaluationError("baseline config name mismatch")
+    elif baseline in PRIMARY_METHODS + ABLATIONS + IMPROVEMENTS:
+        if baseline_model.get("type") != "ResilientV2XNet":
+            raise ControlledBaselineEvaluationError(
+                "ResilientV2X evaluation config does not use ResilientV2XNet"
+            )
+        # The teacher is a training-only branch.  Deployment evaluation loads
+        # only the student weights from the selected checkpoint.
+        baseline_model.pop("teacher", None)
+        baseline_model.pop("teacher_checkpoint", None)
+        baseline_model.pop("distillation", None)
+    else:  # pragma: no cover - EVALUATION_SUBJECTS is exhaustive above.
+        raise AssertionError(f"unclassified evaluation subject: {baseline}")
 
     output_root = Path(work_dir).expanduser().resolve()
     output_root.mkdir(parents=True, exist_ok=True)
@@ -699,8 +792,7 @@ def build_evaluation_plan(
             checkpoint_hash_path = condition_dir / "checkpoint.sha256"
             if predictions_path.exists():
                 raise ControlledBaselineEvaluationError(
-                    "refusing to reuse stale predictions evidence: "
-                    f"{predictions_path}"
+                    f"refusing to reuse stale predictions evidence: {predictions_path}"
                 )
             resolved = _resolved_condition_config(
                 condition_config,
@@ -743,9 +835,7 @@ def build_evaluation_plan(
                     "checkpoint_sha256_file": str(checkpoint_hash_path.resolve()),
                     "transport_overlay": str(transport_path),
                     "transport_overlay_sha256": transport_digest,
-                    "fault_overlay": (
-                        None if fault_path is None else str(fault_path)
-                    ),
+                    "fault_overlay": (None if fault_path is None else str(fault_path)),
                     "fault_overlay_sha256": fault_digest,
                 }
             )
@@ -753,9 +843,19 @@ def build_evaluation_plan(
     plan: dict[str, object] = {
         "schema_version": 1,
         "plan_type": "resilient_v2x_controlled_baseline_evaluation",
+        "protocol_id": protocol_id,
         "baseline": baseline,
         "baseline_config": str(baseline_config_path.resolve()),
         "baseline_config_sha256": baseline_config_digest,
+        "evaluation_subject_type": (
+            "primary_method"
+            if baseline in PRIMARY_METHODS
+            else "baseline"
+            if baseline in BASELINES
+            else "ablation"
+            if baseline in ABLATIONS
+            else "improvement"
+        ),
         "checkpoint": str(checkpoint_path),
         "checkpoint_sha256": checkpoint_digest,
         "data_root": str(data_root),
@@ -766,6 +866,11 @@ def build_evaluation_plan(
         "overlay_index": str(index_path),
         "overlay_index_content_sha256": index_digest,
         "overlay_index_file_sha256": index_file_digest,
+        "sample_ids": list(sample_ids),
+        "sample_ids_sha256": sample_ids_digest,
+        "expected_sample_count": len(sample_ids),
+        "expected_ground_truth_count": expected_ground_truth_count,
+        "expected_unsupported_sample_count": 0,
         "work_dir": str(output_root),
         "delays_ms": list(selected_delays),
         "conditions": list(selected_conditions),
@@ -777,6 +882,94 @@ def build_evaluation_plan(
     plan["content_sha256"] = content_sha256(plan)
     _atomic_json(plan_path, plan)
     return plan
+
+
+def _metric_count(
+    metrics: Mapping[str, object],
+    key: str,
+    *,
+    expected: int | None = None,
+) -> int:
+    value = metrics.get(key)
+    if (
+        type(value) not in (int, float)
+        or not math.isfinite(float(value))
+        or float(value) < 0.0
+        or not float(value).is_integer()
+    ):
+        raise ControlledBaselineEvaluationError(
+            f"metric {key!r} must be a finite non-negative integer count"
+        )
+    result = int(value)
+    if expected is not None and result != expected:
+        raise ControlledBaselineEvaluationError(
+            f"metric {key!r} mismatch: expected {expected}, got {result}"
+        )
+    return result
+
+
+def _prediction_evidence(
+    path: Path,
+    *,
+    expected_sample_ids: Sequence[str],
+    expected_sample_ids_sha256: str,
+) -> dict[str, object]:
+    try:
+        document = read_document(path, expected_type=PREDICTION_DOCUMENT_TYPE)
+    except (OSError, ValueError) as error:
+        raise ControlledBaselineEvaluationError(
+            f"invalid predictions evidence: {error}"
+        ) from error
+    samples = document.get("samples")
+    if not isinstance(samples, list):
+        raise ControlledBaselineEvaluationError(
+            "predictions evidence samples must be a list"
+        )
+    expected_ids = list(expected_sample_ids)
+    observed_ids: list[str] = []
+    ground_truth_count = 0
+    for offset, sample in enumerate(samples):
+        if not isinstance(sample, Mapping):
+            raise ControlledBaselineEvaluationError(
+                f"predictions sample {offset} must be an object"
+            )
+        sample_id = sample.get("sample_id")
+        if type(sample_id) is not str or not sample_id:
+            raise ControlledBaselineEvaluationError(
+                f"predictions sample {offset} has an invalid sample_id"
+            )
+        observed_ids.append(sample_id)
+        boxes = sample.get("ground_truth_boxes_lidar_bottom_center")
+        labels = sample.get("ground_truth_labels")
+        if (
+            not isinstance(boxes, list)
+            or not isinstance(labels, list)
+            or len(boxes) != len(labels)
+        ):
+            raise ControlledBaselineEvaluationError(
+                f"predictions sample {offset} has invalid ground truth arrays"
+            )
+        ground_truth_count += len(boxes)
+    if document.get("sample_count") != len(expected_ids):
+        raise ControlledBaselineEvaluationError(
+            "prediction sample_count does not match the planned cohort"
+        )
+    if observed_ids != expected_ids:
+        raise ControlledBaselineEvaluationError(
+            "prediction sample order does not match the planned cohort"
+        )
+    observed_ids_sha256 = hashlib.sha256(canonical_json_bytes(observed_ids)).hexdigest()
+    if observed_ids_sha256 != expected_sample_ids_sha256:
+        raise ControlledBaselineEvaluationError(
+            "prediction sample cohort hash does not match the planned cohort"
+        )
+    return {
+        "prediction_sha256": sha256_file(path),
+        "prediction_content_sha256": document["content_sha256"],
+        "sample_count": len(observed_ids),
+        "sample_ids_sha256": observed_ids_sha256,
+        "ground_truth_count": ground_truth_count,
+    }
 
 
 def _jsonable(value: object) -> object:
@@ -839,10 +1032,13 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
             "planned temporal manifest content identity changed"
         )
     split_digest = _sha256(plan.get("split_sha256"), "plan.split_sha256")
-    if _sha256(
-        manifest.get("split_sha256"),
-        "planned temporal manifest.split_sha256",
-    ) != split_digest:
+    if (
+        _sha256(
+            manifest.get("split_sha256"),
+            "planned temporal manifest.split_sha256",
+        )
+        != split_digest
+    ):
         raise ControlledBaselineEvaluationError(
             "planned split identity does not match temporal manifest"
         )
@@ -865,10 +1061,13 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
         raise ControlledBaselineEvaluationError(
             "planned overlay index content identity changed"
         )
-    if _sha256(
-        index.get("temporal_manifest_sha256"),
-        "planned overlay index.temporal_manifest_sha256",
-    ) != manifest_digest:
+    if (
+        _sha256(
+            index.get("temporal_manifest_sha256"),
+            "planned overlay index.temporal_manifest_sha256",
+        )
+        != manifest_digest
+    ):
         raise ControlledBaselineEvaluationError(
             "planned overlay index no longer matches temporal manifest"
         )
@@ -895,6 +1094,36 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
 
     register_all_modules()
     raw_runs = _sequence(plan.get("runs"), "plan.runs")
+    expected_sample_ids = _sequence(plan.get("sample_ids"), "plan.sample_ids")
+    if any(type(value) is not str or not value for value in expected_sample_ids):
+        raise ControlledBaselineEvaluationError(
+            "plan.sample_ids must contain non-empty strings"
+        )
+    expected_sample_count = plan.get("expected_sample_count")
+    if (
+        type(expected_sample_count) is not int
+        or expected_sample_count <= 0
+        or expected_sample_count != len(expected_sample_ids)
+    ):
+        raise ControlledBaselineEvaluationError(
+            "plan.expected_sample_count does not match plan.sample_ids"
+        )
+    expected_sample_ids_sha256 = _sha256(
+        plan.get("sample_ids_sha256"),
+        "plan.sample_ids_sha256",
+    )
+    if (
+        hashlib.sha256(canonical_json_bytes(tuple(expected_sample_ids))).hexdigest()
+        != expected_sample_ids_sha256
+    ):
+        raise ControlledBaselineEvaluationError("plan sample cohort hash mismatch")
+    expected_ground_truth_count = plan.get("expected_ground_truth_count")
+    if expected_ground_truth_count is not None and (
+        type(expected_ground_truth_count) is not int or expected_ground_truth_count <= 0
+    ):
+        raise ControlledBaselineEvaluationError(
+            "plan.expected_ground_truth_count must be null or positive"
+        )
     completed: list[dict[str, object]] = []
     output = {
         "schema_version": 1,
@@ -902,10 +1131,15 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
         "complete": False,
         "planned_run_count": len(raw_runs),
         "baseline": plan["baseline"],
+        "protocol_id": plan["protocol_id"],
         "checkpoint": plan["checkpoint"],
         "checkpoint_sha256": plan["checkpoint_sha256"],
         "manifest_content_sha256": plan["manifest_content_sha256"],
         "overlay_index_content_sha256": plan["overlay_index_content_sha256"],
+        "sample_ids_sha256": expected_sample_ids_sha256,
+        "expected_sample_count": expected_sample_count,
+        "expected_ground_truth_count": expected_ground_truth_count,
+        "expected_unsupported_sample_count": 0,
         "runs": completed,
     }
     metrics_path = Path(str(plan["metrics_output"]))
@@ -934,9 +1168,10 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
                 f"plan.runs[{offset}] transport overlay identity mismatch"
             )
         if condition == "Full":
-            if run.get("fault_overlay") is not None or run.get(
-                "fault_overlay_sha256"
-            ) is not None:
+            if (
+                run.get("fault_overlay") is not None
+                or run.get("fault_overlay_sha256") is not None
+            ):
                 raise ControlledBaselineEvaluationError(
                     f"plan.runs[{offset}] Full condition must not use a fault overlay"
                 )
@@ -971,10 +1206,38 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
         config = Config.fromfile(str(resolved_config))
         runner = Runner.from_cfg(config)
         metrics = _jsonable(runner.test())
+        if not isinstance(metrics, Mapping):
+            raise ControlledBaselineEvaluationError(
+                "evaluation metrics must be an object"
+            )
         if not predictions.is_file():
             raise ControlledBaselineEvaluationError(
                 f"evaluation did not produce predictions: {predictions}"
             )
+        prediction_evidence = _prediction_evidence(
+            predictions,
+            expected_sample_ids=expected_sample_ids,
+            expected_sample_ids_sha256=expected_sample_ids_sha256,
+        )
+        _metric_count(
+            metrics,
+            "resilient_v2x/sample_count",
+            expected=expected_sample_count,
+        )
+        ground_truth_count = _metric_count(
+            metrics,
+            "resilient_v2x/car_ground_truth_count",
+            expected=expected_ground_truth_count,
+        )
+        if ground_truth_count != prediction_evidence["ground_truth_count"]:
+            raise ControlledBaselineEvaluationError(
+                "metric ground-truth count does not match predictions evidence"
+            )
+        unsupported_sample_count = _metric_count(
+            metrics,
+            "resilient_v2x/unsupported_sample_count",
+            expected=0,
+        )
         completed.append(
             {
                 "condition_id": run["condition_id"],
@@ -982,6 +1245,8 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
                 "condition": run["condition"],
                 "metrics": metrics,
                 "predictions": str(predictions),
+                **prediction_evidence,
+                "unsupported_sample_count": unsupported_sample_count,
             }
         )
         _atomic_json(metrics_path, output)
@@ -997,11 +1262,11 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate an adapted comparison baseline on the controlled "
+            "Evaluate a primary method or adapted comparison on the controlled "
             "DAIR-V2X delay/fault matrix."
         )
     )
-    parser.add_argument("--baseline", required=True, choices=BASELINES)
+    parser.add_argument("--baseline", required=True, choices=EVALUATION_SUBJECTS)
     parser.add_argument("--checkpoint", required=True, type=Path)
     parser.add_argument(
         "--overlay-index",
@@ -1009,6 +1274,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_OVERLAY_INDEX,
     )
     parser.add_argument("--work-dir", required=True, type=Path)
+    parser.add_argument("--protocol-id", default="custom")
+    parser.add_argument("--expected-ground-truth-count", type=int)
     parser.add_argument(
         "--delays",
         nargs="+",
@@ -1036,6 +1303,8 @@ def main(argv: list[str] | None = None) -> int:
             work_dir=args.work_dir,
             delays=args.delays,
             conditions=args.conditions,
+            protocol_id=args.protocol_id,
+            expected_ground_truth_count=args.expected_ground_truth_count,
         )
         if args.dry_run:
             print(json.dumps({"dry_run": True, **plan}, sort_keys=True))
@@ -1063,9 +1332,18 @@ if __name__ == "__main__":
 
 __all__ = (
     "BASELINES",
+    "BASELINE_CONFIGS",
     "CONDITIONS",
     "DEFAULT_OVERLAY_INDEX",
     "DELAYS",
+    "ABLATIONS",
+    "ABLATION_CONFIGS",
+    "IMPROVEMENTS",
+    "IMPROVEMENT_CONFIGS",
+    "PRIMARY_METHODS",
+    "PRIMARY_METHOD_CONFIGS",
+    "EVALUATION_CONFIGS",
+    "EVALUATION_SUBJECTS",
     "ControlledBaselineEvaluationError",
     "build_evaluation_plan",
     "execute_evaluation_plan",

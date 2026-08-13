@@ -114,14 +114,30 @@ class ControlledBaselineInputSelector(nn.Module):
 
     history_positions = 4
 
-    def __init__(self, grid_spec: BEVGridSpec, channels: int = 256) -> None:
+    def __init__(
+        self,
+        grid_spec: BEVGridSpec,
+        channels: int = 256,
+        enabled_branches: tuple[str, ...] = CONTROLLED_BRANCH_KEYS,
+    ) -> None:
         super().__init__()
         if not isinstance(grid_spec, BEVGridSpec):
             raise ValueError("grid_spec must be a BEVGridSpec")
         if type(channels) is not int or channels <= 0:
             raise ValueError("channels must be a positive integer")
+        if (
+            type(enabled_branches) is not tuple
+            or not enabled_branches
+            or any(key not in CONTROLLED_BRANCH_KEYS for key in enabled_branches)
+            or len(set(enabled_branches)) != len(enabled_branches)
+        ):
+            raise ValueError(
+                "enabled_branches must be a non-empty unique tuple of "
+                "controlled branch keys"
+            )
         self.grid_spec = grid_spec
         self.channels = channels
+        self.enabled_branches = frozenset(enabled_branches)
 
     def _validate_histories(
         self,
@@ -212,6 +228,8 @@ class ControlledBaselineInputSelector(nn.Module):
             expected_agent,
             expected_modality,
         ) in enumerate(_BRANCH_LAYOUT):
+            if key not in self.enabled_branches:
+                continue
             branch_selections = selections.branch(key)
             for batch_index, selection in enumerate(branch_selections):
                 if (

@@ -27,13 +27,12 @@ FILES_SERVER_PORT = 8081
 EXPECTED_GPUS = 4
 EXPECTED_TRAIN_BATCH_SIZE_PER_GPU = 1
 EXPECTED_MAX_EPOCHS = 50
-_CUDA_VISIBLE_DEVICES_ARG = re.compile(
-    r"(?:--env|-e)\s+CUDA_VISIBLE_DEVICES=[^\s]+"
-)
+_CUDA_VISIBLE_DEVICES_ARG = re.compile(r"(?:--env|-e)\s+CUDA_VISIBLE_DEVICES=[^\s]+")
 EXPECTED_CONDITION_COUNT = 12
 CLEAN_TEACHER_MODEL_NAME = "ResilientV2X clean teacher"
 DISTILLED_STUDENT_MODEL_NAME = "ResilientV2X distilled student"
 VALIDATION_SUMMARY_DOCUMENT_TYPE = "resilient_v2x_validation_summary"
+VALIDATION_PLAN_DOCUMENT_TYPE = "resilient_v2x_validation_plan"
 CONDITION_RESULT_DOCUMENT_TYPE = "resilient_v2x_condition_result"
 PAPER_CONTROLLER_SUMMARY_DOCUMENT_TYPE = "resilient_v2x_paper_controller_summary"
 BOOTSTRAP_ENTRY_POINT = "tools/resilient_v2x/clearml_5090_bootstrap.py"
@@ -44,6 +43,28 @@ EXPECTED_CONDITIONS = tuple(
     f"delay_{delay_ms:03d}_{condition}"
     for delay_ms in (0, 100, 200, 300)
     for condition in ("full", "l_fail", "c_fail")
+)
+EXPECTED_PROTOCOL_ID = "DAIR-CAUSAL-1337-v1"
+EXPECTED_EVALUATION_SAMPLE_COUNT = 1_337
+EXPECTED_GROUND_TRUTH_COUNT = 11_330
+EXPECTED_UNSUPPORTED_SAMPLE_COUNT = 0
+EXPECTED_MANIFEST_CONTENT_SHA256 = (
+    "715ac6f7a14225e20327eed0650c55abdc0cb98431830164e84545238099645d"
+)
+EXPECTED_MANIFEST_FILE_SHA256 = (
+    "6d0a37698d39891d212a33ac042b5ac62ce47ca5db6fa0303af3b9b55ab891a2"
+)
+EXPECTED_OVERLAY_INDEX_CONTENT_SHA256 = (
+    "77bd4585dbb02901f862b8da6aa208a504674b824a3d55cf15005aacbeeeaaff"
+)
+EXPECTED_OVERLAY_INDEX_FILE_SHA256 = (
+    "3418a0aa7025eb2cae19a054baccbb0f1022cbc65aa4813ef0bc25d353914725"
+)
+EXPECTED_SAMPLE_IDS_SHA256 = (
+    "a8d8184f7fd9d1212ae29cddb427f48a0cad39e7843d95d5ac609a8a4286cf3a"
+)
+EXPECTED_MAIN_EVALUATOR_SHA256 = (
+    "53ccccbe7620196574636dc9fde62b0475b4e3e569642262100ce9664cd833af"
 )
 PROVENANCE_PARAMETER_KEYS = (
     "Args/source_dataset_id",
@@ -193,9 +214,7 @@ def _project_id(task_class: object, project: str) -> str:
         value = getter(project_name=project)
     result = str(value or "")
     if CLEARML_ID_PATTERN.fullmatch(result) is None:
-        raise RuntimeError(
-            f"ClearML project does not resolve to an ID: {project!r}"
-        )
+        raise RuntimeError(f"ClearML project does not resolve to an ID: {project!r}")
     return result
 
 
@@ -689,13 +708,9 @@ def _prepare_validation_worker_runtime(task: object) -> None:
         setup = str(container.get("setup_shell_script") or "")
     else:
         image = str(getattr(container, "image", "") or "") if container else ""
-        arguments = (
-            str(getattr(container, "arguments", "") or "") if container else ""
-        )
+        arguments = str(getattr(container, "arguments", "") or "") if container else ""
         setup = (
-            str(getattr(container, "setup_shell_script", "") or "")
-            if container
-            else ""
+            str(getattr(container, "setup_shell_script", "") or "") if container else ""
         )
     if not image:
         return
@@ -878,6 +893,7 @@ def _require_condition_result(
     student_sha256: str,
     evaluation_sample_count: int,
     ground_truth_count: int,
+    evaluation_plan_sha256: str,
 ) -> None:
     result = _require_sealed_document(
         value,
@@ -890,7 +906,18 @@ def _require_condition_result(
         "runtime_profile": "rtx5090",
         "artifact_name": f"validation_{condition_name}",
         "condition_id": condition_name,
+        "protocol_id": EXPECTED_PROTOCOL_ID,
+        "manifest_content_sha256": EXPECTED_MANIFEST_CONTENT_SHA256,
+        "overlay_index_content_sha256": EXPECTED_OVERLAY_INDEX_CONTENT_SHA256,
+        "sample_ids_sha256": EXPECTED_SAMPLE_IDS_SHA256,
+        "expected_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
         "evaluation_sample_count": evaluation_sample_count,
+        "expected_ground_truth_count": EXPECTED_GROUND_TRUTH_COUNT,
+        "expected_unsupported_sample_count": EXPECTED_UNSUPPORTED_SAMPLE_COUNT,
+        "ground_truth_count": ground_truth_count,
+        "unsupported_sample_count": EXPECTED_UNSUPPORTED_SAMPLE_COUNT,
+        "evaluation_plan_content_sha256": evaluation_plan_sha256,
+        "evaluator_sha256": EXPECTED_MAIN_EVALUATOR_SHA256,
     }
     for key, expected_value in expected.items():
         if result.get(key) != expected_value:
@@ -917,6 +944,11 @@ def _require_condition_result(
         raise RuntimeError(f"condition {condition_name} sample count mismatch")
     if metrics.get("resilient_v2x/car_ground_truth_count") != ground_truth_count:
         raise RuntimeError(f"condition {condition_name} ground-truth count mismatch")
+    if (
+        metrics.get("resilient_v2x/unsupported_sample_count")
+        != EXPECTED_UNSUPPORTED_SAMPLE_COUNT
+    ):
+        raise RuntimeError(f"condition {condition_name} unsupported count mismatch")
     for key in REQUIRED_AP_METRICS:
         metric = metrics.get(key)
         if type(metric) not in {int, float} or not math.isfinite(float(metric)):
@@ -935,6 +967,60 @@ def _download_validation_summary(
     student_sha256: str,
 ) -> tuple[str, int]:
     validation_task_id = _task_id(task, context="validation task")
+    plan_artifact = _artifact(
+        task,
+        "evaluation_plan",
+        context="completed validation task",
+    )
+    _require_files_server_url(
+        getattr(plan_artifact, "url", ""),
+        context="evaluation_plan artifact URL",
+    )
+    evaluation_plan = _require_sealed_document(
+        _artifact_value(plan_artifact, context="evaluation_plan artifact"),
+        expected_type=VALIDATION_PLAN_DOCUMENT_TYPE,
+        context="evaluation_plan",
+    )
+    plan_expected = {
+        "task_id": validation_task_id,
+        "dataset_id": dataset_id,
+        "runtime_profile": "rtx5090",
+        "protocol_id": EXPECTED_PROTOCOL_ID,
+        "manifest_content_sha256": EXPECTED_MANIFEST_CONTENT_SHA256,
+        "manifest_file_sha256": EXPECTED_MANIFEST_FILE_SHA256,
+        "overlay_index_file_sha256": EXPECTED_OVERLAY_INDEX_FILE_SHA256,
+        "overlay_index_content_sha256": EXPECTED_OVERLAY_INDEX_CONTENT_SHA256,
+        "sample_ids_sha256": EXPECTED_SAMPLE_IDS_SHA256,
+        "expected_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
+        "expected_ground_truth_count": EXPECTED_GROUND_TRUTH_COUNT,
+        "expected_unsupported_sample_count": EXPECTED_UNSUPPORTED_SAMPLE_COUNT,
+        "expected_run_count": EXPECTED_CONDITION_COUNT,
+        "delays_ms": [0, 100, 200, 300],
+        "conditions": ["Full", "L-Fail", "C-Fail"],
+        "evaluator_sha256": EXPECTED_MAIN_EVALUATOR_SHA256,
+    }
+    for key, expected_value in plan_expected.items():
+        if evaluation_plan.get(key) != expected_value:
+            raise RuntimeError(
+                f"evaluation_plan {key} mismatch: expected {expected_value!r}, "
+                f"got {evaluation_plan.get(key)!r}"
+            )
+    runs = evaluation_plan.get("runs")
+    if not isinstance(runs, list) or len(runs) != EXPECTED_CONDITION_COUNT:
+        raise RuntimeError("evaluation_plan does not contain exactly 12 runs")
+    if {run.get("condition_id") for run in runs if isinstance(run, Mapping)} != set(
+        EXPECTED_CONDITIONS
+    ):
+        raise RuntimeError("evaluation_plan condition matrix is incomplete")
+    checkpoint_shas = {"teacher": teacher_sha256, "student": student_sha256}
+    for role, expected_sha256 in checkpoint_shas.items():
+        checkpoint = evaluation_plan.get(f"{role}_checkpoint")
+        if not isinstance(checkpoint, Mapping):
+            raise RuntimeError(f"evaluation_plan has no {role} checkpoint")
+        if checkpoint.get("sha256") != expected_sha256:
+            raise RuntimeError(f"evaluation_plan {role} checkpoint SHA mismatch")
+    evaluation_plan_sha256 = str(evaluation_plan["content_sha256"])
+
     artifact = _artifact(
         task,
         "validation_summary",
@@ -974,6 +1060,18 @@ def _download_validation_summary(
         "dataset_id": dataset_id,
         "runtime_profile": "rtx5090",
         "condition_count": EXPECTED_CONDITION_COUNT,
+        "protocol_id": EXPECTED_PROTOCOL_ID,
+        "manifest_content_sha256": EXPECTED_MANIFEST_CONTENT_SHA256,
+        "overlay_index_content_sha256": EXPECTED_OVERLAY_INDEX_CONTENT_SHA256,
+        "sample_ids_sha256": EXPECTED_SAMPLE_IDS_SHA256,
+        "expected_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
+        "evaluation_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
+        "expected_ground_truth_count": EXPECTED_GROUND_TRUTH_COUNT,
+        "expected_unsupported_sample_count": EXPECTED_UNSUPPORTED_SAMPLE_COUNT,
+        "ground_truth_count": EXPECTED_GROUND_TRUTH_COUNT,
+        "unsupported_sample_count": EXPECTED_UNSUPPORTED_SAMPLE_COUNT,
+        "evaluation_plan_content_sha256": evaluation_plan_sha256,
+        "evaluator_sha256": EXPECTED_MAIN_EVALUATOR_SHA256,
     }
     for key, expected_value in expected.items():
         if summary.get(key) != expected_value:
@@ -981,14 +1079,8 @@ def _download_validation_summary(
                 f"validation_summary {key} mismatch: "
                 f"expected {expected_value!r}, got {summary.get(key)!r}"
             )
-    evaluation_sample_count = _require_positive_integer(
-        summary.get("evaluation_sample_count"),
-        context="validation_summary evaluation_sample_count",
-    )
-    ground_truth_count = _require_positive_integer(
-        summary.get("ground_truth_count"),
-        context="validation_summary ground_truth_count",
-    )
+    evaluation_sample_count = EXPECTED_EVALUATION_SAMPLE_COUNT
+    ground_truth_count = EXPECTED_GROUND_TRUTH_COUNT
     checkpoint_shas = {"teacher": teacher_sha256, "student": student_sha256}
     for role, expected_sha256 in checkpoint_shas.items():
         checkpoint = summary.get(f"{role}_checkpoint")
@@ -1023,6 +1115,7 @@ def _download_validation_summary(
             student_sha256=student_sha256,
             evaluation_sample_count=evaluation_sample_count,
             ground_truth_count=ground_truth_count,
+            evaluation_plan_sha256=evaluation_plan_sha256,
         )
     return hashlib.sha256(raw).hexdigest(), len(conditions)
 

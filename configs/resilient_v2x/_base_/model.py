@@ -43,7 +43,7 @@ implementation_choices_model = dict(
     camera_normalization="frozen ImageNet BatchNorm plus GroupNorm LSS neck",
     image_backbone_checkpoint=resnet50_checkpoint,
     distillation_temperature=2.0,
-    lambda_feature=1.0,
+    lambda_feature=0.05,
     lambda_logit=1.0,
 )
 
@@ -245,7 +245,7 @@ model = dict(
     ),
     distillation=dict(
         temperature=2.0,
-        lambda_feature=1.0,
+        lambda_feature=0.05,
         lambda_logit=1.0,
         head_type="bernoulli",
         logit_path=(0, 0),

@@ -28,6 +28,8 @@ from transvision.dataset.resilient_v2x_schedule import (
     FaultPlan,
     OverlayDigest,
     ScheduleError,
+    TRAINING_CONDITION_HASH_DOMAIN,
+    TRAINING_CONDITION_MODE,
     TransportOverlayRecord,
     TransportPlan,
     augmentation_seed,
@@ -35,6 +37,7 @@ from transvision.dataset.resilient_v2x_schedule import (
     delay_from_hash,
     read_overlay,
     stable_uint64,
+    training_condition_from_hash,
     write_arrival_relative_fault_overlay,
     write_causal_fault_overlay,
     write_fault_overlay,
@@ -290,6 +293,38 @@ def test_delay_is_one_of_four_protocol_values() -> None:
     }
 
 
+def test_training_condition_hash_maps_uniformly_over_formal_matrix() -> None:
+    matrix = tuple(
+        (delay_ms, condition)
+        for delay_ms in (0, 100, 200, 300)
+        for condition in ("Full", "L-Fail", "C-Fail")
+    )
+    key = {"seed": 17, "epoch": 3, "sample_id": "train-3"}
+    expected = matrix[stable_uint64(TRAINING_CONDITION_HASH_DOMAIN, key) % 12]
+
+    assert training_condition_from_hash(17, 3, "train-3") == expected
+    assert {
+        training_condition_from_hash(17, epoch, "train-3")
+        for epoch in range(256)
+    } == set(matrix)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        (-1, 0, "sample"),
+        (0, -1, "sample"),
+        (0, 0, ""),
+        (True, 0, "sample"),
+    ],
+)
+def test_training_condition_hash_rejects_invalid_identity(
+    values: tuple[object, object, object],
+) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        training_condition_from_hash(*values)  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize("probability, expected", [(0.0, False), (1.0, True)])
 def test_hash_bernoulli_has_exact_closed_probability_boundaries(
     probability: float,
@@ -425,6 +460,43 @@ def test_train_fault_plan_rejects_non_target_random_configuration(
         "condition": None,
         "p_lidar": 0.5,
         "p_camera": 0.5,
+        "agents": ("ego", "rsu"),
+        "modality": None,
+        "duration": None,
+    }
+    values.update(changes)
+    with pytest.raises((TypeError, ValueError)):
+        FaultPlan(**values)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"protocol_seed": None},
+        {"epochs": ()},
+        {"condition": "Full"},
+        {"p_lidar": 1 / 3},
+        {"p_camera": 1 / 3},
+        {"agents": ("ego",)},
+        {"modality": "camera"},
+        {"duration": 1},
+        {"split": "test"},
+    ],
+)
+def test_condition_matrix_fault_plan_rejects_independent_controls(
+    changes: dict[str, object],
+) -> None:
+    sample = _samples("train")[-1]
+    values = {
+        "temporal_manifest_sha256": SHA_A,
+        "split": "train",
+        "samples": (sample,),
+        "mode": TRAINING_CONDITION_MODE,
+        "protocol_seed": 7,
+        "epochs": (0,),
+        "condition": None,
+        "p_lidar": None,
+        "p_camera": None,
         "agents": ("ego", "rsu"),
         "modality": None,
         "duration": None,
@@ -699,6 +771,92 @@ def test_training_faults_cover_only_target_tick_for_all_branches(
     }
     assert all(record["pre_mask_selected_n_s"] is None for record in records)
     assert all(record["fallback_selected_n_s"] is None for record in records)
+
+
+def test_condition_matrix_training_shares_delay_and_causal_fault_condition(
+    tmp_path: Path,
+) -> None:
+    sample = _samples("train")[-1]
+    epochs = tuple(range(256))
+    seed = 17
+    transport_digest = write_transport_overlay(
+        TransportPlan(
+            temporal_manifest_sha256=SHA_A,
+            split="train",
+            samples=(sample,),
+            mode=TRAINING_CONDITION_MODE,
+            protocol_seed=seed,
+            epochs=epochs,
+            delay_values_ms=(0, 100, 200, 300),
+            fixed_delay_ms=None,
+        ),
+        tmp_path / "condition-transport.zst",
+    )
+    fault_digest = write_fault_overlay(
+        FaultPlan(
+            temporal_manifest_sha256=SHA_A,
+            split="train",
+            samples=(sample,),
+            mode=TRAINING_CONDITION_MODE,
+            protocol_seed=seed,
+            epochs=epochs,
+            condition=None,
+            p_lidar=None,
+            p_camera=None,
+            agents=("ego", "rsu"),
+            modality=None,
+            duration=None,
+        ),
+        tmp_path / "condition-fault.zst",
+    )
+    transports = _records(transport_digest.path, transport_digest)
+    faults = _records(fault_digest.path, fault_digest)
+    formal_matrix = {
+        (delay_ms, condition)
+        for delay_ms in (0, 100, 200, 300)
+        for condition in ("Full", "L-Fail", "C-Fail")
+    }
+    observed: set[tuple[int, str]] = set()
+
+    for epoch in epochs:
+        delay_ms, condition = training_condition_from_hash(
+            seed,
+            epoch,
+            sample.sample_id,
+        )
+        observed.add((delay_ms, condition))
+        epoch_transport = [
+            record for record in transports if record["epoch"] == epoch
+        ]
+        assert len(epoch_transport) == 8
+        assert {record["delay_ms"] for record in epoch_transport} == {delay_ms}
+
+        epoch_faults = [record for record in faults if record["epoch"] == epoch]
+        assert len(epoch_faults) == 4
+        expected_endpoint = {
+            "ego": sample.n_t,
+            "rsu": sample.n_t - delay_ms // 100,
+        }
+        assert all(
+            record["n_s"] == expected_endpoint[str(record["agent"])]
+            for record in epoch_faults
+        )
+        expected_masked = {
+            "Full": set(),
+            "L-Fail": {("ego", "lidar"), ("rsu", "lidar")},
+            "C-Fail": {("ego", "camera"), ("rsu", "camera")},
+        }[condition]
+        assert {
+            (record["agent"], record["modality"])
+            for record in epoch_faults
+            if record["masked"]
+        } == expected_masked
+        assert all(
+            record["pre_mask_selected_n_s"] == record["n_s"]
+            for record in epoch_faults
+        )
+
+    assert observed == formal_matrix
 
 
 def test_fixed_evaluation_condition_is_independent_of_sample_iteration_order(
@@ -1228,11 +1386,14 @@ def test_schedule_interfaces_are_lazily_accessible_without_changing_package_all(
         "ScheduleError",
         "TransportOverlayRecord",
         "TransportPlan",
+        "TRAINING_CONDITION_HASH_DOMAIN",
+        "TRAINING_CONDITION_MODE",
         "augmentation_seed",
         "bernoulli_from_hash",
         "delay_from_hash",
         "read_overlay",
         "stable_uint64",
+        "training_condition_from_hash",
         "write_arrival_relative_fault_overlay",
         "write_fault_overlay",
         "write_transport_overlay",

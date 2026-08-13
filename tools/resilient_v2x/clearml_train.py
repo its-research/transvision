@@ -4,14 +4,19 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import importlib
 import importlib.metadata
 import json
 import math
 import os
+import re
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Mapping, Sequence
 from urllib.parse import urlsplit
@@ -23,6 +28,9 @@ OFFICIAL_SPLIT_SHA256 = (
 )
 EXPECTED_MANIFEST_CONTENT_SHA256 = (
     "715ac6f7a14225e20327eed0650c55abdc0cb98431830164e84545238099645d"
+)
+EXPECTED_MANIFEST_FILE_SHA256 = (
+    "6d0a37698d39891d212a33ac042b5ac62ce47ca5db6fa0303af3b9b55ab891a2"
 )
 EXPECTED_RESNET_SHA256 = (
     "0676ba61b6795bbe1773cffd859882e5e297624d384b6993f7c9e683e722fb8a"
@@ -36,15 +44,25 @@ OFFICIAL_FFNET_REFERENCE_SHA256 = (
 EXPECTED_EVALUATION_INDEX_CONTENT_SHA256 = (
     "77bd4585dbb02901f862b8da6aa208a504674b824a3d55cf15005aacbeeeaaff"
 )
+EXPECTED_EVALUATION_INDEX_FILE_SHA256 = (
+    "3418a0aa7025eb2cae19a054baccbb0f1022cbc65aa4813ef0bc25d353914725"
+)
 EXPECTED_EVALUATION_SAMPLE_IDS_SHA256 = (
     "a8d8184f7fd9d1212ae29cddb427f48a0cad39e7843d95d5ac609a8a4286cf3a"
 )
 EXPECTED_EVALUATION_SAMPLE_COUNT = 1_337
+EXPECTED_EVALUATION_GROUND_TRUTH_COUNT = 11_330
+EXPECTED_EVALUATION_UNSUPPORTED_SAMPLE_COUNT = 0
+CANONICAL_PROTOCOL_ID = "DAIR-CAUSAL-1337-v1"
+DEFAULT_TRAINING_SEED = 20250218
+TRAINING_OVERLAY_PROTOCOL_SEED = 20250218
+CLEAN_VALIDATION_SELECTION_METRIC = "resilient_v2x/car_bev_ap_r40_0.70"
 MAX_DETECTIONS = 100
 MIN_REFERENCE_BEV_AP_R40_070 = 1.0
 MIN_REFERENCE_3D_AP_R40_070_EXCLUSIVE = 0.0
 PREDICTION_DOCUMENT_TYPE = "resilient_v2x_predictions"
 CONDITION_RESULT_DOCUMENT_TYPE = "resilient_v2x_condition_result"
+VALIDATION_PLAN_DOCUMENT_TYPE = "resilient_v2x_validation_plan"
 VALIDATION_SUMMARY_DOCUMENT_TYPE = "resilient_v2x_validation_summary"
 CONDITIONS = ("full", "l_fail", "c_fail")
 DELAYS_MS = (0, 100, 200, 300)
@@ -123,6 +141,13 @@ def _batch_profile(runtime_profile: str) -> dict[str, int]:
     raise ValueError(f"unknown runtime profile: {runtime_profile!r}")
 
 
+def _nonnegative_integer(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("value must be non-negative")
+    return parsed
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-id", required=True)
@@ -145,6 +170,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--teacher-checkpoint", type=Path)
     parser.add_argument("--student-checkpoint", type=Path)
     parser.add_argument("--max-epochs", type=int, default=50)
+    parser.add_argument(
+        "--training-seed",
+        type=_nonnegative_integer,
+        default=DEFAULT_TRAINING_SEED,
+        help=(
+            "model, sampler, and dataset-augmentation seed; does not alter "
+            "the sealed training-overlay protocol seed"
+        ),
+    )
     parser.add_argument("--amp", action="store_true")
     parser.add_argument(
         "--runtime-profile",
@@ -168,6 +202,29 @@ def _runtime_cfg_options(runtime_profile: str) -> tuple[str, ...]:
     if runtime_profile == "rtx5090":
         return RTX5090_HEADLESS_CFG_OPTIONS
     raise ValueError(f"unknown runtime profile: {runtime_profile!r}")
+
+
+def _training_seed_cfg_options(
+    training_seed: int,
+    *,
+    dataset_augmentation: bool,
+) -> tuple[str, ...]:
+    if type(training_seed) is not int or training_seed < 0:
+        raise ValueError("training seed must be a non-negative integer")
+    options = (
+        f"randomness.seed={training_seed}",
+        f"train_dataloader.sampler.seed={training_seed}",
+        f"val_dataloader.sampler.seed={training_seed}",
+        f"test_dataloader.sampler.seed={training_seed}",
+    )
+    if not dataset_augmentation:
+        return options
+    return options + (
+        f"train_dataloader.dataset.seed={training_seed}",
+        f"val_dataloader.dataset.seed={training_seed}",
+        f"test_dataloader.dataset.seed={training_seed}",
+        f"implementation_choices_dataset.global_seed={training_seed}",
+    )
 
 
 def _runtime_environment(
@@ -286,6 +343,160 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+_HARDLINK_FALLBACK_ERRNOS = frozenset(
+    {
+        errno.EACCES,
+        errno.EMLINK,
+        errno.EPERM,
+        errno.EXDEV,
+        getattr(errno, "ENOTSUP", errno.EPERM),
+        getattr(errno, "EOPNOTSUPP", errno.EPERM),
+    }
+)
+
+
+def _require_within_clearml_cache(path: Path, cache_root: Path) -> None:
+    try:
+        path.relative_to(cache_root)
+    except ValueError as error:
+        raise ValueError(
+            f"ClearML dataset link escaped the trusted cache root: {path}"
+        ) from error
+
+
+def _link_or_copy_regular_file(source: Path, destination: Path) -> None:
+    try:
+        os.link(source, destination, follow_symlinks=False)
+        return
+    except OSError as error:
+        if error.errno not in _HARDLINK_FALLBACK_ERRNOS:
+            raise
+
+    with source.open("rb") as input_stream, destination.open("xb") as output_stream:
+        shutil.copyfileobj(input_stream, output_stream)
+    shutil.copystat(source, destination, follow_symlinks=False)
+
+
+def _materialize_clearml_node(
+    source: Path,
+    destination: Path,
+    *,
+    cache_root: Path,
+    active_directories: set[tuple[int, int]],
+) -> None:
+    metadata = source.lstat()
+    if stat.S_ISLNK(metadata.st_mode):
+        try:
+            source = source.resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            raise ValueError(f"invalid ClearML dataset link: {source}") from error
+        _require_within_clearml_cache(source, cache_root)
+        metadata = source.lstat()
+    else:
+        resolved_source = source.resolve(strict=True)
+        _require_within_clearml_cache(resolved_source, cache_root)
+        source = resolved_source
+        metadata = source.lstat()
+
+    if stat.S_ISREG(metadata.st_mode):
+        _link_or_copy_regular_file(source, destination)
+        return
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"unsupported ClearML dataset entry: {source}")
+
+    identity = (metadata.st_dev, metadata.st_ino)
+    if identity in active_directories:
+        raise ValueError(f"cyclic ClearML dataset directory link: {source}")
+    destination.mkdir()
+    active_directories.add(identity)
+    try:
+        for child in sorted(source.iterdir(), key=lambda path: path.name):
+            _materialize_clearml_node(
+                child,
+                destination / child.name,
+                cache_root=cache_root,
+                active_directories=active_directories,
+            )
+    finally:
+        active_directories.remove(identity)
+
+
+def _materialize_clearml_dataset(
+    dataset: object,
+    destination: Path,
+    *,
+    cache_root: Path | None = None,
+) -> Path:
+    """Create a task-local, symlink-free view of one ClearML dataset."""
+
+    getter = getattr(dataset, "get_local_copy", None)
+    if not callable(getter):
+        raise RuntimeError("ClearML dataset cannot be materialized")
+    local_copy = getter(use_soft_links=False)
+    if not local_copy:
+        raise RuntimeError("ClearML dataset returned no local copy")
+
+    unresolved_source = Path(local_copy)
+    if unresolved_source.is_symlink():
+        raise ValueError("ClearML dataset root must not be a symlink")
+    source = unresolved_source.resolve(strict=True)
+    if not source.is_dir():
+        raise ValueError(f"ClearML dataset local copy is not a directory: {source}")
+
+    trusted_cache_root = (
+        source.parent if cache_root is None else Path(cache_root)
+    ).resolve(strict=True)
+    if not trusted_cache_root.is_dir():
+        raise ValueError(
+            f"ClearML dataset cache root is not a directory: {trusted_cache_root}"
+        )
+    _require_within_clearml_cache(source, trusted_cache_root)
+
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination_parent = destination.parent.resolve(strict=True)
+    destination = destination_parent / destination.name
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError(
+            f"refusing to reuse materialized ClearML dataset: {destination}"
+        )
+    try:
+        destination.relative_to(trusted_cache_root)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("materialized ClearML dataset must be outside its cache root")
+
+    temporary_parent = Path(
+        tempfile.mkdtemp(
+            prefix=f".{destination.name}.materialize-",
+            dir=destination_parent,
+        )
+    )
+    temporary_tree = temporary_parent / "dataset"
+    try:
+        _materialize_clearml_node(
+            source,
+            temporary_tree,
+            cache_root=trusted_cache_root,
+            active_directories=set(),
+        )
+        for path in (temporary_tree, *temporary_tree.rglob("*")):
+            if path.is_symlink():
+                raise ValueError(
+                    f"materialized ClearML dataset contains a symlink: {path}"
+                )
+        if destination.exists() or destination.is_symlink():
+            raise FileExistsError(
+                f"refusing to reuse materialized ClearML dataset: {destination}"
+            )
+        temporary_tree.rename(destination)
+    finally:
+        if temporary_parent.exists():
+            shutil.rmtree(temporary_parent)
+    return destination.resolve(strict=True)
 
 
 def _read_json(path: Path) -> dict[str, object]:
@@ -604,6 +815,50 @@ def _validate_formal_reference_metrics(metrics: Mapping[str, object]) -> None:
         )
 
 
+def _validate_canonical_evaluation_counts(
+    metrics: Mapping[str, object],
+    prediction: Mapping[str, object],
+    *,
+    condition_name: str,
+) -> tuple[int, int]:
+    """Bind scalar counts to the sealed prediction evidence and 1337 cohort."""
+
+    ground_truth_count = int(float(metrics["resilient_v2x/car_ground_truth_count"]))
+    unsupported_sample_count = int(
+        float(metrics["resilient_v2x/unsupported_sample_count"])
+    )
+    if ground_truth_count != EXPECTED_EVALUATION_GROUND_TRUTH_COUNT:
+        raise ValueError(
+            f"{condition_name} ground-truth count mismatch: expected "
+            f"{EXPECTED_EVALUATION_GROUND_TRUTH_COUNT}, got {ground_truth_count}"
+        )
+    if unsupported_sample_count != EXPECTED_EVALUATION_UNSUPPORTED_SAMPLE_COUNT:
+        raise ValueError(
+            f"{condition_name} unsupported sample count mismatch: expected "
+            f"{EXPECTED_EVALUATION_UNSUPPORTED_SAMPLE_COUNT}, got "
+            f"{unsupported_sample_count}"
+        )
+
+    samples = prediction.get("samples")
+    if not isinstance(samples, list):
+        raise ValueError(f"{condition_name} prediction samples are invalid")
+    prediction_ground_truth_count = sum(
+        len(sample["ground_truth_boxes_lidar_bottom_center"]) for sample in samples
+    )
+    prediction_unsupported_sample_count = sum(
+        not sample["diagnostic"]["overall_supported"] for sample in samples
+    )
+    if prediction_ground_truth_count != ground_truth_count:
+        raise ValueError(
+            f"{condition_name} prediction and scalar ground-truth counts differ"
+        )
+    if prediction_unsupported_sample_count != unsupported_sample_count:
+        raise ValueError(
+            f"{condition_name} prediction and scalar unsupported counts differ"
+        )
+    return ground_truth_count, unsupported_sample_count
+
+
 def _write_sealed_document(
     path: Path,
     document_type: str,
@@ -652,6 +907,37 @@ def _checkpoint(work_dir: Path, prefix: str, epoch: int) -> Path:
     return checkpoint.resolve(strict=True)
 
 
+def _best_clean_validation_checkpoint(
+    work_dir: Path,
+    *,
+    max_epoch: int,
+) -> tuple[Path, int]:
+    pattern = re.compile(
+        r"best_resilient_v2x_car_bev_ap_r40_0\.70_teacher_epoch_(\d+)\.pth"
+    )
+    candidates: list[tuple[Path, int]] = []
+    for candidate in work_dir.glob(
+        "best_resilient_v2x_car_bev_ap_r40_0.70_teacher_epoch_*.pth"
+    ):
+        match = pattern.fullmatch(candidate.name)
+        if match is not None:
+            candidates.append((candidate, int(match.group(1))))
+    if len(candidates) != 1:
+        raise RuntimeError(
+            "teacher training must retain exactly one clean-validation best "
+            f"checkpoint; found {[path.name for path, _ in candidates]!r}"
+        )
+    checkpoint, epoch = candidates[0]
+    if checkpoint.is_symlink():
+        raise ValueError(f"best teacher checkpoint must not be a symlink: {checkpoint}")
+    checkpoint = checkpoint.resolve(strict=True)
+    if not checkpoint.is_file() or checkpoint.stat().st_size <= 0:
+        raise ValueError(f"best teacher checkpoint is missing or empty: {checkpoint}")
+    if not 1 <= epoch <= max_epoch:
+        raise ValueError(f"best teacher checkpoint epoch is invalid: {epoch}")
+    return checkpoint, epoch
+
+
 def _overlay_environment(
     dataset_root: Path,
     base_env: Mapping[str, str],
@@ -661,6 +947,12 @@ def _overlay_environment(
     evaluation = _load_evaluation_contract(artifact_root / "evaluation_overlays.json")
     if training.get("temporal_manifest_sha256") != EXPECTED_MANIFEST_CONTENT_SHA256:
         raise ValueError("training overlays do not match the v2 temporal manifest")
+    if training.get("protocol_seed") != TRAINING_OVERLAY_PROTOCOL_SEED:
+        raise ValueError(
+            "training overlay protocol seed mismatch: "
+            f"expected {TRAINING_OVERLAY_PROTOCOL_SEED}, "
+            f"got {training.get('protocol_seed')!r}"
+        )
     if evaluation.get("temporal_manifest_sha256") != EXPECTED_MANIFEST_CONTENT_SHA256:
         raise ValueError("evaluation overlays do not match the v2 temporal manifest")
 
@@ -732,7 +1024,7 @@ def _upload_model(
     name: str,
     checkpoint: Path,
     runtime_profile: str,
-) -> None:
+) -> dict[str, object]:
     from clearml import OutputModel
 
     tags = ["ResilientV2X", "DDP", "A100"]
@@ -751,12 +1043,22 @@ def _upload_model(
     )
     if urlsplit(uri).scheme not in {"http", "https", "s3", "gs", "azure"}:
         raise RuntimeError(f"model was not uploaded to durable storage: {uri!r}")
+    return {
+        "model_id": str(getattr(model, "id", "") or ""),
+        "name": name,
+        "url": uri,
+        "filename": checkpoint.name,
+        "size_bytes": checkpoint.stat().st_size,
+        "sha256": _sha256(checkpoint),
+    }
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.max_epochs <= 0:
         raise ValueError("max_epochs must be positive")
+    if type(args.training_seed) is not int or args.training_seed < 0:
+        raise ValueError("training_seed must be a non-negative integer")
     if args.runtime_profile == "rtx5090" and args.amp:
         raise ValueError("RTX5090 first-run profile requires FP32; --amp is forbidden")
 
@@ -781,8 +1083,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         task.output_uri = True
     task.set_tags(_merged_task_tags(task.get_tags(), args.runtime_profile))
 
+    task_id = str(task.id)
+    work_root = ROOT / "work_dirs/clearml" / task_id
+    work_root.mkdir(parents=True, exist_ok=True)
     dataset = Dataset.get(dataset_id=args.dataset_id, only_completed=True)
-    dataset_root = Path(dataset.get_local_copy()).resolve(strict=True)
+    dataset_root = _materialize_clearml_dataset(
+        dataset,
+        work_root / "datasets/training",
+    )
     data_root = dataset_root / "cooperative-vehicle-infrastructure"
     manifest_path = dataset_root / "manifests/temporal_manifest_v2.json"
     evaluation_index_path = dataset_root / "protocols/dair_v2/evaluation_overlays.json"
@@ -791,6 +1099,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     evaluation = _load_evaluation_contract(evaluation_index_path)
     if manifest.get("content_sha256") != EXPECTED_MANIFEST_CONTENT_SHA256:
         raise ValueError("ClearML dataset contains the wrong temporal manifest")
+    if _sha256(manifest_path) != EXPECTED_MANIFEST_FILE_SHA256:
+        raise ValueError("ClearML dataset contains the wrong manifest file identity")
+    if _sha256(evaluation_index_path) != EXPECTED_EVALUATION_INDEX_FILE_SHA256:
+        raise ValueError(
+            "ClearML dataset contains the wrong evaluation overlay file identity"
+        )
     if _sha256(resnet_checkpoint) != EXPECTED_RESNET_SHA256:
         raise ValueError("ClearML dataset contains the wrong ResNet-50 checkpoint")
 
@@ -814,9 +1128,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     env = _overlay_environment(dataset_root, env)
 
-    task_id = task.id
-    work_root = ROOT / "work_dirs/clearml" / task_id
-    work_root.mkdir(parents=True, exist_ok=True)
     if args.stage in (
         "ffnet",
         "ffnet_official_eval",
@@ -862,14 +1173,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         "expected_optimizer_steps": (
             192920
             if args.stage == "ffnet_official_train"
-            else 48240 if args.stage == "ffnet" else None
+            else 48240
+            if args.stage == "ffnet"
+            else None
         ),
         "max_epochs": args.max_epochs,
+        "training_seed": args.training_seed,
+        "training_overlay_protocol_seed": TRAINING_OVERLAY_PROTOCOL_SEED,
+        "seed": args.training_seed,
         "val_interval": 10,
         "amp": args.amp,
         "runtime_profile": args.runtime_profile,
         "python_safe_path": env.get("PYTHONSAFEPATH"),
-        "checkpoint_policy": "final_epoch",
+        "checkpoint_policy": (
+            "clean_validation_best_for_teacher_handoff"
+            if args.stage in ("all", "teacher", "vehicle_teacher")
+            else "final_epoch"
+        ),
         "manifest_content_sha256": EXPECTED_MANIFEST_CONTENT_SHA256,
         "split_sha256": OFFICIAL_SPLIT_SHA256,
         "evaluation_index_content_sha256": EXPECTED_EVALUATION_INDEX_CONTENT_SHA256,
@@ -879,6 +1199,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         "output_uri_scheme": urlsplit(str(task.output_uri)).scheme or "clearml-default",
         "stage": args.stage,
     }
+    if args.stage in ("all", "validate"):
+        evaluator_path = Path(__file__).resolve(strict=True)
+        metadata.update(
+            {
+                "protocol_id": CANONICAL_PROTOCOL_ID,
+                "expected_ground_truth_count": (EXPECTED_EVALUATION_GROUND_TRUTH_COUNT),
+                "expected_unsupported_sample_count": (
+                    EXPECTED_EVALUATION_UNSUPPORTED_SAMPLE_COUNT
+                ),
+                "evaluator": evaluator_path.relative_to(ROOT).as_posix(),
+                "evaluator_sha256": _sha256(evaluator_path),
+            }
+        )
     if not task.upload_artifact(
         "run_contract",
         artifact_object=metadata,
@@ -903,7 +1236,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     runtime_cfg_options = _runtime_cfg_options(args.runtime_profile)
-    def train_args(train_batch_size: int, eval_batch_size: int) -> list[str]:
+
+    def train_args(
+        train_batch_size: int,
+        eval_batch_size: int,
+        *,
+        dataset_augmentation: bool,
+    ) -> list[str]:
         result = [
             "--launcher",
             "pytorch",
@@ -913,6 +1252,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"train_dataloader.batch_size={train_batch_size}",
             f"val_dataloader.batch_size={eval_batch_size}",
             f"test_dataloader.batch_size={eval_batch_size}",
+            *_training_seed_cfg_options(
+                args.training_seed,
+                dataset_augmentation=dataset_augmentation,
+            ),
             *runtime_cfg_options,
         ]
         if args.amp:
@@ -922,10 +1265,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     vehicle_train_args = train_args(
         batch_profile["vehicle_train_per_gpu"],
         batch_profile["vehicle_eval_per_gpu"],
+        dataset_augmentation=True,
     )
     model_train_args = train_args(
         batch_profile["train_per_gpu"],
         batch_profile["eval_per_gpu"],
+        dataset_augmentation=True,
+    )
+    ffnet_train_args = train_args(
+        batch_profile["train_per_gpu"],
+        batch_profile["eval_per_gpu"],
+        dataset_augmentation=False,
     )
 
     if args.stage == "ffnet":
@@ -937,7 +1287,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "configs/ffnet/config_basemodel_veh_only_complemented.py",
                 "--work-dir",
                 str(ffnet_dir),
-                *model_train_args,
+                *ffnet_train_args,
             ),
             env=env,
         )
@@ -960,7 +1310,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "configs/ffnet/config_basemodel_official_3class_complemented.py",
                 "--work-dir",
                 str(ffnet_dir),
-                *model_train_args,
+                *ffnet_train_args,
             ),
             env=env,
         )
@@ -979,9 +1329,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             dataset_id=OFFICIAL_FFNET_REFERENCE_DATASET_ID,
             only_completed=True,
         )
-        reference_root = Path(
-            reference_dataset.get_local_copy()
-        ).resolve(strict=True)
+        reference_root = _materialize_clearml_dataset(
+            reference_dataset,
+            work_root / "datasets/ffnet_official_reference",
+        )
         reference_checkpoint = (
             reference_root / "models" / OFFICIAL_FFNET_REFERENCE_FILENAME
         ).resolve(strict=True)
@@ -992,9 +1343,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         reference_dir = work_root / "ffnet_official_reference_eval"
         prediction_path = reference_dir / "predictions.json"
         reference_env = dict(env)
-        reference_env["RESILIENT_V2X_FFNET_PREDICTION_OUTPUT"] = str(
-            prediction_path
-        )
+        reference_env["RESILIENT_V2X_FFNET_PREDICTION_OUTPUT"] = str(prediction_path)
         _run(
             _torchrun(
                 args.gpus,
@@ -1012,7 +1361,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             env=reference_env,
         )
         if not prediction_path.is_file():
-            raise FileNotFoundError("FFNet reference evaluation produced no predictions")
+            raise FileNotFoundError(
+                "FFNet reference evaluation produced no predictions"
+            )
         if not task.upload_artifact(
             "ffnet_official_reference_evidence",
             artifact_object=str(reference_dir),
@@ -1027,8 +1378,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "size_bytes": OFFICIAL_FFNET_REFERENCE_BYTES,
                 "sha256": OFFICIAL_FFNET_REFERENCE_SHA256,
                 "config": (
-                    "configs/ffnet/"
-                    "config_basemodel_official_3class_complemented.py"
+                    "configs/ffnet/config_basemodel_official_3class_complemented.py"
                 ),
                 "car_label_index": 2,
                 "inference_mode": "fusion",
@@ -1098,13 +1448,45 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             env=teacher_env,
         )
-        teacher_checkpoint = _checkpoint(teacher_dir, "teacher", args.max_epochs)
-        _upload_model(
+        teacher_final_checkpoint = _checkpoint(
+            teacher_dir,
+            "teacher",
+            args.max_epochs,
+        )
+        teacher_checkpoint, teacher_best_epoch = _best_clean_validation_checkpoint(
+            teacher_dir,
+            max_epoch=args.max_epochs,
+        )
+        teacher_model_contract = _upload_model(
             task,
             "ResilientV2X clean teacher",
             teacher_checkpoint,
             args.runtime_profile,
         )
+        teacher_checkpoint_contract = {
+            "schema_version": 1,
+            "selection_protocol": "DAIR-CLEAN-PAIR1789-v1",
+            "selection_metric": CLEAN_VALIDATION_SELECTION_METRIC,
+            "selection_rule": "greater",
+            "selected_epoch": teacher_best_epoch,
+            "selected_checkpoint": teacher_model_contract,
+            "trained_epochs": args.max_epochs,
+            "final_epoch": args.max_epochs,
+            "final_checkpoint": {
+                "filename": teacher_final_checkpoint.name,
+                "size_bytes": teacher_final_checkpoint.stat().st_size,
+                "sha256": _sha256(teacher_final_checkpoint),
+            },
+            "downstream_role": (
+                "frozen teacher and trainable student initialization"
+            ),
+        }
+        if not task.upload_artifact(
+            "teacher_checkpoint_contract",
+            artifact_object=teacher_checkpoint_contract,
+            wait_on_upload=True,
+        ):
+            raise RuntimeError("failed to upload the teacher checkpoint contract")
 
     if args.stage in ("teacher", "vehicle_teacher"):
         task.flush(wait_for_uploads=True)
@@ -1148,6 +1530,81 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     student_checkpoint_sha256 = _sha256(student_checkpoint)
     teacher_checkpoint_sha256 = _sha256(teacher_checkpoint)
+    evaluator_path = Path(__file__).resolve(strict=True)
+    evaluator_sha256 = _sha256(evaluator_path)
+    planned_runs: list[dict[str, object]] = []
+    for delay_ms in DELAYS_MS:
+        for condition in CONDITIONS:
+            condition_config = _condition_config(delay_ms, condition).resolve(
+                strict=True
+            )
+            transport_stem = f"RESILIENT_V2X_TEST_TRANSPORT_DELAY_{delay_ms:03d}"
+            fault_sha256 = None
+            if condition != "full":
+                fault_stem = (
+                    f"RESILIENT_V2X_TEST_CAUSAL_DELAY_{delay_ms:03d}_"
+                    f"{condition.upper()}"
+                )
+                fault_sha256 = env[f"{fault_stem}_SHA256"]
+            planned_runs.append(
+                {
+                    "condition_id": f"delay_{delay_ms:03d}_{condition}",
+                    "delay_ms": delay_ms,
+                    "condition": CONDITION_LABELS[condition],
+                    "condition_config": {
+                        "path": condition_config.relative_to(ROOT).as_posix(),
+                        "size_bytes": condition_config.stat().st_size,
+                        "sha256": _sha256(condition_config),
+                    },
+                    "transport_uncompressed_sha256": env[f"{transport_stem}_SHA256"],
+                    "fault_uncompressed_sha256": fault_sha256,
+                }
+            )
+    evaluation_plan_path = work_root / "evaluation_plan.json"
+    evaluation_plan = _write_sealed_document(
+        evaluation_plan_path,
+        VALIDATION_PLAN_DOCUMENT_TYPE,
+        {
+            "task_id": task_id,
+            "dataset_id": args.dataset_id,
+            "runtime_profile": args.runtime_profile,
+            "protocol_id": CANONICAL_PROTOCOL_ID,
+            "manifest_content_sha256": EXPECTED_MANIFEST_CONTENT_SHA256,
+            "manifest_file_sha256": EXPECTED_MANIFEST_FILE_SHA256,
+            "overlay_index_file_sha256": _sha256(evaluation_index_path),
+            "overlay_index_content_sha256": (EXPECTED_EVALUATION_INDEX_CONTENT_SHA256),
+            "sample_ids_sha256": EXPECTED_EVALUATION_SAMPLE_IDS_SHA256,
+            "expected_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
+            "expected_ground_truth_count": (EXPECTED_EVALUATION_GROUND_TRUTH_COUNT),
+            "expected_unsupported_sample_count": (
+                EXPECTED_EVALUATION_UNSUPPORTED_SAMPLE_COUNT
+            ),
+            "expected_run_count": len(DELAYS_MS) * len(CONDITIONS),
+            "delays_ms": list(DELAYS_MS),
+            "conditions": [CONDITION_LABELS[item] for item in CONDITIONS],
+            "iou_thresholds": [0.5, 0.7],
+            "max_detections": MAX_DETECTIONS,
+            "evaluator": evaluator_path.relative_to(ROOT).as_posix(),
+            "evaluator_sha256": evaluator_sha256,
+            "student_checkpoint": {
+                "filename": student_checkpoint.name,
+                "size_bytes": student_checkpoint.stat().st_size,
+                "sha256": student_checkpoint_sha256,
+            },
+            "teacher_checkpoint": {
+                "filename": teacher_checkpoint.name,
+                "size_bytes": teacher_checkpoint.stat().st_size,
+                "sha256": teacher_checkpoint_sha256,
+            },
+            "runs": planned_runs,
+        },
+    )
+    if not task.upload_artifact(
+        "evaluation_plan",
+        artifact_object=str(evaluation_plan_path),
+        wait_on_upload=True,
+    ):
+        raise RuntimeError("failed to upload the validation evaluation plan")
     condition_results: dict[str, dict[str, object]] = {}
     for delay_ms in DELAYS_MS:
         for condition in CONDITIONS:
@@ -1192,6 +1649,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise ValueError(
                     f"{condition_name} prediction and scalar sample counts differ"
                 )
+            ground_truth_count, unsupported_sample_count = (
+                _validate_canonical_evaluation_counts(
+                    metrics,
+                    prediction,
+                    condition_name=condition_name,
+                )
+            )
             if condition_name == "delay_000_full":
                 _validate_formal_reference_metrics(metrics)
 
@@ -1213,12 +1677,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "condition_id": condition_name,
                 "delay_ms": delay_ms,
                 "condition": CONDITION_LABELS[condition],
+                "protocol_id": CANONICAL_PROTOCOL_ID,
                 "manifest_content_sha256": EXPECTED_MANIFEST_CONTENT_SHA256,
+                "overlay_index_content_sha256": (
+                    EXPECTED_EVALUATION_INDEX_CONTENT_SHA256
+                ),
                 "evaluation_index_content_sha256": (
                     EXPECTED_EVALUATION_INDEX_CONTENT_SHA256
                 ),
+                "sample_ids_sha256": EXPECTED_EVALUATION_SAMPLE_IDS_SHA256,
                 "evaluation_sample_ids_sha256": (EXPECTED_EVALUATION_SAMPLE_IDS_SHA256),
+                "expected_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
                 "evaluation_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
+                "expected_ground_truth_count": (EXPECTED_EVALUATION_GROUND_TRUTH_COUNT),
+                "expected_unsupported_sample_count": (
+                    EXPECTED_EVALUATION_UNSUPPORTED_SAMPLE_COUNT
+                ),
+                "ground_truth_count": ground_truth_count,
+                "unsupported_sample_count": unsupported_sample_count,
+                "evaluation_plan_content_sha256": evaluation_plan["content_sha256"],
+                "evaluator_sha256": evaluator_sha256,
                 "checkpoints": {
                     "student": {
                         "filename": student_checkpoint.name,
@@ -1285,6 +1763,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     }
     if len(ground_truth_counts) != 1:
         raise ValueError("ground-truth count differs across validation conditions")
+    unsupported_sample_counts = {
+        int(float(result["metrics"]["resilient_v2x/unsupported_sample_count"]))
+        for result in condition_results.values()
+    }
+    if unsupported_sample_counts != {EXPECTED_EVALUATION_UNSUPPORTED_SAMPLE_COUNT}:
+        raise ValueError(
+            "unsupported sample count differs across validation conditions"
+        )
 
     summary_path = work_root / "validation_summary.json"
     _write_sealed_document(
@@ -1294,12 +1780,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             "task_id": task_id,
             "dataset_id": args.dataset_id,
             "runtime_profile": args.runtime_profile,
+            "protocol_id": CANONICAL_PROTOCOL_ID,
             "manifest_content_sha256": EXPECTED_MANIFEST_CONTENT_SHA256,
+            "overlay_index_content_sha256": (EXPECTED_EVALUATION_INDEX_CONTENT_SHA256),
             "evaluation_index_content_sha256": (
                 EXPECTED_EVALUATION_INDEX_CONTENT_SHA256
             ),
+            "sample_ids_sha256": EXPECTED_EVALUATION_SAMPLE_IDS_SHA256,
             "evaluation_sample_ids_sha256": EXPECTED_EVALUATION_SAMPLE_IDS_SHA256,
+            "expected_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
             "evaluation_sample_count": EXPECTED_EVALUATION_SAMPLE_COUNT,
+            "expected_ground_truth_count": (EXPECTED_EVALUATION_GROUND_TRUTH_COUNT),
+            "expected_unsupported_sample_count": (
+                EXPECTED_EVALUATION_UNSUPPORTED_SAMPLE_COUNT
+            ),
+            "evaluation_plan_content_sha256": evaluation_plan["content_sha256"],
+            "evaluator": evaluator_path.relative_to(ROOT).as_posix(),
+            "evaluator_sha256": evaluator_sha256,
             "student_checkpoint": {
                 "filename": student_checkpoint.name,
                 "size_bytes": student_checkpoint.stat().st_size,
@@ -1312,6 +1809,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             },
             "condition_count": len(condition_results),
             "ground_truth_count": next(iter(ground_truth_counts)),
+            "unsupported_sample_count": next(iter(unsupported_sample_counts)),
             "conditions": condition_results,
         },
     )

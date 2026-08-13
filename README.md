@@ -9,164 +9,96 @@
 | `本仓 ClearML 复现` | 本仓任务日志可追溯的复现实测数值 |
 | `本仓受控结果` | 本仓统一受控协议下的实测数值 |
 
-## 本仓现有复现结果
+## 当前受控实验状态
 
-| Car | Latency | 3D AP@0.50 | 3D AP@0.70 | BEV AP@0.50 | BEV AP@0.70 | 结果标签 |
-| :--- | :---: | ---: | ---: | ---: | ---: | :--- |
-| FFNet-B-V | 0 ms | 51.60 | 29.99 | 56.62 | 49.15 | 官方代码库结果（TransVision benchmark） |
-| FFNet-B-F | 0 ms | 55.48 | 31.54 | 63.15 | 54.27 | 官方代码库结果（TransVision benchmark） |
-| FFNet-B-F（本次复现） | 0 ms | 65.16 | 39.60 | 71.27 | **62.44** | 本仓 ClearML 复现 |
-| FFNet | 0 ms | 55.81 | 30.23 | **63.54** | 54.16 | 论文原始结果（FFNet Table 2） |
-| FFNet | 200 ms | 55.37 | 31.66 | 63.20 | **54.69** | 论文原始结果（FFNet Table 2） |
-| FFNet (w/o pred) | 200 ms | 50.27 | 27.57 | 57.93 | 48.16 | 论文原始结果（FFNet Table 2） |
-| TF-L-V | 0 ms | 56.40 | 34.69 | 62.08 | 52.48 | 官方代码库结果（TransVision benchmark） |
-| TF-L-F | 0 ms | **58.46** | **37.28** | 62.73 | 54.21 | 官方代码库结果（TransVision benchmark） |
-| CoFormerNet | sync | 55.34 | 35.95 | 60.65 | 51.26 | 本仓 ClearML 复现 |
+状态快照：上海时间 `2026-08-13 15:13`。本节是当前论文结果的唯一活动入口；未完成项只保留 `—（待测）`，不以诊断值或跨协议值代填。
 
-`conf=0.2`
+### DAIR-CAUSAL-1337-v1 统一评测
 
-FFNet-B-F 本次复现：ClearML [`9859bc7fbb694ca1b26f2a641711b4d2`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/9859bc7fbb694ca1b26f2a641711b4d2/output/log)，official 3-class complemented，40 epoch，final val（1789 samples）。
-
-CoFormerNet 复现结果：ClearML [`2ea50800c8ff4bb3b0f87b4058d16ccc`](http://10.100.34.118:8080/projects/8fb6dbc7a09a4163961d4992f218ee26/experiments/2ea50800c8ff4bb3b0f87b4058d16ccc/output/log)（fusion formal eval），DAIR-V2X-C `vic-sync`，LiDAR-only，1789 个验证样本，评测范围 `[0,-46.08,-3,92.16,46.08,1]`。veh-only formal：3D@0.5/0.7 = 55.55/36.27，BEV@0.5/0.7 = 60.89/51.39。
-
-- FF-B-V：FFNet Basemodel veh-only（re-implementation）
-- FF-B-F：FFNet Basemodel fusion（re-implementation）
-- TF-L-V：TransFusion-L veh-only
-
-## ResilientV2X Results
-
-受控证据：ClearML [`2992081bc95949f198e062c136810736`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/2992081bc95949f198e062c136810736/output/log)，seed `20250218`，student [`77afadda645f44748e1236eb91b5e664`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/77afadda645f44748e1236eb91b5e664/output/log)，dataset `fc242933c3ac43c2b47aaa3bd7f4a920`，1337 个验证样本，11330 个 Car ground truth，`content_sha256=5b3c9a9c77de823caafc7050317d99d2095ecfa5a005519d0d5d5f64da9af721`。
-
-受控协议：DAIR-V2X-C、v2 manifest、官方 validation split、Car-only、LiDAR + Camera、评测范围 `[0,-40,-3,80,40,1]`。L-Fail 和 C-Fail 使用 `E+R`。AP 与 PDR 单位均为 `%`。
-
-| 标记 | 状态 |
+| 项目 | 固定协议 |
 | :--- | :--- |
-| `—（待测）` | 尚未完成 |
-| `数值‡` | 公开论文参考值，协议不同 |
-| `数值§` | 根据公开 AP 数值计算 |
-| `数值¶` | 受控协议单随机种子实测值 |
-| `数值 ± 标准差` | 至少 3 个随机种子的聚合结果 |
-| `N/A` | 该条件不适用 |
+| 数据与样本 | DAIR-CAUSAL-1337-v1；1337 samples；11330 Car ground truth；dataset `7c59fabb9da949e6b3c94c732f000975` |
+| 条件 | `0/100/200/300 ms × Full/L-Fail/C-Fail` 共 12 条件；L-Fail 和 C-Fail 使用 `E+R`；每条件 `unsupported_sample_count=0` |
+| 指标 | BEV AP@0.5、BEV AP@0.7、3D AP@0.5、3D AP@0.7；四项全部报告 |
+| 训练合同 | seed `20250218`；4 GPU；每卡 batch size `2`；global batch size `8`；FP32；50 epoch；val/10 epoch |
+| 数据指纹 | manifest `715ac6f7a14225e20327eed0650c55abdc0cb98431830164e84545238099645d`；overlay index `77bd4585dbb02901f862b8da6aa208a504674b824a3d55cf15005aacbeeeaaff`；ordered sample IDs `a8d8184f7fd9d1212ae29cddb427f48a0cad39e7843d95d5ac609a8a4286cf3a` |
+| 结论范围 | 单种子、同协议 DAIR 受控领先；不与跨协议公开结果混称全局 SOTA |
 
-### 正常输入比较
+本轮固定使用一个随机种子；不再执行“至少 3 个随机种子”合同，也不报告未生成的 mean±std。
 
-主指标：BEV AP@0.7。
+### 正式依赖链与评测队列
 
-| 方法 | 模态 | 骨干网络 | BEV AP@0.7 |
-| :--- | :---: | :--- | ---: |
-| V2X-ViT-style | LiDAR + Camera | PointPillars + ResNet-50/LSS | —（待测） |
-| CoBEVT-style | LiDAR + Camera | PointPillars + ResNet-50/LSS | —（待测） |
-| CoFormerNet-style | LiDAR + Camera | PointPillars + ResNet-50/LSS | —（待测） |
-| MIT-HAN BEVFusion-style | LiDAR + Camera | PointPillars + ResNet-50/LSS | —（待测） |
-| FFNet-style | LiDAR + Camera | PointPillars + ResNet-50/LSS | —（待测） |
-| Resilient V2X（seed `20250218`） | LiDAR + Camera | PointPillars + ResNet-50/LSS | 59.975¶ |
+| 节点 | ClearML task ID | 状态 | 结果 |
+| :--- | :--- | :--- | :--- |
+| P：训练来源等价证明 | [`7e244a71`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/7e244a711751469b8cfdb25d77b05269/output/log) | `completed` | formal provenance 已提交 |
+| W：26 方法正式评测 watcher | [`74bf35de`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/74bf35decc2340b496167c11ec50f54b/output/log) | `in_progress`；`services` | A100 并行候选合同已通过；26 项中 6 项完成、2 项运行、18 项已创建 |
+| L：正式 leaderboard | [`cc7b54e4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/cc7b54e4dcca4b92a4247f92987add60/output/log) | `in_progress`；`services` | 等待 26 项正式评测完成 |
+| A：独立可比性审计 | [`dd287fe5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/dd287fe58e264bcca48fe222b6981048/output/log) | `in_progress`；`services` | 等待 leaderboard 与完整证据 |
+| S：单种子候选选择器 | [`d7ea54ce`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/d7ea54ce540d4b0486904c5910100885/output/log) | `in_progress`；`services` | 等待审计完成后生成最终 winner |
+| CoFormerNet 正式评测 | [`d8fac863`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/d8fac86325e047e5aa25f5ce899902b6/output/log) | `completed` | `DAIR-CAUSAL-1337-v1`；Full 0 ms BEV AP@0.7 `58.6980`；12 条件均值 `49.9536`；最差值 `31.7329`；`12×1337 / 11330 / 0`；metrics SHA-256 `423323cacd2faf115e1f8a5a2526b58a993c9a23fa154eea829939a8ffbc11b0` |
+| FFNet 正式评测 | [`144397bf`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/144397bfa9c242bc9a92a1279922558b/output/log) | `completed` | Full `59.2396`；均值 `49.7097`；最差 `29.9796`；`12×1337 / 11330 / 0`；metrics SHA-256 `e4f7c3578e65e11358a232ba0f38d02d83a5fc45dc76cf8c188039a596e86e24` |
+| V2X-ViT 正式评测 | [`cb2675d7`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/cb2675d7e0e845268420f5c0d5248ece/output/log) | `completed` | Full `58.6679`；均值 `49.9924`；最差 `30.7127`；`12×1337 / 11330 / 0`；metrics SHA-256 `49556d0b1c4b0ddb5a3a6ac835a3ae353c8553509e2cf32903bcd55b9a69e515` |
+| CoBEVT 正式评测 | [`23f4d7f0`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/23f4d7f082284aa2be098a90f0a596e8/output/log) | `completed` | Full `59.1071`；均值 `50.7776`；最差 `33.3430`；`12×1337 / 11330 / 0`；metrics SHA-256 `07dbc919b5f9ac7b90a9fe5f5f8896aee0315d12070ef7d05e41bd1e70848462` |
+| BEVFusion 正式评测 | [`c3b87760`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/c3b87760b78742cb8e7de3a506a08999/output/log) | `completed` | Full `59.7471`；均值 `51.0931`；最差 `33.6540`；`12×1337 / 11330 / 0`；metrics SHA-256 `43977ebdae38e74882bb659c53d4c10e2cb20eba1a7a5c77b2514bccabd21c1f` |
+| ResilientV2X 正式评测 | [`7deb18e5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/7deb18e532324850bee1fb4279a838b7/output/log) | `completed` | Full `62.3620`；均值 `58.4076`；最差 `50.8587`；`12×1337 / 11330 / 0`；metrics SHA-256 `5a5f111876544de2403ef18ca3b7cb616ba6047277119a4b3461ad5cc0a56a65` |
+| `support_residual` 正式评测 | [`718ba3d3`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/718ba3d3421249eb9f31d5216a8f160a/output/log) | `in_progress`；`GPU4-A100` 0–3 | —（待测） |
+| `ptf_none` 正式评测 | [`e6ad9de8`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/e6ad9de8555e49acb6b7a7f869642c2c/output/log) | `in_progress`；`GPU4-A100` 4–7 | —（待测） |
+| 其余 18 方法正式评测 | 由 W 按固定优先级绑定 | `created`；按四卡资源门控依次释放 | —（待测） |
 
-### RSU 时延比较
+26 个同名旧空壳已归档，不进入论文结果。归档回执：[`execute-receipt-20260812T051245.388941Z.json`](artifacts/resilient_v2x/formal-evaluation-orphan-reconciliation/execute-receipt-20260812T051245.388941Z.json)；seal `882773639e93a3f60590ba044b17da499790f2269697bac6ead5a650862b59a0`。评测恢复回执：[`recovery-receipt-20260812T1450CST.json`](artifacts/resilient_v2x/formal-evaluation-recovery/recovery-receipt-20260812T1450CST.json)，seal `d95e2bc2bb93ea6c8c69ea683d31ba09ec2bf219c7a0c09591c0ff12de60fcdf`。A100 并行合同 W/L/A/S exact-ID 恢复回执：[`a100-parallel-recovery-20260813T1443CST.json`](artifacts/resilient_v2x/formal-successor-runtime-recovery/a100-parallel-recovery-20260813T1443CST.json)，seal `b025db64c5836fd0a1687638a8358aa7bad6c54db62e81246cdb8e9da53a9bfd`；未创建替代任务。旧失败链仅保留在 archive。
 
-主指标：BEV AP@0.7。
+### 候选训练、评测与模型归档
 
-| 方法 | 模态 | 0 ms | 100 ms | 200 ms | 300 ms | PDR |
-| :--- | :---: | ---: | ---: | ---: | ---: | ---: |
-| V2X-ViT-style | L + C | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） |
-| CoBEVT-style | L + C | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） |
-| CoFormerNet-style | L + C | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） |
-| MIT-HAN BEVFusion-style | L + C | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） |
-| FFNet-style | L + C | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） |
-| [FFNet](https://proceedings.neurips.cc/paper_files/paper/2023/file/6ca5d2665de83394f437dad0c3746907-Paper-Conference.pdf) | LiDAR | 54.16‡ | N/A | 54.69‡ | 52.44‡ | 3.2§ |
-| [CoFormerNet](https://doi.org/10.3390/s24134101) | LiDAR | 54.59‡ | N/A | 54.65‡ | 53.29‡ | 2.4§ |
-| Resilient V2X（seed `20250218`） | L + C | 59.975¶ | 57.936¶ | 57.868¶ | 57.829¶ | 3.6¶ |
+| 候选 | 训练 task ID | 训练状态 | 正式评测 | 论文 final checkpoint |
+| :--- | :--- | :--- | :--- | :--- |
+| E1 `support_residual_linear` | [`f0c3082f`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/f0c3082f3aa34a81805903e0ffdc8610/output/log) | `completed` | [`c6f26cc7`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/c6f26cc7902142c090ec238856409ac6/output/log) `completed`；Full `62.3024`；均值 `58.1732`；最差 `50.1283`；`12×1337 / 11330 / 0`；metrics SHA-256 `c175a1db5f8d31ba6f18119a38df834ebd1dda918ed46ef75a69a7aaaf596148` | 已归档；epoch 50；SHA-256 `a0841635846eafbd1053a86847f402a75efdf376ead600beffaf6281afa23668` |
+| E2 `no_reliability_linear` | [`969c8fce`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/969c8fce6d24446299561772b3955274/output/log) | `completed` | [`c337353b`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/c337353b188c41cba2ad92fcaabcaf35/output/log) `completed`；Full `62.4457`；均值 `58.6384`；最差 `50.3353`；metrics SHA-256 `643d56561db7ae3e0c1565efc8004ec7fd3c36fc6b6c9aee57cfd9d6b36233d7` | 已归档；epoch 50；SHA-256 `4813503a7022bdfdd3f404bf8918f42c100abb807b61ac3d9c8d2c4e508ec557` |
+| E3 `support_residual_no_reliability` | [`dc037315`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/dc037315c0684c3d854a2fd7c19a2a2f/output/log) | `completed` | [`27a82d39`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/27a82d39e6354697ad1532b6399bbde2/output/log) `completed`；Full `62.2258`；均值 `58.1152`；最差 `50.8195`；metrics SHA-256 `20e189151a56e0b957e4d404689a518222b115c51daf96bd6c1aeb485d2c9cae` | 已归档；epoch 50；SHA-256 `0259775f532c5b876ab960a6b62d4c99a8c82007217229f840bdbb342fad8e0f` |
+| P0 `support_residual_no_reliability_linear` | [`8883c51c`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/8883c51ced4f4951a45edbaefe6342d4/output/log) | `completed` | [`8d7d39dc`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/8d7d39dcc540475a8827d3cac4b9068e/output/log) `completed`；Full `62.5318`；均值 `58.4021`；最差 `50.6362`；metrics SHA-256 `930f648985a2e794a49e08a126d06210d3642fa193198015376b267ef146f1f8` | 已归档；epoch 50；SHA-256 `210208a21ae944e0b73fc92e6a15e570f20f452889a3895282c483f8ad9f2a2c` |
+| P2 `P0 + bbox loss 2.5` | [`f5d3820b`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/f5d3820b4cdf416183c8f1fee566abe3/output/log) | `completed` | [`908fe861`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/908fe86179a24a64811d92b3af4d903f/output/log) `completed`；Full `62.1244`；均值 `57.9189`；最差 `50.3869`；metrics SHA-256 `1300289425faea3f82ec12b329ffa700bf7d017612a03c368e4fb7482970a4da` | 已归档；epoch 50；SHA-256 `c12ff4d8a5c25932b7806e02b72927805dbf7d93e90a67e4c9d55364fa2e5a3e` |
+| 候选评测 controller | [`b6f0fbab`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/b6f0fbab32a5478183a45b3ca833fc01/output/log) | `completed`；`services`；源码 SHA-256 `1fe760c9461c1a4f98d157597ba47f581f527e2790c7e368c00dd65c3a9599f8` | E1/E2/E3/P0/P2 全部完成；manifest SHA-256 `d864b721da3f14f2c618a6b55a6bf58557301a92893a285d15c69fe5202341e6` | N/A |
 
-### 单模态故障
+候选控制器恢复回执：[`candidate-recovery-20260813T0915CST.json`](artifacts/resilient_v2x/formal-original-queue-recovery/candidate-recovery-20260813T0915CST.json)；seal `84be42946fc108fc9469190fb7474bbeae95a515e9c5a6827e0f2fd349cc1f`。E1 运行态参数兼容修复回执：[`candidate-e1-defaults-recovery-20260813T0943CST.json`](artifacts/resilient_v2x/formal-original-queue-recovery/candidate-e1-defaults-recovery-20260813T0943CST.json)；seal `32291605a241b030fadf62b72842efa06b1d277cbfc9f3711cb68a8933f41c7d`。E1 正式证据读取修复回执：[`candidate-e1-evidence-recovery-20260813T1028CST.json`](artifacts/resilient_v2x/formal-original-queue-recovery/candidate-e1-evidence-recovery-20260813T1028CST.json)；seal `fa1e131bf70940a55dda63ec0a29aa788ef3aaa1f77fa19c6722986e451028ed`。A100 并行升级回执：[`candidate-a100-parallel-upgrade-20260813T1117CST.json`](artifacts/resilient_v2x/formal-original-queue-recovery/candidate-a100-parallel-upgrade-20260813T1117CST.json)；seal `2f02476a640171cb64e088fbd3b47982ba0f64dc81ba15bb37026ecf4952a2fb`。权威队列读回恢复回执：[`candidate-a100-readback-recovery-20260813T1128CST.json`](artifacts/resilient_v2x/formal-original-queue-recovery/candidate-a100-readback-recovery-20260813T1128CST.json)；seal `25c2b4ac485d8c0d7f91fd2a46af9e083562dca72759888fb0e72f70965263ed`。所有恢复均保持 task ID `b6f0fbab32a5478183a45b3ca833fc01`，未创建替代任务。
 
-结果格式：`BEV AP@0.5 / BEV AP@0.7（基于 AP@0.7 的 PDR）`。
+本地归档目录：`artifacts/trained_models/completed-live/`。只有 epoch-50 final 可进入论文；clean-best 仅作诊断。
 
-| 方法 | Normal | L-Fail | C-Fail |
-| :--- | :---: | :---: | :---: |
-| V2X-ViT-style | —（待测） | —（待测） | —（待测） |
-| CoBEVT-style | —（待测） | —（待测） | —（待测） |
-| CoFormerNet-style | —（待测） | —（待测） | —（待测） |
-| MIT-HAN BEVFusion-style | —（待测） | —（待测） | —（待测） |
-| FFNet-style | —（待测） | —（待测） | —（待测） |
-| Resilient V2X（seed `20250218`） | 68.955¶ / 59.975¶ | 69.319¶ / 48.915¶（↓18.4¶） | 68.940¶ / 60.005¶（↑0.1¶） |
+### 单次受控领先结果
 
-### 模态故障与时延联合退化
+五个固定受控基线为 FFNet、CoFormerNet、V2X-ViT、CoBEVT、BEVFusion。门槛为：Full 0 ms BEV AP@0.7 ≥ 五基线最佳值 − `0.5 AP`，且 12 条件均值、最差值分别严格高于五基线最佳均值、最佳最差值。
 
-主指标：BEV AP@0.7。
+| 对象 | Full 0 ms BEV AP@0.7 | 12 条件均值 | 12 条件最差值 | 门控 |
+| :--- | ---: | ---: | ---: | :--- |
+| CoFormerNet（本仓受控结果） | 58.6980 | 49.9536 | 31.7329 | `completed`；五基线之一 |
+| FFNet（本仓受控结果） | 59.2396 | 49.7097 | 29.9796 | `completed`；五基线之一 |
+| V2X-ViT（本仓受控结果） | 58.6679 | 49.9924 | 30.7127 | `completed`；五基线之一 |
+| CoBEVT（本仓受控结果） | 59.1071 | 50.7776 | 33.3430 | `completed`；五基线之一 |
+| BEVFusion（本仓受控结果） | 59.7471 | 51.0931 | 33.6540 | `completed`；五基线之一 |
+| 五基线最佳 | 59.7471 | 51.0931 | 33.6540 | `completed` |
+| ResilientV2X（当前方法） | **62.3620** | **58.4076** | **50.8587** | `pass`；Full `+2.6149`，均值 `+7.3145`，最差 `+17.2047` |
+| E1 `support_residual_linear`（候选） | **62.3024** | **58.1732** | **50.1283** | `pass`；Full `+2.5553`，均值 `+7.0801`，最差 `+16.4743` |
+| E2 `no_reliability_linear`（候选） | **62.4457** | **58.6384** | **50.3353** | `pass` |
+| E3 `support_residual_no_reliability`（候选） | **62.2258** | **58.1152** | **50.8195** | `pass`；当前候选排序第一 |
+| P0 `support_residual_no_reliability_linear`（候选） | **62.5318** | **58.4021** | **50.6362** | `pass` |
+| P2 `P0 + bbox loss 2.5`（候选） | **62.1244** | **57.9189** | **50.3869** | `pass` |
+| 最终 winner | —（待 S 正式封存） | —（待 S 正式封存） | —（待 S 正式封存） | —（待选） |
 
-| 条件 | 0 ms | 100 ms | 200 ms | 300 ms |
-| :--- | ---: | ---: | ---: | ---: |
-| Full | 59.975¶ | 57.936¶ | 57.868¶ | 57.829¶ |
-| L-Fail（E+R） | 48.915¶ | 49.018¶ | 49.106¶ | 44.636¶ |
-| C-Fail（E+R） | 60.005¶ | 57.919¶ | 57.897¶ | 57.865¶ |
+### 论文后续实验占位
 
-### 容量匹配消融
+| 论文接口 | 状态 | 结果 |
+| :--- | :--- | :--- |
+| Table I–IV：winner 与五个受控基线 | 五个受控基线与当前 ResilientV2X 已完成；等待候选最终选择 | —（待最终 winner） |
+| Table V：winner 单因素消融 | 等待 winner identity | —（待测） |
+| Table VI：`pL=pC={0,0.1,0.2,0.3,0.5}` | `p=0.2` 复用；`p=0.3` 独立试验待训；其余待训 | —（待测） |
+| Table VII：`q=1,2,3`、容量匹配 concat、参数/FLOPs/显存/端到端时延 | 等待 winner checkpoint | —（待测）；`q≥4` 为 unsupported/no-extrapolation |
+| E-only / R-only 诊断 | 等待 winner checkpoint | —（待测） |
+| V2XSet-Standard | 本轮非阻塞，不训练 | —（待测） |
+| V2XSet-Pair | 本轮非阻塞，不训练 | —（待测） |
 
-主指标：BEV AP@0.7。
+### 排除项与归档
 
-| 变体 | Full | L-Fail | 300 ms |
-| :--- | ---: | ---: | ---: |
-| Full nonlinear PTF + DER | 59.975¶ | 48.915¶ | 57.829¶ |
-| No PTF | —（待测） | —（待测） | —（待测） |
-| Linear PTF | —（待测） | —（待测） | —（待测） |
-| Static three-expert | —（待测） | —（待测） | —（待测） |
-| Uniform gate | —（待测） | —（待测） | —（待测） |
-| No reliability | —（待测） | —（待测） | —（待测） |
-| No delay metadata | —（待测） | —（待测） | —（待测） |
-| No distillation | —（待测） | —（待测） | —（待测） |
-| Capacity-matched concat | —（待测） | —（待测） | —（待测） |
+旧稿 `†` 数值、旧 global-batch-4、clean-1789、跨协议公开值、无 manifest/run contract/sealed source/evaluator evidence 的旧权重，均不进入当前受控表。旧 global-batch-4 任务已停止，不用于最终比较；清单见 [`docs/resilient_v2x/archive/global-batch-4-superseded.md`](docs/resilient_v2x/archive/global-batch-4-superseded.md)。旧稿数值见 [`docs/resilient_v2x/archive/old-draft-results.md`](docs/resilient_v2x/archive/old-draft-results.md)。
 
-### 连续故障持续时间
-
-主指标：0 ms、`E+R` 下的 BEV AP@0.7。
-
-| 持续时间 | BEV AP@0.7 | 支持状态 |
-| ---: | ---: | :--- |
-| 1 帧 | —（待测） | 历史窗口内 |
-| 2 帧 | —（待测） | 历史窗口内 |
-| 3 帧 | —（待测） | 历史窗口内 |
-| 4 帧及以上 | —（待测） | neutral/unsupported |
-
-### 部署复杂度
-
-| 模型 | 参数量（M） | FLOPs（G） | 峰值 GPU 显存（GB） | 端到端时延（ms） |
-| :--- | ---: | ---: | ---: | ---: |
-| Capacity-matched concat | —（待测） | —（待测） | —（待测） | —（待测） |
-| Resilient V2X student | —（待测） | —（待测） | —（待测） | —（待测） |
-
-### 三随机种子汇总
-
-| 数据集 / 条件 | BEV AP@0.5 mean | std | BEV AP@0.7 mean | std | 3D AP@0.5 mean | std | 3D AP@0.7 mean | std | 完成种子数 |
-| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| DAIR-V2X-C / Resilient V2X / Full / 0 ms | 68.955¶ | —（待测） | 59.975¶ | —（待测） | 65.372¶ | —（待测） | 35.142¶ | —（待测） | 1 / ≥3 |
-
-### 补充结果
-
-| 记录 | 指标 | 0 ms | 100 ms | 200 ms | 300 ms |
-| :--- | :--- | ---: | ---: | ---: | ---: |
-| CoFormerNet public | BEV AP@0.5 | 69.33‡ | N/A | 69.13‡ | 68.60‡ |
-| FFNet controlled baseline | BEV AP@0.7 | N/A | —（待测） | N/A | N/A |
-| CoFormerNet controlled baseline | BEV AP@0.7 | N/A | —（待测） | N/A | N/A |
-
-| 条件 | Agent scope | Resilient V2X − CoFormerNet-style BEV AP@0.7 |
-| :--- | :---: | ---: |
-| L-Fail | E+R | —（待测） |
-| C-Fail | E+R | —（待测） |
-
-### E-only / R-only 诊断
-
-| 故障 | Agent scope | 0 ms | 100 ms | 200 ms | 300 ms |
-| :--- | :---: | ---: | ---: | ---: | ---: |
-| L-Fail | E-only | —（待测） | —（待测） | —（待测） | —（待测） |
-| L-Fail | R-only | —（待测） | —（待测） | —（待测） | —（待测） |
-| C-Fail | E-only | —（待测） | —（待测） | —（待测） | —（待测） |
-| C-Fail | R-only | —（待测） | —（待测） | —（待测） | —（待测） |
-
-### V2XSet
-
-| 轨道 | Full 0 ms | Full 100 ms | Full 200 ms | Full 300 ms | L-Fail | C-Fail |
-| :--- | ---: | ---: | ---: | ---: | :---: | :---: |
-| V2XSet-Standard / LiDAR-only | —（待测） | —（待测） | —（待测） | —（待测） | N/A | N/A |
-| V2XSet-Pair / LiDAR + Camera | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） | —（待测） |
+[历史结果与任务快照归档](docs/resilient_v2x/archive/historical-results-and-task-snapshots.md)
 
 ## 论文与官方代码库原始结果
 

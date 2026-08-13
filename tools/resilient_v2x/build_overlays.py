@@ -31,6 +31,8 @@ from transvision.dataset.resilient_v2x_schedule import (  # noqa: E402
     FaultPlan,
     OverlayDigest,
     ScheduleError,
+    TRAINING_CONDITION_HASH_DOMAIN,
+    TRAINING_CONDITION_MODE,
     TransportPlan,
     read_overlay,
     write_causal_fault_overlay,
@@ -479,10 +481,8 @@ def build_training_overlays(
     *,
     protocol_seed: int,
     epochs: Sequence[int],
-    p_lidar: float,
-    p_camera: float,
 ) -> dict[str, object]:
-    """Build deterministic epoch-indexed random transport and fault overlays."""
+    """Build deterministic epoch-indexed formal-condition overlays."""
 
     if type(protocol_seed) is not int or protocol_seed < 0:
         raise ProtocolBuildError("protocol_seed must be a non-negative integer")
@@ -493,9 +493,6 @@ def build_training_overlays(
         or len(epoch_values) != len(set(epoch_values))
     ):
         raise ProtocolBuildError("epochs must be unique non-negative integers")
-    for probability, name in ((p_lidar, "p_lidar"), (p_camera, "p_camera")):
-        if type(probability) not in (int, float) or not 0 <= probability <= 1:
-            raise ProtocolBuildError(f"{name} must be in [0,1]")
     samples = tuple(
         sample
         for sample in manifest.samples
@@ -512,7 +509,7 @@ def build_training_overlays(
             temporal_manifest_sha256=manifest.content_sha256,
             split="train",
             samples=samples,
-            mode="train_random",
+            mode=TRAINING_CONDITION_MODE,
             protocol_seed=protocol_seed,
             epochs=epoch_values,
             delay_values_ms=DELAYS,
@@ -525,12 +522,12 @@ def build_training_overlays(
             temporal_manifest_sha256=manifest.content_sha256,
             split="train",
             samples=samples,
-            mode="train_random",
+            mode=TRAINING_CONDITION_MODE,
             protocol_seed=protocol_seed,
             epochs=epoch_values,
             condition=None,
-            p_lidar=float(p_lidar),
-            p_camera=float(p_camera),
+            p_lidar=None,
+            p_camera=None,
             agents=("ego", "rsu"),
             modality=None,
             duration=None,
@@ -551,9 +548,12 @@ def build_training_overlays(
             "split": "train",
             "protocol_seed": protocol_seed,
             "epochs": list(epoch_values),
+            "mode": TRAINING_CONDITION_MODE,
+            "condition_hash_domain": TRAINING_CONDITION_HASH_DOMAIN,
+            "condition_hash_key": ["protocol_seed", "epoch", "sample_id"],
             "delay_values_ms": list(DELAYS),
-            "p_lidar": float(p_lidar),
-            "p_camera": float(p_camera),
+            "conditions": list(CONDITIONS),
+            "condition_count": len(DELAYS) * len(CONDITIONS),
             "sample_ids": list(sample_ids),
             "sample_ids_sha256": _sha256_bytes(canonical_json_bytes(sample_ids)),
             "overlays": {
@@ -749,12 +749,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     cohort.add_argument("--max-duration", type=int, default=1)
     cohort.add_argument("--out", required=True, type=Path)
 
-    train = subparsers.add_parser("train", help="build random training overlays")
+    train = subparsers.add_parser(
+        "train",
+        help="build deterministic formal-condition training overlays",
+    )
     _common_manifest_arguments(train)
     train.add_argument("--protocol-seed", required=True, type=int)
     train.add_argument("--epochs", required=True, type=int, nargs="+")
-    train.add_argument("--p-lidar", required=True, type=float)
-    train.add_argument("--p-camera", required=True, type=float)
+    train.add_argument("--p-lidar", type=float, help=argparse.SUPPRESS)
+    train.add_argument("--p-camera", type=float, help=argparse.SUPPRESS)
     train.add_argument("--out-dir", required=True, type=Path)
 
     evaluation = subparsers.add_parser(
@@ -818,13 +821,17 @@ def main(argv: list[str] | None = None) -> int:
             )
             output = args.out
         elif args.command == "train":
+            if args.p_lidar is not None or args.p_camera is not None:
+                print(
+                    "warning: --p-lidar/--p-camera are deprecated and ignored; "
+                    "training uses the uniform formal 12-condition matrix",
+                    file=sys.stderr,
+                )
             document = build_training_overlays(
                 manifest,
                 args.out_dir,
                 protocol_seed=args.protocol_seed,
                 epochs=args.epochs,
-                p_lidar=args.p_lidar,
-                p_camera=args.p_camera,
             )
             output = args.out_dir / "training_overlays.json"
         else:

@@ -578,6 +578,8 @@ class ResilientV2XNet(Base3DDetector):
         routing_mode: Literal["dynamic", "static", "uniform", "concat"] = "dynamic",
         use_reliability: bool = True,
         use_delay_metadata: bool = True,
+        support_residual_weight: float = 0.0,
+        support_residual_reliability_gate: bool = False,
         delta_t_ms: int = 100,
         teacher: Mapping[str, object] | nn.Module | None = None,
         teacher_checkpoint: str | None = None,
@@ -605,6 +607,8 @@ class ResilientV2XNet(Base3DDetector):
             routing_mode=routing_mode,
             use_reliability=use_reliability,
             use_delay_metadata=use_delay_metadata,
+            support_residual_weight=support_residual_weight,
+            support_residual_reliability_gate=(support_residual_reliability_gate),
             delta_t_ms=delta_t_ms,
         )
 

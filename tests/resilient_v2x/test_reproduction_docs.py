@@ -6,6 +6,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ROOT_README = ROOT / "README.md"
+HISTORICAL_RESULTS_ARCHIVE = (
+    ROOT
+    / "docs"
+    / "resilient_v2x"
+    / "archive"
+    / "historical-results-and-task-snapshots.md"
+)
 REPRODUCTION = ROOT / "docs" / "resilient_v2x" / "reproduction.md"
 COVERAGE = ROOT / "docs" / "resilient_v2x" / "paper-coverage.md"
 CORE_API = ROOT / "docs" / "resilient_v2x" / "core-api.md"
@@ -207,84 +214,106 @@ def test_config_readme_links_both_long_form_documents() -> None:
     assert "../../docs/resilient_v2x/paper-coverage.md" in readme
 
 
-def test_root_readme_lists_all_paper_result_tables_without_claiming_results() -> None:
+def test_root_readme_registers_the_current_fair_1337_protocol() -> None:
     readme = _read(ROOT_README)
-    table_labels = (
-        "tab:normal_comparison",
-        "tab:latency",
-        "tab:modality_missing",
-        "tab:joint_degradation",
-        "tab:ablation",
-        "tab:sensitivity_p",
-        "tab:duration_complexity",
-    )
-    for label in table_labels:
-        assert readme.count(f"`{label}`") == 1
-
-    evidence_boundaries = (
-        "没有任何满足提交条件的受控实测结果",
+    required = (
+        "DAIR-CAUSAL-1337-v1 统一评测",
+        "global batch size `8`",
+        "7c59fabb9da949e6b3c94c732f000975",
+        "715ac6f7a14225e20327eed0650c55abdc0cb98431830164e84545238099645d",
+        "77bd4585dbb02901f862b8da6aa208a504674b824a3d55cf15005aacbeeeaaff",
+        "a8d8184f7fd9d1212ae29cddb427f48a0cad39e7843d95d5ac609a8a4286cf3a",
+        "旧 global-batch-4 任务已停止，不用于最终比较",
+        "docs/resilient_v2x/archive/global-batch-4-superseded.md",
+        "docs/resilient_v2x/archive/historical-results-and-task-snapshots.md",
         "—（待测）",
-        "数值†",
-        "数值‡",
-        "至少 3 个随机种子",
-        "受控主故障协议中的 L-Fail 和 C-Fail 均为 `E+R`",
-        "E-only / R-only agent-scope 诊断",
-        "尚未创建这 16 个诊断 ID",
-        "没有注册任何 V2XSet result ID",
-        "提交门禁补充结果",
-        "69.33‡",
-        "同协议方法差值",
+        "seed `20250218`",
+        "本轮固定使用一个随机种子",
+        "不再执行“至少 3 个随机种子”合同",
+        "不报告未生成的 mean±std",
+        "L-Fail 和 C-Fail 使用 `E+R`",
+        "E-only / R-only 诊断",
         "V2XSet-Standard",
         "V2XSet-Pair",
-        "旧失败检查点及其 AP 均不满足这些门槛",
     )
-    for boundary in evidence_boundaries:
-        assert boundary in readme
+    for statement in required:
+        assert statement in readme
 
-    assert (
-        "| V2XSet-Standard | 原生 multi-agent、LiDAR-only | "
-        "—（待测：需 adapter） | —（补充待测：需 adapter） | "
-        "—（待测：需 adapter） | —（待测：需 adapter） | N/A | N/A |"
-    ) in readme
+    assert "<details>" not in readme
+    assert "历史三随机种子汇总" not in readme
+
+    stopped_eval_ids = (
+        "6e3aae4a75754419a6139dd06bc170bb",
+        "8cd022cfae6d4e07911f600eaa5dbe36",
+        "4b94c634fc964246a42a11ba43d6d097",
+        "01520e68dce34cb7b8c9490c29254cd8",
+        "7ee3f4044ff0442aac4e23775fff6d83",
+        "4a35cfd3908f457286b578063a84eb71",
+    )
+    for task_id in stopped_eval_ids:
+        assert task_id not in readme
 
 
 def test_root_readme_separates_published_non_comparable_baselines() -> None:
     readme = _read(ROOT_README)
     required = (
-        "公开论文的外部对照（不可回填受控主表）",
-        "How2comm / DAIR-V2X 默认噪声",
+        "【论文原始结果】How2comm（NeurIPS 2023）",
+        "DAIR-V2X LiDAR-only",
         "100 ms",
-        "0.2 m /\n0.2°",
+        "0.2 m / 0.2°",
         "1 MB",
-        "| V2X-ViT | LiDAR | How2comm / DAIR-V2X 默认噪声 | 51.68 | 39.97 |",
-        "| CoBEVT | LiDAR | How2comm / DAIR-V2X 默认噪声 | 56.08 | 41.45 |",
-        "mAP/NDS = 35.56/41.21；64.68/69.28；68.52/71.38",
-        "这里的两个 BEVFusion 是不同论文",
-        "固定引用包含完整 `0/200/300 ms` 序列的表 1",
+        "| V2X-ViT | 51.68 | 39.97 |",
+        "| CoBEVT | 56.08 | 41.45 |",
+        "| How2comm | 62.36 | 47.18 |",
+        "【论文原始结果】MIT-HAN BEVFusion（ICRA 2023）",
+        "| nuScenes val | Camera | 35.56 | 41.21 NDS |",
+        "【论文原始结果】FFNet（NeurIPS 2023）",
+        "| FFNet | Middle | 200 | 55.37 | 31.66 | 63.20 | 54.69 | 1.2×10^5 |",
     )
     for statement in required:
         assert statement in readme
 
 
-def test_root_readme_registers_controlled_baseline_implementations() -> None:
-    readme = _read(ROOT_README)
+def test_historical_archive_preserves_controlled_baseline_implementations() -> None:
+    archive = _read(HISTORICAL_RESULTS_ARCHIVE)
     required = (
-        "受控适配实现状态",
-        "ResilientTemporalDataset",
-        "模型不包含本文方法的 PTF、repair、DER、teacher 或 distillation 路径",
-        "configs/resilient_v2x/baselines/v2x_vit.py",
-        "configs/resilient_v2x/baselines/cobevt.py",
-        "configs/resilient_v2x/baselines/coformernet.py",
-        "configs/resilient_v2x/baselines/bevfusion.py",
-        "configs/resilient_v2x/baselines/ffnet.py",
-        "transvision/models/resilient_v2x/baseline_inputs.py",
-        "transvision/models/detectors/controlled_v2x_baseline.py",
-        "bit-exact reproduction",
-        "| V2X-ViT-style | 本仓受控适配已实现",
-        "| CoBEVT-style | 本仓受控适配已实现",
-        "| CoFormerNet-style | 本仓受控适配已实现",
-        "| MIT-HAN BEVFusion-style | 本仓受控适配已实现",
-        "| FFNet-style | 本仓受控适配已实现",
+        "Ego-only L+C（controlled baseline）",
+        "Late Fusion-style L+C（controlled adaptation）",
+        "F-Cooper-style L+C（controlled adaptation）",
+        "AttFuse-style L+C（controlled adaptation）",
+        "V2VNet-style L+C（controlled adaptation）",
+        "DiscoNet-style L+C（controlled adaptation）",
+        "When2com-style L+C（controlled adaptation）",
+        "Where2comm-style L+C（controlled adaptation）",
+        "How2comm-style L+C（controlled adaptation）",
+        "V2X-ViT-style L+C（controlled adaptation）",
+        "CoBEVT-style L+C（controlled adaptation）",
+        "CoFormerNet-style L+C（controlled adaptation）",
+        "MIT-HAN BEVFusion-style L+C（controlled adaptation）",
+        "FFNet-style L+C（controlled adaptation）",
     )
     for statement in required:
-        assert statement in readme
+        assert statement in archive
+
+
+def test_root_readme_links_complete_historical_snapshot_archive() -> None:
+    readme = _read(ROOT_README)
+    archive = _read(HISTORICAL_RESULTS_ARCHIVE)
+
+    assert (
+        "[历史结果与任务快照归档]"
+        "(docs/resilient_v2x/archive/historical-results-and-task-snapshots.md)"
+        in readme
+    )
+    assert readme.count("<details>") == 0
+    assert archive.count("<details>") == 1
+    assert archive.count("</details>") == 1
+    for historical_marker in (
+        "## 本仓历史复现结果",
+        "## 历史 ResilientV2X Results",
+        "上一版主表任务归档快照",
+        "上一版消融与改进任务归档快照",
+        "### 历史三随机种子汇总（未完成）",
+    ):
+        assert historical_marker not in readme
+        assert historical_marker in archive

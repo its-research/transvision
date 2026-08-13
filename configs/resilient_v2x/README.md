@@ -16,7 +16,8 @@ for implementation, test, and evidence boundaries.
    uncompressed SHA-256 values; the runtime verifies them before reading data.
 2. Export `RESILIENT_V2X_DATA_ROOT`, `RESILIENT_V2X_MANIFEST`, and
    `RESILIENT_V2X_SPLIT_SHA256`.
-3. Train `dair_clean_teacher.py`.  Put the selected clean checkpoint at
+3. Train `dair_clean_teacher.py`.  Select its clean-validation checkpoint by
+   `resilient_v2x/car_bev_ap_r40_0.70`, put it at
    `work_dirs/resilient_v2x_dair_clean_teacher/best_teacher.pth`, or override
    `model.teacher_checkpoint`.
 4. For the distilled student, also export the train transport/fault overlay
@@ -26,6 +27,16 @@ The main student deliberately has real overlay paths but no default hashes.
 This makes an omitted external protocol artifact fail fast instead of silently
 running a different experiment.  To intentionally train without one overlay,
 set both its path and SHA-256 fields to `None` with `--cfg-options`.
+
+`dair_resilient_v2x.py` is registered as the `resilient_v2x` primary method in
+the sealed four-GPU experiment-from-task suite. Its fixed formal training
+profile uses the clean-teacher handoff, FP32, global batch size 8, 50 epochs,
+and validation every 10 epochs.  The selected clean-teacher checkpoint
+initializes the four shared encoder/head components of every method; the
+method-specific fusion blocks remain randomly initialized. The nested teacher
+alone loads the complete checkpoint and remains frozen during optimization.
+Redundant aliases that resolve to an existing primary or ablation config are
+not scheduled as separate formal jobs.
 
 ## Evaluation matrix
 
@@ -50,21 +61,34 @@ explicit implementation choice rather than a claimed paper hyperparameter.
 
 ## Controlled comparison baselines
 
-`baselines/` contains V2X-ViT-, CoBEVT-, CoFormerNet-, BEVFusion-, and
-FFNet-style
-fusion modules behind one detector interface:
+`baselines/` contains Ego-only, LateFusion-, F-Cooper-, AttFuse-, V2VNet-,
+DiscoNet-, When2com-, Where2comm-, How2comm-, V2X-ViT-, CoBEVT-,
+CoFormerNet-, BEVFusion-, and FFNet-style fusion modules behind one detector
+interface:
 
+- `baselines/ego_only.py`
+- `baselines/late_fusion.py`
+- `baselines/fcooper.py`
+- `baselines/attfuse.py`
+- `baselines/v2vnet.py`
+- `baselines/disconet.py`
+- `baselines/when2com.py`
+- `baselines/where2comm.py`
+- `baselines/how2comm.py`
 - `baselines/v2x_vit.py`
 - `baselines/cobevt.py`
 - `baselines/coformernet.py`
 - `baselines/bevfusion.py`
 - `baselines/ffnet.py`
 
-All five reuse the main experiment's DAIR-V2X manifest, causal transport and
+All fourteen reuse the main experiment's DAIR-V2X manifest, causal transport and
 fault overlays, shared LiDAR/camera encoders, detection head, optimizer, and
-evaluator. They train directly against detection targets with
-`include_clean_teacher=False`; no teacher, distillation, PTF, dynamic router,
-or DER path is present in their model configs.
+evaluator. They load matching shared encoder, projection, and detection-head
+weights from the exact same selected clean-teacher checkpoint; every
+method-specific fusion module remains randomly initialized. They then train
+directly against detection targets with `include_clean_teacher=False`; no
+frozen teacher forward, distillation loss, PTF, dynamic router, or DER path is
+present in their model configs.
 
 These configs are controlled multimodal adaptations. They are not claimed as
 bit-exact reproductions of source-paper systems whose published dataset,
@@ -107,6 +131,13 @@ python tools/resilient_v2x/evaluate_controlled_baselines.py \
   --work-dir work_dirs/controlled_eval/v2x_vit \
   --dry-run
 ```
+
+For the primary method, use the same command with
+`--baseline resilient_v2x` and a checkpoint produced by the
+`resilient_v2x` experiment task. The generated plan records
+`evaluation_subject_type=primary_method`; its deployment config removes the
+training-only teacher and distillation branches before running the same 12
+conditions.
 
 The entry point verifies that `RESILIENT_V2X_MANIFEST` and the overlay index
 name the same manifest content hash, injects the exact E+R one-tick overlays,

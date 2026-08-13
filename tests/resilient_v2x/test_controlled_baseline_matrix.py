@@ -10,6 +10,10 @@ import zstandard
 
 from tools.resilient_v2x import evaluate_controlled_baselines as module
 from transvision.dataset.resilient_v2x_manifest import content_sha256
+from transvision.evaluation.resilient_v2x_evidence import (
+    seal_document,
+    write_document,
+)
 
 
 def _digest(value: str) -> str:
@@ -31,9 +35,7 @@ def _overlay_entry(
     path: Path,
     records: list[dict[str, object]],
 ) -> dict[str, object]:
-    raw = b"".join(
-        module.canonical_json_bytes(record) + b"\n" for record in records
-    )
+    raw = b"".join(module.canonical_json_bytes(record) + b"\n" for record in records)
     compressed = zstandard.ZstdCompressor(level=1).compress(raw)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(compressed)
@@ -154,17 +156,24 @@ def test_plan_resolves_all_twelve_conditions_and_replaces_only_model(
     assert plan["manifest"] == str(manifest.resolve())
     assert plan["data_root"] == str((tmp_path / "data_root").resolve())
     assert plan["split_sha256"] == "0" * 64
+    assert plan["protocol_id"] == "custom"
+    assert plan["sample_ids"] == ["sample-a"]
+    assert (
+        plan["sample_ids_sha256"]
+        == hashlib.sha256(module.canonical_json_bytes(("sample-a",))).hexdigest()
+    )
+    assert plan["expected_sample_count"] == 1
+    assert plan["expected_ground_truth_count"] is None
+    assert plan["expected_unsupported_sample_count"] == 0
     assert plan["content_sha256"] == content_sha256(plan)
-    assert plan["checkpoint_sha256"] == hashlib.sha256(
-        checkpoint.read_bytes()
-    ).hexdigest()
+    assert (
+        plan["checkpoint_sha256"] == hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    )
     runs = plan["runs"]
     assert isinstance(runs, list)
     assert len(runs) == 12
     assert {(item["delay_ms"], item["condition"]) for item in runs} == {
-        (delay, condition)
-        for delay in module.DELAYS
-        for condition in module.CONDITIONS
+        (delay, condition) for delay in module.DELAYS for condition in module.CONDITIONS
     }
 
     baseline = module._load_python_config(module.BASELINE_CONFIGS["cobevt"])
@@ -205,8 +214,9 @@ def test_plan_resolves_all_twelve_conditions_and_replaces_only_model(
             assert run["fault_overlay"] is None
         else:
             assert dataset["fault_overlay_path"] == run["fault_overlay"]
-        assert Path(run["checkpoint_sha256_file"]).read_text().strip() == (
-            plan["checkpoint_sha256"]
+        assert (
+            Path(run["checkpoint_sha256_file"]).read_text().strip()
+            == (plan["checkpoint_sha256"])
         )
         assert Path(run["resolved_config"]).is_file()
         assert not Path(run["predictions"]).exists()
@@ -368,6 +378,189 @@ def test_ffnet_is_available_to_the_controlled_matrix() -> None:
     assert "ffnet" in module.BASELINES
     config = module._load_python_config(module.BASELINE_CONFIGS["ffnet"])
     assert config["model"]["baseline_name"] == "ffnet"
+
+
+def test_added_methods_are_available_to_the_controlled_matrix() -> None:
+    expected = {
+        "ego_only": ("ego",),
+        "fcooper": ("ego", "rsu"),
+        "attfuse": ("ego", "rsu"),
+        "v2vnet": ("ego", "rsu"),
+        "when2com": ("ego", "rsu"),
+        "where2comm": ("ego", "rsu"),
+        "late_fusion": ("ego", "rsu"),
+        "disconet": ("ego", "rsu"),
+        "how2comm": ("ego", "rsu"),
+    }
+    for name, enabled_agents in expected.items():
+        assert name in module.BASELINES
+        config = module._load_python_config(module.BASELINE_CONFIGS[name])
+        assert config["model"]["baseline_name"] == name
+        assert config["model"]["enabled_agents"] == enabled_agents
+
+
+def test_primary_method_plan_uses_deployment_student_without_teacher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, index, checkpoint, _ = _protocol_fixture(tmp_path, monkeypatch)
+    plan = module.build_evaluation_plan(
+        baseline="resilient_v2x",
+        checkpoint=checkpoint,
+        overlay_index=index,
+        work_dir=tmp_path / "resilient_v2x",
+        delays=(0,),
+        conditions=("Full",),
+        protocol_id="DAIR-CAUSAL-1337-v1",
+        expected_ground_truth_count=11330,
+    )
+
+    assert module.PRIMARY_METHODS == ("resilient_v2x",)
+    assert plan["evaluation_subject_type"] == "primary_method"
+    assert plan["protocol_id"] == "DAIR-CAUSAL-1337-v1"
+    assert plan["expected_ground_truth_count"] == 11330
+    assert plan["baseline_config"] == str(
+        module.PRIMARY_METHOD_CONFIGS["resilient_v2x"].resolve()
+    )
+    resolved = runpy.run_path(plan["runs"][0]["resolved_config"])
+    assert resolved["model"]["type"] == "ResilientV2XNet"
+    assert resolved["model"]["ptf_mode"] == "nonlinear"
+    assert resolved["model"]["routing_mode"] == "dynamic"
+    assert resolved["model"]["use_reliability"] is True
+    assert resolved["model"]["use_delay_metadata"] is True
+    assert "teacher" not in resolved["model"]
+    assert "teacher_checkpoint" not in resolved["model"]
+    assert "distillation" not in resolved["model"]
+
+
+@pytest.mark.parametrize("name", module.IMPROVEMENTS)
+def test_improvement_plan_uses_deployment_student_without_teacher(
+    name: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, index, checkpoint, _ = _protocol_fixture(tmp_path, monkeypatch)
+    plan = module.build_evaluation_plan(
+        baseline=name,
+        checkpoint=checkpoint,
+        overlay_index=index,
+        work_dir=tmp_path / name,
+        delays=(0,),
+        conditions=("Full",),
+        protocol_id="DAIR-CAUSAL-1337-v1",
+        expected_ground_truth_count=11330,
+    )
+
+    assert plan["evaluation_subject_type"] == "improvement"
+    assert plan["protocol_id"] == "DAIR-CAUSAL-1337-v1"
+    assert plan["expected_ground_truth_count"] == 11330
+    assert plan["baseline_config"] == str(module.IMPROVEMENT_CONFIGS[name].resolve())
+    resolved = runpy.run_path(plan["runs"][0]["resolved_config"])
+    assert resolved["model"]["type"] == "ResilientV2XNet"
+    assert "teacher" not in resolved["model"]
+    assert "teacher_checkpoint" not in resolved["model"]
+    assert "distillation" not in resolved["model"]
+
+
+def test_ablation_plan_uses_deployment_student_without_teacher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, index, checkpoint, _ = _protocol_fixture(tmp_path, monkeypatch)
+    work_dir = tmp_path / "ablation"
+    plan = module.build_evaluation_plan(
+        baseline="ptf_none",
+        checkpoint=checkpoint,
+        overlay_index=index,
+        work_dir=work_dir,
+        delays=(0,),
+        conditions=("Full",),
+    )
+
+    assert plan["evaluation_subject_type"] == "ablation"
+    assert plan["baseline_config"] == str(module.ABLATION_CONFIGS["ptf_none"].resolve())
+    assert len(plan["runs"]) == 1
+    resolved = runpy.run_path(plan["runs"][0]["resolved_config"])
+    assert resolved["model"]["type"] == "ResilientV2XNet"
+    assert resolved["model"]["ptf_mode"] == "none"
+    assert "teacher" not in resolved["model"]
+    assert "teacher_checkpoint" not in resolved["model"]
+    assert "distillation" not in resolved["model"]
+
+
+def test_prediction_evidence_binds_order_hash_and_ground_truth_count(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "predictions.json"
+    document = seal_document(
+        module.PREDICTION_DOCUMENT_TYPE,
+        {
+            "sample_count": 2,
+            "samples": [
+                {
+                    "sample_id": "sample-a",
+                    "ground_truth_boxes_lidar_bottom_center": [[0.0] * 7],
+                    "ground_truth_labels": [0],
+                },
+                {
+                    "sample_id": "sample-b",
+                    "ground_truth_boxes_lidar_bottom_center": [
+                        [0.0] * 7,
+                        [1.0] * 7,
+                    ],
+                    "ground_truth_labels": [0, 0],
+                },
+            ],
+        },
+    )
+    write_document(path, document)
+    sample_ids = ("sample-a", "sample-b")
+    sample_hash = hashlib.sha256(module.canonical_json_bytes(sample_ids)).hexdigest()
+
+    evidence = module._prediction_evidence(
+        path,
+        expected_sample_ids=sample_ids,
+        expected_sample_ids_sha256=sample_hash,
+    )
+
+    assert evidence["sample_count"] == 2
+    assert evidence["sample_ids_sha256"] == sample_hash
+    assert evidence["ground_truth_count"] == 3
+    assert evidence["prediction_content_sha256"] == document["content_sha256"]
+    assert (
+        evidence["prediction_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    )
+
+    with pytest.raises(
+        module.ControlledBaselineEvaluationError,
+        match="sample order",
+    ):
+        module._prediction_evidence(
+            path,
+            expected_sample_ids=tuple(reversed(sample_ids)),
+            expected_sample_ids_sha256=sample_hash,
+        )
+
+
+def test_metric_count_requires_the_sealed_count() -> None:
+    metrics = {"resilient_v2x/sample_count": 1337.0}
+    assert (
+        module._metric_count(
+            metrics,
+            "resilient_v2x/sample_count",
+            expected=1337,
+        )
+        == 1337
+    )
+    with pytest.raises(
+        module.ControlledBaselineEvaluationError,
+        match="expected 1337, got 1336",
+    ):
+        module._metric_count(
+            {"resilient_v2x/sample_count": 1336.0},
+            "resilient_v2x/sample_count",
+            expected=1337,
+        )
 
 
 def test_stale_predictions_or_metrics_are_rejected(

@@ -18,13 +18,15 @@ FFNET_BASELINE = (
     ROOT / "configs" / "ffnet" / "config_basemodel_veh_only_complemented.py"
 )
 FFNET_OFFICIAL = (
-    ROOT
-    / "configs"
-    / "ffnet"
-    / "config_basemodel_official_3class_complemented.py"
+    ROOT / "configs" / "ffnet" / "config_basemodel_official_3class_complemented.py"
 )
 
 CONTROLLED_BASELINES = {
+    "attfuse.py": {
+        "baseline_name": "attfuse",
+        "baseline_cfg": {"age_decay": 0.25},
+        "enabled_agents": ("ego", "rsu"),
+    },
     "bevfusion.py": {
         "baseline_name": "bevfusion",
         "baseline_cfg": {
@@ -32,6 +34,7 @@ CONTROLLED_BASELINES = {
             "hidden_channels": 256,
             "norm_groups": 32,
         },
+        "enabled_agents": ("ego", "rsu"),
     },
     "cobevt.py": {
         "baseline_name": "cobevt",
@@ -41,6 +44,7 @@ CONTROLLED_BASELINES = {
             "dropout": 0.0,
             "mlp_ratio": 2.0,
         },
+        "enabled_agents": ("ego", "rsu"),
     },
     "ffnet.py": {
         "baseline_name": "ffnet",
@@ -50,6 +54,66 @@ CONTROLLED_BASELINES = {
             "norm_groups": 32,
             "max_displacement_per_age": 1.0,
         },
+        "enabled_agents": ("ego", "rsu"),
+    },
+    "ego_only.py": {
+        "baseline_name": "ego_only",
+        "baseline_cfg": {"age_decay": 0.25},
+        "enabled_agents": ("ego",),
+    },
+    "fcooper.py": {
+        "baseline_name": "fcooper",
+        "baseline_cfg": {},
+        "enabled_agents": ("ego", "rsu"),
+    },
+    "late_fusion.py": {
+        "baseline_name": "late_fusion",
+        "baseline_cfg": {"age_decay": 0.25},
+        "enabled_agents": ("ego", "rsu"),
+    },
+    "disconet.py": {
+        "baseline_name": "disconet",
+        "baseline_cfg": {
+            "edge_hidden_channels": 128,
+            "age_decay": 0.25,
+        },
+        "enabled_agents": ("ego", "rsu"),
+    },
+    "how2comm.py": {
+        "baseline_name": "how2comm",
+        "baseline_cfg": {
+            "selection_reduction": 4,
+            "communication_threshold": 0.2,
+            "age_decay": 0.25,
+            "temporal_gain": 0.5,
+        },
+        "enabled_agents": ("ego", "rsu"),
+    },
+    "v2vnet.py": {
+        "baseline_name": "v2vnet",
+        "baseline_cfg": {
+            "age_decay": 0.25,
+            "message_iterations": 3,
+            "kernel_size": 3,
+        },
+        "enabled_agents": ("ego", "rsu"),
+    },
+    "when2com.py": {
+        "baseline_name": "when2com",
+        "baseline_cfg": {
+            "query_key_channels": 64,
+            "age_decay": 0.25,
+            "temperature": 1.0,
+        },
+        "enabled_agents": ("ego", "rsu"),
+    },
+    "where2comm.py": {
+        "baseline_name": "where2comm",
+        "baseline_cfg": {
+            "communication_threshold": 0.5,
+            "age_decay": 0.25,
+        },
+        "enabled_agents": ("ego", "rsu"),
     },
     "coformernet.py": {
         "baseline_name": "coformernet",
@@ -60,6 +124,7 @@ CONTROLLED_BASELINES = {
             "dropout": 0.0,
             "mlp_ratio": 2.0,
         },
+        "enabled_agents": ("ego", "rsu"),
     },
     "v2x_vit.py": {
         "baseline_name": "v2x_vit",
@@ -70,6 +135,7 @@ CONTROLLED_BASELINES = {
             "dropout": 0.0,
             "mlp_ratio": 2.0,
         },
+        "enabled_agents": ("ego", "rsu"),
     },
 }
 
@@ -139,6 +205,18 @@ def test_every_resilient_v2x_python_config_compiles_and_inherits() -> None:
         assert _dataset(config)["split"] == "val"
 
 
+def test_custom_imports_follow_mmengine_list_contract() -> None:
+    for path in sorted(CONFIG_ROOT.rglob("*.py")):
+        config = _load_config(path)
+        custom_imports = config.get("custom_imports")
+        if custom_imports is None:
+            continue
+        assert isinstance(custom_imports, dict), path
+        imports = custom_imports.get("imports")
+        assert isinstance(imports, list), path
+        assert imports and all(isinstance(item, str) and item for item in imports), path
+
+
 def test_official_mmengine_loader_accepts_every_config_when_available() -> None:
     mmengine = pytest.importorskip("mmengine")
     for path in sorted(CONFIG_ROOT.rglob("*.py")):
@@ -184,6 +262,7 @@ def test_controlled_baselines_share_protocol_without_resilient_modules() -> None
         "type",
         "baseline_name",
         "baseline_cfg",
+        "enabled_agents",
         *shared_model_fields,
     }
     for name, expected in CONTROLLED_BASELINES.items():
@@ -194,6 +273,7 @@ def test_controlled_baselines_share_protocol_without_resilient_modules() -> None
         assert model["type"] == "ControlledCooperativeBaselineNet"
         assert model["baseline_name"] == expected["baseline_name"]
         assert model["baseline_cfg"] == expected["baseline_cfg"]
+        assert model["enabled_agents"] == expected["enabled_agents"]
         assert forbidden_model_fields.isdisjoint(model)
         for field in shared_model_fields:
             assert model[field] == main_model[field]
@@ -216,6 +296,38 @@ def test_controlled_baselines_share_protocol_without_resilient_modules() -> None
         assert config["test_evaluator"] == main["test_evaluator"]
         assert config["optim_wrapper"] == main["optim_wrapper"]
         assert config["train_cfg"] == main["train_cfg"]
+
+
+def test_new_controlled_baseline_method_names_are_explicit_adaptations() -> None:
+    expected = {
+        "ego_only.py": "Ego-only L+C fusion; RSU branches strictly ignored",
+        "fcooper.py": ("F-Cooper-style support-aware spatial-max L+C adaptation"),
+        "attfuse.py": (
+            "AttFuse-style per-BEV-position masked-attention L+C adaptation"
+        ),
+        "late_fusion.py": (
+            "LateFusion-style L+C (controlled late-feature adaptation; not exact "
+            "source-paper reproduction)"
+        ),
+        "disconet.py": (
+            "DiscoNet-style cell-wise matrix-valued edge-attention L+C adaptation"
+        ),
+        "how2comm.py": (
+            "clean-room How2comm-style spatial-channel communication selection, "
+            "lightweight age-conditioned temporal context, and pragmatic L+C fusion"
+        ),
+        "v2vnet.py": ("V2VNet-style two-agent ConvGRU message-passing L+C adaptation"),
+        "when2com.py": (
+            "When2com-style two-agent query/key communication-gated L+C adaptation"
+        ),
+        "where2comm.py": (
+            "clean-room Where2comm-style spatial confidence communication and "
+            "support-aware attention L+C adaptation"
+        ),
+    }
+    for name, method in expected.items():
+        config = _load_config(BASELINE_ROOT / name)
+        assert config["experiment"]["method"] == method
 
 
 def test_main_model_matches_paper_architecture_contract() -> None:
@@ -347,11 +459,157 @@ def test_main_model_matches_paper_architecture_contract() -> None:
     assert "teacher" not in teacher
     assert model["distillation"] == {
         "temperature": 2.0,
-        "lambda_feature": 1.0,
+        "lambda_feature": 0.05,
         "lambda_logit": 1.0,
         "head_type": "bernoulli",
         "logit_path": (0, 0),
     }
+
+
+def test_formal_methods_share_selected_clean_teacher_initialization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkpoint = "/sealed/checkpoints/clean_teacher_best.pth"
+    checkpoint_sha256 = "a" * 64
+    monkeypatch.setenv("RESILIENT_V2X_TEACHER_CHECKPOINT", checkpoint)
+    monkeypatch.setenv("RESILIENT_V2X_COMMON_INIT_CHECKPOINT", checkpoint)
+    monkeypatch.setenv("RESILIENT_V2X_COMMON_INIT_SHA256", checkpoint_sha256)
+
+    primary = _load_config(MAIN)
+    assert primary["load_from"] is None
+    assert primary["model"]["teacher_checkpoint"] == checkpoint
+
+    expected_hook = {
+        "type": "CommonTeacherInitializationHook",
+        "checkpoint": checkpoint,
+        "expected_sha256": checkpoint_sha256,
+        "priority": "HIGHEST",
+    }
+    assert primary["custom_hooks"] == [expected_hook]
+    for path in sorted(BASELINE_ROOT.glob("*.py")):
+        if path.name == "_base_.py":
+            continue
+        baseline = _load_config(path)
+        assert baseline["load_from"] is None
+        assert baseline["custom_hooks"] == [expected_hook]
+        assert baseline["train_dataloader"]["dataset"][
+            "include_clean_teacher"
+        ] is False
+
+    for relative in (
+        "ablations/no_distillation.py",
+        "improvements/support_residual.py",
+        "improvements/linear_no_distillation.py",
+        "improvements/no_distillation_peak_lr_3e4.py",
+        "improvements/teacher_init_linear_no_distillation.py",
+        "improvements/linear_weak_feature_distillation.py",
+    ):
+        candidate = _load_config(CONFIG_ROOT / relative)
+        assert candidate["load_from"] is None
+        assert candidate["custom_hooks"] == [expected_hook]
+
+
+def test_linear_no_distillation_candidate_resolves_exact_training_contract() -> None:
+    candidate = _load_config(
+        CONFIG_ROOT / "improvements" / "linear_no_distillation.py"
+    )
+    model = candidate["model"]
+
+    assert model["teacher"] is None
+    assert model["teacher_checkpoint"] is None
+    assert model["distillation"] is None
+    assert model["ptf_mode"] == "linear"
+    assert _dataset(candidate, "train")["include_clean_teacher"] is False
+
+
+def test_no_distillation_peak_lr_candidate_resolves_exact_schedule() -> None:
+    candidate = _load_config(
+        CONFIG_ROOT / "improvements" / "no_distillation_peak_lr_3e4.py"
+    )
+    model = candidate["model"]
+
+    assert model["teacher"] is None
+    assert model["teacher_checkpoint"] is None
+    assert model["distillation"] is None
+    assert _dataset(candidate, "train")["include_clean_teacher"] is False
+
+    schedulers = candidate["param_scheduler"]
+    assert schedulers == [
+        {
+            "type": "CosineAnnealingLR",
+            "T_max": 20,
+            "eta_min": 0.0003,
+            "by_epoch": True,
+            "begin": 0,
+            "end": 20,
+            "convert_to_iter_based": True,
+        },
+        {
+            "type": "CosineAnnealingLR",
+            "begin": 20,
+            "end": 50,
+            "T_max": 30,
+            "by_epoch": True,
+            "eta_min": 0.000001,
+            "convert_to_iter_based": True,
+        },
+    ]
+
+    initial_lr = candidate["optim_wrapper"]["optimizer"]["lr"]
+    choices = candidate["implementation_choices_runtime"]
+    assert initial_lr == pytest.approx(0.0001)
+    assert schedulers[0]["eta_min"] == pytest.approx(
+        choices["peak_learning_rate"]
+    )
+    assert initial_lr < choices["peak_learning_rate"]
+    assert schedulers[0]["end"] == schedulers[1]["begin"] == 20
+    assert choices["peak_learning_rate_epoch"] == 20
+    assert schedulers[1]["eta_min"] == pytest.approx(0.000001)
+    assert schedulers[1]["eta_min"] < initial_lr
+
+
+@pytest.mark.parametrize(
+    ("alias_relative", "canonical_relative"),
+    [
+        (
+            "improvements/weak_feature_distillation.py",
+            "dair_resilient_v2x.py",
+        ),
+        (
+            "improvements/linear_weak_feature_distillation.py",
+            "ablations/ptf_linear.py",
+        ),
+        (
+            "improvements/teacher_init_linear_no_distillation.py",
+            "improvements/linear_no_distillation.py",
+        ),
+    ],
+)
+def test_redundant_improvement_aliases_cannot_drift_from_canonical_configs(
+    alias_relative: str,
+    canonical_relative: str,
+) -> None:
+    alias = _load_config(CONFIG_ROOT / alias_relative)
+    canonical = _load_config(CONFIG_ROOT / canonical_relative)
+
+    assert alias["experiment"]["name"] != canonical["experiment"]["name"]
+    assert {key: value for key, value in alias.items() if key != "experiment"} == {
+        key: value for key, value in canonical.items() if key != "experiment"
+    }
+
+
+def test_support_residual_candidate_is_scale_preserving_and_isolated() -> None:
+    candidate = _load_config(
+        CONFIG_ROOT / "improvements" / "support_residual.py"
+    )
+
+    assert candidate["model"]["support_residual_weight"] == 0.5
+    assert "support_residual_weight" not in candidate["model"]["teacher"]
+    choices = candidate["implementation_choices_runtime"]
+    assert choices["support_residual_weight"] == 0.5
+    assert choices["support_residual_formula"] == (
+        "router_fused + weight * (support_weighted_mean - router_fused)"
+    )
 
 
 def test_dataset_and_runtime_are_seeded_and_runner_compatible() -> None:
@@ -492,7 +750,7 @@ def test_vehicle_pretrain_uses_ffnet_grid_with_transfer_compatible_shapes() -> N
         {
             "type": "CosineAnnealingLR",
             "T_max": 48,
-            "eta_min": 0.0000001,
+            "eta_min": 1e-3 * 1e-4,
             "by_epoch": True,
             "begin": 32,
             "end": 80,
@@ -551,9 +809,7 @@ def test_ffnet_baseline_packs_required_3d_box_metadata_for_validation() -> None:
     for pipeline_name in ("train_pipeline", "test_pipeline"):
         pack = config[pipeline_name][-1]
         assert pack["type"] == "Pack3DDetDAIRInputs"
-        assert {"sample_id", "box_mode_3d", "box_type_3d"} <= set(
-            pack["meta_keys"]
-        )
+        assert {"sample_id", "box_mode_3d", "box_type_3d"} <= set(pack["meta_keys"])
 
 
 def test_ffnet_baseline_preserves_official_cyclic_learning_rate() -> None:
@@ -606,17 +862,16 @@ def test_ffnet_official_config_restores_three_classes_and_legacy_9d_pfn() -> Non
     assert contract["voxel_coordinate_order"].startswith("z-y-x")
 
     source = (
-        ROOT
-        / "transvision/models/voxel_encoders/ffnet_legacy_pillar_encoder.py"
+        ROOT / "transvision/models/voxel_encoders/ffnet_legacy_pillar_encoder.py"
     ).read_text(encoding="utf-8")
     compile(source, "ffnet_legacy_pillar_encoder.py", "exec")
     assert "decorated_channels += 3" in source
     assert "decorated_channels += 2" in source
     assert "features[:, :, :2]" in source
 
-    detector_source = (
-        ROOT / "transvision/models/detectors/v2x_voxelnet.py"
-    ).read_text(encoding="utf-8")
+    detector_source = (ROOT / "transvision/models/detectors/v2x_voxelnet.py").read_text(
+        encoding="utf-8"
+    )
     assert "coordinates[:, [2, 1, 0]]" in detector_source
 
 

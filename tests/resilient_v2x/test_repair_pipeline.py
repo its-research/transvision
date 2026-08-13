@@ -359,18 +359,28 @@ def test_mixed_horizons_preserve_order_and_use_one_vectorized_query() -> None:
     assert output.diagnostics[4].confidence is None
 
 
-def test_rsu_endpoint_is_observed_but_still_uses_confidence() -> None:
+def test_current_sources_are_reliable_and_historical_fallbacks_use_confidence() -> None:
+    selections = (
+        supported(Agent.EGO, Modality.LIDAR, 0),
+        supported(Agent.RSU, Modality.LIDAR, 0),
+        supported(Agent.RSU, Modality.LIDAR, 1, endpoint_tick=9),
+        supported(Agent.RSU, Modality.LIDAR, 1),
+    )
     output = run_repair(
         make_repair(),
         SpyPTF(confidence_value=0.4),
-        base_inputs((supported(Agent.RSU, Modality.LIDAR, 0),)),
+        base_inputs(selections),
     )
 
-    assert output.observed.tolist() == [True]
-    assert output.propagated.tolist() == [False]
-    torch.testing.assert_close(output.reliability, torch.tensor([0.4]))
-    assert output.diagnostics[0].observed is True
-    assert output.diagnostics[0].propagated is False
+    assert output.observed.tolist() == [True, True, True, False]
+    assert output.propagated.tolist() == [False, False, False, True]
+    torch.testing.assert_close(
+        output.reliability,
+        torch.tensor([1.0, 1.0, 0.9 * 0.4, 0.9 * 0.4]),
+    )
+    assert output.diagnostics[1].reliability == 1.0
+    assert output.diagnostics[2].reliability == pytest.approx(0.9 * 0.4)
+    assert output.diagnostics[3].reliability == pytest.approx(0.9 * 0.4)
 
 
 def test_all_unsupported_short_circuits_every_numeric_poison() -> None:

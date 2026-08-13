@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from numbers import Integral
+from numbers import Integral, Real
 from typing import Literal
 
 import torch
@@ -21,6 +22,15 @@ def _require_positive_channels(
         raise ValueError(f"{name} must be the approved integer {approved}")
     if approved is None and normalized % 32:
         raise ValueError(f"{name} must be divisible by 32")
+    return normalized
+
+
+def _require_unit_weight(value: object, name: str) -> float:
+    if not isinstance(value, Real) or isinstance(value, bool):
+        raise ValueError(f"{name} must be a finite number in [0,1]")
+    normalized = float(value)
+    if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
+        raise ValueError(f"{name} must be a finite number in [0,1]")
     return normalized
 
 
@@ -372,7 +382,13 @@ class RoutingOutput:
 class DynamicExpertRouter(nn.Module):
     descriptor_dim: int = 783
 
-    def __init__(self, channels: int, hidden_channels: int) -> None:
+    def __init__(
+        self,
+        channels: int,
+        hidden_channels: int,
+        support_residual_weight: float = 0.0,
+        support_residual_reliability_gate: bool = False,
+    ) -> None:
         super().__init__()
         self.channels = _require_positive_channels(
             channels,
@@ -384,6 +400,13 @@ class DynamicExpertRouter(nn.Module):
             "hidden_channels",
             approved=256,
         )
+        self.support_residual_weight = _require_unit_weight(
+            support_residual_weight,
+            "support_residual_weight",
+        )
+        if type(support_residual_reliability_gate) is not bool:
+            raise ValueError("support_residual_reliability_gate must be a boolean")
+        self.support_residual_reliability_gate = support_residual_reliability_gate
         self.lidar_expert = nn.Sequential(
             DepthwiseSeparableResidualBlock(self.channels),
             DepthwiseSeparableResidualBlock(self.channels),
@@ -675,13 +698,14 @@ class DynamicExpertRouter(nn.Module):
             ),
             dim=1,
         )
-        modality_reliability = torch.stack(
+        raw_modality_reliability = torch.stack(
             (
                 branch_reliability[:, 0:2].sum(dim=1) / 2.0,
                 branch_reliability[:, 2:4].sum(dim=1) / 2.0,
             ),
             dim=1,
         )
+        modality_reliability = raw_modality_reliability
         if not use_reliability:
             modality_reliability = torch.stack(
                 (lidar_support, camera_support),
@@ -805,6 +829,65 @@ class DynamicExpertRouter(nn.Module):
             .sum(dim=1)
             .to(dtype=lidar_feature.dtype)
         )
+        if self.support_residual_weight != 0.0:
+            modality_support = torch.stack(
+                (lidar_support, camera_support),
+                dim=1,
+            )
+            support_scores = modality_support.to(dtype=lidar_feature.dtype)
+            residual_reliability = (
+                raw_modality_reliability * support_scores
+                if self.support_residual_reliability_gate
+                else modality_reliability
+            )
+            residual_scores = residual_reliability * support_scores
+            residual_score_sum = residual_scores.sum(dim=1, keepdim=True)
+            # A supported source with zero declared reliability must not make
+            # the fixed residual undefined. In that degenerate row, fall back
+            # to support-only averaging; unsupported modalities remain masked.
+            residual_scores = torch.where(
+                residual_score_sum.gt(0.0),
+                residual_scores,
+                support_scores,
+            )
+            residual_score_sum = residual_scores.sum(dim=1, keepdim=True)
+            safe_residual_denominator = torch.where(
+                residual_score_sum.gt(0.0),
+                residual_score_sum,
+                torch.ones_like(residual_score_sum),
+            )
+            support_mean = (
+                torch.stack((lidar_feature, camera_feature), dim=1)
+                * residual_scores[:, :, None, None, None]
+            ).sum(dim=1) / safe_residual_denominator[:, :, None, None]
+            support_mean = _mask_feature(
+                support_mean.to(dtype=lidar_feature.dtype),
+                modality_support.any(dim=1),
+            )
+            support_mean = _require_runtime_tensor(
+                support_mean,
+                "support-weighted residual mean",
+                expected_feature_shape,
+                lidar_feature,
+            )
+            if self.support_residual_reliability_gate:
+                residual_gate = (
+                    (raw_modality_reliability * support_scores)
+                    .mean(dim=1, keepdim=True)
+                    .clamp(0.0, 1.0)
+                )
+                residual_coefficient = (self.support_residual_weight * residual_gate)[
+                    :, :, None, None
+                ]
+                residual_delta = residual_coefficient * (support_mean - fused)
+                residual_delta = torch.where(
+                    residual_gate[:, :, None, None].gt(0.0),
+                    residual_delta,
+                    torch.zeros_like(fused),
+                )
+                fused = fused + residual_delta
+            else:
+                fused = fused + self.support_residual_weight * (support_mean - fused)
         fused = _require_runtime_tensor(
             fused,
             "fused expert output",

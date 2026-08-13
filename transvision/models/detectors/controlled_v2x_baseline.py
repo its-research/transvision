@@ -49,6 +49,7 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         camera_encoder: Mapping[str, object] | nn.Module,
         bbox_head: Mapping[str, object] | nn.Module,
         baseline_name: str,
+        enabled_agents: Sequence[str] = ("ego", "rsu"),
         detection_projection: Mapping[str, object] | nn.Module | None = None,
         baseline_cfg: Mapping[str, object] | None = None,
         data_preprocessor: OptConfigType = None,
@@ -79,8 +80,24 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
             raise ValueError("baseline_cfg must be a mapping")
         if "channels" in normalized_baseline_cfg:
             raise ValueError("baseline_cfg must not override the shared channels")
+        if (
+            isinstance(enabled_agents, (str, bytes))
+            or not isinstance(enabled_agents, Sequence)
+        ):
+            raise ValueError("enabled_agents must be a sequence containing ego/rsu")
+        normalized_agents = tuple(enabled_agents)
+        if (
+            not normalized_agents
+            or any(type(value) is not str for value in normalized_agents)
+            or any(value not in ("ego", "rsu") for value in normalized_agents)
+            or len(set(normalized_agents)) != len(normalized_agents)
+        ):
+            raise ValueError(
+                "enabled_agents must contain unique values from ('ego', 'rsu')"
+            )
 
         self.baseline_name = baseline_name
+        self.enabled_agents = frozenset(normalized_agents)
         self.lidar_encoder = _build_required(lidar_encoder, "lidar_encoder")
         self.camera_encoder = _build_required(camera_encoder, "camera_encoder")
         self.bbox_head = _build_required(bbox_head, "bbox_head")
@@ -92,6 +109,12 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         self.input_selector = ControlledBaselineInputSelector(
             grid_spec=self.grid_spec,
             channels=self.channels,
+            enabled_branches=tuple(
+                key
+                for key in CONTROLLED_BRANCH_KEYS
+                if ("rsu" if key.endswith("_rsu") else "ego")
+                in self.enabled_agents
+            ),
         )
 
         # Imported lazily so model registration stays independent of optional
@@ -139,7 +162,32 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
                 Tensor,
             ):
                 raise ValueError("both precomputed modality histories are required")
-            return precomputed_lidar, precomputed_camera
+            agent_mask = torch.tensor(
+                ["ego" in self.enabled_agents, "rsu" in self.enabled_agents],
+                dtype=torch.bool,
+                device=precomputed_lidar.device,
+            )[None, :, None, None, None, None]
+            return (
+                torch.where(
+                    agent_mask,
+                    precomputed_lidar,
+                    torch.zeros_like(precomputed_lidar),
+                ),
+                torch.where(
+                    agent_mask,
+                    precomputed_camera,
+                    torch.zeros_like(precomputed_camera),
+                ),
+            )
+
+        enabled_agent_mask = torch.tensor(
+            ["ego" in self.enabled_agents, "rsu" in self.enabled_agents],
+            dtype=torch.bool,
+            device=availability.device,
+        )
+        filtered_availability = availability & enabled_agent_mask[
+            None, None, :, None
+        ]
 
         lidar_points = inputs.get("lidar_points")
         lidar_owner = inputs.get("lidar_owner")
@@ -148,13 +196,22 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
             Tensor,
         ):
             raise ValueError("sparse LiDAR payloads and owner tensor are required")
+        lidar_keep = enabled_agent_mask.index_select(
+            0, lidar_owner[:, 1].to(dtype=torch.long)
+        )
+        lidar_points = tuple(
+            value
+            for value, keep in zip(lidar_points, lidar_keep.detach().cpu().tolist())
+            if keep
+        )
+        lidar_owner = lidar_owner[lidar_keep]
         lidar_encoded = self.lidar_encoder(lidar_points)
         if not isinstance(lidar_encoded, Tensor):
             raise RuntimeError("lidar_encoder must return a tensor")
         lidar_history = scatter_sparse_bev_history(
             lidar_encoded,
             lidar_owner,
-            availability[:, 0],
+            filtered_availability[:, 0],
             channels=self.channels,
         )
 
@@ -175,6 +232,14 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         assert isinstance(camera_images, Tensor)
         assert isinstance(camera_intrinsics, Tensor)
         assert isinstance(camera_to_agent, Tensor)
+        assert isinstance(camera_owner, Tensor)
+        camera_keep = enabled_agent_mask.index_select(
+            0, camera_owner[:, 1].to(dtype=torch.long)
+        )
+        camera_images = camera_images[camera_keep]
+        camera_intrinsics = camera_intrinsics[camera_keep]
+        camera_to_agent = camera_to_agent[camera_keep]
+        camera_owner = camera_owner[camera_keep]
         camera_encoded = self.camera_encoder(
             camera_images,
             camera_intrinsics,
@@ -182,11 +247,10 @@ class ControlledCooperativeBaselineNet(Base3DDetector):
         )
         if not isinstance(camera_encoded, Tensor):
             raise RuntimeError("camera_encoder must return a tensor")
-        assert isinstance(camera_owner, Tensor)
         camera_history = scatter_sparse_bev_history(
             camera_encoded,
             camera_owner,
-            availability[:, 1],
+            filtered_availability[:, 1],
             channels=self.channels,
         )
         if lidar_history.shape[0] != batch or camera_history.shape[0] != batch:

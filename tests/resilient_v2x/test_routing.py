@@ -45,8 +45,15 @@ class _SpoofedRoutingMode(str):
         return other in ("dynamic", "uniform")
 
 
-def make_router() -> DynamicExpertRouter:
-    return DynamicExpertRouter(channels=256, hidden_channels=256)
+def make_router(
+    *,
+    support_residual_weight: float = 0.0,
+) -> DynamicExpertRouter:
+    return DynamicExpertRouter(
+        channels=256,
+        hidden_channels=256,
+        support_residual_weight=support_residual_weight,
+    )
 
 
 def router_inputs(
@@ -349,6 +356,19 @@ def test_router_constructor_accepts_only_production_widths(
 
     with pytest.raises(ValueError, match=field):
         DynamicExpertRouter(**values)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [-0.1, 1.1, math.nan, math.inf, -math.inf, True, "0.5", None],
+)
+def test_router_support_residual_weight_fails_closed(value: object) -> None:
+    with pytest.raises(ValueError, match="support_residual_weight"):
+        DynamicExpertRouter(
+            channels=256,
+            hidden_channels=256,
+            support_residual_weight=value,
+        )
 
 
 def test_modality_aggregator_masks_inputs_and_uses_exact_reliability_average() -> None:
@@ -956,6 +976,120 @@ def test_weighted_sum_uses_lidar_camera_synergy_expert_order() -> None:
         + output.weights[:, 2, None, None, None] * output.synergy_expert
     )
     torch.testing.assert_close(output.fused, expected)
+
+
+def test_zero_support_residual_weight_is_bitwise_legacy_path() -> None:
+    legacy = DynamicExpertRouter(channels=256, hidden_channels=256).eval()
+    explicit_zero = make_router(support_residual_weight=0.0).eval()
+    explicit_zero.load_state_dict(legacy.state_dict(), strict=True)
+    inputs = router_inputs()
+
+    legacy_output = legacy(**inputs)
+    explicit_output = explicit_zero(**inputs)
+
+    for field in (
+        "fused",
+        "weights",
+        "descriptor",
+        "expert_support",
+        "lidar_expert",
+        "camera_expert",
+        "synergy_expert",
+        "overall_support",
+    ):
+        assert torch.equal(
+            getattr(explicit_output, field),
+            getattr(legacy_output, field),
+        )
+
+
+def test_support_residual_uses_exact_reliability_weighted_batch_formula() -> None:
+    legacy = make_router().eval()
+    candidate = make_router(support_residual_weight=0.5).eval()
+    candidate.load_state_dict(legacy.state_dict(), strict=True)
+    inputs = router_inputs()
+    inputs["routing_mode"] = "uniform"
+
+    legacy_output = legacy(**inputs)
+    candidate_output = candidate(**inputs)
+
+    branch_reliability = inputs["branch_reliability"]
+    assert isinstance(branch_reliability, torch.Tensor)
+    modality_scores = torch.stack(
+        (
+            branch_reliability[:, 0:2].sum(dim=1) / 2.0,
+            branch_reliability[:, 2:4].sum(dim=1) / 2.0,
+        ),
+        dim=1,
+    )
+    lidar_feature = inputs["lidar_feature"]
+    camera_feature = inputs["camera_feature"]
+    assert isinstance(lidar_feature, torch.Tensor)
+    assert isinstance(camera_feature, torch.Tensor)
+    support_mean = (
+        torch.stack((lidar_feature, camera_feature), dim=1)
+        * modality_scores[:, :, None, None, None]
+    ).sum(dim=1) / modality_scores.sum(dim=1)[:, None, None, None]
+    expected = legacy_output.fused + 0.5 * (support_mean - legacy_output.fused)
+
+    torch.testing.assert_close(candidate_output.fused, expected)
+    assert torch.equal(candidate_output.weights, legacy_output.weights)
+    assert torch.equal(candidate_output.descriptor, legacy_output.descriptor)
+    assert torch.equal(candidate_output.lidar_expert, legacy_output.lidar_expert)
+    assert torch.equal(candidate_output.camera_expert, legacy_output.camera_expert)
+    assert torch.equal(candidate_output.synergy_expert, legacy_output.synergy_expert)
+    # The second batch row has only one supported modality, so the fixed mean
+    # is exactly that source regardless of its positive reliability value.
+    torch.testing.assert_close(support_mean[1], lidar_feature[1])
+
+
+def test_support_residual_masks_unsupported_source_and_empty_rows() -> None:
+    candidate = make_router(support_residual_weight=0.5).eval()
+    inputs = router_inputs()
+    inputs["routing_mode"] = "uniform"
+    inputs["lidar_branch_support"] = torch.tensor([[True, False], [False, False]])
+    inputs["camera_branch_support"] = torch.tensor([[False, False], [False, False]])
+    inputs["branch_reliability"] = torch.tensor(
+        [[0.7, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+    )
+    inputs["branch_observed"] = torch.tensor(
+        [[True, False, False, False], [False, False, False, False]]
+    )
+    inputs["branch_propagated"] = torch.zeros(2, 4, dtype=torch.bool)
+    inputs["branch_age_intervals"] = torch.zeros(2, 4)
+    inputs["rsu_delay_intervals"] = torch.zeros(2, 1)
+    first = candidate(**inputs)
+
+    changed = dict(inputs)
+    changed_camera = inputs["camera_feature"].clone()
+    changed_camera.fill_(10_000.0)
+    changed["camera_feature"] = changed_camera
+    changed_lidar = inputs["lidar_feature"].clone()
+    changed_lidar[1].fill_(-10_000.0)
+    changed["lidar_feature"] = changed_lidar
+    second = candidate(**changed)
+
+    assert torch.equal(first.fused[0], second.fused[0])
+    assert torch.count_nonzero(first.fused[1]).item() == 0
+    assert torch.count_nonzero(second.fused[1]).item() == 0
+    assert first.overall_support.tolist() == [True, False]
+    assert second.overall_support.tolist() == [True, False]
+
+
+def test_support_residual_state_dict_schema_is_unchanged() -> None:
+    legacy = make_router()
+    candidate = make_router(support_residual_weight=0.5)
+
+    legacy_schema = tuple(
+        (name, tuple(value.shape)) for name, value in legacy.state_dict().items()
+    )
+    candidate_schema = tuple(
+        (name, tuple(value.shape)) for name, value in candidate.state_dict().items()
+    )
+
+    assert candidate_schema == legacy_schema
+    assert trainable_parameter_count(candidate) == trainable_parameter_count(legacy)
+    candidate.load_state_dict(legacy.state_dict(), strict=True)
 
 
 def test_all_invalid_is_exact_zero_and_never_nan_in_every_mode() -> None:

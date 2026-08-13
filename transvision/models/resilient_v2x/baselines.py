@@ -35,6 +35,7 @@ camera.  Missing branches are masked before any learned operation.
 from __future__ import annotations
 
 import math
+from importlib import import_module
 from collections.abc import Sequence
 
 import torch
@@ -201,6 +202,91 @@ class _ControlledFusionBase(nn.Module):
     ) -> Tensor:
         weights = self._age_weights(support, ages)
         return (branches * weights[:, :, None, None, None]).sum(dim=1)
+
+
+class EgoOnlyFusion(_ControlledFusionBase):
+    """Non-cooperative ego LiDAR+camera control using the shared encoders."""
+
+    _ego_indices = (0, 2)
+
+    def forward(
+        self,
+        branches: Tensor,
+        support: Tensor,
+        ages: Tensor,
+    ) -> Tensor:
+        branches, support, ages = self._prepare_inputs(branches, support, ages)
+        ego_support = support[:, self._ego_indices]
+        unsupported_samples = (
+            (~ego_support.any(dim=1)).nonzero(as_tuple=False).flatten()
+        )
+        if unsupported_samples.numel():
+            indices = unsupported_samples.detach().cpu().tolist()
+            raise ValueError(
+                f"both ego branches are missing for sample indices {indices}"
+            )
+        return self._weighted_mean(
+            branches[:, self._ego_indices],
+            ego_support,
+            ages[:, self._ego_indices],
+        )
+
+
+class FCooperAdaptedFusion(_ControlledFusionBase):
+    """Support-aware spatial-max L+C adaptation of F-Cooper SFF."""
+
+    def __init__(self, channels: int = 256) -> None:
+        super().__init__(channels=channels, age_decay=0.0)
+
+    def forward(
+        self,
+        branches: Tensor,
+        support: Tensor,
+        ages: Tensor,
+    ) -> Tensor:
+        branches, support, _ = self._prepare_inputs(branches, support, ages)
+        branch_mask = support[:, :, None, None, None]
+        floor = torch.finfo(branches.dtype).min
+        return torch.where(branch_mask, branches, floor).amax(dim=1)
+
+
+class AttFuseAdaptedFusion(_ControlledFusionBase):
+    """Per-BEV-position masked-attention L+C adaptation of AttFuse."""
+
+    def __init__(self, channels: int = 256, age_decay: float = 0.25) -> None:
+        super().__init__(channels=channels, age_decay=age_decay)
+        self.score_projection = nn.Conv2d(channels, 1, kernel_size=1)
+        self.branch_bias = nn.Parameter(torch.zeros(1, self.branch_count, 1, 1))
+
+    def _attention_weights(
+        self,
+        branches: Tensor,
+        support: Tensor,
+        ages: Tensor,
+    ) -> Tensor:
+        batch, _, _, height, width = branches.shape
+        scores = self.score_projection(
+            branches.reshape(batch * self.branch_count, self.channels, height, width)
+        ).reshape(batch, self.branch_count, height, width)
+        scores = (
+            scores
+            + self.branch_bias
+            - self.age_decay * ages[:, :, None, None].to(dtype=scores.dtype)
+        )
+        support_map = support[:, :, None, None]
+        scores = scores.masked_fill(~support_map, -torch.inf)
+        weights = torch.softmax(scores, dim=1)
+        return torch.where(support_map, weights, torch.zeros_like(weights))
+
+    def forward(
+        self,
+        branches: Tensor,
+        support: Tensor,
+        ages: Tensor,
+    ) -> Tensor:
+        branches, support, ages = self._prepare_inputs(branches, support, ages)
+        weights = self._attention_weights(branches, support, ages)
+        return (branches * weights[:, :, None, :, :]).sum(dim=1)
 
 
 class _RelativeAgeEncoding(nn.Module):
@@ -1086,12 +1172,52 @@ class FFNetAdaptedFusion(_ControlledFusionBase):
 
 
 _CONTROLLED_BASELINES: dict[str, type[_ControlledFusionBase]] = {
+    "ego_only": EgoOnlyFusion,
+    "fcooper": FCooperAdaptedFusion,
+    "attfuse": AttFuseAdaptedFusion,
     "v2x_vit": V2XViTAdaptedFusion,
     "cobevt": CoBEVTAdaptedFusion,
     "coformernet": CoFormerNetAdaptedFusion,
     "bevfusion": BEVFusionAdaptedFusion,
     "ffnet": FFNetAdaptedFusion,
 }
+_LAZY_CONTROLLED_BASELINES = {
+    "late_fusion": (
+        "transvision.models.resilient_v2x.late_fusion_baseline",
+        "LateFusionStyleFusion",
+    ),
+    "v2vnet": (
+        "transvision.models.resilient_v2x.v2vnet_baseline",
+        "V2VNetStyleFusion",
+    ),
+    "disconet": (
+        "transvision.models.resilient_v2x.disconet_baseline",
+        "DiscoNetAdaptedFusion",
+    ),
+    "when2com": (
+        "transvision.models.resilient_v2x.when2com_baseline",
+        "When2comAdaptedFusion",
+    ),
+    "where2comm": (
+        "transvision.models.resilient_v2x.where2comm_baseline",
+        "Where2commAdaptedFusion",
+    ),
+    "how2comm": (
+        "transvision.models.resilient_v2x.how2comm_baseline",
+        "How2commAdaptedFusion",
+    ),
+}
+
+
+def _controlled_baseline_type(name: str) -> type[nn.Module]:
+    direct = _CONTROLLED_BASELINES.get(name)
+    if direct is not None:
+        return direct
+    module_name, class_name = _LAZY_CONTROLLED_BASELINES[name]
+    candidate = getattr(import_module(module_name), class_name, None)
+    if not isinstance(candidate, type) or not issubclass(candidate, nn.Module):
+        raise RuntimeError(f"controlled baseline {name!r} is not an nn.Module type")
+    return candidate
 
 
 def build_controlled_baseline_fusion(
@@ -1101,14 +1227,18 @@ def build_controlled_baseline_fusion(
 ) -> nn.Module:
     """Build one adapted fusion module with the common controlled contract."""
 
-    if type(name) is not str or name not in _CONTROLLED_BASELINES:
-        choices = ", ".join(_CONTROLLED_BASELINES)
+    choices_by_name = (*_CONTROLLED_BASELINES, *_LAZY_CONTROLLED_BASELINES)
+    if type(name) is not str or name not in choices_by_name:
+        choices = ", ".join(choices_by_name)
         raise ValueError(f"name must be one of: {choices}")
-    return _CONTROLLED_BASELINES[name](channels=channels, **kwargs)
+    return _controlled_baseline_type(name)(channels=channels, **kwargs)
 
 
 __all__ = (
     "BRANCH_ORDER",
+    "EgoOnlyFusion",
+    "FCooperAdaptedFusion",
+    "AttFuseAdaptedFusion",
     "V2XViTAdaptedFusion",
     "CoBEVTAdaptedFusion",
     "CoFormerNetAdaptedFusion",

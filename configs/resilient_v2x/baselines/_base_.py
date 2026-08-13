@@ -39,6 +39,7 @@ model = dict(
     bbox_head=bbox_head,
     detection_projection=detection_projection,
     data_preprocessor=data_preprocessor,
+    enabled_agents=("ego", "rsu"),
     baseline_name="v2x_vit",
     baseline_cfg=dict(
         age_decay=0.25,
@@ -48,6 +49,9 @@ model = dict(
         mlp_ratio=2.0,
     ),
 )
+
+# The runtime hook loads only the four shared encoder/projection/head prefixes
+# from the audited clean teacher. Each method-specific fusion stays random.
 
 # Baselines are trained directly against detection targets. They do not
 # instantiate the clean teacher or request clean-teacher tensors from data.
@@ -60,6 +64,7 @@ controlled_baseline_contract = dict(
     branch_order=("L_E", "L_R", "C_E", "C_R"),
     causal_history=True,
     shared_encoders_and_detection_head=True,
+    shared_clean_teacher_initialization=True,
     distillation=False,
     ptf=False,
     der=False,

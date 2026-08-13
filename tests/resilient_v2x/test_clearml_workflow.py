@@ -23,6 +23,98 @@ def _load_script(name: str):
     return module
 
 
+class _LocalDataset:
+    def __init__(self, local_copy: Path) -> None:
+        self.local_copy = local_copy
+        self.use_soft_links: bool | None = None
+
+    def get_local_copy(self, *, use_soft_links: bool) -> str:
+        self.use_soft_links = use_soft_links
+        return str(self.local_copy)
+
+
+def test_clearml_dataset_materialization_allows_sibling_parent_links(
+    tmp_path: Path,
+) -> None:
+    runner = _load_script("clearml_train.py")
+    cache_root = tmp_path / "clearml-cache"
+    parent = cache_root / "parent-dataset"
+    child = cache_root / "child-dataset"
+    (parent / "payload").mkdir(parents=True)
+    child.mkdir()
+    (parent / "shared.bin").write_bytes(b"shared")
+    (parent / "payload/value.txt").write_text("trusted", encoding="utf-8")
+    (child / "shared.bin").symlink_to("../parent-dataset/shared.bin")
+    (child / "payload").symlink_to(
+        "../parent-dataset/payload",
+        target_is_directory=True,
+    )
+    dataset = _LocalDataset(child)
+    destination = tmp_path / "task" / "training-dataset"
+
+    materialized = runner._materialize_clearml_dataset(dataset, destination)
+
+    assert materialized == destination.resolve()
+    assert dataset.use_soft_links is False
+    assert (materialized / "shared.bin").read_bytes() == b"shared"
+    assert (materialized / "payload/value.txt").read_text(encoding="utf-8") == (
+        "trusted"
+    )
+    assert not any(path.is_symlink() for path in materialized.rglob("*"))
+
+
+def test_clearml_dataset_materialization_rejects_link_outside_cache(
+    tmp_path: Path,
+) -> None:
+    runner = _load_script("clearml_train.py")
+    cache_root = tmp_path / "clearml-cache"
+    child = cache_root / "child-dataset"
+    outside = tmp_path / "outside"
+    child.mkdir(parents=True)
+    outside.mkdir()
+    (outside / "secret.txt").write_text("outside", encoding="utf-8")
+    (child / "escape").symlink_to(outside, target_is_directory=True)
+    destination = tmp_path / "task" / "training-dataset"
+
+    with pytest.raises(ValueError, match="escaped the trusted cache root"):
+        runner._materialize_clearml_dataset(
+            _LocalDataset(child),
+            destination,
+        )
+
+    assert not destination.exists()
+    assert not list(destination.parent.glob(".training-dataset.materialize-*"))
+
+
+def test_clearml_dataset_materialization_copy_fallback_has_no_symlinks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _load_script("clearml_train.py")
+    cache_root = tmp_path / "clearml-cache"
+    parent = cache_root / "parent-dataset"
+    child = cache_root / "child-dataset"
+    parent.mkdir(parents=True)
+    child.mkdir()
+    (parent / "value.bin").write_bytes(b"copied")
+    (child / "value.bin").symlink_to("../parent-dataset/value.bin")
+
+    def cross_device_link(*_args: object, **_kwargs: object) -> None:
+        raise OSError(runner.errno.EXDEV, "cross-device link")
+
+    monkeypatch.setattr(runner.os, "link", cross_device_link)
+    materialized = runner._materialize_clearml_dataset(
+        _LocalDataset(child),
+        tmp_path / "task" / "training-dataset",
+    )
+
+    output = materialized / "value.bin"
+    assert output.read_bytes() == b"copied"
+    assert output.is_file()
+    assert not output.is_symlink()
+    assert not any(path.is_symlink() for path in materialized.rglob("*"))
+
+
 def _evaluation_contract(sample_ids: list[str]) -> dict[str, object]:
     from transvision.dataset.resilient_v2x_manifest import canonical_json_bytes
 
@@ -268,6 +360,38 @@ def test_checkpoint_policy_selects_exact_final_epoch(tmp_path: Path) -> None:
     assert runner._checkpoint(tmp_path, "teacher", 50) == final.resolve()
 
 
+def test_teacher_handoff_selects_unique_clean_validation_best(
+    tmp_path: Path,
+) -> None:
+    runner = _load_script("clearml_train.py")
+    selected = (
+        tmp_path
+        / "best_resilient_v2x_car_bev_ap_r40_0.70_teacher_epoch_30.pth"
+    )
+    selected.write_bytes(b"checkpoint")
+    (tmp_path / "teacher_epoch_50.pth").write_bytes(b"final")
+
+    assert runner._best_clean_validation_checkpoint(
+        tmp_path,
+        max_epoch=50,
+    ) == (selected.resolve(), 30)
+
+
+def test_teacher_handoff_rejects_ambiguous_clean_validation_best(
+    tmp_path: Path,
+) -> None:
+    runner = _load_script("clearml_train.py")
+    for epoch in (30, 40):
+        path = (
+            tmp_path
+            / f"best_resilient_v2x_car_bev_ap_r40_0.70_teacher_epoch_{epoch}.pth"
+        )
+        path.write_bytes(b"checkpoint")
+
+    with pytest.raises(RuntimeError, match="exactly one"):
+        runner._best_clean_validation_checkpoint(tmp_path, max_epoch=50)
+
+
 def test_evaluation_contract_is_canonical_and_content_addressed() -> None:
     runner = _load_script("clearml_train.py")
     contract = runner._load_evaluation_contract(
@@ -426,6 +550,44 @@ def test_formal_reference_quality_gate_rejects_high_iou_collapse() -> None:
         runner._validate_formal_reference_metrics(zero_3d)
 
 
+def test_canonical_evaluation_counts_bind_scalars_to_predictions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _load_script("clearml_train.py")
+    monkeypatch.setattr(runner, "EXPECTED_EVALUATION_GROUND_TRUTH_COUNT", 2)
+    metrics = _metrics(sample_count=2)
+    prediction = {
+        "samples": [
+            _prediction_sample("sample-a"),
+            _prediction_sample("sample-b"),
+        ]
+    }
+
+    assert runner._validate_canonical_evaluation_counts(
+        metrics,
+        prediction,
+        condition_name="delay_000_full",
+    ) == (2, 0)
+
+    wrong_ground_truth = dict(metrics)
+    wrong_ground_truth["resilient_v2x/car_ground_truth_count"] = 1.0
+    with pytest.raises(ValueError, match="ground-truth count mismatch"):
+        runner._validate_canonical_evaluation_counts(
+            wrong_ground_truth,
+            prediction,
+            condition_name="delay_000_full",
+        )
+
+    unsupported = dict(metrics)
+    unsupported["resilient_v2x/unsupported_sample_count"] = 1.0
+    with pytest.raises(ValueError, match="unsupported sample count mismatch"):
+        runner._validate_canonical_evaluation_counts(
+            unsupported,
+            prediction,
+            condition_name="delay_000_full",
+        )
+
+
 def test_condition_result_writer_is_canonical_and_sealed(tmp_path: Path) -> None:
     from transvision.evaluation.resilient_v2x_evidence import read_document
 
@@ -449,9 +611,13 @@ def test_condition_result_writer_is_canonical_and_sealed(tmp_path: Path) -> None
 def test_runtime_profile_cli_is_closed_and_defaults_to_legacy() -> None:
     runner = _load_script("clearml_train.py")
 
-    assert runner._parser().parse_args(["--dataset-id", "dataset"]).runtime_profile == (
-        "legacy"
+    defaults = runner._parser().parse_args(["--dataset-id", "dataset"])
+    assert defaults.runtime_profile == "legacy"
+    assert defaults.training_seed == 20250218
+    custom = runner._parser().parse_args(
+        ["--dataset-id", "dataset", "--training-seed", "7"]
     )
+    assert custom.training_seed == 7
     assert (
         runner._parser()
         .parse_args(["--dataset-id", "dataset", "--runtime-profile", "rtx5090"])
@@ -462,6 +628,22 @@ def test_runtime_profile_cli_is_closed_and_defaults_to_legacy() -> None:
         runner._parser().parse_args(
             ["--dataset-id", "dataset", "--runtime-profile", "unknown"]
         )
+    with pytest.raises(SystemExit):
+        runner._parser().parse_args(
+            ["--dataset-id", "dataset", "--training-seed", "-1"]
+        )
+
+
+def test_training_seed_cfg_options_are_dataset_aware() -> None:
+    runner = _load_script("clearml_train.py")
+    common = runner._training_seed_cfg_options(7, dataset_augmentation=False)
+    resilient = runner._training_seed_cfg_options(7, dataset_augmentation=True)
+
+    assert "randomness.seed=7" in common
+    assert "train_dataloader.sampler.seed=7" in common
+    assert not any("dataset.seed" in option for option in common)
+    assert "train_dataloader.dataset.seed=7" in resilient
+    assert "implementation_choices_dataset.global_seed=7" in resilient
 
 
 def test_vehicle_pretrain_stages_are_closed_and_final_checkpoint_is_selected(
@@ -632,10 +814,10 @@ def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
         assert baseline.count(new) == 1
         baseline = baseline.replace(new, old)
     assert hashlib.sha256(baseline.encode("utf-8")).hexdigest() == (
-        bootstrap.CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256
+        bootstrap.CLEARML_TRAIN_PROTOCOL_SCHEMA_BASELINE_SHA256
     )
     assert hashlib.sha256(patched.encode("utf-8")).hexdigest() == (
-        bootstrap.CLEARML_TRAIN_FFNET_OFFICIAL_METRICS_COMPAT_SHA256
+        bootstrap.CLEARML_TRAIN_PROTOCOL_SCHEMA_SHA256
     )
     assert bootstrap.CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES == {
         bootstrap.CLEARML_TRAIN_BASELINE_SHA256: (
@@ -646,6 +828,9 @@ def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
         ),
         bootstrap.CLEARML_TRAIN_FFNET_OFFICIAL_BASELINE_SHA256: (
             bootstrap.CLEARML_TRAIN_FFNET_OFFICIAL_METRICS_COMPAT_SHA256
+        ),
+        bootstrap.CLEARML_TRAIN_PROTOCOL_SCHEMA_BASELINE_SHA256: (
+            bootstrap.CLEARML_TRAIN_PROTOCOL_SCHEMA_SHA256
         ),
     }
 
@@ -667,10 +852,7 @@ def test_rtx5090_bootstrap_applies_hash_gated_metrics_compatibility(
 def test_rtx5090_build_normalizes_multiarch_cuda_list() -> None:
     build = _load_script("clearml_5090_build.py")
     assert build.DEFAULT_TORCH_CUDA_ARCH_LIST == "7.0;8.0;12.0"
-    assert (
-        build._normalize_torch_cuda_arch_list("7.0;8.0;12.0;7.0")
-        == "7.0;8.0;12.0"
-    )
+    assert build._normalize_torch_cuda_arch_list("7.0;8.0;12.0;7.0") == "7.0;8.0;12.0"
     assert build._required_nvcc_compute_archs("7.0;8.0;12.0") == frozenset(
         {"compute_70", "compute_80", "compute_120"}
     )
@@ -693,15 +875,12 @@ def test_rtx5090_build_normalizes_multiarch_cuda_list() -> None:
         assert '"visualizer.vis_backends": []' not in model_smoke
         assert '"visualizer._scope_": "mmengine"' in model_smoke
         assert '"visualizer.type": "Visualizer"' in model_smoke
-        assert (
-            '"visualizer.vis_backends.0._scope_": "mmengine"' in model_smoke
-        )
+        assert '"visualizer.vis_backends.0._scope_": "mmengine"' in model_smoke
         assert "type(visualizer) is not Visualizer" in model_smoke
         assert "type(backends[0]) is not LocalVisBackend" in model_smoke
         assert "config.visualizer.save_dir = save_dir" in model_smoke
         assert (
-            'scalars_path = Path(save_dir) / "vis_data" / "scalars.json"'
-            in model_smoke
+            'scalars_path = Path(save_dir) / "vis_data" / "scalars.json"' in model_smoke
         )
         assert 'visualizer.add_scalar("headless/smoke", 1.0, step=0)' in model_smoke
         compile(model_smoke, script_name, "exec")
@@ -758,6 +937,8 @@ def test_rtx5090_bootstrap_runner_command_forwards_contract() -> None:
         "validate",
         "--max-epochs",
         "3",
+        "--training-seed",
+        "20250218",
         "--teacher-checkpoint",
         "teacher.pth",
         "--student-checkpoint",

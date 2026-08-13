@@ -989,9 +989,9 @@ class CausalBranchRepair(nn.Module):
             dtype=torch.bool,
             device=selected_feature.device,
         )
-        current_ego = supported_agent_index.eq(0) & horizon.eq(0)
+        current_source = horizon.eq(0)
         reliability = torch.where(
-            current_ego,
+            current_source,
             torch.ones_like(gamma),
             gamma * confidence.mean(dim=(-3, -2, -1)),
         )

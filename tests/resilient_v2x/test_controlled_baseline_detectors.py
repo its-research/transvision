@@ -319,6 +319,60 @@ def test_detector_reuses_sparse_shared_encoder_input_contract(
     )
 
 
+def test_ego_only_filters_rsu_payloads_before_shared_encoders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory_calls: list[tuple[str, int, dict[str, object]]] = []
+    _install_fake_factory(monkeypatch, factory_calls)
+    lidar_encoder = _RecordingLidarEncoder(torch.full((1, 256, 2, 2), 5.0))
+    camera_encoder = _RecordingCameraEncoder(torch.full((1, 256, 2, 2), 7.0))
+    model = ControlledCooperativeBaselineNet(
+        grid_spec=dict(
+            x_min=0.0,
+            y_min=0.0,
+            resolution=1.0,
+            height=2,
+            width=2,
+        ),
+        lidar_encoder=lidar_encoder,
+        camera_encoder=camera_encoder,
+        bbox_head=_DummyHead(),
+        baseline_name="ego_only",
+        enabled_agents=("ego",),
+    )
+    availability = torch.zeros(1, 2, 2, 4, dtype=torch.bool)
+    availability[0, 0, 0, 2] = True
+    availability[0, 0, 1, 0] = True
+    availability[0, 1, 0, 0] = True
+    availability[0, 1, 1, 1] = True
+    transforms = torch.eye(4).view(1, 1, 1, 1, 4, 4).repeat(
+        1, 2, 2, 4, 1, 1
+    )
+    inputs = {
+        "lidar_points": (torch.zeros(1, 4), torch.full((1, 4), 99.0)),
+        "lidar_owner": torch.tensor(((0, 0, 2), (0, 1, 0))),
+        "camera_images": torch.stack(
+            (torch.zeros(3, 2, 2), torch.full((3, 2, 2), 99.0))
+        ),
+        "camera_owner": torch.tensor(((0, 0, 0), (0, 1, 1))),
+        "camera_intrinsics": torch.eye(3).repeat(2, 1, 1),
+        "camera_agent_from_sensor": torch.eye(4).repeat(2, 1, 1),
+        "availability": availability,
+        "source_to_target": transforms,
+        "selections": _selections(),
+    }
+
+    selected = model.select_baseline_inputs(inputs)
+
+    assert lidar_encoder.calls == 1
+    assert camera_encoder.calls == 1
+    assert torch.equal(
+        selected.support,
+        torch.tensor(((True, False, False, False),)),
+    )
+    assert torch.count_nonzero(selected.branches[:, 1:]).item() == 0
+
+
 def test_detector_rejects_resilient_only_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -234,6 +234,25 @@ def test_no_ptf_ablation_keeps_full_ptf_parameter_capacity() -> None:
     )
 
 
+def test_support_residual_threads_without_state_schema_change() -> None:
+    grid = BEVGridSpec(0.0, 0.0, 1.0, 4, 4)
+    legacy = ResilientV2XFeatureFusion(grid, ptf_mode="none")
+    legacy_schema = tuple(
+        (name, tuple(value.shape)) for name, value in legacy.state_dict().items()
+    )
+    candidate = ResilientV2XFeatureFusion(
+        grid,
+        ptf_mode="none",
+        support_residual_weight=0.5,
+    )
+    candidate_schema = tuple(
+        (name, tuple(value.shape)) for name, value in candidate.state_dict().items()
+    )
+
+    assert candidate.router.support_residual_weight == 0.5
+    assert candidate_schema == legacy_schema
+
+
 def test_explicit_latest_arrival_age_is_not_replaced_by_fallback_packet_delay() -> None:
     base = _all_supported()
     selections = ResilientBatchSelections(

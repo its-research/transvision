@@ -173,6 +173,8 @@ class ResilientV2XFeatureFusion(nn.Module):
         routing_mode: Literal["dynamic", "static", "uniform", "concat"] = "dynamic",
         use_reliability: bool = True,
         use_delay_metadata: bool = True,
+        support_residual_weight: float = 0.0,
+        support_residual_reliability_gate: bool = False,
         delta_t_ms: int = 100,
     ) -> None:
         super().__init__()
@@ -238,6 +240,11 @@ class ResilientV2XFeatureFusion(nn.Module):
         self.router = DynamicExpertRouter(
             channels=self.channels,
             hidden_channels=256,
+            support_residual_weight=support_residual_weight,
+            support_residual_reliability_gate=(support_residual_reliability_gate),
+        )
+        self.support_residual_reliability_gate = (
+            self.router.support_residual_reliability_gate
         )
 
     def _validate_history(
@@ -604,11 +611,17 @@ class ResilientV2XFeatureFusion(nn.Module):
 
         lidar_diagnostics = lidar_repaired.diagnostics
         camera_diagnostics = camera_repaired.diagnostics
+        reliability_gate_diagnostic = (
+            ",support_residual_reliability_gate=1"
+            if self.support_residual_reliability_gate
+            else ""
+        )
         method = (
             f"ResilientV2X(ptf={self.ptf_mode},"
             f"routing={self.routing_mode},"
             f"reliability={int(self.use_reliability)},"
-            f"delay_metadata={int(self.use_delay_metadata)})"
+            f"delay_metadata={int(self.use_delay_metadata)}"
+            f"{reliability_gate_diagnostic})"
         )
         diagnostics = tuple(
             SampleInferenceDiagnostics(

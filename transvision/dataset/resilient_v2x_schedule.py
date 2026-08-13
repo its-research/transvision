@@ -33,6 +33,9 @@ __all__ = (
     "stable_uint64",
     "bernoulli_from_hash",
     "delay_from_hash",
+    "training_condition_from_hash",
+    "TRAINING_CONDITION_HASH_DOMAIN",
+    "TRAINING_CONDITION_MODE",
     "write_transport_overlay",
     "write_fault_overlay",
     "write_arrival_relative_fault_overlay",
@@ -51,6 +54,14 @@ _EVALUATION_SPLITS = ("val", "test")
 _AGENTS = ("ego", "rsu")
 _MODALITIES = ("lidar", "camera")
 _DELAY_VALUES_MS = (0, 100, 200, 300)
+_CONDITIONS = ("Full", "L-Fail", "C-Fail")
+TRAINING_CONDITION_MODE = "train_condition_matrix"
+TRAINING_CONDITION_HASH_DOMAIN = "training-condition-matrix-v1"
+_TRAINING_CONDITION_MATRIX = tuple(
+    (delay_ms, condition)
+    for delay_ms in _DELAY_VALUES_MS
+    for condition in _CONDITIONS
+)
 _TRANSPORT_FIELDS = frozenset(
     {"epoch", "sample_id", "packet_id", "n_s", "delay_ms", "arrival_tau_ms"}
 )
@@ -150,7 +161,11 @@ class TransportPlan:
     temporal_manifest_sha256: str
     split: Literal["train", "val", "test"]
     samples: tuple[TemporalSampleRecord, ...]
-    mode: Literal["train_random", "fixed_evaluation"]
+    mode: Literal[
+        "train_random",
+        "train_condition_matrix",
+        "fixed_evaluation",
+    ]
     protocol_seed: int | None
     epochs: tuple[int, ...]
     delay_values_ms: tuple[int, ...]
@@ -171,7 +186,7 @@ class TransportPlan:
         )
         mode = _literal(
             self.mode,
-            ("train_random", "fixed_evaluation"),
+            ("train_random", TRAINING_CONDITION_MODE, "fixed_evaluation"),
             "transport mode",
         )
         object.__setattr__(self, "mode", mode)
@@ -189,16 +204,16 @@ class TransportPlan:
             "transport fixed delay",
             0,
         )
-        if mode == "train_random":
+        if mode in ("train_random", TRAINING_CONDITION_MODE):
             if split != "train":
-                raise ScheduleError("random transport is train-only")
+                raise ScheduleError("epoch-indexed transport is train-only")
             if seed is None or not epochs:
                 raise ScheduleError(
-                    "random transport requires a seed and non-empty epochs"
+                    "epoch-indexed transport requires a seed and non-empty epochs"
                 )
             if delays != _DELAY_VALUES_MS or fixed_delay is not None:
                 raise ScheduleError(
-                    "random transport requires protocol delays and no fixed delay"
+                    "epoch-indexed transport requires protocol delays and no fixed delay"
                 )
         else:
             if split not in _EVALUATION_SPLITS:
@@ -220,7 +235,12 @@ class FaultPlan:
     temporal_manifest_sha256: str
     split: Literal["train", "val", "test"]
     samples: tuple[TemporalSampleRecord, ...]
-    mode: Literal["train_random", "global_target", "continuous"]
+    mode: Literal[
+        "train_random",
+        "train_condition_matrix",
+        "global_target",
+        "continuous",
+    ]
     protocol_seed: int | None
     epochs: tuple[int, ...]
     condition: Literal["Full", "L-Fail", "C-Fail"] | None
@@ -245,7 +265,12 @@ class FaultPlan:
         )
         mode = _literal(
             self.mode,
-            ("train_random", "global_target", "continuous"),
+            (
+                "train_random",
+                TRAINING_CONDITION_MODE,
+                "global_target",
+                "continuous",
+            ),
             "fault mode",
         )
         object.__setattr__(self, "mode", mode)
@@ -293,6 +318,24 @@ class FaultPlan:
                 or duration is not None
             ):
                 raise ScheduleError("random faults target both agents at n_t only")
+        elif mode == TRAINING_CONDITION_MODE:
+            if split != "train":
+                raise ScheduleError("condition-matrix faults are train-only")
+            if seed is None or not epochs:
+                raise ScheduleError(
+                    "condition-matrix faults require a seed and non-empty epochs"
+                )
+            if (
+                condition is not None
+                or p_lidar is not None
+                or p_camera is not None
+                or agents != _AGENTS
+                or modality is not None
+                or duration is not None
+            ):
+                raise ScheduleError(
+                    "condition-matrix faults require only both agents and the shared hash"
+                )
         elif mode == "global_target":
             if split not in _EVALUATION_SPLITS:
                 raise ScheduleError("global target faults are evaluation-only")
@@ -625,6 +668,27 @@ def delay_from_hash(
     return values[stable_uint64(domain, key) % len(values)]
 
 
+def training_condition_from_hash(
+    protocol_seed: int,
+    epoch: int,
+    sample_id: str,
+) -> tuple[int, str]:
+    """Select one of the formal 4-delay by 3-condition cells."""
+
+    index = stable_uint64(
+        TRAINING_CONDITION_HASH_DOMAIN,
+        {
+            "seed": _exact_int(protocol_seed, "training protocol seed", 0),
+            "epoch": _exact_int(epoch, "training condition epoch", 0),
+            "sample_id": _nonempty_string(
+                sample_id,
+                "training condition sample ID",
+            ),
+        },
+    ) % len(_TRAINING_CONDITION_MATRIX)
+    return _TRAINING_CONDITION_MATRIX[index]
+
+
 def augmentation_seed(seed: int, epoch: int, sample_id: str) -> int:
     return stable_uint64(
         "augmentation-seed-v1",
@@ -671,10 +735,19 @@ def _transport_records(plan: TransportPlan) -> tuple[TransportOverlayRecord, ...
         raise ScheduleError("transport samples require RSU packet coverage")
     records: list[TransportOverlayRecord] = []
     epochs: tuple[int | None, ...] = (
-        tuple(plan.epochs) if plan.mode == "train_random" else (None,)
+        (None,) if plan.mode == "fixed_evaluation" else tuple(plan.epochs)
     )
     for epoch in epochs:
         for sample in plan.samples:
+            shared_delay: int | None = None
+            if plan.mode == TRAINING_CONDITION_MODE:
+                assert plan.protocol_seed is not None
+                assert epoch is not None
+                shared_delay, _ = training_condition_from_hash(
+                    plan.protocol_seed,
+                    epoch,
+                    sample.sample_id,
+                )
             delay_by_tick: dict[int, int] = {}
             for source in sample.source_slices:
                 if source.agent != "rsu":
@@ -693,6 +766,9 @@ def _transport_records(plan: TransportPlan) -> tuple[TransportOverlayRecord, ...
                             },
                             plan.delay_values_ms,
                         )
+                    elif plan.mode == TRAINING_CONDITION_MODE:
+                        assert shared_delay is not None
+                        delay_by_tick[source.n_s] = shared_delay
                     else:
                         assert plan.fixed_delay_ms is not None
                         delay_by_tick[source.n_s] = plan.fixed_delay_ms
@@ -745,6 +821,56 @@ def _fault_records(plan: FaultPlan) -> tuple[FaultOverlayRecord, ...]:
                                 ),
                                 pre_mask_selected_n_s=None,
                                 fallback_selected_n_s=None,
+                            )
+                        )
+    elif plan.mode == TRAINING_CONDITION_MODE:
+        assert plan.protocol_seed is not None
+        for epoch in plan.epochs:
+            for sample in plan.samples:
+                delay_ms, condition = training_condition_from_hash(
+                    plan.protocol_seed,
+                    epoch,
+                    sample.sample_id,
+                )
+                failed_modality = {
+                    "Full": None,
+                    "L-Fail": "lidar",
+                    "C-Fail": "camera",
+                }[condition]
+                arrival_by_packet = {
+                    source.packet_id: source.tau_s_ms + delay_ms
+                    for source in sample.source_slices
+                    if source.agent == "rsu"
+                }
+                for agent in _AGENTS:
+                    for modality in _MODALITIES:
+                        sources = _causal_branch_sources(
+                            sample,
+                            agent,
+                            modality,
+                            arrival_by_packet,
+                        )
+                        if not sources:
+                            raise ScheduleError(
+                                "condition-matrix branch has no causal source selection"
+                            )
+                        selected = sources[0].n_s
+                        masked = modality == failed_modality
+                        fallback = (
+                            sources[1].n_s if masked and len(sources) > 1 else None
+                        )
+                        records.append(
+                            FaultOverlayRecord(
+                                epoch=epoch,
+                                sample_id=sample.sample_id,
+                                agent=agent,  # type: ignore[arg-type]
+                                modality=modality,  # type: ignore[arg-type]
+                                n_s=selected,
+                                masked=masked,
+                                pre_mask_selected_n_s=selected,
+                                fallback_selected_n_s=(
+                                    fallback if masked else selected
+                                ),
                             )
                         )
     elif plan.mode == "global_target":

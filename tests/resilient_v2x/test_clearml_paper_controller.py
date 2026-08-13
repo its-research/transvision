@@ -156,10 +156,12 @@ def _condition_document(
     condition_name: str,
     teacher_sha256: str,
     student_sha256: str,
+    evaluation_plan_sha256: str,
 ):
     metrics = {
         "resilient_v2x/sample_count": 1337,
-        "resilient_v2x/car_ground_truth_count": 9000,
+        "resilient_v2x/car_ground_truth_count": 11330,
+        "resilient_v2x/unsupported_sample_count": 0,
         "resilient_v2x/car_bev_ap_r40_0.50": 20.0,
         "resilient_v2x/car_bev_ap_r40_0.70": 10.0,
         "resilient_v2x/car_3d_ap_r40_0.50": 15.0,
@@ -174,7 +176,22 @@ def _condition_document(
             "runtime_profile": "rtx5090",
             "artifact_name": f"validation_{condition_name}",
             "condition_id": condition_name,
+            "protocol_id": module.EXPECTED_PROTOCOL_ID,
+            "manifest_content_sha256": module.EXPECTED_MANIFEST_CONTENT_SHA256,
+            "overlay_index_content_sha256": (
+                module.EXPECTED_OVERLAY_INDEX_CONTENT_SHA256
+            ),
+            "sample_ids_sha256": module.EXPECTED_SAMPLE_IDS_SHA256,
+            "expected_sample_count": module.EXPECTED_EVALUATION_SAMPLE_COUNT,
             "evaluation_sample_count": 1337,
+            "expected_ground_truth_count": module.EXPECTED_GROUND_TRUTH_COUNT,
+            "expected_unsupported_sample_count": (
+                module.EXPECTED_UNSUPPORTED_SAMPLE_COUNT
+            ),
+            "ground_truth_count": module.EXPECTED_GROUND_TRUTH_COUNT,
+            "unsupported_sample_count": module.EXPECTED_UNSUPPORTED_SAMPLE_COUNT,
+            "evaluation_plan_content_sha256": evaluation_plan_sha256,
+            "evaluator_sha256": module.EXPECTED_MAIN_EVALUATOR_SHA256,
             "checkpoints": {
                 "teacher": {"sha256": teacher_sha256},
                 "student": {"sha256": student_sha256},
@@ -192,12 +209,45 @@ def _write_summary(
     student_sha256: str,
     missing_condition: str | None = None,
 ) -> tuple[Path, dict[str, _Artifact]]:
+    evaluation_plan = _seal(
+        module,
+        module.VALIDATION_PLAN_DOCUMENT_TYPE,
+        {
+            "task_id": VALIDATION_TASK_ID,
+            "dataset_id": DATASET_ID,
+            "runtime_profile": "rtx5090",
+            "protocol_id": module.EXPECTED_PROTOCOL_ID,
+            "manifest_content_sha256": module.EXPECTED_MANIFEST_CONTENT_SHA256,
+            "manifest_file_sha256": module.EXPECTED_MANIFEST_FILE_SHA256,
+            "overlay_index_file_sha256": (module.EXPECTED_OVERLAY_INDEX_FILE_SHA256),
+            "overlay_index_content_sha256": (
+                module.EXPECTED_OVERLAY_INDEX_CONTENT_SHA256
+            ),
+            "sample_ids_sha256": module.EXPECTED_SAMPLE_IDS_SHA256,
+            "expected_sample_count": module.EXPECTED_EVALUATION_SAMPLE_COUNT,
+            "expected_ground_truth_count": module.EXPECTED_GROUND_TRUTH_COUNT,
+            "expected_unsupported_sample_count": (
+                module.EXPECTED_UNSUPPORTED_SAMPLE_COUNT
+            ),
+            "expected_run_count": module.EXPECTED_CONDITION_COUNT,
+            "delays_ms": [0, 100, 200, 300],
+            "conditions": ["Full", "L-Fail", "C-Fail"],
+            "evaluator_sha256": module.EXPECTED_MAIN_EVALUATOR_SHA256,
+            "teacher_checkpoint": {"sha256": teacher_sha256},
+            "student_checkpoint": {"sha256": student_sha256},
+            "runs": [{"condition_id": name} for name in module.EXPECTED_CONDITIONS],
+        },
+    )
+    evaluation_plan_path = tmp_path / "evaluation_plan.json"
+    evaluation_plan_path.write_text(json.dumps(evaluation_plan), encoding="utf-8")
+    evaluation_plan_sha256 = evaluation_plan["content_sha256"]
     conditions = {
         name: _condition_document(
             module,
             condition_name=name,
             teacher_sha256=teacher_sha256,
             student_sha256=student_sha256,
+            evaluation_plan_sha256=evaluation_plan_sha256,
         )
         for name in module.EXPECTED_CONDITIONS
         if name != missing_condition
@@ -209,7 +259,20 @@ def _write_summary(
             "task_id": VALIDATION_TASK_ID,
             "dataset_id": DATASET_ID,
             "runtime_profile": "rtx5090",
+            "protocol_id": module.EXPECTED_PROTOCOL_ID,
+            "manifest_content_sha256": module.EXPECTED_MANIFEST_CONTENT_SHA256,
+            "overlay_index_content_sha256": (
+                module.EXPECTED_OVERLAY_INDEX_CONTENT_SHA256
+            ),
+            "sample_ids_sha256": module.EXPECTED_SAMPLE_IDS_SHA256,
+            "expected_sample_count": module.EXPECTED_EVALUATION_SAMPLE_COUNT,
             "evaluation_sample_count": 1337,
+            "expected_ground_truth_count": module.EXPECTED_GROUND_TRUTH_COUNT,
+            "expected_unsupported_sample_count": (
+                module.EXPECTED_UNSUPPORTED_SAMPLE_COUNT
+            ),
+            "evaluation_plan_content_sha256": evaluation_plan_sha256,
+            "evaluator_sha256": module.EXPECTED_MAIN_EVALUATOR_SHA256,
             "student_checkpoint": {
                 "filename": "epoch_50.pth",
                 "size_bytes": 7,
@@ -221,17 +284,22 @@ def _write_summary(
                 "sha256": teacher_sha256,
             },
             "condition_count": len(conditions),
-            "ground_truth_count": 9000,
+            "ground_truth_count": 11330,
+            "unsupported_sample_count": 0,
             "conditions": conditions,
         },
     )
     path = tmp_path / "validation_summary.json"
     path.write_text(json.dumps(summary), encoding="utf-8")
     artifacts = {
+        "evaluation_plan": _Artifact(
+            evaluation_plan_path,
+            url=("http://10.100.34.118:8081/task/artifacts/evaluation_plan.json"),
+        ),
         "validation_summary": _Artifact(
             path,
             url=("http://10.100.34.118:8081/task/artifacts/validation_summary.json"),
-        )
+        ),
     }
     for condition_name in conditions:
         artifact_name = f"validation_{condition_name}"
@@ -551,6 +619,60 @@ def test_validation_must_complete_and_contain_exactly_twelve_conditions(
     )
     with pytest.raises(RuntimeError, match="condition_count mismatch"):
         _run(module, tasks, teacher_sha256)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("protocol_id", None, "protocol_id mismatch"),
+        ("expected_sample_count", 1789, "expected_sample_count mismatch"),
+        ("ground_truth_count", 9000, "ground_truth_count mismatch"),
+        ("unsupported_sample_count", 1, "unsupported_sample_count mismatch"),
+        ("evaluation_plan_content_sha256", "2" * 64, "evaluation_plan"),
+        ("evaluator_sha256", "3" * 64, "evaluator_sha256 mismatch"),
+    ),
+)
+def test_condition_gate_rejects_noncanonical_1337_evidence(
+    tmp_path: Path,
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    del tmp_path
+    module = _load_controller()
+    teacher_sha256 = "4" * 64
+    student_sha256 = "5" * 64
+    evaluation_plan_sha256 = "1" * 64
+    document = _condition_document(
+        module,
+        condition_name="delay_000_full",
+        teacher_sha256=teacher_sha256,
+        student_sha256=student_sha256,
+        evaluation_plan_sha256=evaluation_plan_sha256,
+    )
+    payload = {
+        key: item
+        for key, item in document.items()
+        if key not in {"schema_version", "document_type", "content_sha256"}
+    }
+    if value is None:
+        payload.pop(field)
+    else:
+        payload[field] = value
+    invalid = _seal(module, module.CONDITION_RESULT_DOCUMENT_TYPE, payload)
+
+    with pytest.raises(RuntimeError, match=message):
+        module._require_condition_result(
+            invalid,
+            condition_name="delay_000_full",
+            validation_task_id=VALIDATION_TASK_ID,
+            dataset_id=DATASET_ID,
+            teacher_sha256=teacher_sha256,
+            student_sha256=student_sha256,
+            evaluation_sample_count=module.EXPECTED_EVALUATION_SAMPLE_COUNT,
+            ground_truth_count=module.EXPECTED_GROUND_TRUTH_COUNT,
+            evaluation_plan_sha256=evaluation_plan_sha256,
+        )
 
 
 def test_cli_does_not_offer_an_alternate_worker_queue() -> None:

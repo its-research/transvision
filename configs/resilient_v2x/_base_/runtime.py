@@ -83,6 +83,31 @@ auto_scale_lr = dict(enable=False, base_batch_size=1)
 load_from = None
 resume = False
 
+_common_init_checkpoint = __import__("os").getenv(
+    "RESILIENT_V2X_COMMON_INIT_CHECKPOINT"
+)
+_common_init_sha256 = __import__("os").getenv(
+    "RESILIENT_V2X_COMMON_INIT_SHA256"
+)
+if bool(_common_init_checkpoint) != bool(_common_init_sha256):
+    raise RuntimeError(
+        "RESILIENT_V2X_COMMON_INIT_CHECKPOINT and "
+        "RESILIENT_V2X_COMMON_INIT_SHA256 must be provided together"
+    )
+custom_hooks = (
+    [
+        dict(
+            type="CommonTeacherInitializationHook",
+            checkpoint=_common_init_checkpoint,
+            expected_sha256=_common_init_sha256,
+            priority="HIGHEST",
+        )
+    ]
+    if _common_init_checkpoint
+    else []
+)
+del _common_init_checkpoint, _common_init_sha256
+
 implementation_choices_runtime = dict(
     status="implementation choice; the paper does not report these values",
     optimizer="AdamW",

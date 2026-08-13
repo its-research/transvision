@@ -27,7 +27,12 @@ from transvision.dataset.resilient_v2x_manifest import (
     content_sha256,
     load_temporal_manifest,
 )
-from transvision.dataset.resilient_v2x_schedule import read_overlay
+from transvision.dataset.resilient_v2x_schedule import (
+    TRAINING_CONDITION_HASH_DOMAIN,
+    TRAINING_CONDITION_MODE,
+    read_overlay,
+    training_condition_from_hash,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -223,7 +228,7 @@ def test_cohort_publication_is_idempotent_but_never_overwrites_conflicts(
         write_cohort(manifest, path, split="test", max_delay_ms=0)
 
 
-def test_training_random_overlays_are_seeded_and_byte_reproducible(
+def test_training_condition_overlays_are_seeded_and_byte_reproducible(
     tmp_path: Path,
     schedule_fixture,
 ) -> None:
@@ -233,20 +238,24 @@ def test_training_random_overlays_are_seeded_and_byte_reproducible(
         tmp_path / "first",
         protocol_seed=19,
         epochs=(0, 2),
-        p_lidar=0.25,
-        p_camera=0.5,
     )
     second = build_training_overlays(
         manifest,
         tmp_path / "second",
         protocol_seed=19,
         epochs=(2, 0),
-        p_lidar=0.25,
-        p_camera=0.5,
     )
 
     assert first == second
     assert first["artifact_type"] == TRAIN_INDEX_TYPE
+    assert first["mode"] == TRAINING_CONDITION_MODE
+    assert first["condition_hash_domain"] == TRAINING_CONDITION_HASH_DOMAIN
+    assert first["condition_hash_key"] == ["protocol_seed", "epoch", "sample_id"]
+    assert first["delay_values_ms"] == [0, 100, 200, 300]
+    assert first["conditions"] == ["Full", "L-Fail", "C-Fail"]
+    assert first["condition_count"] == 12
+    assert "p_lidar" not in first
+    assert "p_camera" not in first
     assert first["sample_ids"] == ["train-3"]
     assert first["overlays"]["transport"]["path"] == "train_transport.jsonl.zst"
     assert first["overlays"]["fault"]["path"] == "train_fault.jsonl.zst"
@@ -261,6 +270,25 @@ def test_training_random_overlays_are_seeded_and_byte_reproducible(
     )
     assert {record["epoch"] for record in records} == {0, 2}
     assert {record["delay_ms"] for record in records}.issubset({0, 100, 200, 300})
+    for epoch in (0, 2):
+        delay_ms, condition = training_condition_from_hash(19, epoch, "train-3")
+        epoch_records = [record for record in records if record["epoch"] == epoch]
+        assert {record["delay_ms"] for record in epoch_records} == {delay_ms}
+        fault_entry = first["overlays"]["fault"]
+        faults = read_overlay(
+            tmp_path / "first" / fault_entry["path"],
+            fault_entry["uncompressed_sha256"],
+        )
+        expected_masked = {
+            "Full": set(),
+            "L-Fail": {("ego", "lidar"), ("rsu", "lidar")},
+            "C-Fail": {("ego", "camera"), ("rsu", "camera")},
+        }[condition]
+        assert {
+            (record["agent"], record["modality"])
+            for record in faults
+            if record["epoch"] == epoch and record["masked"]
+        } == expected_masked
 
 
 def test_full_fixed_matrix_reuses_exact_cohort_and_binds_transport_hashes(
@@ -457,6 +485,7 @@ def test_cli_builds_cohort_evaluation_and_training_artifacts(
         EVALUATION_INDEX_TYPE
     )
     assert json.loads(training_result.stdout)["artifact_type"] == TRAIN_INDEX_TYPE
+    assert "deprecated and ignored" in training_result.stderr
     evaluation = _read_index(
         evaluation_dir / "evaluation_overlays.json",
         EVALUATION_INDEX_TYPE,
@@ -467,3 +496,5 @@ def test_cli_builds_cohort_evaluation_and_training_artifacts(
     )
     assert len(evaluation["fault_overlays"]) == 8
     assert training["epochs"] == [0, 1]
+    assert training["mode"] == TRAINING_CONDITION_MODE
+    assert training["condition_count"] == 12
