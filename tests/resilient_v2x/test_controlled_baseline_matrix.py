@@ -433,6 +433,63 @@ def test_primary_method_plan_uses_deployment_student_without_teacher(
     assert "distillation" not in resolved["model"]
 
 
+def test_post_winner_scope_and_duration_select_exact_overlay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, index_path, checkpoint, _ = _protocol_fixture(tmp_path, monkeypatch)
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index.pop("content_sha256")
+    transport = next(
+        item for item in index["transport_overlays"] if item["delay_ms"] == 0
+    )
+    overlay = _overlay_entry(
+        index_path.parent / "fault_000_l-fail_r-only_d3.jsonl.zst",
+        [{"kind": "fault-0-L-Fail-R-only-d3", "sample_id": "sample-a"}],
+    )
+    index["fault_overlays"].append(
+        {
+            "delay_ms": 0,
+            "condition": "L-Fail",
+            "agent_scope": "R-only",
+            "agents": ["rsu"],
+            "duration": 3,
+            "temporal_manifest_sha256": index["temporal_manifest_sha256"],
+            "transport_overlay_sha256": transport["overlay"][
+                "uncompressed_sha256"
+            ],
+            "overlay": overlay,
+        }
+    )
+    _write_json(index_path, _sealed(index))
+
+    plan = module.build_evaluation_plan(
+        baseline="resilient_v2x",
+        checkpoint=checkpoint,
+        overlay_index=index_path,
+        work_dir=tmp_path / "r_only_d3",
+        delays=(0,),
+        conditions=("L-Fail",),
+        agent_scope="R-only",
+        duration_ticks=3,
+    )
+
+    assert plan["agent_scope"] == "R-only"
+    assert plan["duration_ticks"] == 3
+    assert len(plan["runs"]) == 1
+    run = plan["runs"][0]
+    assert run["agent_scope"] == "R-only"
+    assert run["duration_ticks"] == 3
+    assert run["fault_overlay"] == str(
+        (index_path.parent / overlay["path"]).resolve()
+    )
+    resolved = runpy.run_path(run["resolved_config"])
+    assert resolved["experiment"]["condition"]["scope"] == "R-only"
+    assert resolved["experiment"]["condition"]["duration_ticks"] == 3
+    assert resolved["controlled_baseline_evaluation"]["agent_scope"] == "R-only"
+    assert resolved["controlled_baseline_evaluation"]["duration_ticks"] == 3
+
+
 @pytest.mark.parametrize("name", module.IMPROVEMENTS)
 def test_improvement_plan_uses_deployment_student_without_teacher(
     name: str,

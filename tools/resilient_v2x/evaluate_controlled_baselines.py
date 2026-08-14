@@ -73,6 +73,7 @@ IMPROVEMENTS = (
 EVALUATION_SUBJECTS = PRIMARY_METHODS + BASELINES + ABLATIONS + IMPROVEMENTS
 DELAYS = (0, 100, 200, 300)
 CONDITIONS = ("Full", "L-Fail", "C-Fail")
+AGENT_SCOPES = ("E+R", "E-only", "R-only")
 DEFAULT_OVERLAY_INDEX = Path("artifacts/resilient_v2x/dair_v2/evaluation_overlays.json")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 EVALUATION_INDEX_TYPE = "resilient_v2x_evaluation_overlays"
@@ -536,6 +537,9 @@ def _verify_condition_contract(
     config: Mapping[str, object],
     delay: int,
     condition: str,
+    *,
+    agent_scope: str = "E+R",
+    duration_ticks: int = 1,
 ) -> None:
     experiment = _mapping(config.get("experiment"), "condition experiment")
     contract = _mapping(experiment.get("condition"), "experiment.condition")
@@ -548,6 +552,12 @@ def _verify_condition_contract(
     ):
         raise ControlledBaselineEvaluationError(
             "fault condition config must be E+R with duration one tick"
+        )
+    if agent_scope not in AGENT_SCOPES:
+        raise ControlledBaselineEvaluationError("agent_scope is invalid")
+    if type(duration_ticks) is not int or duration_ticks <= 0:
+        raise ControlledBaselineEvaluationError(
+            "duration_ticks must be a positive integer"
         )
 
 
@@ -571,6 +581,8 @@ def _resolved_condition_config(
     baseline: str,
     delay: int,
     condition: str,
+    agent_scope: str,
+    duration_ticks: int,
 ) -> dict[str, object]:
     resolved = copy.deepcopy(dict(condition_config))
     resolved["model"] = copy.deepcopy(dict(baseline_model))
@@ -602,12 +614,22 @@ def _resolved_condition_config(
     evaluator = _mapping(resolved.get("test_evaluator"), "test_evaluator")
     evaluator["prediction_output"] = str(predictions)
     resolved["test_evaluator"] = evaluator
+    experiment = _mapping(resolved.get("experiment"), "experiment")
+    condition_contract = _mapping(
+        experiment.get("condition"), "experiment.condition"
+    )
+    condition_contract.update(
+        scope=agent_scope,
+        duration_ticks=duration_ticks,
+    )
+    experiment["condition"] = condition_contract
+    resolved["experiment"] = experiment
     resolved["controlled_baseline_evaluation"] = {
         "baseline": baseline,
         "delay_ms": delay,
         "condition": condition,
-        "agent_scope": "E+R",
-        "duration_ticks": 1,
+        "agent_scope": agent_scope,
+        "duration_ticks": duration_ticks,
         "checkpoint_sha256": checkpoint_sha256,
         "overlay_index": str(overlay_index),
         "overlay_index_content_sha256": overlay_index_sha256,
@@ -623,6 +645,8 @@ def build_evaluation_plan(
     work_dir: Path,
     delays: Sequence[int] = DELAYS,
     conditions: Sequence[str] = CONDITIONS,
+    agent_scope: str = "E+R",
+    duration_ticks: int = 1,
     protocol_id: str = "custom",
     expected_ground_truth_count: int | None = None,
 ) -> dict[str, object]:
@@ -645,6 +669,21 @@ def build_evaluation_plan(
         )
     selected_delays = _ordered_subset(delays, DELAYS, "delays")
     selected_conditions = _ordered_subset(conditions, CONDITIONS, "conditions")
+    if agent_scope not in AGENT_SCOPES:
+        raise ControlledBaselineEvaluationError(
+            f"agent_scope must be one of {AGENT_SCOPES}"
+        )
+    if type(duration_ticks) is not int or duration_ticks <= 0:
+        raise ControlledBaselineEvaluationError(
+            "duration_ticks must be a positive integer"
+        )
+    if "Full" in selected_conditions and (
+        agent_scope != "E+R" or duration_ticks != 1
+    ):
+        raise ControlledBaselineEvaluationError(
+            "Full is only defined for E+R duration one; select fault conditions "
+            "for scope/duration diagnostics"
+        )
 
     try:
         checkpoint_path = Path(checkpoint).expanduser().resolve(strict=True)
@@ -771,10 +810,10 @@ def build_evaluation_plan(
             fault_path: Path | None = None
             fault_digest: str | None = None
             if condition != "Full":
-                fault_key = (delay, condition, "E+R", 1)
+                fault_key = (delay, condition, agent_scope, duration_ticks)
                 if fault_key not in faults:
                     raise ControlledBaselineEvaluationError(
-                        f"overlay index is missing E+R duration-1 fault {fault_key}"
+                        f"overlay index is missing requested fault {fault_key}"
                     )
                 fault_path, fault_digest, bound_transport = faults[fault_key]
                 if bound_transport != transport_digest:
@@ -784,7 +823,13 @@ def build_evaluation_plan(
 
             condition_config_path = CONDITION_CONFIGS[(delay, condition)]
             condition_config = _load_python_config(condition_config_path)
-            _verify_condition_contract(condition_config, delay, condition)
+            _verify_condition_contract(
+                condition_config,
+                delay,
+                condition,
+                agent_scope=agent_scope,
+                duration_ticks=duration_ticks,
+            )
             condition_name = _condition_id(delay, condition)
             condition_dir = output_root / condition_name
             resolved_config_path = condition_dir / "resolved_config.py"
@@ -813,6 +858,8 @@ def build_evaluation_plan(
                 baseline=baseline,
                 delay=delay,
                 condition=condition,
+                agent_scope=agent_scope,
+                duration_ticks=duration_ticks,
             )
             resolved_raw = _render_config(resolved)
             resolved_digest = hashlib.sha256(resolved_raw).hexdigest()
@@ -826,8 +873,8 @@ def build_evaluation_plan(
                     "condition_id": condition_name,
                     "delay_ms": delay,
                     "condition": condition,
-                    "agent_scope": "E+R",
-                    "duration_ticks": 1,
+                    "agent_scope": agent_scope,
+                    "duration_ticks": duration_ticks,
                     "condition_config": str(condition_config_path.resolve()),
                     "resolved_config": str(resolved_config_path.resolve()),
                     "resolved_config_sha256": resolved_digest,
@@ -874,6 +921,8 @@ def build_evaluation_plan(
         "work_dir": str(output_root),
         "delays_ms": list(selected_delays),
         "conditions": list(selected_conditions),
+        "agent_scope": agent_scope,
+        "duration_ticks": duration_ticks,
         "runs": runs,
         "metrics_output": str(metrics_path.resolve()),
     }
@@ -1176,7 +1225,17 @@ def execute_evaluation_plan(plan: Mapping[str, object]) -> dict[str, object]:
                     f"plan.runs[{offset}] Full condition must not use a fault overlay"
                 )
         else:
-            fault_key = (delay, condition, "E+R", 1)
+            agent_scope = run.get("agent_scope")
+            duration_ticks = run.get("duration_ticks")
+            if agent_scope not in AGENT_SCOPES:
+                raise ControlledBaselineEvaluationError(
+                    f"plan.runs[{offset}].agent_scope is invalid"
+                )
+            if type(duration_ticks) is not int or duration_ticks <= 0:
+                raise ControlledBaselineEvaluationError(
+                    f"plan.runs[{offset}].duration_ticks is invalid"
+                )
+            fault_key = (delay, condition, agent_scope, duration_ticks)
             if fault_key not in faults:
                 raise ControlledBaselineEvaluationError(
                     f"planned overlay index is missing fault {fault_key}"
@@ -1289,6 +1348,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=CONDITIONS,
         default=CONDITIONS,
     )
+    parser.add_argument(
+        "--agent-scope",
+        choices=AGENT_SCOPES,
+        default="E+R",
+    )
+    parser.add_argument("--duration-ticks", type=int, default=1)
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args(argv)
 
@@ -1303,6 +1368,8 @@ def main(argv: list[str] | None = None) -> int:
             work_dir=args.work_dir,
             delays=args.delays,
             conditions=args.conditions,
+            agent_scope=args.agent_scope,
+            duration_ticks=args.duration_ticks,
             protocol_id=args.protocol_id,
             expected_ground_truth_count=args.expected_ground_truth_count,
         )
@@ -1334,6 +1401,7 @@ __all__ = (
     "BASELINES",
     "BASELINE_CONFIGS",
     "CONDITIONS",
+    "AGENT_SCOPES",
     "DEFAULT_OVERLAY_INDEX",
     "DELAYS",
     "ABLATIONS",

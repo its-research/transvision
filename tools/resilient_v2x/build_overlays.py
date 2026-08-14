@@ -43,6 +43,7 @@ from transvision.dataset.resilient_v2x_schedule import (  # noqa: E402
 
 SCHEMA_VERSION = 1
 COHORT_TYPE = "resilient_v2x_evaluation_cohort"
+COHORT_SELECTION_BASE_INTERSECTION = "base_cohort_intersection"
 TRAIN_INDEX_TYPE = "resilient_v2x_training_overlays"
 EVALUATION_INDEX_TYPE = "resilient_v2x_evaluation_overlays"
 DELAYS = (0, 100, 200, 300)
@@ -292,6 +293,66 @@ def build_cohort_document(
     )
 
 
+def build_intersection_cohort_document(
+    manifest: TemporalManifest,
+    *,
+    split: str,
+    max_delay_ms: int,
+    max_continuous_fault_duration: int,
+    base_max_delay_ms: int,
+    base_max_continuous_fault_duration: int,
+) -> dict[str, object]:
+    """Keep a canonical base cohort while proving a stricter eligibility contract."""
+
+    eligibility = build_cohort_document(
+        manifest,
+        split=split,
+        max_delay_ms=max_delay_ms,
+        max_continuous_fault_duration=max_continuous_fault_duration,
+    )
+    base = build_cohort_document(
+        manifest,
+        split=split,
+        max_delay_ms=base_max_delay_ms,
+        max_continuous_fault_duration=base_max_continuous_fault_duration,
+    )
+    eligible_ids = set(eligibility["sample_ids"])
+    included = [
+        sample_id for sample_id in base["sample_ids"] if sample_id in eligible_ids
+    ]
+    eligibility_exclusions = {
+        item["sample_id"]: item for item in eligibility["excluded_samples"]
+    }
+    excluded = [
+        eligibility_exclusions[sample_id]
+        for sample_id in base["sample_ids"]
+        if sample_id not in eligible_ids
+    ]
+    return _seal(
+        COHORT_TYPE,
+        {
+            "temporal_manifest_sha256": manifest.content_sha256,
+            "split": split,
+            "max_delay_ms": max_delay_ms,
+            "max_continuous_fault_duration": max_continuous_fault_duration,
+            "selection_mode": COHORT_SELECTION_BASE_INTERSECTION,
+            "base_max_delay_ms": base_max_delay_ms,
+            "base_max_continuous_fault_duration": (
+                base_max_continuous_fault_duration
+            ),
+            "base_cohort_content_sha256": base["content_sha256"],
+            "eligibility_cohort_content_sha256": eligibility["content_sha256"],
+            "eligibility_branch_order": [list(branch) for branch in BRANCHES],
+            "candidate_sample_count": len(base["sample_ids"]),
+            "included_sample_count": len(included),
+            "excluded_sample_count": len(excluded),
+            "sample_ids": included,
+            "sample_ids_sha256": _sha256_bytes(canonical_json_bytes(included)),
+            "excluded_samples": excluded,
+        },
+    )
+
+
 def write_cohort(
     manifest: TemporalManifest,
     output: Path,
@@ -299,13 +360,34 @@ def write_cohort(
     split: str,
     max_delay_ms: int = 300,
     max_continuous_fault_duration: int = 1,
+    base_max_delay_ms: int | None = None,
+    base_max_continuous_fault_duration: int | None = None,
 ) -> dict[str, object]:
-    document = build_cohort_document(
-        manifest,
-        split=split,
-        max_delay_ms=max_delay_ms,
-        max_continuous_fault_duration=max_continuous_fault_duration,
-    )
+    if (base_max_delay_ms is None) != (
+        base_max_continuous_fault_duration is None
+    ):
+        raise ProtocolBuildError(
+            "base cohort delay and duration constraints must be provided together"
+        )
+    if base_max_delay_ms is None:
+        document = build_cohort_document(
+            manifest,
+            split=split,
+            max_delay_ms=max_delay_ms,
+            max_continuous_fault_duration=max_continuous_fault_duration,
+        )
+    else:
+        assert base_max_continuous_fault_duration is not None
+        document = build_intersection_cohort_document(
+            manifest,
+            split=split,
+            max_delay_ms=max_delay_ms,
+            max_continuous_fault_duration=max_continuous_fault_duration,
+            base_max_delay_ms=base_max_delay_ms,
+            base_max_continuous_fault_duration=(
+                base_max_continuous_fault_duration
+            ),
+        )
     _publish_canonical_json(output, document)
     return document
 
@@ -362,12 +444,28 @@ def load_cohort(
         raise ProtocolBuildError("cohort split is invalid")
     if type(max_delay) is not int or type(max_duration) is not int:
         raise ProtocolBuildError("cohort eligibility parameters are invalid")
-    expected = build_cohort_document(
-        manifest,
-        split=split,
-        max_delay_ms=max_delay,
-        max_continuous_fault_duration=max_duration,
-    )
+    if value.get("selection_mode") == COHORT_SELECTION_BASE_INTERSECTION:
+        base_max_delay = value.get("base_max_delay_ms")
+        base_max_duration = value.get("base_max_continuous_fault_duration")
+        if type(base_max_delay) is not int or type(base_max_duration) is not int:
+            raise ProtocolBuildError("base cohort eligibility parameters are invalid")
+        expected = build_intersection_cohort_document(
+            manifest,
+            split=split,
+            max_delay_ms=max_delay,
+            max_continuous_fault_duration=max_duration,
+            base_max_delay_ms=base_max_delay,
+            base_max_continuous_fault_duration=base_max_duration,
+        )
+    elif "selection_mode" in value:
+        raise ProtocolBuildError("cohort selection_mode is invalid")
+    else:
+        expected = build_cohort_document(
+            manifest,
+            split=split,
+            max_delay_ms=max_delay,
+            max_continuous_fault_duration=max_duration,
+        )
     if value != expected:
         raise ProtocolBuildError("cohort content or self-hash mismatch")
     return value
@@ -747,6 +845,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     cohort.add_argument("--split", required=True, choices=("val", "test"))
     cohort.add_argument("--max-delay-ms", type=int, choices=DELAYS, default=300)
     cohort.add_argument("--max-duration", type=int, default=1)
+    cohort.add_argument("--base-max-delay-ms", type=int, choices=DELAYS)
+    cohort.add_argument("--base-max-duration", type=int)
     cohort.add_argument("--out", required=True, type=Path)
 
     train = subparsers.add_parser(
@@ -818,6 +918,8 @@ def main(argv: list[str] | None = None) -> int:
                 split=args.split,
                 max_delay_ms=args.max_delay_ms,
                 max_continuous_fault_duration=args.max_duration,
+                base_max_delay_ms=args.base_max_delay_ms,
+                base_max_continuous_fault_duration=args.base_max_duration,
             )
             output = args.out
         elif args.command == "train":
@@ -865,6 +967,7 @@ __all__ = (
     "ProtocolBuildError",
     "TRAIN_INDEX_TYPE",
     "build_cohort_document",
+    "build_intersection_cohort_document",
     "build_evaluation_overlays",
     "build_training_overlays",
     "load_cohort",

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -84,6 +85,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--skip-flops", action="store_true")
     parser.add_argument("--strict-checkpoint", action="store_true")
+    parser.add_argument(
+        "--detach-training-only-teacher",
+        action="store_true",
+        help=(
+            "build the deployment student without its frozen training teacher and "
+            "strict-load only non-teacher checkpoint state"
+        ),
+    )
     parser.add_argument("--no-git-state", action="store_true")
     return parser.parse_args(argv)
 
@@ -131,6 +140,32 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _deployment_student_state_dict(
+    state_dict: Mapping[str, object],
+) -> tuple[dict[str, object], int]:
+    """Remove only the sealed training teacher prefix from model state."""
+
+    if not isinstance(state_dict, Mapping) or any(
+        type(key) is not str for key in state_dict
+    ):
+        raise RuntimeError("checkpoint state_dict must be a string-keyed mapping")
+    student: dict[str, object] = {}
+    excluded = 0
+    for original_key, value in state_dict.items():
+        key = original_key[7:] if original_key.startswith("module.") else original_key
+        if key == "teacher" or key.startswith("teacher."):
+            excluded += 1
+            continue
+        if key in student:
+            raise RuntimeError("checkpoint key normalization produced a duplicate")
+        student[key] = value
+    if excluded == 0:
+        raise RuntimeError("checkpoint has no training-only teacher state to detach")
+    if not student:
+        raise RuntimeError("checkpoint contains no deployment student state")
+    return student, excluded
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
@@ -139,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
         from mmengine.config import Config
         from mmengine.registry import init_default_scope
         from mmengine.runner import Runner, load_checkpoint
+        from mmengine.runner.checkpoint import CheckpointLoader
         from mmdet3d.registry import MODELS
     except ImportError as error:
         raise RuntimeError(
@@ -155,20 +191,46 @@ def main(argv: list[str] | None = None) -> int:
     config = Config.fromfile(str(args.config.resolve(strict=True)))
     if args.cfg_option:
         config.merge_from_dict(dict(args.cfg_option))
+    teacher_configured = config.model.get("teacher") is not None
+    if args.detach_training_only_teacher:
+        if not teacher_configured:
+            raise RuntimeError("config has no training-only teacher to detach")
+        config.model["teacher"] = None
+        config.model["teacher_checkpoint"] = None
+        config.model["distillation"] = None
     init_default_scope(config.get("default_scope", "mmdet3d"))
     model = MODELS.build(config.model)
-    load_checkpoint(
-        model,
-        str(args.checkpoint.resolve(strict=True)),
-        map_location="cpu",
-        strict=args.strict_checkpoint,
-    )
+    excluded_checkpoint_tensors = 0
+    checkpoint_path = str(args.checkpoint.resolve(strict=True))
+    if args.detach_training_only_teacher:
+        checkpoint_payload = CheckpointLoader.load_checkpoint(
+            checkpoint_path,
+            map_location="cpu",
+        )
+        if not isinstance(checkpoint_payload, Mapping):
+            raise RuntimeError("checkpoint payload must be a mapping")
+        state_dict = checkpoint_payload.get("state_dict")
+        if not isinstance(state_dict, Mapping):
+            raise RuntimeError("checkpoint payload has no state_dict mapping")
+        student_state, excluded_checkpoint_tensors = _deployment_student_state_dict(
+            state_dict
+        )
+        model.load_state_dict(student_state, strict=args.strict_checkpoint)
+    else:
+        load_checkpoint(
+            model,
+            checkpoint_path,
+            map_location="cpu",
+            strict=args.strict_checkpoint,
+        )
     parameters = count_parameters(
         model,
         excluded_module_paths=args.exclude_module,
     )
     detached_modules: list[str] = []
-    if "teacher" in args.exclude_module and getattr(model, "teacher", None) is not None:
+    if args.detach_training_only_teacher:
+        detached_modules.append("teacher")
+    elif "teacher" in args.exclude_module and getattr(model, "teacher", None) is not None:
         # The teacher is a training-only module.  Detach it while still on CPU so
         # paper-facing inference memory and latency describe the student alone.
         model.teacher = None
@@ -230,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         device={
             **_device_metadata(torch, device),
             "detached_training_only_modules": detached_modules,
+            "excluded_checkpoint_tensor_count": excluded_checkpoint_tensors,
         },
         artifacts=artifacts,
         source_state=source_state,

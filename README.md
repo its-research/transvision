@@ -11,7 +11,7 @@
 
 ## 当前受控实验状态
 
-状态快照：上海时间 `2026-08-14 22:23`。本节是当前论文结果的唯一活动入口；未完成项只保留 `—（待测）`，不以诊断值或跨协议值代填。
+状态快照：上海时间 `2026-08-15 01:03`。本节是当前论文结果的唯一活动入口；未完成项只保留 `—（待测）`，不以诊断值或跨协议值代填。
 
 ### DAIR-CAUSAL-1337-v1 统一评测
 
@@ -90,11 +90,13 @@
 | Table V：winner 单因素消融 | 等待 winner identity | —（待测） |
 | Table VI：`p=0.0` | 训练 [`4c4ec658`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/4c4ec65836ad463da0041a1caf732aba/output/log) `completed`；正式评测 [`63ab06eb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/63ab06ebdd1649f7ba8b77262a211cc5/output/log) `in_progress`；`GPU4-5090` | —（待测） |
 | Table VI：`p=0.1` | 训练 [`bdeee071`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/bdeee07140b245409e89db2e935dd02f/output/log) `completed`；正式评测 [`087bc9f0`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/087bc9f0f679425da29c2329aa239197/output/log) `in_progress`；`GPU4-5090` | —（待测） |
-| Table VI：`p=0.2` | 训练 [`5b426f33`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/5b426f335aea422f840d1d3c7879744a/output/log) `completed`；正式评测 [`8a8ccd4f`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/8a8ccd4fb1a9420d8d49372c541deaab/output/log) `queued`；`GPU4-5090` | —（待测） |
+| Table VI：`p=0.2` | 训练 [`5b426f33`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/5b426f335aea422f840d1d3c7879744a/output/log) `completed`；正式评测 [`8a8ccd4f`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/8a8ccd4fb1a9420d8d49372c541deaab/output/log) `in_progress`；`GPU4-A100` 0–3 | —（待测） |
 | Table VI：`p=0.3` | 训练 [`e431d93a`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/e431d93a909f4888a0d79561b5ca749c/output/log) `completed`；正式评测 [`a698dc19`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/a698dc196a144104996b13528ddbc95e/output/log) `queued`；`GPU4-5090` | —（待测） |
-| Table VI：`p=0.5` | 训练 [`59d1c2bb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/59d1c2bbb91741e98f46564accc58477/output/log) `in_progress`；`GPU4-A100`；正式评测待训练完成后创建 | —（待测） |
-| Table VII：`q=1,2,3`、容量匹配 concat、参数/FLOPs/显存/端到端时延 | 等待 winner checkpoint | —（待测）；`q≥4` 为 unsupported/no-extrapolation |
-| E-only / R-only 诊断 | 等待 winner checkpoint | —（待测） |
+| Table VI：`p=0.5` | 训练 [`59d1c2bb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/59d1c2bbb91741e98f46564accc58477/output/log) `in_progress`；epoch 19/50；正式评测 [`f0b0faeb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/f0b0faeb2c2a46eab8038ce562453ae6/output/log) 已绑定完成依赖 | —（待测） |
+| Table VII：`q=1` LiDAR | [`cb5eb3f9`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/cb5eb3f9cb624018b504049bf9492d30/output/log) `completed`；`1337 / 11330 / 0` | BEV AP@0.5/0.7 `69.9425 / 53.1879`；3D AP@0.5/0.7 `61.8763 / 29.8698` |
+| Table VII：`q=1` Camera；`q=2,3` LiDAR/Camera | [`d9d17062`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/d9d1706284614fef8775a80d17c0cf91/output/log)、[`4417e476`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/4417e476be21492d8e3dc817b3f1f932/output/log)、[`fa3423b9`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/fa3423b90d5944db99552a2cbf9f66a6/output/log)、[`66121b53`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/66121b5326e2460880f0f91cb844197b/output/log)、[`759463bc`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/759463bca4424072ba3d5e9679f94fe3/output/log) 已排队 | —（待测）；`q≥4` 为 unsupported/no-extrapolation |
+| Table VII：winner / 容量匹配 concat 参数、FLOPs、显存、端到端时延 | [`86b92bac`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/86b92bacc8c74a80b9583130dc89dba4/output/log)、[`22ed132a`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/22ed132a00ef4dd0b2294f8dd3ed4f4f/output/log) 已排队；pair validator [`c2593441`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/c2593441377747558c5c1ce56302757a/output/log) 已绑定 | —（待测） |
+| E-only / R-only 诊断 | [`30d330b4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/30d330b42c6840aeb0e7163787fe0df0/output/log)、[`2af4e6d4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/2af4e6d4982c472586ec22bd3a05e2c5/output/log) `in_progress` | —（待测） |
 | V2XSet-Standard | 本轮非阻塞，不训练 | —（待测） |
 | V2XSet-Pair | 本轮非阻塞，不训练 | —（待测） |
 

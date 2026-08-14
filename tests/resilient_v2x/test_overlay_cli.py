@@ -18,6 +18,7 @@ from tools.resilient_v2x.build_overlays import (
     TRAIN_INDEX_TYPE,
     build_cohort_document,
     build_evaluation_overlays,
+    build_intersection_cohort_document,
     build_training_overlays,
     load_cohort,
     write_cohort,
@@ -143,6 +144,38 @@ def test_cohort_rejects_impossible_joint_delay_and_fault_history_contract(
     )
     assert duration_cohort["max_delay_ms"] == 0
     assert duration_cohort["max_continuous_fault_duration"] == 4
+
+
+def test_intersection_cohort_preserves_base_membership_with_stricter_duration(
+    tmp_path: Path,
+    schedule_fixture,
+) -> None:
+    manifest = schedule_fixture._manifest("test")
+    expected = build_intersection_cohort_document(
+        manifest,
+        split="test",
+        max_delay_ms=0,
+        max_continuous_fault_duration=3,
+        base_max_delay_ms=300,
+        base_max_continuous_fault_duration=1,
+    )
+    cohort_path = tmp_path / "duration-base-intersection.json"
+    written = write_cohort(
+        manifest,
+        cohort_path,
+        split="test",
+        max_delay_ms=0,
+        max_continuous_fault_duration=3,
+        base_max_delay_ms=300,
+        base_max_continuous_fault_duration=1,
+    )
+
+    assert written == expected == load_cohort(cohort_path, manifest)
+    assert written["sample_ids"] == ["test-3"]
+    assert written["selection_mode"] == "base_cohort_intersection"
+    assert written["candidate_sample_count"] == 1
+    assert written["included_sample_count"] == 1
+    assert written["excluded_sample_count"] == 0
 
 
 def test_cohort_excludes_invalid_payload_pose_and_calibration_metadata(

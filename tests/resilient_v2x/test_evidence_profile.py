@@ -10,6 +10,7 @@ import pytest
 import torch
 from torch import nn
 
+from tools.resilient_v2x.profile import _deployment_student_state_dict
 from transvision.evaluation.resilient_v2x_evidence import (
     EVIDENCE_DOCUMENT_TYPE,
     EvidenceError,
@@ -53,6 +54,25 @@ class _Wrapped(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.module = _StudentTeacher()
+
+
+def test_deployment_checkpoint_filter_removes_only_teacher_state() -> None:
+    state, excluded = _deployment_student_state_dict(
+        {
+            "module.lidar_encoder.weight": torch.ones(1),
+            "module.teacher.teacher.lidar_encoder.weight": torch.ones(1),
+            "module.teacher.teacher.camera_encoder.weight": torch.ones(1),
+            "module.teacher_adapter.weight": torch.ones(1),
+        }
+    )
+
+    assert set(state) == {
+        "lidar_encoder.weight",
+        "teacher_adapter.weight",
+    }
+    assert excluded == 2
+    with pytest.raises(RuntimeError, match="no training-only teacher"):
+        _deployment_student_state_dict({"student.weight": torch.ones(1)})
 
 
 def _minimal_profile() -> dict[str, object]:

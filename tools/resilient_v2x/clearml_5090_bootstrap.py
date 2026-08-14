@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import importlib.util
 import json
@@ -20,6 +21,14 @@ from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import Callable, Mapping, NamedTuple, Sequence
 from urllib.parse import unquote, urlsplit
+
+
+# Deployment replaces these empty constants in the ClearML task script only.
+# The sealed runtime source remains unchanged; every embedded byte is size/SHA
+# checked before it can replace an evaluation-only protocol file.
+POST_WINNER_EMBEDDED_FILES: Mapping[str, Mapping[str, object]] = {}
+POST_WINNER_EMBEDDED_EVALUATOR_SOURCE: str | None = None
+POST_WINNER_EMBEDDED_PROFILER_SOURCE: str | None = None
 
 
 BASE_IMAGE_AMD64_MANIFEST_DIGEST = (
@@ -210,7 +219,16 @@ CONTROLLED_BASELINE_LEGACY_PROTOCOL_EVALUATOR_SHA256 = (
     "ef2818ede1a4e5fc152fc41aea6d320999b11ecf8f4e3329c808b109d4ecd807"
 )
 CONTROLLED_BASELINE_PROTOCOL_EVALUATOR_SHA256 = (
+    "0bc3f461ceedc80f365bc43210632bbeef08a35b5e408358cb42dcd530ac3c30"
+)
+CONTROLLED_BASELINE_PRE_SCOPE_EVALUATOR_SHA256 = (
     "d233e054f2b608bc441de25833fb89d117197d841752812a0054e0514995ad36"
+)
+POST_WINNER_LEGACY_PROFILER_SHA256 = (
+    "87eb49de98212f2304c873813681e36e4a880158736b32e02e5b2bd140e2f329"
+)
+POST_WINNER_PROFILER_SHA256 = (
+    "26dee48139d220d05b5d1bf582d5bfddf534685f54001fed65fd370a77bb9f2c"
 )
 CANONICAL_1337_PROTOCOL_ID = "DAIR-CAUSAL-1337-v1"
 DEFAULT_TRAINING_SEED = 20250218
@@ -268,6 +286,9 @@ CLEARML_TRAIN_PROTOCOL_SCHEMA_BASELINE_SHA256 = (
 )
 CLEARML_TRAIN_PROTOCOL_SCHEMA_SHA256 = (
     "c804413a9734d9a798e1b71b797d089431b5f6f64596bd6add0a4515df220fab"
+)
+CLEARML_TRAIN_LEGACY_PROTOCOL_SCHEMA_SHA256 = (
+    "6004643c37764b6b1a218b3faecf12df5104dc64b7602327b750315013dbf828"
 )
 CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES = {
     CLEARML_TRAIN_BASELINE_SHA256: CLEARML_TRAIN_METRICS_COMPAT_SHA256,
@@ -564,6 +585,9 @@ def _parser() -> argparse.ArgumentParser:
             "student",
             "validate",
             "baseline_validate",
+            "post_winner_evaluate",
+            "post_winner_profile",
+            "post_winner_auto_validate",
         ),
         default="all",
     )
@@ -646,6 +670,63 @@ def _parser() -> argparse.ArgumentParser:
         type=_sha256_argument,
         help="expected SHA-256 of the controlled-baseline final checkpoint",
     )
+    parser.add_argument(
+        "--post-winner-job-id",
+        help="sealed post-winner plan job identifier",
+    )
+    parser.add_argument(
+        "--post-winner-selected-identity-seal",
+        type=_sha256_argument,
+        help="selected-method identity seal bound to this post-winner job",
+    )
+    parser.add_argument(
+        "--post-winner-overlay-index",
+        default="protocols/dair_v2/evaluation_overlays.json",
+        help="relative overlay index path inside the materialized Dataset",
+    )
+    parser.add_argument(
+        "--post-winner-agent-scope",
+        choices=("E+R", "E-only", "R-only"),
+        default="E+R",
+    )
+    parser.add_argument(
+        "--post-winner-duration-ticks",
+        type=_positive_integer,
+        default=1,
+    )
+    parser.add_argument(
+        "--post-winner-delays",
+        type=int,
+        choices=(0, 100, 200, 300),
+        nargs="+",
+        default=(0, 100, 200, 300),
+    )
+    parser.add_argument(
+        "--post-winner-conditions",
+        choices=("Full", "L-Fail", "C-Fail"),
+        nargs="+",
+        default=("Full", "L-Fail", "C-Fail"),
+    )
+    parser.add_argument(
+        "--post-winner-expected-runs",
+        type=_positive_integer,
+        default=12,
+    )
+    parser.add_argument(
+        "--post-winner-profile-config",
+        choices=("winner", "concat"),
+        default="winner",
+    )
+    parser.add_argument(
+        "--post-winner-profile-warmup",
+        type=_positive_integer,
+        default=10,
+    )
+    parser.add_argument(
+        "--post-winner-profile-iterations",
+        type=_positive_integer,
+        default=100,
+    )
     parser.add_argument("--amp", action="store_true")
     return parser
 
@@ -701,6 +782,89 @@ def _validate_arguments(args: argparse.Namespace) -> None:
             "controlled_baseline_checkpoint_sha256",
             None,
         )
+        if args.stage in {
+            "post_winner_evaluate",
+            "post_winner_profile",
+            "post_winner_auto_validate",
+        }:
+            if baseline is None or baseline_task_id is None:
+                raise ValueError(
+                    f"{args.stage} requires --controlled-baseline and "
+                    "--controlled-baseline-task-id"
+                )
+            if CLEARML_TASK_ID_PATTERN.fullmatch(baseline_task_id) is None:
+                raise ValueError(
+                    "--controlled-baseline-task-id must be a lowercase 32-hex ID"
+                )
+            optional_pin_values = (
+                baseline_model_id,
+                baseline_checkpoint_sha256,
+            )
+            if any(value is not None for value in optional_pin_values) and not all(
+                value is not None for value in optional_pin_values
+            ):
+                raise ValueError(
+                    "controlled baseline model ID and checkpoint SHA must be "
+                    "provided together"
+                )
+            if (
+                baseline_model_id is not None
+                and CLEARML_TASK_ID_PATTERN.fullmatch(baseline_model_id) is None
+            ):
+                raise ValueError(
+                    "--controlled-baseline-model-id must be a lowercase 32-hex ID"
+                )
+            if args.stage == "post_winner_auto_validate" and any(
+                value is not None for value in optional_pin_values
+            ):
+                raise ValueError(
+                    "post_winner_auto_validate discovers the final model and "
+                    "forbids pre-populated model/SHA pins"
+                )
+            if (
+                type(args.post_winner_job_id) is not str
+                or not args.post_winner_job_id.strip()
+                or args.post_winner_selected_identity_seal is None
+            ):
+                raise ValueError(
+                    f"{args.stage} requires a post-winner job ID and selected "
+                    "identity seal"
+                )
+            if args.stage == "post_winner_evaluate":
+                expected = len(args.post_winner_delays) * len(
+                    args.post_winner_conditions
+                )
+                if args.post_winner_expected_runs != expected:
+                    raise ValueError(
+                        "post-winner expected run count does not match the "
+                        "delay/condition Cartesian product"
+                    )
+            predecessor_task_id = getattr(args, "predecessor_task_id", None)
+            if predecessor_task_id is not None and (
+                CLEARML_TASK_ID_PATTERN.fullmatch(predecessor_task_id) is None
+            ):
+                raise ValueError(
+                    "--predecessor-task-id must be a lowercase 32-hex ID"
+                )
+            if args.stage == "post_winner_auto_validate" and (
+                predecessor_task_id != baseline_task_id
+            ):
+                raise ValueError(
+                    "post_winner_auto_validate predecessor must be the training task"
+                )
+            if any(
+                value is not None
+                for value in (
+                    args.teacher_task_id,
+                    args.teacher_model_id,
+                    args.teacher_checkpoint_sha256,
+                    args.student_task_id,
+                    args.student_model_id,
+                    args.student_checkpoint_sha256,
+                )
+            ) or args.teacher_checkpoint is not None or args.student_checkpoint is not None:
+                raise ValueError("post-winner stages forbid teacher/student handoffs")
+            return
         if args.stage == "baseline_validate":
             if any(
                 value is None
@@ -993,6 +1157,7 @@ def _apply_source_runner_metrics_compatibility(source_root: Path) -> Path:
         (
             *CLEARML_TRAIN_METRICS_COMPATIBILITY_IDENTITIES.values(),
             CLEARML_TRAIN_FFNET_STAGE_SHA256,
+            CLEARML_TRAIN_LEGACY_PROTOCOL_SCHEMA_SHA256,
         )
     )
     if actual_sha256 in compatible_identities:
@@ -1059,6 +1224,7 @@ def _apply_controlled_evaluator_headless_compatibility(source_root: Path) -> Pat
         CONTROLLED_BASELINE_HEADLESS_EVALUATOR_SHA256,
         CONTROLLED_BASELINE_LEGACY_PROTOCOL_EVALUATOR_SHA256,
         CONTROLLED_BASELINE_PROTOCOL_EVALUATOR_SHA256,
+        CONTROLLED_BASELINE_PRE_SCOPE_EVALUATOR_SHA256,
     }:
         return target
     if actual_sha256 not in {
@@ -4373,6 +4539,568 @@ def _upload_controlled_baseline_artifacts(
     _verify_uploaded_controlled_evidence(task, evidence_stage)
 
 
+def _post_winner_relative_path(dataset_root: Path, value: str) -> Path:
+    relative = PurePosixPath(value)
+    if (
+        not value
+        or relative.is_absolute()
+        or ".." in relative.parts
+        or relative.as_posix() != value
+    ):
+        raise ValueError("post-winner Dataset path is not canonical")
+    path = dataset_root.joinpath(*relative.parts).resolve(strict=True)
+    try:
+        path.relative_to(dataset_root.resolve(strict=True))
+    except ValueError as error:
+        raise ValueError("post-winner Dataset path escaped its root") from error
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("post-winner Dataset path is not a regular file")
+    return path
+
+
+def _materialize_post_winner_embedded_files(dataset_root: Path) -> None:
+    root = dataset_root.resolve(strict=True)
+    for raw_relative, raw_record in POST_WINNER_EMBEDDED_FILES.items():
+        if not isinstance(raw_record, Mapping):
+            raise ValueError("embedded post-winner file record is invalid")
+        relative = PurePosixPath(raw_relative)
+        if (
+            not raw_relative
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or relative.as_posix() != raw_relative
+        ):
+            raise ValueError("embedded post-winner file path is not canonical")
+        encoded = raw_record.get("base64")
+        expected_size = raw_record.get("size_bytes")
+        expected_sha256 = raw_record.get("sha256")
+        if (
+            type(encoded) is not str
+            or type(expected_size) is not int
+            or expected_size < 0
+            or type(expected_sha256) is not str
+            or SHA256_PATTERN.fullmatch(expected_sha256) is None
+        ):
+            raise ValueError("embedded post-winner file contract is invalid")
+        try:
+            payload = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError) as error:
+            raise ValueError("embedded post-winner file is not canonical base64") from error
+        if (
+            len(payload) != expected_size
+            or hashlib.sha256(payload).hexdigest() != expected_sha256
+        ):
+            raise ValueError("embedded post-winner file content identity drifted")
+        destination = root.joinpath(*relative.parts).resolve()
+        try:
+            destination.relative_to(root)
+        except ValueError as error:
+            raise ValueError("embedded post-winner file escaped Dataset root") from error
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists() or destination.is_symlink():
+            if destination.is_symlink() or not destination.is_file():
+                raise ValueError("embedded post-winner destination is not replaceable")
+            destination.unlink()
+        temporary = destination.with_name(f".{destination.name}.post-winner.tmp")
+        if temporary.exists() or temporary.is_symlink():
+            raise FileExistsError(f"embedded protocol temporary exists: {temporary}")
+        try:
+            with temporary.open("xb") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, destination)
+        finally:
+            if temporary.exists() or temporary.is_symlink():
+                temporary.unlink()
+        if _sha256(destination) != expected_sha256:
+            raise RuntimeError("materialized post-winner file failed readback")
+
+
+def _install_post_winner_evaluator(source_root: Path) -> Path:
+    source = POST_WINNER_EMBEDDED_EVALUATOR_SOURCE
+    if type(source) is not str or not source:
+        raise RuntimeError("post-winner evaluator source was not embedded")
+    encoded = source.encode("utf-8")
+    if hashlib.sha256(encoded).hexdigest() != (
+        CONTROLLED_BASELINE_PROTOCOL_EVALUATOR_SHA256
+    ):
+        raise RuntimeError("embedded post-winner evaluator seal mismatch")
+    target = (
+        source_root / "tools/resilient_v2x/evaluate_controlled_baselines.py"
+    ).resolve(strict=True)
+    try:
+        target.relative_to(source_root.resolve(strict=True))
+    except ValueError as error:
+        raise ValueError("post-winner evaluator escaped source root") from error
+    if target.is_symlink() or not target.is_file():
+        raise ValueError("post-winner evaluator target is not a regular file")
+    observed = _sha256(target)
+    accepted = {
+        CONTROLLED_BASELINE_EVALUATOR_SHA256,
+        CONTROLLED_BASELINE_LEGACY_HEADLESS_EVALUATOR_SHA256,
+        CONTROLLED_BASELINE_HEADLESS_EVALUATOR_SHA256,
+        CONTROLLED_BASELINE_LEGACY_PROTOCOL_EVALUATOR_SHA256,
+        CONTROLLED_BASELINE_PRE_SCOPE_EVALUATOR_SHA256,
+        CONTROLLED_BASELINE_PROTOCOL_EVALUATOR_SHA256,
+    }
+    if observed not in accepted:
+        raise ValueError(f"post-winner evaluator source identity drifted: {observed}")
+    if observed == CONTROLLED_BASELINE_PROTOCOL_EVALUATOR_SHA256:
+        return target
+    temporary = target.with_name(f".{target.name}.post-winner.tmp")
+    if temporary.exists() or temporary.is_symlink():
+        raise FileExistsError(f"post-winner evaluator temporary exists: {temporary}")
+    mode = target.stat().st_mode & 0o777
+    try:
+        with temporary.open("xb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(mode)
+        os.replace(temporary, target)
+    finally:
+        if temporary.exists() or temporary.is_symlink():
+            temporary.unlink()
+    if _sha256(target) != CONTROLLED_BASELINE_PROTOCOL_EVALUATOR_SHA256:
+        raise RuntimeError("installed post-winner evaluator failed readback")
+    return target
+
+
+def _install_post_winner_profiler(source_root: Path) -> Path:
+    source = POST_WINNER_EMBEDDED_PROFILER_SOURCE
+    if type(source) is not str or not source:
+        raise RuntimeError("post-winner profiler source was not embedded")
+    encoded = source.encode("utf-8")
+    if hashlib.sha256(encoded).hexdigest() != POST_WINNER_PROFILER_SHA256:
+        raise RuntimeError("embedded post-winner profiler seal mismatch")
+    target = (source_root / "tools/resilient_v2x/profile.py").resolve(strict=True)
+    try:
+        target.relative_to(source_root.resolve(strict=True))
+    except ValueError as error:
+        raise ValueError("post-winner profiler escaped source root") from error
+    if target.is_symlink() or not target.is_file():
+        raise ValueError("post-winner profiler target is not a regular file")
+    observed = _sha256(target)
+    if observed not in {
+        POST_WINNER_LEGACY_PROFILER_SHA256,
+        POST_WINNER_PROFILER_SHA256,
+    }:
+        raise ValueError(f"post-winner profiler source identity drifted: {observed}")
+    if observed == POST_WINNER_PROFILER_SHA256:
+        return target
+    temporary = target.with_name(f".{target.name}.post-winner.tmp")
+    if temporary.exists() or temporary.is_symlink():
+        raise FileExistsError(f"post-winner profiler temporary exists: {temporary}")
+    mode = target.stat().st_mode & 0o777
+    try:
+        with temporary.open("xb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(mode)
+        os.replace(temporary, target)
+    finally:
+        if temporary.exists() or temporary.is_symlink():
+            temporary.unlink()
+    if _sha256(target) != POST_WINNER_PROFILER_SHA256:
+        raise RuntimeError("installed post-winner profiler failed readback")
+    return target
+
+
+def _post_winner_subject_checkpoint(
+    args: argparse.Namespace,
+    *,
+    task: object,
+    task_class: object,
+) -> tuple[Path, dict[str, object]]:
+    subject = str(args.controlled_baseline)
+    subject_task_id = str(args.controlled_baseline_task_id)
+    subject_task = task_class.get_task(task_id=subject_task_id)
+    _wait_for_completed_task(
+        subject_task,
+        context=f"post-winner subject task {subject_task_id}",
+    )
+    parameters_getter = getattr(subject_task, "get_parameters", None)
+    parameters = parameters_getter() if callable(parameters_getter) else None
+    if not isinstance(parameters, Mapping):
+        raise RuntimeError("post-winner subject task has no parameter mapping")
+    if parameters.get("Args/experiment_from_task") != subject:
+        raise RuntimeError(
+            "post-winner subject task experiment mismatch: "
+            f"expected {subject!r}, got "
+            f"{parameters.get('Args/experiment_from_task')!r}"
+        )
+    model_name = f"ResilientV2X {subject} final checkpoint"
+    model = _require_unique_output_model(
+        subject_task,
+        model_name=model_name,
+        context=f"post-winner subject task {subject_task_id}",
+        expected_task_id=subject_task_id,
+        expected_model_id=args.controlled_baseline_model_id,
+    )
+    checkpoint, contract = _download_model_checkpoint(
+        model,
+        model_name=model_name,
+        label=f"{subject} post-winner subject",
+        expected_sha256=args.controlled_baseline_checkpoint_sha256,
+    )
+    task.set_input_model(
+        model_id=str(contract["model_id"]),
+        name=f"{subject}_final_checkpoint",
+        update_task_design=False,
+        update_task_labels=False,
+    )
+    return checkpoint, contract
+
+
+def _validate_post_winner_metrics(
+    *,
+    plan: Mapping[str, object],
+    metrics: Mapping[str, object],
+    args: argparse.Namespace,
+) -> None:
+    expected_pairs = {
+        (delay, condition)
+        for delay in args.post_winner_delays
+        for condition in args.post_winner_conditions
+    }
+    runs = metrics.get("runs")
+    if (
+        metrics.get("complete") is not True
+        or metrics.get("planned_run_count") != args.post_winner_expected_runs
+        or not isinstance(runs, list)
+        or len(runs) != args.post_winner_expected_runs
+    ):
+        raise RuntimeError("post-winner evaluation did not complete every planned run")
+    expected = {
+        "protocol_id": CANONICAL_1337_PROTOCOL_ID,
+        "manifest_content_sha256": CANONICAL_1337_MANIFEST_CONTENT_SHA256,
+        "sample_ids_sha256": CANONICAL_1337_SAMPLE_IDS_SHA256,
+        "expected_sample_count": CANONICAL_1337_SAMPLE_COUNT,
+        "expected_ground_truth_count": CANONICAL_1337_GROUND_TRUTH_COUNT,
+        "expected_unsupported_sample_count": 0,
+    }
+    for document_name, document in (("plan", plan), ("metrics", metrics)):
+        for field, value in expected.items():
+            if document.get(field) != value:
+                raise RuntimeError(
+                    f"post-winner {document_name} {field} mismatch: "
+                    f"expected {value!r}, got {document.get(field)!r}"
+                )
+    observed_pairs: set[tuple[object, object]] = set()
+    for run in runs:
+        if not isinstance(run, Mapping):
+            raise RuntimeError("post-winner metric run is not an object")
+        observed_pairs.add((run.get("delay_ms"), run.get("condition")))
+        if run.get("sample_count") != CANONICAL_1337_SAMPLE_COUNT:
+            raise RuntimeError("post-winner run sample count mismatch")
+        if run.get("ground_truth_count") != CANONICAL_1337_GROUND_TRUTH_COUNT:
+            raise RuntimeError("post-winner run ground-truth count mismatch")
+        if run.get("sample_ids_sha256") != CANONICAL_1337_SAMPLE_IDS_SHA256:
+            raise RuntimeError("post-winner run sample cohort mismatch")
+        if run.get("unsupported_sample_count") != 0:
+            raise RuntimeError("post-winner run contains unsupported samples")
+    if observed_pairs != expected_pairs:
+        raise RuntimeError("post-winner run matrix differs from its task contract")
+    plan_runs = plan.get("runs")
+    if not isinstance(plan_runs, list) or len(plan_runs) != len(runs):
+        raise RuntimeError("post-winner plan/run count mismatch")
+    for run in plan_runs:
+        if not isinstance(run, Mapping):
+            raise RuntimeError("post-winner plan run is not an object")
+        if run.get("agent_scope") != args.post_winner_agent_scope:
+            raise RuntimeError("post-winner plan agent scope mismatch")
+        if run.get("duration_ticks") != args.post_winner_duration_ticks:
+            raise RuntimeError("post-winner plan duration mismatch")
+
+
+def _execute_post_winner_evaluation(
+    args: argparse.Namespace,
+    *,
+    source_root: Path,
+    python: Path,
+    runtime_env: Mapping[str, str],
+    dataset_class: object,
+    task_class: object,
+) -> int:
+    task = task_class.current_task()
+    if task is None:
+        raise RuntimeError("post-winner evaluation requires a current ClearML task")
+    task.output_uri = FILES_SERVER_URI
+    task_id = str(getattr(task, "id", "") or "")
+    checkpoint, checkpoint_contract = _post_winner_subject_checkpoint(
+        args,
+        task=task,
+        task_class=task_class,
+    )
+    runner = _load_source_training_runner(source_root)
+    dataset_root, env = _prepare_experiment_environment(
+        args,
+        task_id=task_id,
+        source_root=source_root,
+        base_env=runtime_env,
+        dataset_class=dataset_class,
+        runner=runner,
+    )
+    _materialize_post_winner_embedded_files(dataset_root)
+    _install_post_winner_evaluator(source_root)
+    overlay_index = _post_winner_relative_path(
+        dataset_root,
+        args.post_winner_overlay_index,
+    )
+    evaluator = _apply_controlled_evaluator_headless_compatibility(source_root)
+    work_dir = (
+        source_root / "work_dirs/post_winner_evaluation" / task_id
+    ).resolve()
+    if work_dir.exists() or work_dir.is_symlink():
+        raise FileExistsError(f"refusing to reuse post-winner work dir: {work_dir}")
+    command = [
+        str(python),
+        str(evaluator),
+        "--baseline",
+        str(args.controlled_baseline),
+        "--checkpoint",
+        str(checkpoint),
+        "--overlay-index",
+        str(overlay_index),
+        "--work-dir",
+        str(work_dir),
+        "--protocol-id",
+        CANONICAL_1337_PROTOCOL_ID,
+        "--expected-ground-truth-count",
+        str(CANONICAL_1337_GROUND_TRUTH_COUNT),
+        "--delays",
+        *(str(value) for value in args.post_winner_delays),
+        "--conditions",
+        *args.post_winner_conditions,
+        "--agent-scope",
+        args.post_winner_agent_scope,
+        "--duration-ticks",
+        str(args.post_winner_duration_ticks),
+    ]
+    contract = {
+        "schema_version": 1,
+        "mode": "post_winner_evaluate",
+        "task_id": task_id,
+        "job_id": args.post_winner_job_id,
+        "selected_identity_seal": args.post_winner_selected_identity_seal,
+        "subject": args.controlled_baseline,
+        "subject_task_id": args.controlled_baseline_task_id,
+        "training_dataset_id": args.training_dataset_id,
+        "checkpoint": checkpoint_contract,
+        "overlay_index": str(overlay_index),
+        "overlay_index_sha256": _sha256(overlay_index),
+        "protocol_id": CANONICAL_1337_PROTOCOL_ID,
+        "sample_count": CANONICAL_1337_SAMPLE_COUNT,
+        "ground_truth_count": CANONICAL_1337_GROUND_TRUTH_COUNT,
+        "sample_ids_sha256": CANONICAL_1337_SAMPLE_IDS_SHA256,
+        "agent_scope": args.post_winner_agent_scope,
+        "duration_ticks": args.post_winner_duration_ticks,
+        "delays_ms": list(args.post_winner_delays),
+        "conditions": list(args.post_winner_conditions),
+        "expected_run_count": args.post_winner_expected_runs,
+        "command": command,
+        "evaluator_sha256": _sha256(evaluator),
+    }
+    if not task.upload_artifact(
+        "post_winner_run_contract",
+        artifact_object=contract,
+        wait_on_upload=True,
+    ):
+        raise RuntimeError("failed to upload post-winner run contract")
+    _run_logged(command, cwd=source_root, env=env)
+    plan_path = (work_dir / "evaluation_plan.json").resolve(strict=True)
+    metrics_path = (work_dir / "metrics.json").resolve(strict=True)
+    plan = _read_json_object(plan_path)
+    metrics = _read_json_object(metrics_path)
+    _validate_post_winner_metrics(plan=plan, metrics=metrics, args=args)
+    for name, value in (
+        ("post_winner_evaluation_plan", str(plan_path)),
+        ("post_winner_metrics", dict(metrics)),
+        ("post_winner_evidence", str(work_dir)),
+    ):
+        if not task.upload_artifact(name, artifact_object=value, wait_on_upload=True):
+            raise RuntimeError(f"failed to upload {name}")
+    task.flush(wait_for_uploads=True)
+    return 0
+
+
+def _execute_post_winner_profile(
+    args: argparse.Namespace,
+    *,
+    source_root: Path,
+    python: Path,
+    runtime_env: Mapping[str, str],
+    dataset_class: object,
+    task_class: object,
+) -> int:
+    task = task_class.current_task()
+    if task is None:
+        raise RuntimeError("post-winner profile requires a current ClearML task")
+    task.output_uri = FILES_SERVER_URI
+    task_id = str(getattr(task, "id", "") or "")
+    checkpoint, checkpoint_contract = _post_winner_subject_checkpoint(
+        args,
+        task=task,
+        task_class=task_class,
+    )
+    runner = _load_source_training_runner(source_root)
+    dataset_root, env = _prepare_experiment_environment(
+        args,
+        task_id=task_id,
+        source_root=source_root,
+        base_env=runtime_env,
+        dataset_class=dataset_class,
+        runner=runner,
+    )
+    profile_config = {
+        "winner": source_root / "configs/resilient_v2x/dair_resilient_v2x.py",
+        "concat": (
+            source_root
+            / "configs/resilient_v2x/ablations/concat_capacity_matched.py"
+        ),
+    }[args.post_winner_profile_config].resolve(strict=True)
+    overlay_index = _post_winner_relative_path(
+        dataset_root,
+        "protocols/dair_v2/evaluation_overlays.json",
+    )
+    profiler = _install_post_winner_profiler(source_root)
+    work_dir = (source_root / "work_dirs/post_winner_profile" / task_id).resolve()
+    if work_dir.exists() or work_dir.is_symlink():
+        raise FileExistsError(f"refusing to reuse profile work dir: {work_dir}")
+    work_dir.mkdir(parents=True)
+    output = work_dir / "deployment_profile.json"
+    command = [
+        str(python),
+        str(profiler),
+        str(profile_config),
+        str(checkpoint),
+        "--out",
+        str(output),
+        "--device",
+        "cuda:0",
+        "--warmup",
+        str(args.post_winner_profile_warmup),
+        "--iterations",
+        str(args.post_winner_profile_iterations),
+        "--artifact",
+        f"evaluation_overlay_index={overlay_index}",
+        "--strict-checkpoint",
+        "--detach-training-only-teacher",
+        "--no-git-state",
+    ]
+    contract = {
+        "schema_version": 1,
+        "mode": "post_winner_profile",
+        "task_id": task_id,
+        "job_id": args.post_winner_job_id,
+        "selected_identity_seal": args.post_winner_selected_identity_seal,
+        "subject": args.controlled_baseline,
+        "profile_config": args.post_winner_profile_config,
+        "training_dataset_id": args.training_dataset_id,
+        "checkpoint": checkpoint_contract,
+        "warmup_iterations": args.post_winner_profile_warmup,
+        "measured_iterations": args.post_winner_profile_iterations,
+        "teacher_excluded": True,
+        "command": command,
+        "profiler_sha256": _sha256(profiler),
+    }
+    if not task.upload_artifact(
+        "post_winner_profile_run_contract",
+        artifact_object=contract,
+        wait_on_upload=True,
+    ):
+        raise RuntimeError("failed to upload profile run contract")
+    _run_logged(command, cwd=source_root, env=env)
+    document = _read_json_object(output.resolve(strict=True))
+    if document.get("content_sha256") != _producer_content_sha256(document):
+        raise RuntimeError("deployment profile content seal mismatch")
+    parameters = document.get("parameters")
+    flops = document.get("flops")
+    runtime = document.get("runtime")
+    device = document.get("device")
+    if not all(isinstance(value, Mapping) for value in (parameters, flops, runtime, device)):
+        raise RuntimeError("deployment profile is missing canonical sections")
+    if parameters.get("excluded_module_paths") != ["teacher"]:
+        raise RuntimeError("deployment profile did not exclude the teacher")
+    if device.get("detached_training_only_modules") != ["teacher"]:
+        raise RuntimeError("deployment profile did not detach the teacher")
+    if flops.get("status") != "measured" or not flops.get("flop_count"):
+        raise RuntimeError("deployment profile did not measure FLOPs")
+    latency = runtime.get("latency")
+    memory = runtime.get("gpu_memory")
+    if not isinstance(latency, Mapping) or not isinstance(memory, Mapping):
+        raise RuntimeError("deployment profile runtime section is invalid")
+    if (
+        latency.get("warmup_iterations") != args.post_winner_profile_warmup
+        or latency.get("measured_iterations")
+        != args.post_winner_profile_iterations
+        or latency.get("synchronized") is not True
+        or memory.get("status") != "measured"
+    ):
+        raise RuntimeError("deployment profile timing/memory contract mismatch")
+    if not task.upload_artifact(
+        "deployment_profile", artifact_object=dict(document), wait_on_upload=True
+    ):
+        raise RuntimeError("failed to upload deployment profile")
+    task.flush(wait_for_uploads=True)
+    return 0
+
+
+def _execute_post_winner_auto_validation(
+    args: argparse.Namespace,
+    *,
+    source_root: Path,
+    python: Path,
+    runtime_env: Mapping[str, str],
+    dataset_class: object,
+    task_class: object,
+) -> int:
+    task = task_class.current_task()
+    if task is None:
+        raise RuntimeError("auto validation requires a current ClearML task")
+    subject_task = task_class.get_task(task_id=args.controlled_baseline_task_id)
+    _wait_for_completed_task(subject_task, context="auto-validation training task")
+    model_name = f"ResilientV2X {args.controlled_baseline} final checkpoint"
+    model = _require_unique_output_model(
+        subject_task,
+        model_name=model_name,
+        context="auto-validation training task",
+        expected_task_id=args.controlled_baseline_task_id,
+    )
+    _checkpoint, checkpoint_contract = _download_model_checkpoint(
+        model,
+        model_name=model_name,
+        label="post-winner auto-validation subject",
+        expected_sha256=None,
+    )
+    args.controlled_baseline_model_id = str(checkpoint_contract["model_id"])
+    args.controlled_baseline_checkpoint_sha256 = str(checkpoint_contract["sha256"])
+    binding = {
+        "schema_version": 1,
+        "job_id": args.post_winner_job_id,
+        "selected_identity_seal": args.post_winner_selected_identity_seal,
+        "training_task_id": args.controlled_baseline_task_id,
+        "model_id": args.controlled_baseline_model_id,
+        "checkpoint_sha256": args.controlled_baseline_checkpoint_sha256,
+    }
+    if not task.upload_artifact(
+        "post_winner_auto_validation_binding",
+        artifact_object=binding,
+        wait_on_upload=True,
+    ):
+        raise RuntimeError("failed to upload auto-validation binding")
+    return _execute_controlled_baseline_validation(
+        args,
+        source_root=source_root,
+        python=python,
+        runtime_env=runtime_env,
+        dataset_class=dataset_class,
+        task_class=task_class,
+    )
+
+
 def _execute_controlled_baseline_validation(
     args: argparse.Namespace,
     *,
@@ -4970,6 +5698,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if args.stage == "baseline_validate":
         return _execute_controlled_baseline_validation(
+            args,
+            source_root=source_root,
+            python=venv_python,
+            runtime_env=runtime_env,
+            dataset_class=Dataset,
+            task_class=Task,
+        )
+    if args.stage == "post_winner_evaluate":
+        return _execute_post_winner_evaluation(
+            args,
+            source_root=source_root,
+            python=venv_python,
+            runtime_env=runtime_env,
+            dataset_class=Dataset,
+            task_class=Task,
+        )
+    if args.stage == "post_winner_profile":
+        return _execute_post_winner_profile(
+            args,
+            source_root=source_root,
+            python=venv_python,
+            runtime_env=runtime_env,
+            dataset_class=Dataset,
+            task_class=Task,
+        )
+    if args.stage == "post_winner_auto_validate":
+        return _execute_post_winner_auto_validation(
             args,
             source_root=source_root,
             python=venv_python,
