@@ -11,7 +11,7 @@
 
 ## 当前受控实验状态
 
-状态快照：上海时间 `2026-08-13 15:13`。本节是当前论文结果的唯一活动入口；未完成项只保留 `—（待测）`，不以诊断值或跨协议值代填。
+状态快照：上海时间 `2026-08-14 22:23`。本节是当前论文结果的唯一活动入口；未完成项只保留 `—（待测）`，不以诊断值或跨协议值代填。
 
 ### DAIR-CAUSAL-1337-v1 统一评测
 
@@ -88,7 +88,11 @@
 | :--- | :--- | :--- |
 | Table I–IV：winner 与五个受控基线 | 五个受控基线与当前 ResilientV2X 已完成；等待候选最终选择 | —（待最终 winner） |
 | Table V：winner 单因素消融 | 等待 winner identity | —（待测） |
-| Table VI：`pL=pC={0,0.1,0.2,0.3,0.5}` | `p=0.2` 复用；`p=0.3` 独立试验待训；其余待训 | —（待测） |
+| Table VI：`p=0.0` | 训练 [`4c4ec658`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/4c4ec65836ad463da0041a1caf732aba/output/log) `completed`；正式评测 [`63ab06eb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/63ab06ebdd1649f7ba8b77262a211cc5/output/log) `in_progress`；`GPU4-5090` | —（待测） |
+| Table VI：`p=0.1` | 训练 [`bdeee071`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/bdeee07140b245409e89db2e935dd02f/output/log) `completed`；正式评测 [`087bc9f0`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/087bc9f0f679425da29c2329aa239197/output/log) `in_progress`；`GPU4-5090` | —（待测） |
+| Table VI：`p=0.2` | 训练 [`5b426f33`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/5b426f335aea422f840d1d3c7879744a/output/log) `completed`；正式评测 [`8a8ccd4f`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/8a8ccd4fb1a9420d8d49372c541deaab/output/log) `queued`；`GPU4-5090` | —（待测） |
+| Table VI：`p=0.3` | 训练 [`e431d93a`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/e431d93a909f4888a0d79561b5ca749c/output/log) `completed`；正式评测 [`a698dc19`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/a698dc196a144104996b13528ddbc95e/output/log) `queued`；`GPU4-5090` | —（待测） |
+| Table VI：`p=0.5` | 训练 [`59d1c2bb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/59d1c2bbb91741e98f46564accc58477/output/log) `in_progress`；`GPU4-A100`；正式评测待训练完成后创建 | —（待测） |
 | Table VII：`q=1,2,3`、容量匹配 concat、参数/FLOPs/显存/端到端时延 | 等待 winner checkpoint | —（待测）；`q≥4` 为 unsupported/no-extrapolation |
 | E-only / R-only 诊断 | 等待 winner checkpoint | —（待测） |
 | V2XSet-Standard | 本轮非阻塞，不训练 | —（待测） |
