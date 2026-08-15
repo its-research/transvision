@@ -4,10 +4,124 @@ import hashlib
 import json
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from tools.resilient_v2x import export_paper_controlled_1337_evidence as export
+
+
+def test_artifact_payload_uses_authoritative_preview_when_download_is_unauthorized() -> None:
+    payload = {"document_type": "sealed", "value": 1}
+
+    class Artifact:
+        def get(self) -> object:
+            raise ValueError("files server returned 401")
+
+    record = {
+        "key": "evidence",
+        "hash": _sha(1),
+        "content_size": 1,
+        "uri": "http://10.100.34.118:8081/task/evidence.json",
+        "type_data": {"preview": json.dumps(payload)},
+    }
+    task = SimpleNamespace(
+        artifacts={"evidence": Artifact()},
+        data=SimpleNamespace(
+            execution=SimpleNamespace(artifacts=[record])
+        ),
+    )
+
+    observed, metadata = export._artifact_payload(
+        task, "evidence", context="formal evidence"
+    )
+
+    assert observed == payload
+    assert metadata == record
+
+
+def test_artifact_payload_downloads_truncated_preview_with_authenticated_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"document_type": "sealed", "rows": list(range(100))}
+    encoded = json.dumps(payload).encode()
+
+    class Artifact:
+        def get(self) -> object:
+            raise ValueError("files server returned 401")
+
+    record = {
+        "key": "evidence",
+        "hash": hashlib.sha256(encoded).hexdigest(),
+        "content_size": len(encoded),
+        "uri": "http://10.100.34.118:8081/task/evidence.json",
+        "type_data": {"preview": encoded[:20].decode()},
+    }
+    task = SimpleNamespace(
+        artifacts={"evidence": Artifact()},
+        data=SimpleNamespace(execution=SimpleNamespace(artifacts=[record])),
+    )
+    monkeypatch.setattr(
+        export,
+        "_authenticated_json_artifact",
+        lambda metadata, **_kwargs: json.loads(encoded),
+    )
+
+    observed, metadata = export._artifact_payload(
+        task, "evidence", context="formal evidence"
+    )
+
+    assert observed == payload
+    assert metadata == record
+
+
+def test_training_config_path_accepts_legacy_declared_resolved_workspace_path() -> None:
+    assert export._training_config_path(
+        {
+            "declared": None,
+            "declared_resolved": (
+                "/workspace/resilient-v2x-5090-runtime/"
+                "configs/resilient_v2x/baselines/ffnet.py"
+            ),
+        },
+        "ffnet",
+    ) == "configs/resilient_v2x/baselines/ffnet.py"
+
+
+def test_training_config_path_rejects_untrusted_absolute_path() -> None:
+    with pytest.raises(export.PaperEvidenceExportError, match="unavailable"):
+        export._training_config_path(
+            {"declared": None, "declared_resolved": "/tmp/ffnet.py"}, "ffnet"
+        )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/models/ffnet_epoch_50.pth",
+        "/clearml/cache/0123456789abcdef0123456789abcdef.ffnet_epoch_50.pth",
+    ],
+)
+def test_final_checkpoint_path_accepts_canonical_and_clearml_cache_names(
+    path: str,
+) -> None:
+    assert export._is_final_checkpoint_path(path, "ffnet")
+
+
+def test_final_checkpoint_path_rejects_nonfinal_checkpoint() -> None:
+    assert not export._is_final_checkpoint_path("ffnet_epoch_20.pth", "ffnet")
+
+
+def test_prediction_archive_extra_accepts_mmengine_diagnostics_only() -> None:
+    assert export._is_allowed_prediction_archive_extra(
+        "delay_000_full/20260812_175309/20260812_175309.log"
+    )
+    assert export._is_allowed_prediction_archive_extra(
+        "delay_000_full/20260812_175309/vis_data/config.py"
+    )
+    assert not export._is_allowed_prediction_archive_extra(
+        "delay_000_full/20260812_175309/arbitrary.bin"
+    )
 
 
 def _id(value: int) -> str:
@@ -96,7 +210,7 @@ def _fixture() -> tuple[export.ChainEvidence, list[export.CollectedSubject]]:
                 "index": index,
                 "subject": subject,
                 "kind": "baseline"
-                if subject in export.BASELINE_SUBJECTS
+                if subject in export.FORMAL_LEADERBOARD_BASELINE_SUBJECTS
                 else "improvement",
                 "training_task_id": _id(100 + index),
                 "training_predecessor_task_id": _id(1000 + index),
@@ -112,7 +226,7 @@ def _fixture() -> tuple[export.ChainEvidence, list[export.CollectedSubject]]:
                 "common_teacher_initialization_audit_sha256": _sha(1200 + index),
             }
         )
-        if subject in export.BASELINE_SUBJECTS:
+        if subject in export.FORMAL_LEADERBOARD_BASELINE_SUBJECTS:
             formal_runs[subject] = _runs(subject, full_0=50.0, other=40.0)
         elif subject == "resilient_v2x":
             formal_runs[subject] = _runs(subject, full_0=49.6, other=41.0)
@@ -189,8 +303,8 @@ def _fixture() -> tuple[export.ChainEvidence, list[export.CollectedSubject]]:
             "evaluation_plan_seal_sha256": plan["seal_sha256"],
             "subject_order": list(export.FORMAL_SUBJECT_ORDER),
             "subject_count": len(export.FORMAL_SUBJECT_ORDER),
-            "baseline_subjects": list(export.BASELINE_SUBJECTS),
-            "baseline_count": len(export.BASELINE_SUBJECTS),
+            "baseline_subjects": list(export.FORMAL_LEADERBOARD_BASELINE_SUBJECTS),
+            "baseline_count": len(export.FORMAL_LEADERBOARD_BASELINE_SUBJECTS),
             "metric_keys": list(export.AP_METRIC_KEYS),
             "results": results,
         }

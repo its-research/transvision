@@ -227,8 +227,11 @@ CONTROLLED_BASELINE_PRE_SCOPE_EVALUATOR_SHA256 = (
 POST_WINNER_LEGACY_PROFILER_SHA256 = (
     "87eb49de98212f2304c873813681e36e4a880158736b32e02e5b2bd140e2f329"
 )
-POST_WINNER_PROFILER_SHA256 = (
+POST_WINNER_PRE_CANONICAL_PROFILER_SHA256 = (
     "26dee48139d220d05b5d1bf582d5bfddf534685f54001fed65fd370a77bb9f2c"
+)
+POST_WINNER_PROFILER_SHA256 = (
+    "6fc2143d6c5ab3143f3d2a0829d42120e60ccb00774af377ba4dbc5bd0b9622e"
 )
 CANONICAL_1337_PROTOCOL_ID = "DAIR-CAUSAL-1337-v1"
 DEFAULT_TRAINING_SEED = 20250218
@@ -4438,6 +4441,8 @@ def _verify_uploaded_evidence_zip(
 def _verify_uploaded_controlled_evidence(
     task: object,
     stage: ControlledEvidenceStage,
+    *,
+    expected_additional_artifacts: frozenset[str] = frozenset(),
 ) -> None:
     artifacts = getattr(task, "artifacts", None)
     if not isinstance(artifacts, Mapping):
@@ -4448,7 +4453,8 @@ def _verify_uploaded_controlled_evidence(
         "controlled_baseline_metrics",
         "controlled_baseline_evidence",
     }
-    if set(artifacts) != required:
+    expected_artifacts = required | set(expected_additional_artifacts)
+    if set(artifacts) != expected_artifacts:
         raise RuntimeError(
             "uploaded controlled evidence exact artifact inventory drifted"
         )
@@ -4511,6 +4517,7 @@ def _upload_controlled_baseline_artifacts(
     task: object,
     *,
     evidence_stage: ControlledEvidenceStage,
+    expected_additional_artifacts: frozenset[str] = frozenset(),
 ) -> None:
     _plan, metrics = _verify_controlled_evidence_stage(evidence_stage)
     for artifact_name, artifact_object in (
@@ -4536,7 +4543,11 @@ def _upload_controlled_baseline_artifacts(
     reloader = getattr(task, "reload", None)
     if callable(reloader):
         reloader()
-    _verify_uploaded_controlled_evidence(task, evidence_stage)
+    _verify_uploaded_controlled_evidence(
+        task,
+        evidence_stage,
+        expected_additional_artifacts=expected_additional_artifacts,
+    )
 
 
 def _post_winner_relative_path(dataset_root: Path, value: str) -> Path:
@@ -4684,6 +4695,7 @@ def _install_post_winner_profiler(source_root: Path) -> Path:
     observed = _sha256(target)
     if observed not in {
         POST_WINNER_LEGACY_PROFILER_SHA256,
+        POST_WINNER_PRE_CANONICAL_PROFILER_SHA256,
         POST_WINNER_PROFILER_SHA256,
     }:
         raise ValueError(f"post-winner profiler source identity drifted: {observed}")
@@ -5098,6 +5110,9 @@ def _execute_post_winner_auto_validation(
         runtime_env=runtime_env,
         dataset_class=dataset_class,
         task_class=task_class,
+        expected_additional_artifacts=frozenset(
+            {"post_winner_auto_validation_binding"}
+        ),
     )
 
 
@@ -5109,6 +5124,7 @@ def _execute_controlled_baseline_validation(
     runtime_env: Mapping[str, str],
     dataset_class: object,
     task_class: object,
+    expected_additional_artifacts: frozenset[str] = frozenset(),
 ) -> int:
     """Evaluate one trained baseline on the sealed 12-condition matrix."""
 
@@ -5311,6 +5327,7 @@ def _execute_controlled_baseline_validation(
     _upload_controlled_baseline_artifacts(
         task,
         evidence_stage=evidence_stage,
+        expected_additional_artifacts=expected_additional_artifacts,
     )
     return 0
 

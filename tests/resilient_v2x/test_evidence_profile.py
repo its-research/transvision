@@ -4,13 +4,17 @@ import hashlib
 import json
 import subprocess
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
 import torch
 from torch import nn
 
-from tools.resilient_v2x.profile import _deployment_student_state_dict
+from tools.resilient_v2x.profile import (
+    _deployment_student_state_dict,
+    _device_metadata,
+)
 from transvision.evaluation.resilient_v2x_evidence import (
     EVIDENCE_DOCUMENT_TYPE,
     EvidenceError,
@@ -73,6 +77,31 @@ def test_deployment_checkpoint_filter_removes_only_teacher_state() -> None:
     assert excluded == 2
     with pytest.raises(RuntimeError, match="no training-only teacher"):
         _deployment_student_state_dict({"student.weight": torch.ones(1)})
+
+
+def test_device_metadata_normalizes_torch_version_to_plain_string() -> None:
+    class TorchVersion(str):
+        pass
+
+    fake_torch = SimpleNamespace(
+        __version__=TorchVersion("2.10.0+cu128"),
+        version=SimpleNamespace(cuda="12.8"),
+        cuda=SimpleNamespace(
+            current_device=lambda: 0,
+            get_device_properties=lambda index: SimpleNamespace(
+                name="test-gpu",
+                total_memory=123,
+                major=12,
+                minor=0,
+            ),
+        ),
+        backends=SimpleNamespace(cudnn=SimpleNamespace(version=lambda: 91002)),
+    )
+
+    metadata = _device_metadata(fake_torch, SimpleNamespace(index=None))
+
+    assert metadata["torch_version"] == "2.10.0+cu128"
+    assert type(metadata["torch_version"]) is str
 
 
 def _minimal_profile() -> dict[str, object]:

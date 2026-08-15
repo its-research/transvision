@@ -11,7 +11,7 @@
 
 ## 当前受控实验状态
 
-状态快照：上海时间 `2026-08-15 01:03`。本节是当前论文结果的唯一活动入口；未完成项只保留 `—（待测）`，不以诊断值或跨协议值代填。
+状态快照：上海时间 `2026-08-15 10:32`。本节是当前论文结果的唯一活动入口；未完成项只保留 `—（待测）`，不以诊断值或跨协议值代填。
 
 ### DAIR-CAUSAL-1337-v1 统一评测
 
@@ -31,19 +31,19 @@
 | 节点 | ClearML task ID | 状态 | 结果 |
 | :--- | :--- | :--- | :--- |
 | P：训练来源等价证明 | [`7e244a71`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/7e244a711751469b8cfdb25d77b05269/output/log) | `completed` | formal provenance 已提交 |
-| W：26 方法正式评测 watcher | [`74bf35de`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/74bf35decc2340b496167c11ec50f54b/output/log) | `in_progress`；`services` | A100 并行候选合同已通过；26 项中 6 项完成、2 项运行、18 项已创建 |
-| L：正式 leaderboard | [`cc7b54e4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/cc7b54e4dcca4b92a4247f92987add60/output/log) | `in_progress`；`services` | 等待 26 项正式评测完成 |
-| A：独立可比性审计 | [`dd287fe5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/dd287fe58e264bcca48fe222b6981048/output/log) | `in_progress`；`services` | 等待 leaderboard 与完整证据 |
-| S：单种子候选选择器 | [`d7ea54ce`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/d7ea54ce540d4b0486904c5910100885/output/log) | `in_progress`；`services` | 等待审计完成后生成最终 winner |
+| W：26 方法正式评测 watcher | [`74bf35de`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/74bf35decc2340b496167c11ec50f54b/output/log) | `completed` | 26/26 方法、312 个 `1337` 评测运行完成；artifact SHA-256 `1cf9f5c569a4c42a04ac384c8b538208abb612dea39d66929981f4eb97c6939a` |
+| L：正式 leaderboard | [`cc7b54e4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/cc7b54e4dcca4b92a4247f92987add60/output/log) | `completed` | leaderboard artifact SHA-256 `658b0e72a392ff8353bf2de3863cfdbde2d799a312c350b7aab48ee77f6bc30f` |
+| A：独立可比性审计 | [`dd287fe5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/dd287fe58e264bcca48fe222b6981048/output/log) | `completed` | comparability audit artifact SHA-256 `deea629900d213c49b7c892ebf0bf84067f68da283a2f8217d59f4244eddad0c` |
+| S：单种子候选选择器 | [`d7ea54ce`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/d7ea54ce540d4b0486904c5910100885/output/log) | `completed` | 最终 winner：`resilient_v2x`；selection artifact SHA-256 `9f77afae4ac06ab054e76be02e7384f9cfdef7c55015634e3dce8aa73a9acb7e`；selected-method identity seal `7e24831bc1420b202abedf9c748423223875687c8d19fc2eeadc4ad14f944aad` |
 | CoFormerNet 正式评测 | [`d8fac863`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/d8fac86325e047e5aa25f5ce899902b6/output/log) | `completed` | `DAIR-CAUSAL-1337-v1`；Full 0 ms BEV AP@0.7 `58.6980`；12 条件均值 `49.9536`；最差值 `31.7329`；`12×1337 / 11330 / 0`；metrics SHA-256 `423323cacd2faf115e1f8a5a2526b58a993c9a23fa154eea829939a8ffbc11b0` |
 | FFNet 正式评测 | [`144397bf`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/144397bfa9c242bc9a92a1279922558b/output/log) | `completed` | Full `59.2396`；均值 `49.7097`；最差 `29.9796`；`12×1337 / 11330 / 0`；metrics SHA-256 `e4f7c3578e65e11358a232ba0f38d02d83a5fc45dc76cf8c188039a596e86e24` |
 | V2X-ViT 正式评测 | [`cb2675d7`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/cb2675d7e0e845268420f5c0d5248ece/output/log) | `completed` | Full `58.6679`；均值 `49.9924`；最差 `30.7127`；`12×1337 / 11330 / 0`；metrics SHA-256 `49556d0b1c4b0ddb5a3a6ac835a3ae353c8553509e2cf32903bcd55b9a69e515` |
 | CoBEVT 正式评测 | [`23f4d7f0`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/23f4d7f082284aa2be098a90f0a596e8/output/log) | `completed` | Full `59.1071`；均值 `50.7776`；最差 `33.3430`；`12×1337 / 11330 / 0`；metrics SHA-256 `07dbc919b5f9ac7b90a9fe5f5f8896aee0315d12070ef7d05e41bd1e70848462` |
 | BEVFusion 正式评测 | [`c3b87760`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/c3b87760b78742cb8e7de3a506a08999/output/log) | `completed` | Full `59.7471`；均值 `51.0931`；最差 `33.6540`；`12×1337 / 11330 / 0`；metrics SHA-256 `43977ebdae38e74882bb659c53d4c10e2cb20eba1a7a5c77b2514bccabd21c1f` |
 | ResilientV2X 正式评测 | [`7deb18e5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/7deb18e532324850bee1fb4279a838b7/output/log) | `completed` | Full `62.3620`；均值 `58.4076`；最差 `50.8587`；`12×1337 / 11330 / 0`；metrics SHA-256 `5a5f111876544de2403ef18ca3b7cb616ba6047277119a4b3461ad5cc0a56a65` |
-| `support_residual` 正式评测 | [`718ba3d3`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/718ba3d3421249eb9f31d5216a8f160a/output/log) | `in_progress`；`GPU4-A100` 0–3 | —（待测） |
-| `ptf_none` 正式评测 | [`e6ad9de8`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/e6ad9de8555e49acb6b7a7f869642c2c/output/log) | `in_progress`；`GPU4-A100` 4–7 | —（待测） |
-| 其余 18 方法正式评测 | 由 W 按固定优先级绑定 | `created`；按四卡资源门控依次释放 | —（待测） |
+| `support_residual` 正式评测 | [`718ba3d3`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/718ba3d3421249eb9f31d5216a8f160a/output/log) | `completed` | Full `62.4745`；均值 `58.5694`；最差 `52.4563`；metrics SHA-256 `86eeb76593d264926195aee682c4aaa7e545d88dd5d97ebf0850d25ad6bd8532` |
+| `ptf_none` 正式评测 | [`e6ad9de8`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/e6ad9de8555e49acb6b7a7f869642c2c/output/log) | `completed` | Full `60.0193`；均值 `51.1791`；最差 `32.2581`；metrics SHA-256 `540de27f0f6922f3bbc9cf2e7023e625cb66275e3fbfcc4d7a91420288a84e63` |
+| 其余 18 方法正式评测 | 由 W 固定任务集合绑定 | `completed` | 收录于正式 leaderboard |
 
 26 个同名旧空壳已归档，不进入论文结果。归档回执：[`execute-receipt-20260812T051245.388941Z.json`](artifacts/resilient_v2x/formal-evaluation-orphan-reconciliation/execute-receipt-20260812T051245.388941Z.json)；seal `882773639e93a3f60590ba044b17da499790f2269697bac6ead5a650862b59a0`。评测恢复回执：[`recovery-receipt-20260812T1450CST.json`](artifacts/resilient_v2x/formal-evaluation-recovery/recovery-receipt-20260812T1450CST.json)，seal `d95e2bc2bb93ea6c8c69ea683d31ba09ec2bf219c7a0c09591c0ff12de60fcdf`。A100 并行合同 W/L/A/S exact-ID 恢复回执：[`a100-parallel-recovery-20260813T1443CST.json`](artifacts/resilient_v2x/formal-successor-runtime-recovery/a100-parallel-recovery-20260813T1443CST.json)，seal `b025db64c5836fd0a1687638a8358aa7bad6c54db62e81246cdb8e9da53a9bfd`；未创建替代任务。旧失败链仅保留在 archive。
 
@@ -77,28 +77,41 @@
 | ResilientV2X（当前方法） | **62.3620** | **58.4076** | **50.8587** | `pass`；Full `+2.6149`，均值 `+7.3145`，最差 `+17.2047` |
 | E1 `support_residual_linear`（候选） | **62.3024** | **58.1732** | **50.1283** | `pass`；Full `+2.5553`，均值 `+7.0801`，最差 `+16.4743` |
 | E2 `no_reliability_linear`（候选） | **62.4457** | **58.6384** | **50.3353** | `pass` |
-| E3 `support_residual_no_reliability`（候选） | **62.2258** | **58.1152** | **50.8195** | `pass`；当前候选排序第一 |
+| E3 `support_residual_no_reliability`（候选） | **62.2258** | **58.1152** | **50.8195** | `pass` |
 | P0 `support_residual_no_reliability_linear`（候选） | **62.5318** | **58.4021** | **50.6362** | `pass` |
 | P2 `P0 + bbox loss 2.5`（候选） | **62.1244** | **57.9189** | **50.3869** | `pass` |
-| 最终 winner | —（待 S 正式封存） | —（待 S 正式封存） | —（待 S 正式封存） | —（待选） |
+| 最终 winner：ResilientV2X | **62.3620** | **58.4076** | **50.8587** | `selected`；[`selected-method identity`](artifacts/resilient_v2x/final-single-seed-selection/selected-method-identity.json) seal `7e24831bc1420b202abedf9c748423223875687c8d19fc2eeadc4ad14f944aad` |
 
-### 论文后续实验占位
+### 论文后续实验
 
 | 论文接口 | 状态 | 结果 |
 | :--- | :--- | :--- |
-| Table I–IV：winner 与五个受控基线 | 五个受控基线与当前 ResilientV2X 已完成；等待候选最终选择 | —（待最终 winner） |
-| Table V：winner 单因素消融 | 等待 winner identity | —（待测） |
-| Table VI：`p=0.0` | 训练 [`4c4ec658`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/4c4ec65836ad463da0041a1caf732aba/output/log) `completed`；正式评测 [`63ab06eb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/63ab06ebdd1649f7ba8b77262a211cc5/output/log) `in_progress`；`GPU4-5090` | —（待测） |
-| Table VI：`p=0.1` | 训练 [`bdeee071`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/bdeee07140b245409e89db2e935dd02f/output/log) `completed`；正式评测 [`087bc9f0`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/087bc9f0f679425da29c2329aa239197/output/log) `in_progress`；`GPU4-5090` | —（待测） |
-| Table VI：`p=0.2` | 训练 [`5b426f33`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/5b426f335aea422f840d1d3c7879744a/output/log) `completed`；正式评测 [`8a8ccd4f`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/8a8ccd4fb1a9420d8d49372c541deaab/output/log) `in_progress`；`GPU4-A100` 0–3 | —（待测） |
-| Table VI：`p=0.3` | 训练 [`e431d93a`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/e431d93a909f4888a0d79561b5ca749c/output/log) `completed`；正式评测 [`a698dc19`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/a698dc196a144104996b13528ddbc95e/output/log) `queued`；`GPU4-5090` | —（待测） |
-| Table VI：`p=0.5` | 训练 [`59d1c2bb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/59d1c2bbb91741e98f46564accc58477/output/log) `in_progress`；epoch 19/50；正式评测 [`f0b0faeb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/f0b0faeb2c2a46eab8038ce562453ae6/output/log) 已绑定完成依赖 | —（待测） |
+| Table I–IV：winner 与五个受控基线 | winner `resilient_v2x` 与五个受控基线正式结果齐全 | Full `62.3620`；均值 `58.4076`；最差 `50.8587` |
+| Table V：Full nonlinear PTF+DER | 训练 [`54d28bc5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/54d28bc513794051810fd383140ae96e/output/log)、评测 [`7deb18e5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/7deb18e532324850bee1fb4279a838b7/output/log)；identity `selected_winner_reference` | Full/L-Fail/Full 300 ms `62.36197 / 53.18792 / 60.37811` |
+| Table V：No PTF | 训练 `05519cde`、评测 `e6ad9de8`；identity `verified_single_factor_reuse` | `60.01931 / 32.81306 / 59.57957` |
+| Table V：Linear PTF | 训练 `0ca63093`、评测 `d49754b3`；identity `verified_single_factor_reuse` | `62.39869 / 52.81070 / 62.04672` |
+| Table V：Static three-expert | 训练 `18f3e5aa`、评测 `12747214`；identity `verified_single_factor_reuse` | `62.13295 / 52.63811 / 60.22263` |
+| Table V：Uniform gate | 训练 `ec13af4b`、评测 `2819bf52`；identity `verified_single_factor_reuse` | `62.38803 / 52.94746 / 60.20685` |
+| Table V：No reliability | 训练 `6313638e`、评测 `194271f3`；identity `verified_single_factor_reuse` | `62.59448 / 53.00221 / 60.50318` |
+| Table V：No delay metadata | 训练 `135055f2`、评测 `ff90b801`；identity `verified_single_factor_reuse` | `62.23553 / 52.74628 / 60.30256` |
+| Table V：No distillation | 训练 `efe6522d`、评测 `59d64499`；identity `verified_single_factor_reuse` | `60.33681 / 50.84304 / 58.14512` |
+| Table VI：`p=0.0` | 训练 [`4c4ec658`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/4c4ec65836ad463da0041a1caf732aba/output/log)、评测 [`63ab06eb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/63ab06ebdd1649f7ba8b77262a211cc5/output/log) 均 `completed` | Full/L-Fail/Full 300 ms `61.22066 / 14.35833 / 59.19178` |
+| Table VI：`p=0.1` | 训练 [`bdeee071`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/bdeee07140b245409e89db2e935dd02f/output/log)、评测 [`087bc9f0`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/087bc9f0f679425da29c2329aa239197/output/log) 均 `completed` | `62.37745 / 51.95534 / 60.05267` |
+| Table VI：`p=0.2` | 复用 selected winner 训练 [`54d28bc5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/54d28bc513794051810fd383140ae96e/output/log)、评测 [`7deb18e5`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/7deb18e532324850bee1fb4279a838b7/output/log) | `62.36197 / 53.18792 / 60.37811` |
+| Table VI：`p=0.3` | 训练 [`e431d93a`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/e431d93a909f4888a0d79561b5ca749c/output/log)、评测 [`a698dc19`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/a698dc196a144104996b13528ddbc95e/output/log) 均 `completed` | `62.49151 / 52.16197 / 60.26678` |
+| Table VI：`p=0.5` | 训练 [`59d1c2bb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/59d1c2bbb91741e98f46564accc58477/output/log)、评测 [`f0b0faeb`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/f0b0faeb2c2a46eab8038ce562453ae6/output/log) 均 `completed`；epoch 50 final SHA-256 `9ef04de33a7a30ead541c5d008d1576dd3da2192b128e749b14e9a76aed2ce2e` | `62.88495 / 52.24645 / 62.19270` |
 | Table VII：`q=1` LiDAR | [`cb5eb3f9`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/cb5eb3f9cb624018b504049bf9492d30/output/log) `completed`；`1337 / 11330 / 0` | BEV AP@0.5/0.7 `69.9425 / 53.1879`；3D AP@0.5/0.7 `61.8763 / 29.8698` |
-| Table VII：`q=1` Camera；`q=2,3` LiDAR/Camera | [`d9d17062`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/d9d1706284614fef8775a80d17c0cf91/output/log)、[`4417e476`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/4417e476be21492d8e3dc817b3f1f932/output/log)、[`fa3423b9`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/fa3423b90d5944db99552a2cbf9f66a6/output/log)、[`66121b53`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/66121b5326e2460880f0f91cb844197b/output/log)、[`759463bc`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/759463bca4424072ba3d5e9679f94fe3/output/log) 已排队 | —（待测）；`q≥4` 为 unsupported/no-extrapolation |
-| Table VII：winner / 容量匹配 concat 参数、FLOPs、显存、端到端时延 | [`86b92bac`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/86b92bacc8c74a80b9583130dc89dba4/output/log)、[`22ed132a`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/22ed132a00ef4dd0b2294f8dd3ed4f4f/output/log) 已排队；pair validator [`c2593441`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/c2593441377747558c5c1ce56302757a/output/log) 已绑定 | —（待测） |
-| E-only / R-only 诊断 | [`30d330b4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/30d330b42c6840aeb0e7163787fe0df0/output/log)、[`2af4e6d4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/2af4e6d4982c472586ec22bd3a05e2c5/output/log) `in_progress` | —（待测） |
+| Table VII：`q=1` Camera | [`d9d17062`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/d9d1706284614fef8775a80d17c0cf91/output/log) `completed`；`1337 / 11330 / 0` | BEV AP@0.5/0.7 `70.9213 / 62.3199`；3D AP@0.5/0.7 `67.6611 / 40.6336` |
+| Table VII：`q=2` LiDAR | [`4417e476`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/4417e476be21492d8e3dc817b3f1f932/output/log) `completed`；`1337 / 11330 / 0` | BEV AP@0.5/0.7 `35.1284 / 11.5710`；3D AP@0.5/0.7 `24.5076 / 4.0041` |
+| Table VII：`q=2` Camera | [`fa3423b9`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/fa3423b90d5944db99552a2cbf9f66a6/output/log) `completed`；`1337 / 11330 / 0` | BEV AP@0.5/0.7 `70.9498 / 62.3467`；3D AP@0.5/0.7 `67.6605 / 40.8709` |
+| Table VII：`q=3` LiDAR | [`66121b53`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/66121b5326e2460880f0f91cb844197b/output/log) `completed`；`1337 / 11330 / 0` | BEV AP@0.5/0.7 `17.0923 / 5.2727`；3D AP@0.5/0.7 `11.4370 / 1.3731` |
+| Table VII：`q=3` Camera | [`759463bc`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/759463bca4424072ba3d5e9679f94fe3/output/log) `completed`；`1337 / 11330 / 0` | BEV AP@0.5/0.7 `71.0114 / 62.3738`；3D AP@0.5/0.7 `67.6664 / 40.6125`；`q≥4` 为 unsupported/no-extrapolation |
+| Table VII：winner ResilientV2X / 容量匹配 concat 参数、FLOPs、显存、端到端时延 | [`f34913cd`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/f34913cdea634939ac96c787f603567f/output/log)、[`aa91489f`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/aa91489fb79d42758ef5083afbccb7ea/output/log)、pair validator [`8a8ded5f`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/8a8ded5f23f74920be24ac8fd12b3fbf/output/log) 均 `completed` | ResilientV2X：`35.076427 M / 128.744777 GFLOPs / 0.833144 GB / 53.5339 ms`；concat：`35.076427 M / 128.744374 GFLOPs / 0.833144 GB / 52.3412 ms` |
+| E-only / R-only 诊断 | E-only [`30d330b4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/30d330b42c6840aeb0e7163787fe0df0/output/log)、R-only [`2af4e6d4`](http://10.100.34.118:8080/projects/6e43f972e5ea4cee901a7c8855fce8cd/experiments/2af4e6d4982c472586ec22bd3a05e2c5/output/log) 均 `completed`；各 `8×1337 / 11330 / 0` | E-only metrics SHA-256 `a3c44cab32b4fb4c4e6d73b6a5a96c075aff68234464ba103e1f821a6323f6af`；R-only metrics SHA-256 `cc2ca194a13d8fda4aad578fad1f89f88615e46bd11eec8058e26c2d11114b55` |
 | V2XSet-Standard | 本轮非阻塞，不训练 | —（待测） |
 | V2XSet-Pair | 本轮非阻塞，不训练 | —（待测） |
+
+Table V–VII 正式证据：[`formal-evidence.json`](artifacts/resilient_v2x/paper-post-winner/formal-evidence.json)，seal `f1768eb3104609d8b2f929fb47383ffc4596242895320812690a7a3f293d5b83`。Table VI 的四个新增 epoch-50 final 模型已归档至 `artifacts/trained_models/completed-live/table_vi_p_*/`，各目录包含校验 manifest。
 
 ### 排除项与归档
 

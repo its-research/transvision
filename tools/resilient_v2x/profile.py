@@ -126,7 +126,7 @@ def _device_metadata(torch, device) -> dict[str, object]:
         "name": properties.name,
         "total_memory_bytes": int(properties.total_memory),
         "compute_capability": f"{properties.major}.{properties.minor}",
-        "torch_version": torch.__version__,
+        "torch_version": str(torch.__version__),
         "cuda_runtime": torch.version.cuda,
         "cudnn_version": (
             str(torch.backends.cudnn.version())

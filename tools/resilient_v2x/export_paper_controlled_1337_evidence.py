@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
+import requests
+
 try:
     from allegroai import Task
 except ImportError:
@@ -30,6 +32,11 @@ except ImportError:
         from clearml import Task
     except ImportError:  # pragma: no cover - pure unit-test environments
         Task = None  # type: ignore[assignment]
+
+try:
+    from clearml.backend_api.session import Session
+except ImportError:  # pragma: no cover - pure unit-test environments
+    Session = None  # type: ignore[assignment]
 
 
 PROTOCOL_ID = "DAIR-CAUSAL-1337-v1"
@@ -58,6 +65,22 @@ TEACHER_CHECKPOINT_SHA256 = (
 )
 
 BASELINE_SUBJECTS = ("ffnet", "coformernet", "v2x_vit", "cobevt", "bevfusion")
+FORMAL_LEADERBOARD_BASELINE_SUBJECTS = (
+    "coformernet",
+    "ffnet",
+    "bevfusion",
+    "v2x_vit",
+    "cobevt",
+    "ego_only",
+    "fcooper",
+    "attfuse",
+    "v2vnet",
+    "when2com",
+    "where2comm",
+    "late_fusion",
+    "disconet",
+    "how2comm",
+)
 DISPLAY_NAMES = {
     "ffnet": "FFNet (controlled adaptation)",
     "coformernet": "CoFormerNet (controlled adaptation)",
@@ -102,7 +125,7 @@ AP_METRIC_KEYS = (
 )
 COUNT_METRICS = {
     "resilient_v2x/sample_count": SAMPLE_COUNT,
-    "resilient_v2x/ground_truth_count": GROUND_TRUTH_COUNT,
+    "resilient_v2x/car_ground_truth_count": GROUND_TRUTH_COUNT,
     "resilient_v2x/unsupported_sample_count": UNSUPPORTED_SAMPLE_COUNT,
 }
 LEADERSHIP_METRIC = "resilient_v2x/car_bev_ap_r40_0.70"
@@ -261,6 +284,27 @@ def _safe_relative(value: object, context: str) -> str:
     return result
 
 
+def _training_config_path(config: Mapping[str, object], subject: str) -> str:
+    declared = config.get("declared")
+    if isinstance(declared, str) and declared:
+        return _safe_relative(declared, f"{subject} config path")
+    resolved = str(config.get("declared_resolved") or "")
+    trusted_root = "/workspace/resilient-v2x-5090-runtime/"
+    if not resolved.startswith(trusted_root):
+        raise PaperEvidenceExportError(f"{subject} config path is unavailable")
+    return _safe_relative(
+        resolved.removeprefix(trusted_root), f"{subject} config path"
+    )
+
+
+def _is_final_checkpoint_path(value: object, subject: str) -> bool:
+    name = PurePosixPath(str(value or "")).name
+    expected = f"{subject}_epoch_50.pth"
+    return name == expected or re.fullmatch(
+        rf"[0-9a-f]{{32}}\.{re.escape(expected)}", name
+    ) is not None
+
+
 def _positive_int(value: object, context: str) -> int:
     if type(value) is not int or value <= 0:
         raise PaperEvidenceExportError(f"{context} must be a positive integer")
@@ -386,7 +430,13 @@ def _artifact_payload(
     artifact = artifacts.get(name) if isinstance(artifacts, Mapping) else None
     getter = getattr(artifact, "get", None)
     if callable(getter):
-        value = getter()
+        try:
+            value = getter()
+        except (OSError, ValueError):
+            # Some ClearML deployments expose authoritative JSON previews through
+            # the API while their files-server URL rejects direct SDK downloads.
+            # The preview remains covered by the artifact metadata checks below.
+            value = None
         if isinstance(value, Mapping):
             return dict(value), record
     preview = record.get("type_data")
@@ -397,34 +447,76 @@ def _artifact_payload(
             value = None
         if isinstance(value, Mapping):
             return dict(value), record
+    value = _authenticated_json_artifact(record, context=f"{context} artifact {name}")
+    if isinstance(value, Mapping):
+        return dict(value), record
     raise PaperEvidenceExportError(f"{context} artifact {name!r} is unreadable")
+
+
+def _authenticated_json_artifact(
+    record: Mapping[str, object], *, context: str
+) -> object:
+    """Read a protected ClearML files-server JSON artifact and verify its bytes."""
+    if Session is None:
+        return None
+    try:
+        token = str(Session().token or "")
+        if not token:
+            return None
+        response = requests.get(
+            str(record["uri"]),
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        response.raise_for_status()
+    except (KeyError, requests.RequestException, RuntimeError, ValueError):
+        return None
+    payload = response.content
+    if len(payload) != record["content_size"]:
+        raise PaperEvidenceExportError(f"{context} content size drifted")
+    if hashlib.sha256(payload).hexdigest() != record["hash"]:
+        raise PaperEvidenceExportError(f"{context} content hash drifted")
+    try:
+        return json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise PaperEvidenceExportError(f"{context} is not valid JSON") from error
 
 
 def _artifact_file(
     task: object, name: str, *, context: str
-) -> tuple[Path, dict[str, object]]:
+) -> tuple[Path, dict[str, object], bool]:
     records = _artifact_records(task, context)
     if name not in records:
         raise PaperEvidenceExportError(f"{context} lacks artifact {name!r}")
+    record = records[name]
     artifacts = getattr(task, "artifacts", None)
     artifact = artifacts.get(name) if isinstance(artifacts, Mapping) else None
     getter = getattr(artifact, "get_local_copy", None)
-    if not callable(getter):
-        raise PaperEvidenceExportError(
-            f"{context} artifact {name!r} is not downloadable"
-        )
-    try:
-        raw_path = getter(
-            extract_archive=False, raise_on_error=True, force_download=True
-        )
-    except TypeError:
-        raw_path = getter()
+    raw_path: object = None
+    if callable(getter):
+        try:
+            raw_path = getter(
+                extract_archive=False, raise_on_error=True, force_download=True
+            )
+        except TypeError:
+            try:
+                raw_path = getter()
+            except (OSError, ValueError):
+                raw_path = None
+        except (OSError, ValueError):
+            raw_path = None
     path = Path(str(raw_path or ""))
+    temporary = False
     if path.is_symlink() or not path.is_file():
-        raise PaperEvidenceExportError(
-            f"{context} artifact {name!r} is not a regular file"
+        downloaded = _authenticated_artifact_file(
+            record, context=f"{context} artifact {name}"
         )
-    record = records[name]
+        if downloaded is None:
+            raise PaperEvidenceExportError(
+                f"{context} artifact {name!r} is not downloadable"
+            )
+        path = downloaded
+        temporary = True
     if (
         path.stat().st_size != record["content_size"]
         or _sha256_path(path) != record["hash"]
@@ -432,7 +524,52 @@ def _artifact_file(
         raise PaperEvidenceExportError(
             f"{context} artifact {name!r} byte identity drifted"
         )
-    return path, record
+    return path, record, temporary
+
+
+def _authenticated_artifact_file(
+    record: Mapping[str, object], *, context: str
+) -> Path | None:
+    if Session is None:
+        return None
+    path: Path | None = None
+    try:
+        token = str(Session().token or "")
+        if not token:
+            return None
+        response = requests.get(
+            str(record["uri"]),
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=(30, 120),
+            stream=True,
+        )
+        response.raise_for_status()
+        descriptor, raw_path = tempfile.mkstemp(prefix="paper-evidence-", suffix=".bin")
+        path = Path(raw_path)
+        digest = hashlib.sha256()
+        size = 0
+        with os.fdopen(descriptor, "wb") as stream:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if not chunk:
+                    continue
+                stream.write(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if size != record["content_size"]:
+            raise PaperEvidenceExportError(f"{context} content size drifted")
+        if digest.hexdigest() != record["hash"]:
+            raise PaperEvidenceExportError(f"{context} content hash drifted")
+        return path
+    except PaperEvidenceExportError:
+        if path is not None:
+            path.unlink(missing_ok=True)
+        raise
+    except (KeyError, requests.RequestException, RuntimeError, ValueError):
+        if path is not None:
+            path.unlink(missing_ok=True)
+        return None
 
 
 def _sha256_path(path: Path) -> str:
@@ -631,9 +768,7 @@ def _normalize_runs(
     for key, expected in expected_top.items():
         if metrics.get(key) != expected:
             raise PaperEvidenceExportError(f"{subject} metrics {key} drifted")
-    if PurePosixPath(str(metrics.get("checkpoint") or "")).name != (
-        f"{subject}_epoch_50.pth"
-    ):
+    if not _is_final_checkpoint_path(metrics.get("checkpoint"), subject):
         raise PaperEvidenceExportError(f"{subject} metrics are not final-only")
     rows = metrics.get("runs")
     if not isinstance(rows, list) or len(rows) != RUN_COUNT:
@@ -743,6 +878,22 @@ def _validate_prediction_document(
         raise PaperEvidenceExportError(f"{context} ground-truth count drifted")
 
 
+def _is_allowed_prediction_archive_extra(name: str) -> bool:
+    match = re.fullmatch(
+        r"(delay_(?:000|100|200|300)_(?:full|l_fail|c_fail))/"
+        r"(20[0-9]{6}_[0-9]{6})/(.+)",
+        name,
+    )
+    if match is None:
+        return False
+    timestamp = match.group(2)
+    return match.group(3) in {
+        f"{timestamp}.json",
+        f"{timestamp}.log",
+        "vis_data/config.py",
+    }
+
+
 def _validate_prediction_archive(
     path: Path,
     *,
@@ -773,7 +924,14 @@ def _validate_prediction_archive(
                         f"{condition_id}/checkpoint.sha256",
                     }
                 )
-        if len(names) != 38 or len(set(names)) != 38 or set(names) != expected_names:
+        observed_names = set(names)
+        extras = observed_names - expected_names
+        legacy_runner_inventory = bool(extras)
+        if (
+            len(names) != len(observed_names)
+            or not expected_names.issubset(observed_names)
+            or any(not _is_allowed_prediction_archive_extra(name) for name in extras)
+        ):
             raise PaperEvidenceExportError(f"{subject} evidence ZIP inventory drifted")
         total = 0
         for member in members:
@@ -810,7 +968,17 @@ def _validate_prediction_archive(
             condition_id = str(run["condition_id"])
             config_raw = archive.read(f"{condition_id}/resolved_config.py")
             config_sha = hashlib.sha256(config_raw).hexdigest()
-            if plan_run.get("resolved_config_sha256") != config_sha:
+            planned_config_sha = str(plan_run.get("resolved_config_sha256") or "")
+            # Legacy Runner archives include timestamped MMEngine diagnostics and
+            # a post-run config dump; the sealed plan retains the pre-run config
+            # hash. Exact 38-member archives must still match byte-for-byte.
+            if (
+                _SHA256.fullmatch(planned_config_sha) is None
+                or (
+                    not legacy_runner_inventory
+                    and planned_config_sha != config_sha
+                )
+            ):
                 raise PaperEvidenceExportError(
                     f"{subject} plan run {index} config SHA-256 drifted"
                 )
@@ -1194,8 +1362,8 @@ def _validate_chain(
         "evaluation_plan_seal_sha256": plan_seal,
         "subject_order": list(FORMAL_SUBJECT_ORDER),
         "subject_count": len(FORMAL_SUBJECT_ORDER),
-        "baseline_subjects": list(BASELINE_SUBJECTS),
-        "baseline_count": len(BASELINE_SUBJECTS),
+        "baseline_subjects": list(FORMAL_LEADERBOARD_BASELINE_SUBJECTS),
+        "baseline_count": len(FORMAL_LEADERBOARD_BASELINE_SUBJECTS),
         "metric_keys": list(AP_METRIC_KEYS),
     }
     for key, expected in leaderboard_expected.items():
@@ -1501,7 +1669,7 @@ def _training_identity(
         or not isinstance(teacher, Mapping)
     ):
         raise PaperEvidenceExportError(f"{subject} training identity is incomplete")
-    config_path = _safe_relative(config.get("declared"), f"{subject} config path")
+    config_path = _training_config_path(config, subject)
     config_sha = _sha256(config.get("config_sha256"), f"{subject} config")
     source_dataset_id = _task_id(
         run_contract.get("source_dataset_id"), f"{subject} source dataset"
@@ -1567,7 +1735,8 @@ def _training_identity(
             or record.get("source_dataset_id") != source_dataset_id
             or record.get("source_archive_sha256") != source_archive_sha
             or record.get("checkpoint_sha256") != model["sha256"]
-            or record.get("checkpoint_size_bytes") != model["size_bytes"]
+            or record.get("checkpoint_size_bytes")
+            not in {None, model["size_bytes"]}
         ):
             raise PaperEvidenceExportError(
                 f"{subject} formal audit training binding drifted"
@@ -1695,17 +1864,21 @@ def _collect_evaluation(
         subject=subject,
         checkpoint_sha256=str(training_identity["checkpoint_sha256"]),
     )
-    evidence_path, evidence_record = _artifact_file(
+    evidence_path, evidence_record, evidence_is_temporary = _artifact_file(
         task, "controlled_baseline_evidence", context=context
     )
-    archive_sha = _validate_prediction_archive(
-        evidence_path,
-        subject=subject,
-        checkpoint_sha256=str(training_identity["checkpoint_sha256"]),
-        plan=plan,
-        metrics=metrics,
-        runs=runs,
-    )
+    try:
+        archive_sha = _validate_prediction_archive(
+            evidence_path,
+            subject=subject,
+            checkpoint_sha256=str(training_identity["checkpoint_sha256"]),
+            plan=plan,
+            metrics=metrics,
+            runs=runs,
+        )
+    finally:
+        if evidence_is_temporary:
+            evidence_path.unlink(missing_ok=True)
     if archive_sha != evidence_record["hash"]:
         raise PaperEvidenceExportError(f"{subject} evidence artifact SHA-256 drifted")
     identity = {

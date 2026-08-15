@@ -510,7 +510,7 @@ def test_controlled_baseline_metrics_upload_as_json_mapping(
     monkeypatch.setattr(
         bootstrap,
         "_verify_uploaded_controlled_evidence",
-        lambda _task, _stage: None,
+        lambda _task, _stage, **_kwargs: None,
     )
 
     class Task:
@@ -546,6 +546,50 @@ def test_controlled_baseline_metrics_upload_as_json_mapping(
         ("controlled_baseline_evidence", str(tmp_path), True),
     ]
     assert isinstance(task.uploads[1][1], dict)
+
+
+def test_controlled_baseline_upload_preserves_declared_auto_validation_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bootstrap = _load_script("clearml_5090_bootstrap.py")
+    metrics = {"complete": True, "planned_run_count": 12, "runs": []}
+    stage = bootstrap.ControlledEvidenceStage(tmp_path, (), ())
+    monkeypatch.setattr(
+        bootstrap,
+        "_verify_controlled_evidence_stage",
+        lambda _stage: ({}, metrics),
+    )
+    observed: list[frozenset[str]] = []
+
+    def verify(
+        _task: object,
+        _stage: object,
+        *,
+        expected_additional_artifacts: frozenset[str],
+    ) -> None:
+        observed.append(expected_additional_artifacts)
+
+    monkeypatch.setattr(bootstrap, "_verify_uploaded_controlled_evidence", verify)
+
+    class Task:
+        def upload_artifact(self, *_args: object, **_kwargs: object) -> bool:
+            return True
+
+        def flush(self, *, wait_for_uploads: bool) -> None:
+            assert wait_for_uploads is True
+
+        def reload(self) -> None:
+            pass
+
+    expected = frozenset({"post_winner_auto_validation_binding"})
+    bootstrap._upload_controlled_baseline_artifacts(
+        Task(),
+        evidence_stage=stage,
+        expected_additional_artifacts=expected,
+    )
+
+    assert observed == [expected]
 
 
 def test_controlled_evaluator_is_headless_and_sealed() -> None:
