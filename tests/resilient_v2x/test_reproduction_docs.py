@@ -214,61 +214,54 @@ def test_config_readme_links_both_long_form_documents() -> None:
     assert "../../docs/resilient_v2x/paper-coverage.md" in readme
 
 
-def test_root_readme_registers_the_current_fair_1337_protocol() -> None:
+def test_root_readme_presents_paper_results_without_publication_status() -> None:
     readme = _read(ROOT_README)
     required = (
-        "DAIR-CAUSAL-1337-v1 统一评测",
-        "global batch size `8`",
-        "7c59fabb9da949e6b3c94c732f000975",
-        "715ac6f7a14225e20327eed0650c55abdc0cb98431830164e84545238099645d",
-        "77bd4585dbb02901f862b8da6aa208a504674b824a3d55cf15005aacbeeeaaff",
-        "a8d8184f7fd9d1212ae29cddb427f48a0cad39e7843d95d5ac609a8a4286cf3a",
-        "旧 global-batch-4 任务已停止，不用于最终比较",
-        "docs/resilient_v2x/archive/global-batch-4-superseded.md",
-        "docs/resilient_v2x/archive/historical-results-and-task-snapshots.md",
-        "—（待测）",
-        "seed `20250218`",
-        "本轮固定使用一个随机种子",
-        "不再执行“至少 3 个随机种子”合同",
-        "不报告未生成的 mean±std",
-        "L-Fail 和 C-Fail 使用 `E+R`",
-        "E-only / R-only 诊断",
-        "V2XSet-Standard",
-        "V2XSet-Pair",
+        "Temporally Valid Feature Repair and Reliability-Aware Routing",
+        "DAIR-CAUSAL-1337-v1",
+        "1,337 个车端—路侧单元验证样本",
+        "11,330 个 Car 真值框",
+        "固定种子 `20250218`",
+        "288 个受控结果单元",
+        "`verified`",
+        "`unsupported_sample_count=0`",
     )
     for statement in required:
         assert statement in readme
 
     assert "<details>" not in readme
-    assert "历史三随机种子汇总" not in readme
+    for excluded_marker in (
+        "ClearML",
+        "旧 global-batch-4",
+        "历史三随机种子汇总",
+        "上一版主表任务",
+        "上一版消融与改进任务",
+        "控制器任务",
+        "恢复任务",
+        "## 论文发表状态",
+        "当前投稿门禁",
+        "外部发表状态",
+        "公开复现发布",
+        "T-ITS initial submission",
+        "source_worktree_clean",
+        "## 结论边界",
+        "## 论文材料",
+    ):
+        assert excluded_marker not in readme
 
-    stopped_eval_ids = (
-        "6e3aae4a75754419a6139dd06bc170bb",
-        "8cd022cfae6d4e07911f600eaa5dbe36",
-        "4b94c634fc964246a42a11ba43d6d097",
-        "01520e68dce34cb7b8c9490c29254cd8",
-        "7ee3f4044ff0442aac4e23775fff6d83",
-        "4a35cfd3908f457286b578063a84eb71",
-    )
-    for task_id in stopped_eval_ids:
-        assert task_id not in readme
 
-
-def test_root_readme_separates_published_non_comparable_baselines() -> None:
+def test_root_readme_bounds_controlled_baseline_comparisons() -> None:
     readme = _read(ROOT_README)
     required = (
-        "【论文原始结果】How2comm（NeurIPS 2023）",
-        "DAIR-V2X LiDAR-only",
-        "100 ms",
-        "0.2 m / 0.2°",
-        "1 MB",
-        "| V2X-ViT | 51.68 | 39.97 |",
-        "| CoBEVT | 56.08 | 41.45 |",
-        "| How2comm | 62.36 | 47.18 |",
-        "【论文原始结果】MIT-HAN BEVFusion（ICRA 2023）",
-        "| nuScenes val | Camera | 35.56 | 41.21 NDS |",
-        "【论文原始结果】FFNet（NeurIPS 2023）",
-        "| FFNet | Middle | 200 | 55.37 | 31.66 | 63.20 | 54.69 | 1.2×10^5 |",
+        "FFNet、CoFormerNet、V2X-ViT、CoBEVT 和 BEVFusion",
+        "协议适配实现",
+        "不是其公开代码和原始配置的精确复现",
+        "不能与采用不同数据、模态、骨干网络或评测器的公开数值直接比较",
+        "| FFNet-style |",
+        "| CoFormerNet-style |",
+        "| V2X-ViT-style |",
+        "| CoBEVT-style |",
+        "| BEVFusion-style |",
     )
     for statement in required:
         assert statement in readme
@@ -296,14 +289,14 @@ def test_historical_archive_preserves_controlled_baseline_implementations() -> N
         assert statement in archive
 
 
-def test_root_readme_links_complete_historical_snapshot_archive() -> None:
+def test_root_readme_excludes_historical_process_archive() -> None:
     readme = _read(ROOT_README)
     archive = _read(HISTORICAL_RESULTS_ARCHIVE)
 
     assert (
         "[历史结果与任务快照归档]"
         "(docs/resilient_v2x/archive/historical-results-and-task-snapshots.md)"
-        in readme
+        not in readme
     )
     assert readme.count("<details>") == 0
     assert archive.count("<details>") == 1
