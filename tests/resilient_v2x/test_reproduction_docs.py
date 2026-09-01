@@ -214,38 +214,43 @@ def test_config_readme_links_both_long_form_documents() -> None:
     assert "../../docs/resilient_v2x/paper-coverage.md" in readme
 
 
-def test_root_readme_presents_paper_results_without_publication_status() -> None:
+def test_root_readme_is_english_and_presents_controlled_paper_results() -> None:
     readme = _read(ROOT_README)
     required = (
+        "## Abstract",
         "Temporally Valid Feature Repair and Reliability-Aware Routing",
         "DAIR-CAUSAL-1337-v1",
-        "1,337 个车端—路侧单元验证样本",
-        "11,330 个 Car 真值框",
-        "固定种子 `20250218`",
-        "288 个受控结果单元",
+        "1,337 ego–RSU validation samples",
+        "11,330 Car ground-truth boxes",
+        "Fixed seed `20250218`",
+        "288 controlled result cells",
         "`verified`",
         "`unsupported_sample_count=0`",
     )
     for statement in required:
         assert statement in readme
 
+    assert re.search(r"[\u3400-\u4dbf\u4e00-\u9fff]", readme) is None
+    assert "../ResilientV2X" not in readme
     assert "<details>" not in readme
     for excluded_marker in (
         "ClearML",
-        "旧 global-batch-4",
-        "历史三随机种子汇总",
-        "上一版主表任务",
-        "上一版消融与改进任务",
-        "控制器任务",
-        "恢复任务",
-        "## 论文发表状态",
-        "当前投稿门禁",
-        "外部发表状态",
-        "公开复现发布",
+        "superseded global-batch-4",
+        "historical three-seed summary",
+        "previous main-table task",
+        "previous ablation and improvement task",
+        "controller task",
+        "recovery task",
+        "## Publication Status",
+        "current submission gate",
+        "external publication status",
+        "public reproducibility release",
         "T-ITS initial submission",
         "source_worktree_clean",
-        "## 结论边界",
-        "## 论文材料",
+        "## Conclusion Boundaries",
+        "## Paper Materials",
+        "paper repository",
+        "manuscript and results registry",
     ):
         assert excluded_marker not in readme
 
@@ -253,10 +258,10 @@ def test_root_readme_presents_paper_results_without_publication_status() -> None
 def test_root_readme_bounds_controlled_baseline_comparisons() -> None:
     readme = _read(ROOT_README)
     required = (
-        "FFNet、CoFormerNet、V2X-ViT、CoBEVT 和 BEVFusion",
-        "协议适配实现",
-        "不是其公开代码和原始配置的精确复现",
-        "不能与采用不同数据、模态、骨干网络或评测器的公开数值直接比较",
+        "FFNet, CoFormerNet, V2X-ViT, CoBEVT, and BEVFusion",
+        "protocol-aligned implementations",
+        "not exact reproductions of the published code or original configurations",
+        "should not be compared directly with published values",
         "| FFNet-style |",
         "| CoFormerNet-style |",
         "| V2X-ViT-style |",
@@ -293,11 +298,8 @@ def test_root_readme_excludes_historical_process_archive() -> None:
     readme = _read(ROOT_README)
     archive = _read(HISTORICAL_RESULTS_ARCHIVE)
 
-    assert (
-        "[历史结果与任务快照归档]"
-        "(docs/resilient_v2x/archive/historical-results-and-task-snapshots.md)"
-        not in readme
-    )
+    archive_path = "docs/resilient_v2x/archive/historical-results-and-task-snapshots.md"
+    assert archive_path not in readme
     assert readme.count("<details>") == 0
     assert archive.count("<details>") == 1
     assert archive.count("</details>") == 1
@@ -308,5 +310,12 @@ def test_root_readme_excludes_historical_process_archive() -> None:
         "上一版消融与改进任务归档快照",
         "### 历史三随机种子汇总（未完成）",
     ):
-        assert historical_marker not in readme
         assert historical_marker in archive
+
+    for root_marker in (
+        "## Historical Reproduction Results",
+        "previous main-table task snapshot",
+        "previous ablation and improvement task snapshot",
+        "historical three-seed summary",
+    ):
+        assert root_marker not in readme
