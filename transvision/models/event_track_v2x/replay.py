@@ -8,6 +8,7 @@ from typing import Callable
 
 import numpy as np
 
+from .arrays import immutable_float64
 from .clock import AffineClockMap, conservative_no_future_gate
 from .schema import CorrelatedTrackBelief, IndependentIncrement, ReceivedMessage
 
@@ -181,6 +182,7 @@ class FixedLagReplay:
         dynamics: LinearGaussianDynamics,
         lag: float,
         absorbed_factor_ids: tuple[str, ...] = (),
+        absorbed_ancestor_message_ids: tuple[str, ...] = (),
         out_of_window_policy: OutOfWindowPolicy = OutOfWindowPolicy.DROP,
     ) -> None:
         initial_time = float(initial_time)
@@ -196,6 +198,15 @@ class FixedLagReplay:
             raise ValueError("absorbed_factor_ids must be non-empty strings")
         if len(absorbed) != len(set(absorbed)):
             raise ValueError("absorbed_factor_ids must be unique")
+        absorbed_ancestors = tuple(sorted(absorbed_ancestor_message_ids))
+        if any(
+            not isinstance(item, str) or not item for item in absorbed_ancestors
+        ):
+            raise ValueError(
+                "absorbed_ancestor_message_ids must be non-empty strings"
+            )
+        if len(absorbed_ancestors) != len(set(absorbed_ancestors)):
+            raise ValueError("absorbed_ancestor_message_ids must be unique")
         mean, covariance = _state(
             initial_mean, initial_covariance, dynamics.state_dimension
         )
@@ -214,6 +225,7 @@ class FixedLagReplay:
         # The boundary prior is not evidence-free.  Its absorbed factors must
         # remain in the ledger after fixed-lag pruning to prevent re-ingestion.
         self._used_factor_ids: set[str] = set(absorbed)
+        self._used_ancestor_message_ids: set[str] = set(absorbed_ancestors)
 
     @property
     def current_time(self) -> float:
@@ -232,8 +244,14 @@ class FixedLagReplay:
     ) -> tuple[np.ndarray, np.ndarray]:
         transition = np.asarray(self._dynamics.transition(delta), dtype=np.float64)
         process = np.asarray(self._dynamics.process_covariance(delta), dtype=np.float64)
-        mean = transition @ mean
-        covariance = transition @ covariance @ transition.T + process
+        # macOS Accelerate can emit spurious floating warnings for finite matrix
+        # products.  Suppress only the warnings and keep strict finite
+        # postconditions authoritative.
+        with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+            mean = transition @ mean
+            covariance = transition @ covariance @ transition.T + process
+        if not np.all(np.isfinite(mean)) or not np.all(np.isfinite(covariance)):
+            raise FloatingPointError("replay prediction produced a non-finite state")
         return mean, 0.5 * (covariance + covariance.T)
 
     @staticmethod
@@ -244,20 +262,23 @@ class FixedLagReplay:
     ) -> tuple[np.ndarray, np.ndarray]:
         matrix = factor.measurement_matrix
         innovation = factor.measurement - matrix @ mean
-        innovation_covariance = (
-            matrix @ covariance @ matrix.T + factor.measurement_covariance
-        )
-        gain = np.linalg.solve(
-            innovation_covariance, matrix @ covariance
-        ).T
-        mean = mean + gain @ innovation
-        identity = np.eye(mean.size)
-        residual = identity - gain @ matrix
-        # Joseph form preserves symmetry/PSD under finite precision.
-        covariance = (
-            residual @ covariance @ residual.T
-            + gain @ factor.measurement_covariance @ gain.T
-        )
+        with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+            innovation_covariance = (
+                matrix @ covariance @ matrix.T + factor.measurement_covariance
+            )
+            gain = np.linalg.solve(
+                innovation_covariance, matrix @ covariance
+            ).T
+            mean = mean + gain @ innovation
+            identity = np.eye(mean.size)
+            residual = identity - gain @ matrix
+            # Joseph form preserves symmetry/PSD under finite precision.
+            covariance = (
+                residual @ covariance @ residual.T
+                + gain @ factor.measurement_covariance @ gain.T
+            )
+        if not np.all(np.isfinite(mean)) or not np.all(np.isfinite(covariance)):
+            raise FloatingPointError("replay update produced a non-finite state")
         return mean, 0.5 * (covariance + covariance.T)
 
     def _run(
@@ -337,9 +358,16 @@ class FixedLagReplay:
             self._processed_message_ids.add(message.message_id)
             return IngestResult(IngestStatus.MISSED_DEADLINE, message.message_id)
         mapped = clock_map.map_message(received)
-        estimate = mapped.information_cutoff
+        information_cutoff = mapped.information_cutoff
         if not conservative_no_future_gate(
-            estimate,
+            information_cutoff,
+            decision_time,
+            confidence=confidence,
+        ):
+            return IngestResult(IngestStatus.FUTURE_INFORMATION, message.message_id)
+        state_reference = mapped.state_reference
+        if not conservative_no_future_gate(
+            state_reference,
             decision_time,
             confidence=confidence,
         ):
@@ -353,7 +381,7 @@ class FixedLagReplay:
         if message.payload.target_id != self._track_id:
             self._processed_message_ids.add(message.message_id)
             return IngestResult(IngestStatus.WRONG_TARGET, message.message_id)
-        if estimate.mean < self._base_time - 1e-12:
+        if state_reference.mean < self._base_time - 1e-12:
             self._processed_message_ids.add(message.message_id)
             status = (
                 IngestStatus.OUT_OF_WINDOW_DROPPED
@@ -362,11 +390,20 @@ class FixedLagReplay:
             )
             return IngestResult(status, message.message_id)
         incoming_factors = set(message.payload.lineage.factor_ids)
-        if not incoming_factors.isdisjoint(self._used_factor_ids):
+        incoming_ancestors = set(message.payload.lineage.ancestor_message_ids)
+        lineage_overlaps = (
+            not incoming_factors.isdisjoint(self._used_factor_ids)
+            or not incoming_ancestors.isdisjoint(
+                self._used_ancestor_message_ids
+            )
+            or not incoming_ancestors.isdisjoint(self._processed_message_ids)
+            or message.message_id in self._used_ancestor_message_ids
+        )
+        if lineage_overlaps:
             self._processed_message_ids.add(message.message_id)
             return IngestResult(IngestStatus.LINEAGE_OVERLAP, message.message_id)
         factor = _MeasurementFactor(
-            event_time=estimate.mean,
+            event_time=state_reference.mean,
             source=message.source,
             generated_local=message.timestamps.generated,
             sequence=message.sequence,
@@ -381,14 +418,13 @@ class FixedLagReplay:
         self._factors.append(factor)
         self._processed_message_ids.add(message.message_id)
         self._used_factor_ids.update(incoming_factors)
+        self._used_ancestor_message_ids.update(incoming_ancestors)
         self._current_mean, self._current_covariance = self._run(self._current_time)
         return IngestResult(IngestStatus.APPLIED, message.message_id)
 
     def snapshot(self) -> ReplaySnapshot:
-        mean = self._current_mean.copy()
-        covariance = self._current_covariance.copy()
-        mean.setflags(write=False)
-        covariance.setflags(write=False)
+        mean = immutable_float64(self._current_mean)
+        covariance = immutable_float64(self._current_covariance)
         return ReplaySnapshot(
             time=self._current_time,
             mean=mean,

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .arrays import immutable_float64
+
 
 @dataclass(frozen=True, slots=True)
 class CIFusion:
@@ -95,10 +97,8 @@ def covariance_intersection(
         if not np.isfinite(weight_first) or not 0.0 <= weight_first <= 1.0:
             raise ValueError("weight_first must be in [0, 1]")
     mean, covariance, _ = at(weight_first)
-    mean = np.ascontiguousarray(mean)
-    covariance = np.ascontiguousarray(0.5 * (covariance + covariance.T))
-    mean.setflags(write=False)
-    covariance.setflags(write=False)
+    mean = immutable_float64(mean)
+    covariance = immutable_float64(0.5 * (covariance + covariance.T))
     return CIFusion(mean=mean, covariance=covariance, weight_first=weight_first)
 
 

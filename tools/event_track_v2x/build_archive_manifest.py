@@ -28,7 +28,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--release-identity-status",
         default=DEFAULT_RELEASE_IDENTITY_STATUS,
-        help="Evidence status for comparison with an official byte inventory.",
+        help=(
+            "Local-mirror evidence status. This tool accepts only "
+            f"{DEFAULT_RELEASE_IDENTITY_STATUS!r}; it cannot assert official "
+            "release identity."
+        ),
     )
     return parser
 

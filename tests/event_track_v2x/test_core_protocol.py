@@ -93,10 +93,16 @@ def test_strict_six_time_and_payload_schema() -> None:
 
 def test_schema_objects_are_frozen_and_arrays_are_read_only() -> None:
     message = increment_message()
+    digest = wire_digest(message)
     with pytest.raises(FrozenInstanceError):
         message.sequence = 8  # type: ignore[misc]
     with pytest.raises(ValueError):
         message.payload.measurement[0] = 99.0
+    with pytest.raises(ValueError, match="WRITEABLE"):
+        message.payload.measurement.setflags(write=True)
+    with pytest.raises(ValueError, match="WRITEABLE"):
+        message.payload.measurement_covariance.setflags(write=True)
+    assert wire_digest(message) == digest
 
 
 def test_lineage_is_canonical_and_only_complete_disjoint_sets_prove_independence() -> None:
@@ -107,6 +113,9 @@ def test_lineage_is_canonical_and_only_complete_disjoint_sets_prove_independence
     assert first.proves_independent_from(second)
     assert not first.proves_independent_from(incomplete)
     assert not first.proves_independent_from(Lineage(("z",), True))
+    assert not first.proves_independent_from(
+        Lineage(("different",), True, ("parent-a",))
+    )
     with pytest.raises(ValueError, match="unique"):
         Lineage(("same", "same"), True)
 
@@ -161,6 +170,8 @@ def test_affine_clock_mapping_propagates_parameter_uncertainty() -> None:
         parameter_covariance=np.diag([0.04, 0.09]),
         timestamp_variance=0.16,
     )
+    with pytest.raises(ValueError, match="WRITEABLE"):
+        clock.parameter_covariance.setflags(write=True)
     estimate = clock.map_timestamp(14.0)
     gradient = np.array([-2.5, -0.5])
     expected_variance = gradient @ np.diag([0.04, 0.09]) @ gradient + 0.16 / 4.0

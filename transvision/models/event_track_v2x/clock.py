@@ -7,6 +7,7 @@ from statistics import NormalDist
 
 import numpy as np
 
+from .arrays import immutable_float64
 from .schema import EventTimes, ReceivedMessage
 
 
@@ -80,8 +81,7 @@ class AffineClockMap:
         timestamp_variance = float(self.timestamp_variance)
         if not np.isfinite(timestamp_variance) or timestamp_variance < 0.0:
             raise ValueError("timestamp_variance must be finite and non-negative")
-        covariance = np.ascontiguousarray(covariance)
-        covariance.setflags(write=False)
+        covariance = immutable_float64(covariance)
         object.__setattr__(self, "parameter_covariance", covariance)
         object.__setattr__(self, "timestamp_variance", timestamp_variance)
 

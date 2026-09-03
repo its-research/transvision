@@ -29,6 +29,11 @@ EXPECTED_ARCHIVE_NAMES = (
     "V2X-Seq-SPD.zip",
 )
 ALLOWED_RELEASE_IDENTITY_STATUSES = frozenset({DEFAULT_RELEASE_IDENTITY_STATUS})
+# This local-mirror schema intentionally has no scientifically publishable
+# identity status.  A trusted official-release inventory needs a separate,
+# independently authenticated ingestion path rather than a caller-supplied
+# status string.
+SCIENTIFICALLY_PUBLISHABLE_RELEASE_IDENTITY_STATUSES: frozenset[str] = frozenset()
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _ARCHIVE_SUFFIX = re.compile(r".*(?:\.zip|\.z[0-9]{2})", re.IGNORECASE)
 

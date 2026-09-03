@@ -12,6 +12,8 @@ from typing import Union
 
 import numpy as np
 
+from .arrays import immutable_float64
+
 
 def _finite(value: float, name: str) -> float:
     value = float(value)
@@ -30,18 +32,14 @@ def _vector(value: np.ndarray, name: str) -> np.ndarray:
     array = np.asarray(value, dtype=np.float64)
     if array.ndim != 1 or array.size == 0 or not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must be a non-empty finite vector")
-    array = np.ascontiguousarray(array)
-    array.setflags(write=False)
-    return array
+    return immutable_float64(array)
 
 
 def _matrix(value: np.ndarray, name: str) -> np.ndarray:
     array = np.asarray(value, dtype=np.float64)
     if array.ndim != 2 or 0 in array.shape or not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must be a non-empty finite matrix")
-    array = np.ascontiguousarray(array)
-    array.setflags(write=False)
-    return array
+    return immutable_float64(array)
 
 
 def _positive_definite(value: np.ndarray, name: str) -> np.ndarray:
@@ -142,12 +140,15 @@ class Lineage:
         object.__setattr__(self, "ancestor_message_ids", ancestors)
 
     def proves_independent_from(self, other: "Lineage") -> bool:
-        """Return true only when both complete summaries have no common factor."""
+        """Return true only for complete, factor- and ancestor-disjoint summaries."""
 
         return (
             self.complete
             and other.complete
             and set(self.factor_ids).isdisjoint(other.factor_ids)
+            and set(self.ancestor_message_ids).isdisjoint(
+                other.ancestor_message_ids
+            )
         )
 
 

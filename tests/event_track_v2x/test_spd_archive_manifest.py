@@ -5,8 +5,10 @@ from pathlib import Path
 import pytest
 
 from tools.event_track_v2x.archive_manifest import (
+    ALLOWED_RELEASE_IDENTITY_STATUSES,
     ArchiveManifestError,
     EXPECTED_ARCHIVE_NAMES,
+    SCIENTIFICALLY_PUBLISHABLE_RELEASE_IDENTITY_STATUSES,
     build_archive_manifest,
     read_archive_manifest,
     verify_archive_files,
@@ -83,3 +85,8 @@ def test_manifest_rejects_disguised_suffix_and_identity_escalation(
         build_archive_manifest(
             archives, release_identity_status="official-byte-verified"
         )
+
+
+def test_local_mirror_schema_has_no_publishable_identity_status() -> None:
+    assert ALLOWED_RELEASE_IDENTITY_STATUSES == {"unverified-source-bytes"}
+    assert SCIENTIFICALLY_PUBLISHABLE_RELEASE_IDENTITY_STATUSES == frozenset()

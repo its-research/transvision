@@ -4,6 +4,8 @@ import pytest
 from transvision.models.event_track_v2x import (
     AppendOnlyCommitLog,
     AffineClockMap,
+    BudgetBasis,
+    CausalScoreEvidenceV1,
     CorrelatedBeliefRequiresCI,
     CorrelatedTrackBelief,
     FixedLagReplay,
@@ -24,6 +26,7 @@ from transvision.models.event_track_v2x import (
     gaussian_nll,
     select_exact_budget,
     solve_one_to_one,
+    wire_digest,
 )
 
 
@@ -36,7 +39,10 @@ def message(
     sequence: int,
     event_time: float,
     measurement: float,
+    information_cutoff: float | None = None,
+    state_reference: float | None = None,
     factor_id: str | None = None,
+    ancestor_message_ids: tuple[str, ...] = (),
     received_at: float = 2.0,
     target_id: str = "track",
     deadline: float = 3.0,
@@ -47,7 +53,10 @@ def message(
         source="sender",
         sequence=sequence,
         timestamps=LocalTimestamps(
-            event_time, event_time, event_time + 0.01, event_time + 0.02
+            event_time if information_cutoff is None else information_cutoff,
+            event_time if state_reference is None else state_reference,
+            event_time + 0.01,
+            event_time + 0.02,
         ),
         deadline=deadline,
         coordinate_frame="world",
@@ -57,7 +66,11 @@ def message(
             measurement=np.array([measurement]),
             measurement_matrix=np.array([[1.0, 0.0]]),
             measurement_covariance=np.array([[0.2]]),
-            lineage=Lineage((factor_id or f"factor-{message_id}",), True),
+            lineage=Lineage(
+                (factor_id or f"factor-{message_id}",),
+                True,
+                ancestor_message_ids,
+            ),
         ),
     )
     return ReceivedMessage(wire, received_at=received_at)
@@ -216,6 +229,47 @@ def test_real_delta_t_chronological_replay_matches_event_order_filter() -> None:
     assert snapshot.covariance == pytest.approx(covariance)
 
 
+def test_replay_uses_state_reference_not_information_cutoff() -> None:
+    replay = tracker()
+    received = message(
+        "state-reference",
+        sequence=1,
+        event_time=0.75,
+        information_cutoff=0.25,
+        state_reference=0.75,
+        measurement=0.4,
+    )
+    assert replay.ingest_increment(
+        received, clock_map=IDENTITY_CLOCK, decision_time=2.0
+    ).applied
+    mean, covariance = manual_predict(
+        np.array([0.0, 1.0]), np.diag([1.0, 0.5]), 0.75
+    )
+    mean, covariance = manual_update(mean, covariance, 0.4)
+    mean, covariance = manual_predict(mean, covariance, 1.25)
+    assert replay.snapshot().mean == pytest.approx(mean)
+    assert replay.snapshot().covariance == pytest.approx(covariance)
+
+
+def test_replay_rejects_future_state_reference_even_with_old_information() -> None:
+    received = message(
+        "future-state",
+        sequence=1,
+        event_time=2.5,
+        information_cutoff=1.0,
+        state_reference=2.5,
+        measurement=1.0,
+        received_at=2.0,
+        deadline=3.0,
+    )
+    assert (
+        tracker().ingest_increment(
+            received, clock_map=IDENTITY_CLOCK, decision_time=2.0
+        ).status
+        is IngestStatus.FUTURE_INFORMATION
+    )
+
+
 def test_same_message_set_is_deterministic_under_different_arrival_orders() -> None:
     older = message("older", sequence=9, event_time=0.5, measurement=0.2)
     newer = message("newer", sequence=2, event_time=1.2, measurement=1.4)
@@ -263,6 +317,33 @@ def test_duplicate_message_and_duplicate_lineage_are_no_ops() -> None:
     after = replay.snapshot()
     assert after.mean.tobytes() == before.mean.tobytes()
     assert after.covariance.tobytes() == before.covariance.tobytes()
+
+
+def test_shared_ancestor_messages_cannot_be_absorbed_twice() -> None:
+    replay = tracker()
+    first = message(
+        "child-a",
+        sequence=1,
+        event_time=1.0,
+        measurement=0.9,
+        ancestor_message_ids=("common-parent",),
+    )
+    second = message(
+        "child-b",
+        sequence=2,
+        event_time=1.0,
+        measurement=100.0,
+        ancestor_message_ids=("common-parent",),
+    )
+    assert replay.ingest_increment(
+        first, clock_map=IDENTITY_CLOCK, decision_time=2.0
+    ).applied
+    assert (
+        replay.ingest_increment(
+            second, clock_map=IDENTITY_CLOCK, decision_time=2.0
+        ).status
+        is IngestStatus.LINEAGE_OVERLAP
+    )
 
 
 def test_boundary_lineage_wrong_target_deadline_and_ttl_fail_closed() -> None:
@@ -422,12 +503,39 @@ def scheduling_message(index: str, padding: int = 0) -> WireMessage:
     return received.message
 
 
-def test_exact_scheduler_uses_on_time_risk_and_actual_wire_bytes() -> None:
-    first = ScheduleCandidate(scheduling_message("a"), 6.0, 1.0)
-    second = ScheduleCandidate(scheduling_message("b"), 12.0, 0.5)
-    # The tempting item has higher singleton value, but its larger real wire
-    # payload prevents combining it with either six-value item.
-    tempting = ScheduleCandidate(scheduling_message("c", padding=100), 11.0, 1.0)
+def scheduling_candidate(
+    item: WireMessage, risk_reduction: float, on_time_probability: float
+) -> ScheduleCandidate:
+    network_time = 2.0
+    return ScheduleCandidate(
+        message=item,
+        network_transmit_time=network_time,
+        score_evidence=CausalScoreEvidenceV1(
+            as_of_network_time=network_time,
+            risk_reduction=risk_reduction,
+            on_time_probability=on_time_probability,
+            confidence=0.0,
+            age_seconds=0.0,
+            tracker_state_sha256="a" * 64,
+            channel_model_sha256="b" * 64,
+            scorer_config_sha256="c" * 64,
+            on_time_estimate_sha256="d" * 64,
+            candidate_message_sha256=wire_digest(item),
+            candidate_network_transmit_time=network_time,
+            candidate_deadline=item.deadline,
+            ground_truth_free=True,
+        ),
+    )
+
+
+def test_exact_scheduler_uses_on_time_risk_and_application_payload_bytes() -> None:
+    first = scheduling_candidate(scheduling_message("a"), 6.0, 1.0)
+    second = scheduling_candidate(scheduling_message("b"), 12.0, 0.5)
+    # The tempting item has higher singleton value, but its larger canonical
+    # application payload prevents combining it with either six-value item.
+    tempting = scheduling_candidate(
+        scheduling_message("c", padding=100), 11.0, 1.0
+    )
     budget = len(encode_message(first.message)) + len(encode_message(second.message))
     result = select_exact_budget([tempting, second, first], budget_bytes=budget)
     assert result.message_ids == ("a", "b")
@@ -436,6 +544,7 @@ def test_exact_scheduler_uses_on_time_risk_and_actual_wire_bytes() -> None:
         len(encode_message(candidate.message)) for candidate in result.selected
     )
     assert result.total_bytes <= budget
+    assert result.budget_basis is BudgetBasis.APPLICATION
 
     too_small = select_exact_budget(
         [first], budget_bytes=len(encode_message(first.message)) - 1
@@ -445,7 +554,7 @@ def test_exact_scheduler_uses_on_time_risk_and_actual_wire_bytes() -> None:
 
 
 def test_scheduler_budget_counts_unicode_utf8_and_protocol_overhead() -> None:
-    unicode_candidate = ScheduleCandidate(scheduling_message("车端"), 1.0, 1.0)
+    unicode_candidate = scheduling_candidate(scheduling_message("车端"), 1.0, 1.0)
     encoded = encode_message(unicode_candidate.message)
     assert len(encoded) > len(encoded.decode("utf-8"))
     assert select_exact_budget(

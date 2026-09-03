@@ -1,0 +1,128 @@
+{
+  "byte_budgets_per_second": [16000, 32000, 64000, 128000, 256000],
+  "classes": ["car"],
+  "data": {
+    "confirmatory": {
+      "one_shot_after_seal": true,
+      "sequence_count": 21,
+      "split": "val"
+    },
+    "development": {
+      "final_refit_sequence_count": 46,
+      "fold_assignment": "sha256-sort-then-round-robin",
+      "fold_count": 5,
+      "fold_salt": "eventtrack-v2x-spd-development-5fold-v1",
+      "fold_sizes": [10, 9, 9, 9, 9],
+      "selection_estimate": "pooled-out-of-fold",
+      "split": "train",
+      "split_sha256_bound": true
+    },
+    "frequency_hz": 10,
+    "official_test_policy": "excluded",
+    "roi_policy": "official-v2x-seq-spd",
+    "split_file": "data/split_datas/cooperative-split-data-spd.json",
+    "tfd_included": false
+  },
+  "decision_deadline_ms": 100,
+  "failure_policy": {
+    "algorithm_failure_value": 0,
+    "infrastructure_rerun_requires_no_prediction": true,
+    "missing_run_allowed": false
+  },
+  "evaluator": {
+    "calibration_metrics": ["state-NLL", "existence-Brier", "existence-ECE", "NIS", "NEES", "coverage-50", "coverage-90", "coverage-95"],
+    "name": "nuscenes-tracking+TrackEval",
+    "tracking_metrics": ["AMOTA", "AMOTP", "MOTA", "HOTA", "AssA", "DetA", "IDF1", "IDS", "Frag", "MT", "ML"],
+    "version_policy": "exact-package-versions-in-EvaluatorContractV1"
+  },
+  "external_validation": {
+    "cache_identity_policy": "freeze-in-ExperimentPlanV1",
+    "car_only": true,
+    "cohort_identity_policy": "freeze-sorted-sequence-ids-and-sha256-in-ExperimentPlanV1",
+    "dataset_id": "griffin-25m",
+    "dataset_identity_policy": "freeze-in-ExperimentPlanV1",
+    "evaluator_identity_policy": "freeze-in-ExperimentPlanV1",
+    "official_split_file": "data/split_datas/griffin_50scenes_25m.json",
+    "official_split_source": "https://github.com/wang-jh18-SVM/Griffin",
+    "split": "val",
+    "val_sequence_count": 10,
+    "val_sequence_ids": [
+      "scene-0000-Town03-000",
+      "scene-0006-Town03-006",
+      "scene-0007-Town03-007",
+      "scene-0010-Town03-011",
+      "scene-0020-Town06-007",
+      "scene-0032-Town07-011",
+      "scene-0033-Town07-012",
+      "scene-0034-Town07-013",
+      "scene-0044-Town10HD-012",
+      "scene-0046-Town10HD-014"
+    ]
+  },
+  "hyperparameter_grid": {
+    "fixed_lag_seconds": [0.2, 0.5, 1.0, 2.0],
+    "gate_confidence": [0.9, 0.95, 0.99],
+    "source_time_components": [1, 3, 5, 9],
+    "top_h": [1, 3, 5]
+  },
+  "kind": "event_track_v2x_method_config_v1",
+  "methods": [
+    "vehicle-only-ab3dmot",
+    "vehicle-only-simpletrack",
+    "vehicle-only-immortaltracker",
+    "naive-async-late-fusion",
+    "constant-velocity-compensation",
+    "fixed-lag-oosm-controlled",
+    "eventtrack-v2x",
+    "synchronous-oracle"
+  ],
+  "network_conditions": ["C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9"],
+  "network_seeds": [1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010],
+  "primary_budget_bytes_per_second": 64000,
+  "primary_metric": "Robust-AssA@64k",
+  "publication_statistics": {
+    "alpha": 0.05,
+    "random_seed": 1337,
+    "resamples": 10000
+  },
+  "qualified_baseline_policy": {
+    "freeze_exact_ids_in_ExperimentPlanV1": true,
+    "strongest_baseline_frozen_before_confirmatory_val": true
+  },
+  "real_trace_contract": {
+    "held_out_segments": 20,
+    "minimum_dates": 3,
+    "minimum_road_or_coverage_types": 3,
+    "segment_duration_seconds": 600,
+    "setup_segments": 10
+  },
+  "schema_version": 1,
+  "scheduler": {
+    "candidate_id": "marginal_voi",
+    "capped_baseline_ids": ["confidence_top_k", "fifo_aoi", "periodic", "random"],
+    "full_send_role": "uncapped-diagnostic-only",
+    "ids": ["confidence_top_k", "fifo_aoi", "full_send", "marginal_voi", "periodic", "random"],
+    "strongest_baseline_frozen_before_confirmatory_val": true,
+    "token_bucket_burst_seconds": 1.0,
+    "trace_receipt_identity_policy": "freeze-heldout-C9-receipt-sha256-in-ExperimentPlanV1"
+  },
+  "selection_order": [
+    "clean-AMOTA-and-HOTA-noninferior",
+    "on-wire-budget-compliant",
+    "maximize-Robust-AssA@64k",
+    "minimize-on-wire-bytes",
+    "minimize-p95-latency",
+    "minimize-canonical-hyperparameter-tuple"
+  ],
+  "training_seeds": [1337, 2027, 3407],
+  "trust_policy": {
+    "freeze_before_confirmatory_val": [
+      "preregistration_provider_id",
+      "preregistration_public_key_sha256",
+      "verification_provider_id",
+      "verification_public_key_sha256"
+    ],
+    "providers_must_be_distinct": true,
+    "public_keys_must_be_distinct": true
+  }
+}

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -13,13 +15,17 @@ from tools.event_track_v2x.archive_manifest import (
     write_archive_manifest,
 )
 from tools.event_track_v2x.upload_clearml_dataset import (
+    DEFAULT_FORMAL_NAME,
     DEFAULT_NAME,
     DEFAULT_PROJECT,
     EXECUTE_TOKEN,
     ClearMLDatasetError,
     main,
 )
-from tools.event_track_v2x.verify_clearml_dataset import main as verify_main
+from tools.event_track_v2x.verify_clearml_dataset import (
+    PUBLISH_TOKEN,
+    main as verify_main,
+)
 
 
 ARCHIVE_NAMES = EXPECTED_ARCHIVE_NAMES
@@ -29,8 +35,13 @@ ARCHIVE_NAMES = EXPECTED_ARCHIVE_NAMES
 def _reset_fake_dataset() -> None:
     _FakeDataset.instance = None
     _FakeDataset.fail_upload = False
+    _FakeDataset.upload_returns_false = False
     _FakeDataset.mutate_on_create = None
     _FakeDataset.corrupt_readback = False
+    _FakeDataset.corrupt_manifest_readback = False
+    _FakeDataset.symlink_readback = False
+    _FakeDataset.internal_hash_mismatches = ()
+    _FakeDataset.get_requests = []
 
 
 def _inputs(tmp_path: Path) -> tuple[Path, Path]:
@@ -48,8 +59,13 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path]:
 class _FakeDataset:
     instance: "_FakeDataset | None" = None
     fail_upload = False
+    upload_returns_false = False
     mutate_on_create: Path | None = None
     corrupt_readback = False
+    corrupt_manifest_readback = False
+    symlink_readback = False
+    internal_hash_mismatches: tuple[str, ...] = ()
+    get_requests: list[dict[str, Any]] = []
 
     def __init__(self, *, project: str, name: str, version: str) -> None:
         self.id = "dataset-id"
@@ -57,6 +73,8 @@ class _FakeDataset:
         self.name = name
         self.version = version
         self.finalized = False
+        self.status = "created"
+        self._task = self
         self.calls: list[str] = []
         self.staged_names: tuple[str, ...] = ()
         self.description = ""
@@ -79,8 +97,9 @@ class _FakeDataset:
         return instance
 
     @classmethod
-    def get(cls, **_kwargs: Any) -> "_FakeDataset":
+    def get(cls, **kwargs: Any) -> "_FakeDataset":
         assert cls.instance is not None
+        cls.get_requests.append(dict(kwargs))
         cls.instance.calls.append("get")
         return cls.instance
 
@@ -93,16 +112,36 @@ class _FakeDataset:
 
     def upload(self, **_kwargs: Any) -> None:
         self.calls.append("upload")
+        # Match the ClearML 2.1.3 trailing-future behavior: the executor waits
+        # for completion, but this method intentionally never calls result().
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(
+                self.upload_artifact,
+                name="data",
+                wait_on_upload=True,
+            )
+
+    def upload_artifact(self, **_kwargs: Any) -> bool:
+        self.calls.append("upload_artifact")
         if self.fail_upload:
             raise RuntimeError("upload failed")
+        return not self.upload_returns_false
+
+    def flush(self, *, wait_for_uploads: bool) -> bool:
+        self.calls.append(f"flush:{wait_for_uploads}")
+        return True
 
     def finalize(self, **_kwargs: Any) -> bool:
         self.calls.append("finalize")
         self.finalized = True
+        self.status = "completed"
         return True
 
     def is_final(self) -> bool:
         return self.finalized
+
+    def get_status(self) -> str:
+        return self.status
 
     def list_files(self) -> list[str]:
         self.calls.append("list_files")
@@ -117,6 +156,38 @@ class _FakeDataset:
         if self.corrupt_readback:
             (target / ARCHIVE_NAMES[0]).write_bytes(b"corrupt-readback")
         return str(target)
+
+    def get_local_copy(self, **_kwargs: Any) -> str:
+        self.calls.append("get_local_copy")
+        cache_root = Path(os.environ["CLEARML_CACHE_DIR"])
+        target = cache_root / "storage_manager" / "datasets" / "ds_dataset-id"
+        target.mkdir(parents=True, exist_ok=True)
+        for name, contents in self.staged_bytes.items():
+            path = target / name
+            if self.symlink_readback and name == ARCHIVE_NAMES[0]:
+                source = cache_root / "symlink-source"
+                source.write_bytes(contents)
+                path.symlink_to(source)
+            else:
+                path.write_bytes(contents)
+        if self.corrupt_readback:
+            (target / ARCHIVE_NAMES[0]).write_bytes(b"corrupt-readback")
+        if self.corrupt_manifest_readback:
+            manifest_path = target / "archive-manifest.json"
+            manifest_path.write_bytes(manifest_path.read_bytes().rstrip(b"\n"))
+        return str(target)
+
+    def verify_dataset_hash(self, **kwargs: Any) -> list[str]:
+        self.calls.append(
+            "verify_dataset_hash:"
+            f"{kwargs.get('skip_hash')}:{kwargs.get('verbose')}"
+        )
+        return list(self.internal_hash_mismatches)
+
+    def publish(self, **_kwargs: Any) -> bool:
+        self.calls.append("publish")
+        self.status = "published"
+        return True
 
 
 def _arguments(
@@ -186,6 +257,8 @@ def test_execute_uploads_only_archives_and_manifest_then_reads_back(
         "create",
         "add_files",
         "upload",
+        "upload_artifact",
+        "flush:True",
         "get",
         "list_files",
         "finalize",
@@ -200,6 +273,8 @@ def test_execute_uploads_only_archives_and_manifest_then_reads_back(
     assert "/private/" not in instance.description
     output = json.loads(capsys.readouterr().out)
     assert output["dataset"]["finalized"] is True
+    assert output["dataset"]["publication_state"] == "smoke"
+    assert output["upload_artifact_count"] == 1
     assert output["byte_readback_verified"] is True
 
 
@@ -221,6 +296,22 @@ def test_upload_failure_never_finalizes(tmp_path: Path) -> None:
     assert instance is not None
     assert "finalize" not in instance.calls
     assert not instance.finalized
+
+
+def test_false_trailing_upload_future_never_finalizes(tmp_path: Path) -> None:
+    archives, manifest = _inputs(tmp_path)
+    _FakeDataset.upload_returns_false = True
+
+    with pytest.raises(ClearMLDatasetError, match="future returned failure"):
+        main(
+            _arguments(archives, manifest, readback=tmp_path / "readback")
+            + ["--execute-token", EXECUTE_TOKEN],
+            dataset_cls=_FakeDataset,
+        )
+
+    assert _FakeDataset.instance is not None
+    assert "upload_artifact" in _FakeDataset.instance.calls
+    assert "finalize" not in _FakeDataset.instance.calls
 
 
 def test_source_mutation_after_initial_hash_is_detected_before_upload(
@@ -285,6 +376,8 @@ def test_deferred_upload_requires_separate_byte_verifier(
                 "smoke-v1",
                 "--readback-dir",
                 str(tmp_path / "independent-readback"),
+                "--cold-cache-dir",
+                str(tmp_path / "cold-cache"),
             ],
             dataset_cls=_FakeDataset,
         )
@@ -292,3 +385,249 @@ def test_deferred_upload_requires_separate_byte_verifier(
     )
     verify_result = json.loads(capsys.readouterr().out)
     assert verify_result["byte_readback_verified"] is True
+    assert verify_result["cold_cache_verified"] is True
+    assert verify_result["dataset"]["publication_state"] == "smoke"
+    assert _FakeDataset.get_requests[-1] == {
+        "dataset_id": "dataset-id",
+        "only_completed": True,
+    }
+    assert "verify_dataset_hash:False:True" in _FakeDataset.instance.calls
+
+
+def test_formal_upload_finalizes_but_does_not_publish(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    archives, manifest = _inputs(tmp_path)
+    assert (
+        main(
+            _arguments(archives, manifest)
+            + [
+                "--publication-mode",
+                "formal",
+                "--execute-token",
+                EXECUTE_TOKEN,
+                "--defer-byte-readback",
+            ],
+            dataset_cls=_FakeDataset,
+        )
+        == 0
+    )
+    result = json.loads(capsys.readouterr().out)
+    assert result["dataset"]["name"] == DEFAULT_FORMAL_NAME
+    assert result["dataset"]["publication_state"] == "finalized"
+    assert "formal-candidate" in result["dataset"]["tags"]
+    assert "local-smoke" not in result["dataset"]["tags"]
+    assert "publish" not in _FakeDataset.instance.calls
+
+
+def test_formal_mode_rejects_same_process_readback(tmp_path: Path) -> None:
+    archives, manifest = _inputs(tmp_path)
+    with pytest.raises(ClearMLDatasetError, match="independent"):
+        main(
+            _arguments(archives, manifest, readback=tmp_path / "readback")
+            + [
+                "--publication-mode",
+                "formal",
+                "--execute-token",
+                EXECUTE_TOKEN,
+            ],
+            dataset_cls=_FakeDataset,
+        )
+
+
+def test_formal_cold_readback_verifies_without_publication(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    archives, manifest = _inputs(tmp_path)
+    assert (
+        main(
+            _arguments(archives, manifest)
+            + [
+                "--publication-mode",
+                "formal",
+                "--execute-token",
+                EXECUTE_TOKEN,
+                "--defer-byte-readback",
+            ],
+            dataset_cls=_FakeDataset,
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    assert (
+        verify_main(
+            [
+                "--dataset-id",
+                "dataset-id",
+                "--manifest",
+                str(manifest),
+                "--version",
+                "smoke-v1",
+                "--publication-mode",
+                "formal",
+                "--readback-dir",
+                str(tmp_path / "formal-readback"),
+                "--cold-cache-dir",
+                str(tmp_path / "formal-cold-cache"),
+            ],
+            dataset_cls=_FakeDataset,
+        )
+        == 0
+    )
+    result = json.loads(capsys.readouterr().out)
+    assert result["published_by_this_run"] is False
+    assert result["scientific_claims_allowed"] is False
+    assert result["release_identity_status"] == "unverified-source-bytes"
+    assert result["dataset"]["publication_state"] == "finalized"
+    assert "verify_dataset_hash:False:True" in _FakeDataset.instance.calls
+    assert "publish" not in _FakeDataset.instance.calls
+    assert _FakeDataset.get_requests[-1] == {
+        "dataset_id": "dataset-id",
+        "only_completed": True,
+    }
+
+
+def test_unverified_local_mirror_publish_fails_before_clearml_access(
+    tmp_path: Path,
+) -> None:
+    _, manifest = _inputs(tmp_path)
+
+    with pytest.raises(ClearMLDatasetError, match="unverified-source-bytes"):
+        verify_main(
+            [
+                "--dataset-id",
+                "dataset-id",
+                "--manifest",
+                str(manifest),
+                "--version",
+                "smoke-v1",
+                "--publication-mode",
+                "formal",
+                "--readback-dir",
+                str(tmp_path / "readback"),
+                "--cold-cache-dir",
+                str(tmp_path / "cold-cache"),
+                "--publish",
+                "--execute-token",
+                PUBLISH_TOKEN,
+            ],
+            dataset_cls=_FakeDataset,
+        )
+
+    assert _FakeDataset.instance is None
+    assert _FakeDataset.get_requests == []
+
+
+def test_publish_requires_dedicated_token(tmp_path: Path) -> None:
+    _, manifest = _inputs(tmp_path)
+    with pytest.raises(ClearMLDatasetError, match="publish execute token"):
+        verify_main(
+            [
+                "--dataset-id",
+                "dataset-id",
+                "--manifest",
+                str(manifest),
+                "--version",
+                "smoke-v1",
+                "--publication-mode",
+                "formal",
+                "--readback-dir",
+                str(tmp_path / "readback"),
+                "--cold-cache-dir",
+                str(tmp_path / "cold-cache"),
+                "--publish",
+                "--execute-token",
+                "wrong",
+            ],
+            dataset_cls=_FakeDataset,
+        )
+
+
+def test_clearml_internal_full_hash_mismatch_blocks_cold_verification(
+    tmp_path: Path,
+) -> None:
+    archives, manifest = _inputs(tmp_path)
+    main(
+        _arguments(archives, manifest)
+        + [
+            "--publication-mode",
+            "formal",
+            "--execute-token",
+            EXECUTE_TOKEN,
+            "--defer-byte-readback",
+        ],
+        dataset_cls=_FakeDataset,
+    )
+    _FakeDataset.internal_hash_mismatches = (ARCHIVE_NAMES[0],)
+    with pytest.raises(ClearMLDatasetError, match="verify_dataset_hash mismatch"):
+        verify_main(
+            [
+                "--dataset-id",
+                "dataset-id",
+                "--manifest",
+                str(manifest),
+                "--version",
+                "smoke-v1",
+                "--publication-mode",
+                "formal",
+                "--readback-dir",
+                str(tmp_path / "readback"),
+                "--cold-cache-dir",
+                str(tmp_path / "cold-cache"),
+            ],
+            dataset_cls=_FakeDataset,
+        )
+    assert "publish" not in _FakeDataset.instance.calls
+
+
+def test_external_manifest_raw_sha_mismatch_blocks_verification(tmp_path: Path) -> None:
+    archives, manifest = _inputs(tmp_path)
+    main(
+        _arguments(archives, manifest)
+        + ["--execute-token", EXECUTE_TOKEN, "--defer-byte-readback"],
+        dataset_cls=_FakeDataset,
+    )
+    _FakeDataset.corrupt_manifest_readback = True
+    with pytest.raises(ClearMLDatasetError, match="external manifest SHA-256"):
+        verify_main(
+            [
+                "--dataset-id",
+                "dataset-id",
+                "--manifest",
+                str(manifest),
+                "--version",
+                "smoke-v1",
+                "--readback-dir",
+                str(tmp_path / "readback"),
+                "--cold-cache-dir",
+                str(tmp_path / "cold-cache"),
+            ],
+            dataset_cls=_FakeDataset,
+        )
+
+
+def test_symlink_in_cold_cache_is_rejected(tmp_path: Path) -> None:
+    archives, manifest = _inputs(tmp_path)
+    main(
+        _arguments(archives, manifest)
+        + ["--execute-token", EXECUTE_TOKEN, "--defer-byte-readback"],
+        dataset_cls=_FakeDataset,
+    )
+    _FakeDataset.symlink_readback = True
+    with pytest.raises(ClearMLDatasetError, match="non-regular entry"):
+        verify_main(
+            [
+                "--dataset-id",
+                "dataset-id",
+                "--manifest",
+                str(manifest),
+                "--version",
+                "smoke-v1",
+                "--readback-dir",
+                str(tmp_path / "readback"),
+                "--cold-cache-dir",
+                str(tmp_path / "cold-cache"),
+            ],
+            dataset_cls=_FakeDataset,
+        )

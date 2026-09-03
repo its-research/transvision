@@ -7,6 +7,8 @@ import math
 
 import numpy as np
 
+from .arrays import immutable_float64
+
 
 def _spd(covariance: np.ndarray, name: str = "covariance") -> np.ndarray:
     covariance = np.asarray(covariance, dtype=np.float64)
@@ -370,8 +372,8 @@ def associate_gaussians(
         unmatched_left_cost=unmatched_left_cost,
         unmatched_right_cost=unmatched_right_cost,
     )
-    costs.setflags(write=False)
-    distances.setflags(write=False)
+    costs = immutable_float64(costs)
+    distances = immutable_float64(distances)
     return GaussianAssociation(assignment, costs, distances, threshold)
 
 

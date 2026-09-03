@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Dry-run or upload, finalize, and byte-readback the local SPD archive set."""
+"""Stage and byte-verify a scientifically unverified local SPD archive set."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -11,6 +12,7 @@ import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 
@@ -27,20 +29,25 @@ from tools.event_track_v2x.archive_manifest import (  # noqa: E402
 
 DEFAULT_PROJECT = "Thesis/EventTrack-V2X/Datasets"
 DEFAULT_NAME = "V2X-Seq-SPD local smoke unverified source bytes"
+DEFAULT_FORMAL_NAME = "V2X-Seq-SPD formal integrity candidate"
 EXECUTE_TOKEN = "EVENTTRACK_V2X_UPLOAD_ARCHIVES"
-REQUIRED_TAGS = (
+PUBLICATION_MODES = ("smoke", "formal")
+COMMON_TAGS = (
     "V2X-Seq-SPD",
     "EventTrack-V2X",
-    "local-smoke",
     "unverified-source-bytes",
     "restricted",
     "scientific-claim-forbidden",
 )
+SMOKE_TAGS = (*COMMON_TAGS, "local-smoke")
+FORMAL_TAGS = (*COMMON_TAGS, "formal-candidate", "cold-readback-required")
+# Kept for callers that imported the original smoke-only contract.
+REQUIRED_TAGS = SMOKE_TAGS
 STAGED_MANIFEST_NAME = "archive-manifest.json"
 
 
 class ClearMLDatasetError(RuntimeError):
-    """Raised when publication cannot satisfy the fail-closed contract."""
+    """Raised when ClearML staging or verification violates its contract."""
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -49,11 +56,22 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--project", default=DEFAULT_PROJECT)
-    parser.add_argument("--name", default=DEFAULT_NAME)
+    parser.add_argument("--name")
+    parser.add_argument(
+        "--publication-mode",
+        choices=PUBLICATION_MODES,
+        default="smoke",
+        help=(
+            "smoke keeps the local-smoke safety label; formal creates a "
+            "finalized integrity candidate for independent cold readback. "
+            "Neither mode makes these unverified local-mirror bytes "
+            "scientifically publishable."
+        ),
+    )
     parser.add_argument(
         "--execute-token",
         help=(
-            "Publication is disabled unless this exactly equals "
+            "Remote upload execution is disabled unless this exactly equals "
             f"{EXECUTE_TOKEN!r}."
         ),
     )
@@ -87,13 +105,22 @@ def _positive_integer(value: object, context: str) -> int:
     return value
 
 
-def _description(manifest: Mapping[str, object]) -> str:
+def _description(
+    manifest: Mapping[str, object],
+    *,
+    publication_mode: str,
+) -> str:
+    purpose = (
+        "Local EventTrack-V2X data smoke and reproducibility staging"
+        if publication_mode == "smoke"
+        else "EventTrack-V2X formal integrity candidate pending cold readback"
+    )
     return json.dumps(
         {
             "archive_count": manifest["archive_count"],
             "dataset": manifest["dataset"],
             "manifest_content_sha256": manifest["content_sha256"],
-            "purpose": "Local EventTrack-V2X data smoke and reproducibility staging",
+            "purpose": purpose,
             "release_identity_status": manifest["release_identity_status"],
             "scientific_claims_allowed": False,
             "total_size_bytes": manifest["total_size_bytes"],
@@ -103,12 +130,29 @@ def _description(manifest: Mapping[str, object]) -> str:
     )
 
 
+def _tags(publication_mode: str) -> tuple[str, ...]:
+    if publication_mode == "smoke":
+        return SMOKE_TAGS
+    if publication_mode == "formal":
+        return FORMAL_TAGS
+    raise ClearMLDatasetError(f"unsupported publication mode: {publication_mode!r}")
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def publication_plan(
     manifest: Mapping[str, object],
     *,
     project: str,
     name: str,
     version: str,
+    publication_mode: str = "smoke",
 ) -> dict[str, object]:
     archives = manifest["archives"]
     if not isinstance(archives, Sequence):
@@ -118,7 +162,10 @@ def publication_plan(
         "project": _trimmed(project, "project"),
         "name": _trimmed(name, "name"),
         "version": _trimmed(version, "version"),
-        "tags": list(REQUIRED_TAGS),
+        "publication_mode": publication_mode,
+        "target_state": "smoke" if publication_mode == "smoke" else "finalized",
+        "scientific_claims_allowed": False,
+        "tags": list(_tags(publication_mode)),
         "release_identity_status": manifest["release_identity_status"],
         "manifest_content_sha256": manifest["content_sha256"],
         "archive_count": manifest["archive_count"],
@@ -161,8 +208,10 @@ def _verify_dataset_directory(
     root: Path,
     manifest: Mapping[str, object],
     expected_names: Sequence[str],
+    *,
+    external_manifest_sha256: str,
 ) -> tuple[Path, ...]:
-    if not root.is_dir():
+    if root.is_symlink() or not root.is_dir():
         raise ClearMLDatasetError("ClearML readback is not a directory")
     observed = tuple(sorted(path.name for path in root.iterdir()))
     if observed != tuple(sorted(expected_names)):
@@ -177,16 +226,53 @@ def _verify_dataset_directory(
     readback_manifest = read_archive_manifest(root / STAGED_MANIFEST_NAME)
     if readback_manifest != dict(manifest):
         raise ClearMLDatasetError("ClearML manifest readback mismatch")
+    if _sha256_file(root / STAGED_MANIFEST_NAME) != external_manifest_sha256:
+        raise ClearMLDatasetError("ClearML external manifest SHA-256 mismatch")
     return verify_archive_files(root, manifest)
 
 
+def _dataset_tags(dataset: Any) -> tuple[str, ...]:
+    tags = dataset.tags
+    if isinstance(tags, (str, bytes)) or not isinstance(tags, Sequence):
+        raise ClearMLDatasetError("ClearML dataset tags are not an array")
+    normalized = tuple(sorted(_trimmed(tag, "ClearML dataset tag") for tag in tags))
+    if len(normalized) != len(set(normalized)):
+        raise ClearMLDatasetError("ClearML dataset tags contain duplicates")
+    return normalized
+
+
+def _clearml_status(dataset: Any) -> str:
+    task = getattr(dataset, "_task", None)
+    get_status = getattr(task, "get_status", None)
+    if not callable(get_status):
+        raise ClearMLDatasetError("ClearML dataset task status is unavailable")
+    raw = get_status()
+    status = getattr(raw, "value", raw)
+    return _trimmed(str(status), "ClearML dataset task status")
+
+
+def _publication_state(dataset: Any, *, tags: Sequence[str], status: str) -> str:
+    if status == "published":
+        return "published"
+    if "local-smoke" in tags:
+        return "smoke"
+    if bool(dataset.is_final()):
+        return "finalized"
+    return "draft"
+
+
 def _dataset_identity(dataset: Any) -> dict[str, object]:
+    tags = _dataset_tags(dataset)
+    status = _clearml_status(dataset)
     return {
         "id": dataset.id,
         "project": dataset.project,
         "name": dataset.name,
         "version": dataset.version,
         "finalized": bool(dataset.is_final()),
+        "clearml_status": status,
+        "publication_state": _publication_state(dataset, tags=tags, status=status),
+        "tags": list(tags),
     }
 
 
@@ -198,6 +284,8 @@ def _require_identity(
     name: str,
     version: str,
     finalized: bool,
+    publication_state: str,
+    tags: Sequence[str],
 ) -> None:
     expected = {
         "id": dataset_id,
@@ -205,11 +293,91 @@ def _require_identity(
         "name": name,
         "version": version,
         "finalized": finalized,
+        "publication_state": publication_state,
+        "tags": list(sorted(tags)),
     }
-    if dict(identity) != expected:
+    observed = {
+        key: identity.get(key)
+        for key in expected
+    }
+    if observed != expected:
         raise ClearMLDatasetError(
-            f"ClearML dataset readback mismatch: expected {expected!r}, got {dict(identity)!r}"
+            f"ClearML dataset readback mismatch: expected {expected!r}, got {observed!r}"
         )
+
+
+def _wait_for_all_upload_results(
+    dataset: Any,
+    *,
+    chunk_size_mb: int,
+    max_workers: int,
+) -> int:
+    """Run ClearML upload and surface failures from every artifact future.
+
+    ClearML 2.1.3 waits for its ThreadPoolExecutor on context exit, but it does
+    not call ``result()`` on the final batch of futures.  The audited wrapper
+    records every synchronous ``upload_artifact`` result so a trailing False or
+    exception cannot be hidden by that implementation detail.
+    """
+
+    task = getattr(dataset, "_task", None)
+    original = getattr(task, "upload_artifact", None)
+    flush = getattr(task, "flush", None)
+    if not callable(original) or not callable(flush):
+        raise ClearMLDatasetError("ClearML upload barrier API is unavailable")
+    outcomes: list[bool] = []
+    failures: list[BaseException] = []
+    lock = Lock()
+
+    def audited_upload_artifact(*args: Any, **kwargs: Any) -> bool:
+        if kwargs.get("wait_on_upload") is not True:
+            error = ClearMLDatasetError(
+                "ClearML artifact upload was not configured to wait"
+            )
+            with lock:
+                failures.append(error)
+            raise error
+        try:
+            result = original(*args, **kwargs)
+        except BaseException as error:
+            with lock:
+                failures.append(error)
+            raise
+        with lock:
+            outcomes.append(result is True)
+        return result
+
+    had_instance_override = "upload_artifact" in vars(task)
+    previous_override = vars(task).get("upload_artifact")
+    setattr(task, "upload_artifact", audited_upload_artifact)
+    upload_error: BaseException | None = None
+    try:
+        dataset.upload(
+            show_progress=True,
+            verbose=True,
+            chunk_size=chunk_size_mb,
+            max_workers=max_workers,
+            preview=False,
+        )
+    except BaseException as error:
+        upload_error = error
+    finally:
+        if had_instance_override:
+            setattr(task, "upload_artifact", previous_override)
+        else:
+            delattr(task, "upload_artifact")
+    if upload_error is not None:
+        raise upload_error
+    if failures:
+        raise failures[0]
+    if not outcomes:
+        raise ClearMLDatasetError("ClearML upload produced no audited artifact futures")
+    if not all(outcomes):
+        raise ClearMLDatasetError("ClearML artifact upload future returned failure")
+    flushed = flush(wait_for_uploads=True)
+    if flushed is not True:
+        raise ClearMLDatasetError("ClearML upload flush did not report success")
+    return len(outcomes)
 
 
 def _execute(
@@ -221,36 +389,47 @@ def _execute(
     project: str,
     name: str,
     version: str,
+    publication_mode: str,
     max_workers: int,
     chunk_size_mb: int,
     readback_dir: Path | None,
 ) -> dict[str, object]:
+    required_tags = _tags(publication_mode)
+    external_manifest_sha256 = _sha256_file(manifest_path)
     dataset = dataset_cls.create(
         dataset_project=project,
         dataset_name=name,
         dataset_version=version,
-        dataset_tags=list(REQUIRED_TAGS),
-        description=_description(manifest),
+        dataset_tags=list(required_tags),
+        description=_description(manifest, publication_mode=publication_mode),
     )
     dataset_id = _trimmed(dataset.id, "created ClearML dataset ID")
     stage = Path(tempfile.mkdtemp(prefix="eventtrack-v2x-clearml-archives-"))
     stage_removed = False
     try:
         staged_names = stage_dataset(stage, archives, manifest_path)
-        _verify_dataset_directory(stage, manifest, staged_names)
+        _verify_dataset_directory(
+            stage,
+            manifest,
+            staged_names,
+            external_manifest_sha256=external_manifest_sha256,
+        )
         dataset.add_files(
             stage,
             local_base_folder=str(stage),
             max_workers=max_workers,
         )
-        dataset.upload(
-            show_progress=True,
-            verbose=True,
-            chunk_size=chunk_size_mb,
+        upload_artifact_count = _wait_for_all_upload_results(
+            dataset,
+            chunk_size_mb=chunk_size_mb,
             max_workers=max_workers,
-            preview=False,
         )
-        _verify_dataset_directory(stage, manifest, staged_names)
+        _verify_dataset_directory(
+            stage,
+            manifest,
+            staged_names,
+            external_manifest_sha256=external_manifest_sha256,
+        )
         before_finalize = dataset_cls.get(dataset_id=dataset_id)
         _require_identity(
             _dataset_identity(before_finalize),
@@ -259,6 +438,10 @@ def _execute(
             name=name,
             version=version,
             finalized=False,
+            publication_state=(
+                "smoke" if publication_mode == "smoke" else "draft"
+            ),
+            tags=required_tags,
         )
         if tuple(sorted(before_finalize.list_files())) != staged_names:
             raise ClearMLDatasetError("ClearML pre-finalize file inventory mismatch")
@@ -274,6 +457,10 @@ def _execute(
             name=name,
             version=version,
             finalized=True,
+            publication_state=(
+                "smoke" if publication_mode == "smoke" else "finalized"
+            ),
+            tags=required_tags,
         )
         if tuple(sorted(readback.list_files())) != staged_names:
             raise ClearMLDatasetError("ClearML finalized file inventory mismatch")
@@ -290,7 +477,11 @@ def _execute(
             ),
             "dataset": identity,
             "manifest_content_sha256": manifest["content_sha256"],
+            "external_manifest_sha256": external_manifest_sha256,
+            "publication_mode": publication_mode,
+            "publication_state": identity["publication_state"],
             "staged_files": list(staged_names),
+            "upload_artifact_count": upload_artifact_count,
             "byte_readback_verified": False,
         }
         if readback_dir is None:
@@ -305,8 +496,14 @@ def _execute(
         )
         if not local_copy:
             raise ClearMLDatasetError("ClearML did not return a local readback path")
+        local_copy_path = Path(local_copy)
+        if local_copy_path.is_symlink():
+            raise ClearMLDatasetError("ClearML readback path must not be a symlink")
         readback_files = _verify_dataset_directory(
-            Path(local_copy).resolve(strict=True), manifest, staged_names
+            local_copy_path.resolve(strict=True),
+            manifest,
+            staged_names,
+            external_manifest_sha256=external_manifest_sha256,
         )
         result["byte_readback_verified"] = True
         result["readback_archive_count"] = len(readback_files)
@@ -323,7 +520,11 @@ def main(
 ) -> int:
     args = _parser().parse_args(argv)
     project = _trimmed(args.project, "project")
-    name = _trimmed(args.name, "name")
+    publication_mode = _trimmed(args.publication_mode, "publication_mode")
+    default_name = (
+        DEFAULT_NAME if publication_mode == "smoke" else DEFAULT_FORMAL_NAME
+    )
+    name = _trimmed(args.name or default_name, "name")
     version = _trimmed(args.version, "version")
     max_workers = _positive_integer(args.max_workers, "max_workers")
     chunk_size_mb = _positive_integer(args.chunk_size_mb, "chunk_size_mb")
@@ -335,6 +536,7 @@ def main(
         project=project,
         name=name,
         version=version,
+        publication_mode=publication_mode,
     )
     if args.execute_token is None:
         print(canonical_json_bytes(plan).decode("utf-8"))
@@ -349,11 +551,17 @@ def main(
         raise ClearMLDatasetError(
             "execution requires --readback-dir or explicit --defer-byte-readback"
         )
-    readback_dir = (
-        args.readback_dir.expanduser().resolve()
-        if args.readback_dir is not None
-        else None
-    )
+    if publication_mode == "formal" and not args.defer_byte_readback:
+        raise ClearMLDatasetError(
+            "formal integrity staging requires --defer-byte-readback and independent "
+            "verify_clearml_dataset.py execution"
+        )
+    readback_dir = None
+    if args.readback_dir is not None:
+        expanded_readback = args.readback_dir.expanduser()
+        if expanded_readback.is_symlink():
+            raise ClearMLDatasetError("readback directory must not be a symlink")
+        readback_dir = expanded_readback.resolve()
     if dataset_cls is None:
         from clearml import Dataset
 
@@ -366,6 +574,7 @@ def main(
         project=project,
         name=name,
         version=version,
+        publication_mode=publication_mode,
         max_workers=max_workers,
         chunk_size_mb=chunk_size_mb,
         readback_dir=readback_dir,
