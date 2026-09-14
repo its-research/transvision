@@ -3,6 +3,8 @@ repos:
     rev: 6.0.0
     hooks:
       - id: flake8
+        # flake8 6 / pycodestyle 2.10 predate Python 3.12 f-string tokens.
+        language_version: python3.10
   - repo: https://github.com/PyCQA/isort
     rev: 5.12.0
     hooks:

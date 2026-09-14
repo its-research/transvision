@@ -1,0 +1,338 @@
+{
+  "kind": "rbf_incremental_code_readiness_v1",
+  "status": "commit_ready_increment",
+  "created_at_utc": "2026-09-14T10:21:26.918961+00:00",
+  "base_commit": "f8d7f540cd3ee68d24e4ef13baedae9116fb0564",
+  "isolated_worktree": "/private/tmp/rbf-paper-implementation.bFckuK/transvision",
+  "source_sha256": {
+    ".pre-commit-config.yaml": "c22c49697e4c9c0a4e0fa2dab69b48e5ee3031ba787ef907da9b8dd99c708a02",
+    "configs/event_track_v2x/paper/geometry.json": "a01076ed2af32782a43758956c1f4fc10288ab55468728a05bf2b012e4c3f302",
+    "configs/event_track_v2x/paper/irreversible.json": "b880dc6e4bc354a062511a6e8e400b94851534d97bb7ef2c5756c7dadfdce695",
+    "configs/event_track_v2x/paper/jpda.json": "2ac034d4300a7ed551d13799c1450c0794bf1016c2ba98a50df693cbe891802a",
+    "configs/event_track_v2x/paper/mht-k1.json": "8f097b75b09721225cfb621955d83ce150f8161e468b6505f0f846d918c07c96",
+    "configs/event_track_v2x/paper/mht-k16.json": "f909c79cf89f639fc333e2379b730596405407bf18f2a66923358385efafb094",
+    "configs/event_track_v2x/paper/mht-k4.json": "437f2b50e04254a3e56cad75958ead378762f7e24e87cfdbbc0814f54e6e019c",
+    "configs/event_track_v2x/paper/mht-k64.json": "be678e72092178f76071f1fdca57b526e8372dfa617eb2ea0759c413966dac25",
+    "configs/event_track_v2x/paper/pair-learned-ci.json": "1e84115bd9e5c12da1e9ae6421ee65c5ec23c54d6b5378da31f79fed9985d73e",
+    "configs/event_track_v2x/paper/pair-m0.json": "4e2ee6912234757e7b8c585d175ef90562b855692fb352a274b04dc27091250a",
+    "configs/event_track_v2x/paper/pair-m1.json": "9c2d6d146b653e056269316d669c684ca1f666afc138ba30e7d27a4af7921734",
+    "configs/event_track_v2x/paper/pair-m2.json": "89c1eba50a12c5926d5254aa487e204371fa1dcf21a446f440b25580ea8ae16e",
+    "configs/event_track_v2x/paper/pair-m3.json": "b5b78ebad4b64bb4a3ddc6a225bf02c100855f72bbf3d684ba378acfc7ed11a8",
+    "configs/event_track_v2x/paper/pair-m4.json": "7cfa1d2c02b441adc5efa55c684f869c2dbad74b5aa03641cb21f1db3845c2f5",
+    "configs/event_track_v2x/paper/pkf.json": "04291867f64c2d0af05d5af300e0c00dc057d61ff76b857f46aed1c9d626764c",
+    "configs/event_track_v2x/paper/preflight-required-assets.json": "51424a151561a5082c9157532fa35dd483cf8f1c92830c9c387d6cf469a96d24",
+    "configs/event_track_v2x/paper/public-baselines.json": "82ef51d3d870e12ad5d6fa51f2e846bdb93cd8215a50410ab428543808985086",
+    "configs/event_track_v2x/paper/rbf-bound.json": "c98add114ac3173b726ccc1fd867758d83c881a9314fb597fb88a7235ba55313",
+    "configs/event_track_v2x/paper/rbf-fixed.json": "8324399d6e17620b0691a3153a19e4d037243d0bc4844a1979333e272895c54b",
+    "configs/event_track_v2x/paper/rbf-learned.json": "a80c7053fd2f17472bf2edbcd6e25f6bfe47411f47c9797951a09b3c3e824785",
+    "configs/event_track_v2x/paper/rbf-no-history.json": "73b1072f97a105f9a900c6b51c58e4906bab895fc7754cf28a3b85537ebd09e6",
+    "configs/event_track_v2x/paper/rbf-teacher.json": "c909ef9a09a11be2daab802b17b46d85ffcc9583f22c9f91deef400c956b627a",
+    "configs/event_track_v2x/paper/resource-scan.json": "c81a22812f9feaf3bbb125d23970f84054941825e6f35cf6ffcb9bc1c7e7391e",
+    "configs/event_track_v2x/paper/single_remote.json": "c02be351a9cac61b662de08d38fb88d19a3e97e7a910444822ed0e2792281a80",
+    "configs/event_track_v2x/paper/single_vehicle.json": "b9513d4973cccf5b4048438eb5d592ea7f3575ae78136006305aab708c55e332",
+    "configs/event_track_v2x/paper/topk-k1.json": "8bb080d9ccc5af37c295c1810494f7f19a1ac4376241f509625cb8d9693297d9",
+    "configs/event_track_v2x/paper/topk-k16.json": "3f514236aafe3f063331a9744f1602583187babb6876c26531fdf59eb036ad64",
+    "configs/event_track_v2x/paper/topk-k4.json": "252394d6ff5a529f8fb085e413ea44dda15f1ecdd10eb4696bfd6a208872c5e9",
+    "configs/event_track_v2x/paper/topk-k64.json": "6bcb6e025e4070e1e86486b2b0339e81c98237171785e07ec933421aa1a2cd15",
+    "configs/event_track_v2x/paper/training.json": "d84f8f444c6ac89c841bce82598ccaefb87648c5e0d3ed96672360799423342f",
+    "setup.cfg": "06286913437972e00264c7446dd345275f2ba45482f3f5f4f5dbc35c6ef45adb",
+    "tests/event_track_v2x/test_detection_cache_v2.py": "b6ca9aa36fe9b39b56f745c53fe9bd1c35d648ca5ba25f9aa6f8de3590e4bd5e",
+    "tests/event_track_v2x/test_paper_contract.py": "f769b2fa8761180dc078caba9ce635a6d404fe16a52763243eb4321c5acaf325",
+    "tests/event_track_v2x/test_paper_end_to_end.py": "14fe88965354291135268742f0ac0ab8aac25eb4cb8f66aa231aa3fb650b244f",
+    "tests/event_track_v2x/test_paper_evaluation.py": "62eb072bf477149af450076310390dad8f11581ca8dc03f9df81b16fa83e202a",
+    "tests/event_track_v2x/test_paper_pair_baselines.py": "1e7fafd3970e6d9968bad86c6551e33632a1cad8a6d35ffcdd0ce5daedd76d69",
+    "tests/event_track_v2x/test_paper_pipeline.py": "e725387e6fd855e61883b15237eee2ea1c1dc487793e8d8a72479957851d0ec0",
+    "tests/event_track_v2x/test_paper_priority_selection.py": "4f0e68ca13552d91d38456074c50135c6918d102b391ff9ccd39fee87d36fcaa",
+    "tests/event_track_v2x/test_paper_resource_scan.py": "d3bd86e11a90f264fb483fe6c9f86fcfea3a1abfc80ca26cd6e47ae3a6ac13a1",
+    "tools/event_track_v2x/build_native_paper_cache.py": "3934268ed93c22a2ee07c5bc9c7101bd57edb253bdf07bb31f03156a260a02c3",
+    "tools/event_track_v2x/evaluate_paper.py": "0fabc5fa5ab973b5281901f0e3fc3ff4408ba4196d44d58a6af3b503888db5a4",
+    "tools/event_track_v2x/persistent_mht_tracking.py": "f58e3399586198ff65525d2a2babc5618c496dfc1e217502b1be0e0ad06d4376",
+    "tools/event_track_v2x/plot_paper.py": "d94405488aaabbb0308ef13ad91e4c76d22322c7155ef0ad7e347114a5a5befb",
+    "tools/event_track_v2x/prepare_paper_rows.py": "5093e33cf203dfd09ff48fe498dd1b4e2f96310e9c0942f0f2c986ce876c86c9",
+    "tools/event_track_v2x/report_paper.py": "40e411b234d6b3ef9c2dafa1341b595d0332fe3d17da92af667060979326e449",
+    "tools/event_track_v2x/run_paper.py": "f6c0b118207449dd53672c464a42fe445279d17cc5ae50711c4f8ce00672efb5",
+    "tools/event_track_v2x/run_paper_pair_baselines.py": "4b43dfe6f2e0c1566301b0ac681099ada860348d1801f3f7f4f69dd4c367efa6",
+    "tools/event_track_v2x/run_public_baseline.py": "4fb6f7831cebd112fc9188c074ade7f9d7ea16c1c2b8f762d7e3475496713eeb",
+    "tools/event_track_v2x/scan_paper_resources.py": "988289e8b352a7d2da1f30ec556a65a57930a7f37b090f8a63290aeafb331610",
+    "tools/event_track_v2x/train_forest_identity.py": "3888b1e479282d50cd2ed245ff2c5a93c5dae4057355aeb649f25a48da678fa1",
+    "tools/event_track_v2x/train_paper_identity.py": "f9f441d5de5221d2517f0fe5c159aab637bf476e63733a234732d4bd1e668004",
+    "tools/event_track_v2x/train_paper_priority.py": "600afc4ea2f5a23e1b510dd0eee3a232eb55115146b6e43d4dc1eb553da5f5f5",
+    "transvision/models/event_track_v2x/allocation_policy.py": "a42ad263cc5d9d4c57a9a78fe104d8e668da1a08c77dfb8a41c84622c7ca2607",
+    "transvision/models/event_track_v2x/allocation_training.py": "7a362f00f26c303be6876b4d6f8d54f221091bf1507b5ecbc2574f06537d7357",
+    "transvision/models/event_track_v2x/detection_cache_v2.py": "9578ffd664c530c6436a791d6fb2bdf606d739b916216a0d09253a5b92efc8f0",
+    "transvision/models/event_track_v2x/forest_potentials.py": "6b798905752f130b1ed3b94d0e1b3e790927e28bb0cc602367cf3f3ce298cbf0",
+    "transvision/models/event_track_v2x/forest_row_context.py": "8090dbe48e631399f39e893c120abf08a1f36d345f7c367ff05e08c218cd5e7f",
+    "transvision/models/event_track_v2x/forest_supervision.py": "de120242ab199f59ac63d3d279733dcaadb88c55ca828f484b1606d0acbd48ac",
+    "transvision/models/event_track_v2x/forest_tracking.py": "2357e1e1981ec0bbabec57f8269700658ecade8700ded07c911eb862413949bb",
+    "transvision/models/event_track_v2x/forest_training_data.py": "cf1bf2082cedf729da7b1b2f6eaf109a4759c2154dbaa26d2a5b170e0548f904",
+    "transvision/models/event_track_v2x/learned_identity.py": "d375d1e23ad6312f842d31cc5c8ee2aa71286226901c0b198ab335ff6b4734ef",
+    "transvision/models/event_track_v2x/paper_calibration.py": "0e67065ecd859cda73717b83ef8f18d3e93817981be719d44244d7c1bb8f81ed",
+    "transvision/models/event_track_v2x/paper_ddp.py": "e87fee368696f9426fc99221d762710cc2e22112d1671e1ae31f374920eba1bf",
+    "transvision/models/event_track_v2x/paper_decision.py": "fb3ff447b788d98443cf6774c3bc6fcf8905f440f4381632fa3a13802068e837",
+    "transvision/models/event_track_v2x/paper_exact_loss.py": "9a2b1df3c717f6964be218395427d007904ed475f8516acb3981a51cb82fe499",
+    "transvision/models/event_track_v2x/paper_native_cache.py": "32eeeea76e48ed37e435c89ac8136538c2832863727c9a7dce9f3f1dc062bf8f",
+    "transvision/models/event_track_v2x/paper_pair_baselines.py": "f9da219e83ad898713fc78b3b5f855f144f329362a82d0231b57175298b597d2",
+    "transvision/models/event_track_v2x/paper_pointpillar.py": "a1d40a28b0c5380f1a2dab24fda1217fabcf283ea8f0c7a63d2bb4d74498d5d2",
+    "transvision/models/event_track_v2x/paper_protocol.py": "72fdc47253e6a41b538f222fb8ee50718338051800994a1cb93937ccd7deeb5c",
+    "transvision/models/event_track_v2x/paper_reports.py": "68257994b5813e38404fe2e44c349bf67801dc8ed5d350e8de5377ec5dc26a5f",
+    "transvision/models/event_track_v2x/paper_resources.py": "07d9b05cb711bd14581ca701f852d3f982db7dd1c754dd82e635676c4e4bd282",
+    "transvision/models/event_track_v2x/paper_runtime.py": "6afd67d1fc9ee40c69edbc966a1c134af435b5020fd0a7fbd09c80de1723a6d9",
+    "transvision/models/event_track_v2x/persistent_cache_stream.py": "3c89c8ea2fa042cf185427f4457f07128e1978af9d5e1e76a136e41645ee4624",
+    "transvision/models/event_track_v2x/persistent_component_store.py": "72a5a0cbd46eabddd07be4b8187f79ec21a96aecfb0065bfc3bd1b5062ea9745",
+    "transvision/models/event_track_v2x/persistent_component_tracking.py": "33b4e0f7ac1bf4f6a1ea43b9c907dcf90e57f9075edc849e74beb31542e6651a",
+    "transvision/models/event_track_v2x/persistent_forest.py": "9fb361e1748cc56cabf32f9673b967d737c41def5e0bc70619ee36d08fceba1a",
+    "transvision/models/event_track_v2x/persistent_probabilistic_tracking.py": "a597c07e3698bd314d7034b77909d5235cf20f6d74972ead4934078d6c9acb3d"
+  },
+  "source_snapshot_encoding": "SHA256 of UTF-8 file bytes; overlay on base_commit; excludes docs and receipt",
+  "tests": [
+    {
+      "file": "commit-ready-final-research.xml",
+      "sha256": "aad0c73e956bea73d4df54b7fb3ca53ca18801bd4bdd5007eaaec68703541ea6",
+      "passed": 3222,
+      "seconds": 493.992,
+      "tests": 3228,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 6,
+      "skipped_cases": [
+        {
+          "classname": "",
+          "test": "tests.event_track_v2x.test_paper_evaluation",
+          "reason": "collection skipped"
+        },
+        {
+          "classname": "tests.event_track_v2x.test_mechanism_diagnostics_evaluation_v2",
+          "test": "test_reference_vectors_match_real_frozen_local_reports_without_metric_computation",
+          "reason": "local optional reference artifact not present"
+        },
+        {
+          "classname": "tests.event_track_v2x.test_run_v2v4real_pointpillar_smoke",
+          "test": "test_hash_pinned_official_pointpillar_cpu_forward",
+          "reason": "set the explicitly downloaded official reference source root"
+        },
+        {
+          "classname": "tests.event_track_v2x.test_tracking_evaluation_v2.PredictionValidation",
+          "test": "test_official_golden_cases",
+          "reason": "official evaluator runtime is not installed"
+        },
+        {
+          "classname": "tests.event_track_v2x.test_v2v4real_ground_truth",
+          "test": "test_pinned_reference_unchanged_numeric_functions_and_cleanup",
+          "reason": "separately acquired pinned research reference required"
+        },
+        {
+          "classname": "tests.event_track_v2x.test_v2v4real_pcd",
+          "test": "test_all_256_red_levels_match_open3d_when_installed",
+          "reason": "could not import 'open3d': No module named 'open3d'"
+        }
+      ]
+    },
+    {
+      "file": "commit-ready-final-evaluator.xml",
+      "sha256": "73d4772c133caf1885b19779f7a5056bd4c722cb58a161cae6f49d38859d79f9",
+      "passed": 36,
+      "seconds": 2.795,
+      "tests": 36,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "skipped_cases": []
+    },
+    {
+      "file": "commit-ready-official-golden.xml",
+      "sha256": "02620957ccc361a42a902782bcc166c43cb773c24b2d927ca2619320b1b8f544",
+      "passed": 1,
+      "seconds": 1.488,
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "skipped_cases": []
+    }
+  ],
+  "evidence_directory": "/private/tmp/rbf-paper-implementation.bFckuK",
+  "research_evaluation_overlap": true,
+  "paper_implementation_complete": false,
+  "paper_results_verified": false,
+  "full_training_run": false,
+  "git_staged": false,
+  "git_committed": false,
+  "git_pushed": false,
+  "runtime_versions": [
+    {
+      "kind": "research",
+      "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+      "platform": "macOS-27.0-arm64-arm-64bit",
+      "packages": {
+        "numpy": "1.26.4",
+        "scipy": "1.14.1",
+        "torch": "2.9.1",
+        "pytest": "8.4.2",
+        "shapely": "2.0.7",
+        "pillow": "12.3.0",
+        "cryptography": "46.0.5"
+      }
+    },
+    {
+      "kind": "evaluation",
+      "python": "3.10.19 (main, Oct  9 2025, 15:25:03) [Clang 17.0.0 (clang-1700.3.19.1)]",
+      "platform": "macOS-27.0-arm64-arm-64bit",
+      "packages": {
+        "numpy": "1.26.4",
+        "scipy": "1.15.3",
+        "pandas": "2.3.3",
+        "shapely": "2.0.7",
+        "pyquaternion": "0.9.9",
+        "motmetrics": "1.4.0",
+        "nuscenes-devkit": "1.2.0",
+        "trackeval": "1.0.0",
+        "pytest": "8.4.2",
+        "matplotlib": "3.10.9"
+      }
+    }
+  ],
+  "cli_smoke": [
+    {
+      "path": "tools/event_track_v2x/build_native_paper_cache.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/evaluate_paper.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/plot_paper.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/prepare_paper_rows.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/report_paper.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/run_paper.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/run_paper_pair_baselines.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/run_public_baseline.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/scan_paper_resources.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/train_paper_identity.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    },
+    {
+      "path": "tools/event_track_v2x/train_paper_priority.py",
+      "exit_code": 0,
+      "outside_repository_cwd": true
+    }
+  ],
+  "static_checks": {
+    "execution": "matching configured hook executables, not the pre-commit orchestrator; no Git hook installed",
+    "flake8": {
+      "version": "6.0.0",
+      "python": "3.10",
+      "exit_code": 0
+    },
+    "isort": {
+      "version": "5.12.0",
+      "exit_code": 0
+    },
+    "yapf": {
+      "version": "0.32.0",
+      "exit_code": 0
+    },
+    "docformatter": {
+      "version": "1.3.1",
+      "exit_code": 0
+    },
+    "mdformat": {
+      "version": "0.7.9",
+      "exit_code": 0
+    },
+    "codespell": {
+      "version": "2.2.5",
+      "exit_code": 0
+    },
+    "pre_commit_hooks": {
+      "version": "4.3.0",
+      "exit_code": 0,
+      "applied": [
+        "trailing-whitespace",
+        "end-of-file-fixer",
+        "double-quote-string-fixer",
+        "fix-encoding-pragma --remove",
+        "mixed-line-ending --fix=lf"
+      ],
+      "checked": [
+        "check-yaml",
+        "check-merge-conflict --assume-in-merge"
+      ],
+      "not_applicable": [
+        "requirements-txt-fixer (no requirements files changed)"
+      ]
+    },
+    "git_diff_check": 0,
+    "source_ast_json_text_checks": "passed",
+    "credential_literal_check": "No common credential literals found in change scope; not a comprehensive security certification"
+  },
+  "protected_sources_unchanged": [
+    "transvision/models/event_track_v2x/tracking_v2.py",
+    "transvision/models/event_track_v2x/tracking_mechanisms_v2.py",
+    "transvision/models/event_track_v2x/tracking_birth_score_v2.py",
+    "transvision/models/event_track_v2x/predicted_association_v2.py"
+  ],
+  "original_worktree_clean": true,
+  "scope": {
+    "changed_source_config_test_files": 77,
+    "documentation_files": 4,
+    "receipt_files": 1,
+    "total_files": 82,
+    "source_overlay_unchanged_during_final_regression": true
+  },
+  "skip_followup": {
+    "revalidated": [
+      "test_paper_evaluation in independent evaluation suite",
+      "PredictionValidation.test_official_golden_cases in commit-ready-official-golden.xml"
+    ],
+    "unverified": [
+      "optional frozen local reference reports absent",
+      "official PointPillar reference source and real forward assets absent",
+      "pinned V2V4Real native ground-truth reference source absent",
+      "Open3D not installed"
+    ]
+  },
+  "incomplete_items": [
+    "independent recovery-off ablation",
+    "native V2V4Real official identity-label auto-converter",
+    "full existence-calibration freeze orchestration and full teacher trace receipts",
+    "Graph Lap-CoMOT and Long-SCOPE complete algorithms",
+    "CoTrack verified complete algorithm source or official implementation",
+    "real PointPillar anchors, compiled runtime and short-sequence validation",
+    "GPU/NCCL, three-seed full training and formal dual-dataset results",
+    "native public-baseline reproductions",
+    "arbitrary-asynchronous paired baseline and automated resource-scan integration",
+    "pooled nonlinear official metric bootstrap"
+  ]
+}

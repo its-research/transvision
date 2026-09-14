@@ -1,13 +1,11 @@
 """Offline, ambiguity-aware identity labels. None of these types enter forward.
 
-Source track IDs are joined only by exact cooperative annotation references.
-Repeated IDs within a source frame invalidate the entire joined identity, not
-just a convenient duplicate. Missing cross-source links are not negatives.
+Source track IDs are joined only by exact cooperative annotation references. Repeated IDs within a source frame invalidate the entire joined identity, not just a convenient
+duplicate. Missing cross-source links are not negatives.
 """
 from __future__ import annotations
-
-from dataclasses import dataclass
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 
 import torch
 
@@ -25,8 +23,7 @@ class AnnotationIdentity:
 
     def __post_init__(self):
         if (self.source_id not in (0, 1) or type(self.source_id) is not int
-                or any(not isinstance(v, str) or not v or v == '-1' for v in
-                       (self.sequence_id, self.frame_id, self.track_id, self.token, self.class_name))):
+                or any(not isinstance(v, str) or not v or v == '-1' for v in (self.sequence_id, self.frame_id, self.track_id, self.token, self.class_name))):
             raise ValueError('invalid exact source annotation identity')
 
     @property
@@ -47,15 +44,19 @@ class DetectionIdentityTarget:
     status: str = 'matched'
 
     def __post_init__(self):
-        if (not self.sequence_id or type(self.source_id) is not int or self.source_id not in (0, 1)
-                or type(self.cross_linked) is not bool
-                or self.status not in ('matched', 'ambiguous', 'unmatched_prediction', 'non_car')
-                or (self.status == 'matched') != (isinstance(self.identity, str) and bool(self.identity))):
+        if (not self.sequence_id or type(self.source_id) is not int or self.source_id not in (0, 1) or type(self.cross_linked) is not bool
+                or self.status not in ('matched', 'ambiguous', 'unmatched_prediction', 'non_car') or (self.status == 'matched') !=
+            (isinstance(self.identity, str) and bool(self.identity))):
             raise ValueError('invalid offline detection target')
 
 
 class AnnotationIdentityIndex:
-    def __init__(self, annotations, cooperative_links):
+
+    def __init__(self, annotations, cooperative_links, *, class_scope=('car', )):
+        class_scope = tuple(class_scope)
+        if class_scope not in (('car', ), ('car', 'bicycle', 'pedestrian')):
+            raise ValueError('explicit coarse supervision class scope required')
+        self.class_scope = class_scope
         annotations = tuple(annotations)
         if any(type(a) is not AnnotationIdentity for a in annotations):
             raise TypeError('exact annotation identities required')
@@ -99,13 +100,15 @@ class AnnotationIdentityIndex:
         self.targets = {}
         for reference, a in self.annotations.items():
             r = root(a.track)
-            status = 'non_car' if a.class_name != 'car' else 'ambiguous' if r in ambiguous else 'matched'
+            status = 'non_car' if a.class_name not in self.class_scope else 'ambiguous' if r in ambiguous else 'matched'
             identity = digest(['train_annotation_identity_v1', sorted(members[r])]) if status == 'matched' else None
-            self.targets[reference] = DetectionIdentityTarget(a.sequence_id, a.source_id, identity,
-                                                            r in linked_roots, status)
-        self.audit = dict(annotation_count=len(annotations), identity_components=len(members),
-                          ambiguous_components=len(ambiguous), cross_linked_components=len(linked_roots),
-                          status_counts=dict(Counter(t.status for t in self.targets.values())))
+            self.targets[reference] = DetectionIdentityTarget(a.sequence_id, a.source_id, identity, r in linked_roots, status)
+        self.audit = dict(
+            annotation_count=len(annotations),
+            identity_components=len(members),
+            ambiguous_components=len(ambiguous),
+            cross_linked_components=len(linked_roots),
+            status_counts=dict(Counter(t.status for t in self.targets.values())))
 
 
 def relation(query, previous):
@@ -132,64 +135,58 @@ class RowSupervision:
     reason: str
 
     def __post_init__(self):
-        if (not self.known or len(self.positives) != len(self.known)
-                or any(type(v) is not bool for v in (*self.positives, *self.known))
-                or any(p and not k for p, k in zip(self.positives, self.known))
-                or self.reason not in ('parent', 'birth', 'out_of_support', 'uncertain_birth',
-                                       'ambiguous', 'unmatched_prediction', 'non_car')
-                or any(self.positives) != (self.reason in ('parent', 'birth'))):
+        if (not self.known or len(self.positives) != len(self.known) or any(type(v) is not bool
+                                                                            for v in (*self.positives, *self.known)) or any(p and not k for p, k in zip(self.positives, self.known))
+                or self.reason not in ('parent', 'birth', 'out_of_support', 'uncertain_birth', 'ambiguous', 'unmatched_prediction', 'non_car') or any(self.positives) !=
+            (self.reason in ('parent', 'birth'))):
             raise ValueError('invalid set-valued partial supervision')
 
 
 def make_row_supervision(context, labels, prior_identities):
-    """All same-identity candidate parents are positive; arbitrary parents are not.
+    """All same-identity candidate parents are positive; arbitrary parents are
+    not.
 
-    prior_identities contains targets from ALL previously accepted predictions,
-    including those outside this gated context. Birth is supervised only when
-    absence of an annotated prior can be established. Unknown rows are audited.
+    prior_identities contains targets from ALL previously accepted predictions, including those outside this gated context. Birth is supervised only when absence of an annotated
+    prior can be established. Unknown rows are audited.
     """
     query = labels[context.indices[-1]]
     for i, observation in zip(context.indices, context.observations):
         label = labels[i]
-        if (type(label) is not DetectionIdentityTarget or label.sequence_id != observation.sequence_id
-                or label.source_id != observation.node.source_id):
+        if (type(label) is not DetectionIdentityTarget or label.sequence_id != observation.sequence_id or label.source_id != observation.node.source_id):
             raise ValueError('offline targets do not align with raw prediction identities')
     count = len(context.indices)
-    empty = (False,)*count
+    empty = (False, ) * count
     if query.status != 'matched':
         return RowSupervision(empty, empty, query.status)
     rel = [relation(query, labels[i]) for i in context.indices[:-1]]
     if any(r is True for r in rel):
-        return RowSupervision((False, *(r is True for r in rel)),
-                              (True, *(r is not None for r in rel)), 'parent')
+        return RowSupervision((False, *(r is True for r in rel)), (True, *(r is not None for r in rel)), 'parent')
     prior = [relation(query, p) for p in prior_identities]
     if any(r is True for r in prior):
         return RowSupervision(empty, empty, 'out_of_support')
     if any(r is None for r in (*prior, *rel)):
         return RowSupervision(empty, empty, 'uncertain_birth')
-    return RowSupervision((True, *(False for _ in rel)), (True,)*(len(rel)+1), 'birth')
+    return RowSupervision((True, *(False for _ in rel)), (True, ) * (len(rel) + 1), 'birth')
 
 
 def set_valued_parent_loss(logits, targets):
     """Local partial-label surrogate, NOT global forest NLL or calibration.
 
-    log sum exp over known options minus log sum exp over all positives.
-    Unknown candidates are not silently treated as negatives. Rows without
-    supervision are excluded and counted, never reported as zero loss.
+    log sum exp over known options minus log sum exp over all positives. Unknown candidates are not silently treated as negatives. Rows without supervision are excluded and
+    counted, never reported as zero loss.
     """
     if len(logits) != len(targets):
         raise ValueError('aligned logits and supervision required')
     terms, counts = [], Counter()
     for row, target in zip(logits, targets):
-        if (type(target) is not RowSupervision or row.ndim != 1 or len(row) != len(target.known)
-                or not torch.isfinite(row).all()):
+        if (type(target) is not RowSupervision or row.ndim != 1 or len(row) != len(target.known) or not torch.isfinite(row).all()):
             raise ValueError('finite support-aligned logits required')
         counts[target.reason] += 1
         if not any(target.positives):
             continue
         known = torch.tensor(target.known, dtype=torch.bool, device=row.device)
         positive = torch.tensor(target.positives, dtype=torch.bool, device=row.device)
-        terms.append(torch.logsumexp(row[known], 0)-torch.logsumexp(row[positive], 0))
+        terms.append(torch.logsumexp(row[known], 0) - torch.logsumexp(row[positive], 0))
     if not terms:
         raise ValueError('no supervised rows; zero loss would be misleading')
     return dict(loss=torch.stack(terms).mean(), supervised_rows=len(terms), reason_counts=dict(counts))

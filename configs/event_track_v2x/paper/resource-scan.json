@@ -1,0 +1,62 @@
+{
+  "kind": "rbf_train_resource_scan_v1",
+  "selection_split": "train",
+  "seeds": [
+    1337,
+    2027,
+    3407
+  ],
+  "mht_widths": [
+    1,
+    4,
+    16,
+    64
+  ],
+  "configurations": [
+    "rbf-bound.json",
+    "rbf-fixed.json",
+    "rbf-learned.json",
+    "geometry.json",
+    "single_vehicle.json",
+    "single_remote.json",
+    "jpda.json",
+    "pkf.json",
+    "irreversible.json",
+    "topk-k1.json",
+    "topk-k4.json",
+    "topk-k16.json",
+    "topk-k64.json",
+    "mht-k1.json",
+    "mht-k4.json",
+    "mht-k16.json",
+    "mht-k64.json",
+    "rbf-no-history.json"
+  ],
+  "expansion_budgets": [
+    64,
+    256,
+    1024
+  ],
+  "action_search_budgets": [
+    1024,
+    4096
+  ],
+  "required_measurements": [
+    "raw_observation_and_factor_bytes",
+    "frontier_and_prefix_bytes",
+    "branch_state_bytes",
+    "all_other_sqlite_and_index_bytes",
+    "fresh_process_peak_rss",
+    "p50_latency",
+    "p95_latency",
+    "model_forward_calls",
+    "assignment_solves",
+    "posterior_search_steps",
+    "action_search_steps",
+    "state_updates",
+    "teacher_probe_work"
+  ],
+  "same_K_means_equal_resources": false,
+  "validation_selection_permitted": false,
+  "release_requires_train_selected_configuration_receipt": true
+}

@@ -1,27 +1,22 @@
 """Versioned prediction-only cache with calibrated uncertainty and appearance.
 
-V2 deliberately does not subclass V1: legacy MMDet box axes are not V1's
-physical length/width/yaw axes, and image information time is not box time.
+V2 deliberately does not subclass V1: legacy MMDet box axes are not V1's physical length/width/yaw axes, and image information time is not box time.
 """
 from __future__ import annotations
-
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
-ARRAYS = frozenset({'states', 'raw_scores', 'scores', 'class_indices',
-                    'covariances', 'appearance', 'appearance_valid'})
-META_FIELDS = frozenset({'kind', 'schema_version', 'sequence_id', 'frame_id', 'side',
-    'box_reference_timestamp_us', 'source_image_timestamp_us', 'coordinate_system',
-    'lidar_to_world_row_rotation', 'lidar_to_world_translation', 'image_sha256',
-    'box_layout', 'agent_mask', 'dataset_split', 'dataset_sha256',
-    'detector_config_sha256', 'detector_checkpoint_sha256', 'feature_checkpoint_sha256',
-    'feature_method', 'calibration_sha256', 'calibration_fit_split',
-    'raw_manifest_sha256', 'raw_arrays_sha256', 'raw_metadata_sha256', 'arrays_sha256'})
+ARRAYS = frozenset({'states', 'raw_scores', 'scores', 'class_indices', 'covariances', 'appearance', 'appearance_valid'})
+META_FIELDS = frozenset({
+    'kind', 'schema_version', 'sequence_id', 'frame_id', 'side', 'box_reference_timestamp_us', 'source_image_timestamp_us', 'coordinate_system', 'lidar_to_world_row_rotation',
+    'lidar_to_world_translation', 'image_sha256', 'box_layout', 'agent_mask', 'dataset_split', 'dataset_sha256', 'detector_config_sha256', 'detector_checkpoint_sha256',
+    'feature_checkpoint_sha256', 'feature_method', 'calibration_sha256', 'calibration_fit_split', 'raw_manifest_sha256', 'raw_arrays_sha256', 'raw_metadata_sha256', 'arrays_sha256'
+})
 FEATURE_METHOD = 'imagenet-r50-c5-roialign3-mean16x128-l2-v1'
 BOX_LAYOUT = 'mmdet3d-legacy-gravity-dimxyz-yaw-vxy'
 SIDES = {'vehicle-side': 1, 'infrastructure-side': 2}
@@ -48,7 +43,7 @@ def contained_file(root, relative):
         raise ValueError('noncanonical cache path')
     root = Path(root)
     target = root / p
-    if not target.is_file() or any((root / Path(*p.parts[:i])).is_symlink() for i in range(1, len(p.parts)+1)):
+    if not target.is_file() or any((root / Path(*p.parts[:i])).is_symlink() for i in range(1, len(p.parts) + 1)):
         raise ValueError('cache payload must be a regular file without symlink ancestors')
     target.resolve().relative_to(root.resolve())
     return target
@@ -61,7 +56,8 @@ def _immutable(value):
 
 @dataclass(frozen=True, slots=True, eq=False)
 class DetectionCacheV2:
-    """One immutable source frame; no GT, association, or object identity fields."""
+    """One immutable source frame; no GT, association, or object identity
+    fields."""
     metadata_json: bytes
     states: np.ndarray
     raw_scores: np.ndarray
@@ -70,6 +66,12 @@ class DetectionCacheV2:
     covariances: np.ndarray
     appearance: np.ndarray
     appearance_valid: np.ndarray
+
+    def _validate_dataset_feature(self, meta):
+        if meta['dataset_split'] not in {'train', 'val'} or meta['calibration_fit_split'] != 'train':
+            raise ValueError('test input or non-train calibration forbidden')
+        if meta['feature_method'] != FEATURE_METHOD:
+            raise ValueError('unknown feature recipe')
 
     def __post_init__(self):
         meta = json.loads(self.metadata_json)
@@ -81,10 +83,7 @@ class DetectionCacheV2:
             raise ValueError('unsupported box/coordinate convention')
         if meta['side'] not in SIDES or type(meta['agent_mask']) is not int or meta['agent_mask'] != SIDES[meta['side']]:
             raise ValueError('agent mask does not identify the original source')
-        if meta['dataset_split'] not in {'train', 'val'} or meta['calibration_fit_split'] != 'train':
-            raise ValueError('test input or non-train calibration forbidden')
-        if meta['feature_method'] != FEATURE_METHOD:
-            raise ValueError('unknown feature recipe')
+        self._validate_dataset_feature(meta)
         for key, value in meta.items():
             if key.endswith('_sha256') and (not isinstance(value, str) or not re.fullmatch('[0-9a-f]{64}', value)):
                 raise ValueError('invalid provenance hash: ' + key)
@@ -96,13 +95,11 @@ class DetectionCacheV2:
                 raise ValueError('source timestamps must be nonnegative integer microseconds')
         rotation = np.asarray(meta['lidar_to_world_row_rotation'], dtype=float)
         translation = np.asarray(meta['lidar_to_world_translation'], dtype=float)
-        if (rotation.shape != (3, 3) or translation.shape != (3,) or not np.isfinite(rotation).all()
-                or not np.isfinite(translation).all() or not np.allclose(rotation.T @ rotation, np.eye(3), atol=2e-5)
-                or not np.isclose(np.linalg.det(rotation), 1, atol=2e-5)):
+        if (rotation.shape != (3, 3) or translation.shape != (3, ) or not np.isfinite(rotation).all() or not np.isfinite(translation).all()
+                or not np.allclose(rotation.T @ rotation, np.eye(3), atol=2e-5) or not np.isclose(np.linalg.det(rotation), 1, atol=2e-5)):
             raise ValueError('invalid source pose')
         n = len(self.states)
-        shapes = {'states': (n, 9), 'raw_scores': (n,), 'scores': (n,), 'class_indices': (n,),
-                  'covariances': (n, 9, 9), 'appearance': (n, 128), 'appearance_valid': (n,)}
+        shapes = {'states': (n, 9), 'raw_scores': (n, ), 'scores': (n, ), 'class_indices': (n, ), 'covariances': (n, 9, 9), 'appearance': (n, 128), 'appearance_valid': (n, )}
         for key, shape in shapes.items():
             a = np.asarray(getattr(self, key))
             if a.shape != shape or a.dtype.hasobject or not np.isfinite(a).all():
@@ -145,8 +142,10 @@ class DetectionCacheV2:
         h = hashlib.sha256(self.metadata_json)
         for key in sorted(ARRAYS):
             a = getattr(self, key)
-            h.update(key.encode()); h.update(a.dtype.str.encode())
-            h.update(canonical(list(a.shape))); h.update(a.tobytes())
+            h.update(key.encode())
+            h.update(a.dtype.str.encode())
+            h.update(canonical(list(a.shape)))
+            h.update(a.tobytes())
         return h.hexdigest()
 
     @classmethod
@@ -158,9 +157,7 @@ class DetectionCacheV2:
             record = entry[key]
             if set(record) != {'path', 'bytes', 'sha256'}:
                 raise ValueError('unknown payload record fields')
-            if (type(record['bytes']) is not int or record['bytes'] <= 0
-                    or not isinstance(record['sha256'], str)
-                    or not re.fullmatch('[0-9a-f]{64}', record['sha256'])):
+            if (type(record['bytes']) is not int or record['bytes'] <= 0 or not isinstance(record['sha256'], str) or not re.fullmatch('[0-9a-f]{64}', record['sha256'])):
                 raise ValueError('invalid payload record identity')
             path = contained_file(root, record['path'])
             if path.stat().st_size != record['bytes'] or sha_file(path) != record['sha256']:
@@ -170,8 +167,7 @@ class DetectionCacheV2:
             if set(z.files) != ARRAYS:
                 raise ValueError('unknown V2 array fields')
             frame = cls(paths['metadata'].read_bytes(), **{key: z[key] for key in z.files})
-        if (frame.metadata['arrays_sha256'] != entry['arrays']['sha256'] or frame.count != entry['detections']
-                or frame.digest() != entry['frame_sha256']):
+        if (frame.metadata['arrays_sha256'] != entry['arrays']['sha256'] or frame.count != entry['detections'] or frame.digest() != entry['frame_sha256']):
             raise ValueError('V2 metadata/array/frame binding differs')
         return frame
 
@@ -186,20 +182,19 @@ def load_manifest(root, expected_sha256, *, agent_mask=3):
         raise ValueError('V2 root identity differs')
     raw_manifest = path.read_bytes()
     m = json.loads(raw_manifest)
-    expected = {'kind', 'schema_version', 'split', 'sequences', 'frames', 'frame_count', 'detection_count',
-                'source_manifests', 'calibration_sha256', 'dataset_sha256', 'gt_in_cache', 'test_payloads_read'}
-    if (set(m) != expected or m['kind'] != 'detection_cache_v2_manifest' or m['schema_version'] != 2
-            or m['split'] not in {'train', 'val'} or m['gt_in_cache'] is not False or m['test_payloads_read'] is not False):
+    expected = {
+        'kind', 'schema_version', 'split', 'sequences', 'frames', 'frame_count', 'detection_count', 'source_manifests', 'calibration_sha256', 'dataset_sha256', 'gt_in_cache',
+        'test_payloads_read'
+    }
+    if (set(m) != expected or m['kind'] != 'detection_cache_v2_manifest' or m['schema_version'] != 2 or m['split'] not in {'train', 'val'} or m['gt_in_cache'] is not False
+            or m['test_payloads_read'] is not False):
         raise ValueError('invalid V2 root contract')
     if raw_manifest != canonical(m):
         raise ValueError('noncanonical V2 root manifest')
-    if (not isinstance(m['sequences'], list) or not m['sequences']
-            or any(not isinstance(x, str) or not re.fullmatch('[A-Za-z0-9_-]+', x) for x in m['sequences'])
-            or m['sequences'] != sorted(set(m['sequences']))
-            or not isinstance(m['frames'], list)
-            or any(type(m[k]) is not int or m[k] < 0 for k in ['frame_count', 'detection_count'])
-            or not isinstance(m['source_manifests'], list) or not m['source_manifests']
-            or len(set(m['source_manifests'])) != len(m['source_manifests'])):
+    if (not isinstance(m['sequences'], list) or not m['sequences'] or any(not isinstance(x, str) or not re.fullmatch('[A-Za-z0-9_-]+', x)
+                                                                          for x in m['sequences']) or m['sequences'] != sorted(set(m['sequences']))
+            or not isinstance(m['frames'], list) or any(type(m[k]) is not int or m[k] < 0 for k in ['frame_count', 'detection_count'])
+            or not isinstance(m['source_manifests'], list) or not m['source_manifests'] or len(set(m['source_manifests'])) != len(m['source_manifests'])):
         raise ValueError('invalid V2 cohort inventory')
     for value in [m['calibration_sha256'], m['dataset_sha256'], *m['source_manifests']]:
         if not isinstance(value, str) or not re.fullmatch('[0-9a-f]{64}', value):
@@ -211,11 +206,11 @@ def load_manifest(root, expected_sha256, *, agent_mask=3):
         f = DetectionCacheV2.load(root, entry)
         v = f.metadata
         identity = (v['side'], v['sequence_id'], v['frame_id'])
-        if (identity in identities or v['sequence_id'] not in m['sequences'] or v['dataset_split'] != m['split']
-                or v['calibration_sha256'] != m['calibration_sha256'] or v['dataset_sha256'] != m['dataset_sha256']
-                or v['raw_manifest_sha256'] not in m['source_manifests']):
+        if (identity in identities or v['sequence_id'] not in m['sequences'] or v['dataset_split'] != m['split'] or v['calibration_sha256'] != m['calibration_sha256']
+                or v['dataset_sha256'] != m['dataset_sha256'] or v['raw_manifest_sha256'] not in m['source_manifests']):
             raise ValueError('V2 cohort/provenance mismatch')
-        identities.add(identity); counts += f.count
+        identities.add(identity)
+        counts += f.count
         source_manifests.add(v['raw_manifest_sha256'])
         for key in ['metadata', 'arrays']:
             relative = entry[key]['path']
@@ -225,9 +220,8 @@ def load_manifest(root, expected_sha256, *, agent_mask=3):
         if v['agent_mask'] & agent_mask:
             selected.append(entry)
     actual_files = {p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file()}
-    if (actual_files != expected_files or any(p.is_symlink() for p in root.rglob('*'))
-            or len(identities) != m['frame_count'] or counts != m['detection_count']
-            or source_manifests != set(m['source_manifests'])
-            or {x[1] for x in identities} != set(m['sequences'])):
+    if (actual_files != expected_files or any(p.is_symlink() for p in root.rglob('*')) or len(identities) != m['frame_count'] or counts != m['detection_count']
+            or source_manifests != set(m['source_manifests']) or {x[1]
+                                                                  for x in identities} != set(m['sequences'])):
         raise ValueError('V2 full-tree coverage mismatch')
     return m, tuple(selected)

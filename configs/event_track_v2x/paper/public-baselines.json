@@ -1,0 +1,56 @@
+{
+  "kind": "rbf_public_baseline_sources_v1",
+  "verified_on": "2026-09-14",
+  "performance_numbers_imported": false,
+  "baselines": [
+    {
+      "name": "CoopTrack",
+      "repository": "https://github.com/zhongjiaru/CoopTrack",
+      "commit": "29f1c52c8a0ec0e2a753f0695eb4e288bc5ed399",
+      "instructions": "docs/TRAIN_EVAL.md",
+      "entrypoint": "tools/test.py",
+      "status": "official_code_dependency_verified_not_locally_reproduced",
+      "missing": ["isolated official runtime", "configuration-bound single-end and cooperative checkpoints", "native query cache and SPD dataset mapping"]
+    },
+    {
+      "name": "SparseCoop",
+      "repository": "https://github.com/wang-jh18-SVM/SparseCoop",
+      "commit": "1f5741ccc62be8d8d5bedd296615b75b4c10fc7e",
+      "instructions": "README.md",
+      "entrypoint": "tools/test.py",
+      "status": "official_code_dependency_verified_not_locally_reproduced",
+      "protocol_note": "Official README uses label-cleaned SPD at 2 Hz; separate native table only without an explicit adaptation.",
+      "missing": ["compiled deformable aggregation CUDA operator", "native query caches and trained weights", "label-cleaned 2 Hz dataset binding"]
+    },
+    {
+      "name": "DMSTrack",
+      "repository": "https://github.com/eddyhkchiu/DMSTrack",
+      "commit": "d3b9949499c8e68ea33060873bd1cb95b6d4d323",
+      "instructions": "docs/INFERENCE.md",
+      "entrypoint": "DMSTrack/main_dkf.py",
+      "status": "official_code_dependency_verified_not_locally_reproduced",
+      "protocol_note": "Native val alias needs verified official_test mapping; native AMOTP direction/definition differs from SPD distance AMOTP.",
+      "missing": ["native fusion BEV features", "both ego/remote covariance network checkpoints", "native evaluator runtime and split mapping"]
+    },
+    {
+      "name": "Graph Lap-CoMOT",
+      "paper": "https://arxiv.org/html/2506.09469v1",
+      "status": "paper_available_full_baseline_not_implemented",
+      "missing": ["AOS and TSA complete track-management implementation and sequence oracle", "resolved multi-stage duplicate/birth handling", "source-verified covariance and lifetime configuration"]
+    },
+    {
+      "name": "Long-SCOPE",
+      "paper": "https://arxiv.org/html/2604.09206v1",
+      "status": "paper_available_full_baseline_not_implemented",
+      "missing": ["GQG depth/height heads and SparseCoop decoder integration", "four-layer CAA Sinkhorn/matchability training integration", "complete verified code release or reproducible training details and weights"],
+      "protocol_note": "Long-range image-query perception; not a box-only tracker. No generic tracker is registered under this name."
+    },
+    {
+      "name": "CoTrack",
+      "paper": "https://www.sciencedirect.com/science/article/pii/S0893608025005064",
+      "status": "insufficient_verified_algorithm_source",
+      "missing": ["complete accessible algorithm and supplement", "verified author code and configuration"],
+      "protocol_note": "Not the unrelated video point-tracking CoTracker project."
+    }
+  ]
+}

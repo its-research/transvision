@@ -1,0 +1,13 @@
+{
+  "protocol": {
+    "dataset": "spd",
+    "split": "train",
+    "candidates": "rbf-all-class-top64-v1",
+    "minimum_raw_score": 0.05,
+    "maximum_detections": 64,
+    "evaluation_class": "car"
+  },
+  "allocation": "learned",
+  "assets": [],
+  "python_modules": ["numpy", "scipy", "torch"]
+}

@@ -1,0 +1,16 @@
+{
+  "method": "M1",
+  "tracking": {
+    "deadline_us": 100000,
+    "top_h": 3,
+    "birth_score": 0.3,
+    "prune_score": 0.05,
+    "max_age_seconds": 2,
+    "survival_per_second": 0.95,
+    "missed_factor": 0.75,
+    "process_noise_per_second": 0.1,
+    "gate_probability": 0.99,
+    "unmatched_cost": 12,
+    "ci_weight": 0.5
+  }
+}

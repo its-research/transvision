@@ -1,32 +1,47 @@
 import json
 from dataclasses import replace
-from pathlib import Path
 
 import numpy as np
 import pytest
 
 from tools.event_track_v2x.build_detection_cache_v2 import build_cache, record, verify, write_json
-from transvision.models.event_track_v2x.detection_cache_v2 import (
-    BOX_LAYOUT, CLASSES, FEATURE_METHOD, SIDES, DetectionCacheV2, canonical, load_manifest, sha_file,
-)
+from transvision.models.event_track_v2x.detection_cache_v2 import BOX_LAYOUT, CLASSES, FEATURE_METHOD, SIDES, DetectionCacheV2, canonical, load_manifest, sha_file
 
 
 def _frame(n=2, side='vehicle-side'):
-    meta = dict(kind='detection_cache_v2', schema_version=2, sequence_id='0003', frame_id='000123',
-        side=side, box_reference_timestamp_us=1000000, source_image_timestamp_us=1100000,
-        coordinate_system='source_lidar', lidar_to_world_row_rotation=np.eye(3).tolist(),
-        lidar_to_world_translation=[1, 2, 3], image_sha256='1' * 64, box_layout=BOX_LAYOUT,
-        agent_mask=SIDES[side], dataset_split='val', dataset_sha256='2' * 64,
-        detector_config_sha256='3' * 64, detector_checkpoint_sha256='4' * 64,
-        feature_checkpoint_sha256='5' * 64, feature_method=FEATURE_METHOD,
-        calibration_sha256='6' * 64, calibration_fit_split='train', raw_manifest_sha256='7' * 64,
-        raw_arrays_sha256='8' * 64, raw_metadata_sha256='9' * 64, arrays_sha256='a' * 64)
+    meta = dict(
+        kind='detection_cache_v2',
+        schema_version=2,
+        sequence_id='0003',
+        frame_id='000123',
+        side=side,
+        box_reference_timestamp_us=1000000,
+        source_image_timestamp_us=1100000,
+        coordinate_system='source_lidar',
+        lidar_to_world_row_rotation=np.eye(3).tolist(),
+        lidar_to_world_translation=[1, 2, 3],
+        image_sha256='1' * 64,
+        box_layout=BOX_LAYOUT,
+        agent_mask=SIDES[side],
+        dataset_split='val',
+        dataset_sha256='2' * 64,
+        detector_config_sha256='3' * 64,
+        detector_checkpoint_sha256='4' * 64,
+        feature_checkpoint_sha256='5' * 64,
+        feature_method=FEATURE_METHOD,
+        calibration_sha256='6' * 64,
+        calibration_fit_split='train',
+        raw_manifest_sha256='7' * 64,
+        raw_arrays_sha256='8' * 64,
+        raw_metadata_sha256='9' * 64,
+        arrays_sha256='a' * 64)
     states = np.tile([1., 2., 3., 4., 2., 1., 0., 1., 0.], (n, 1))
     appearance = np.zeros((n, 128), dtype=np.float32)
     appearance[:, 0] = 1
-    return DetectionCacheV2(canonical(meta), states, np.ones(n) * .6, np.ones(n) * .7,
-        np.zeros(n, dtype=np.int64), np.tile(np.eye(9), (n, 1, 1)), appearance,
-        np.ones(n, dtype=bool))
+    return DetectionCacheV2(
+        canonical(meta), states,
+        np.ones(n) * .6,
+        np.ones(n) * .7, np.zeros(n, dtype=np.int64), np.tile(np.eye(9), (n, 1, 1)), appearance, np.ones(n, dtype=bool))
 
 
 def _metadata(frame, **changes):
@@ -60,10 +75,17 @@ def test_empty_frame_and_missing_appearance_are_explicit():
 
 
 @pytest.mark.parametrize('field,value', [
-    ('agent_mask', 3), ('agent_mask', True), ('side', 'unknown'), ('dataset_split', 'test'),
-    ('calibration_fit_split', 'val'), ('source_image_timestamp_us', 1.1),
-    ('detector_checkpoint_sha256', 'not-a-sha'), ('object_ids', []), ('future_frame', '123'),
-    ('feature_method', 'gt-crop'), ('lidar_to_world_row_rotation', [[1, 0, 0]]),
+    ('agent_mask', 3),
+    ('agent_mask', True),
+    ('side', 'unknown'),
+    ('dataset_split', 'test'),
+    ('calibration_fit_split', 'val'),
+    ('source_image_timestamp_us', 1.1),
+    ('detector_checkpoint_sha256', 'not-a-sha'),
+    ('object_ids', []),
+    ('future_frame', '123'),
+    ('feature_method', 'gt-crop'),
+    ('lidar_to_world_row_rotation', [[1, 0, 0]]),
 ])
 def test_source_leakage_and_provenance_fail_closed(field, value):
     with pytest.raises((ValueError, TypeError)):
@@ -91,25 +113,45 @@ def _write(path, value):
     write_json(path, value)
 
 
-def _sources(tmp_path, split='val'):
+def _sources(tmp_path, split='val', *, empty_vehicle=True):
     inputs = tmp_path / 'inputs'
     sequences = ['0003', '0007']
-    rows = [dict(sequence_id=seq, frame_id='00012' + str(i), source_image_timestamp_us=1100000 + i,
-        box_reference_timestamp_us=1000000 + i, image_sha256='1' * 64) for i, seq in enumerate(sequences)]
-    input_manifest = dict(kind=('eventtrack_validation_image_pose_inputs_v1' if split == 'val'
-                                else 'eventtrack_train_image_pose_inputs_v1'), gt_payloads_in_package=False,
-        test_payloads_read=False, val_payloads_read=split == 'val',
-        frames={side: 2 for side in SIDES})
+    rows = [
+        dict(sequence_id=seq, frame_id='00012' + str(i), source_image_timestamp_us=1100000 + i, box_reference_timestamp_us=1000000 + i, image_sha256='1' * 64)
+        for i, seq in enumerate(sequences)
+    ]
+    input_manifest = dict(
+        kind=('eventtrack_validation_image_pose_inputs_v1' if split == 'val' else 'eventtrack_train_image_pose_inputs_v1'),
+        gt_payloads_in_package=False,
+        test_payloads_read=False,
+        val_payloads_read=split == 'val',
+        frames={side: 2
+                for side in SIDES})
     input_manifest['validation_sequences' if split == 'val' else 'train_sequences'] = sequences
     for side in SIDES:
         index = inputs / side / 'frame-index.json'
         _write(index, rows)
         input_manifest[side] = {'frame_index_sha256': sha_file(index)}
     _write(inputs / 'input-manifest.json', input_manifest)
-    calibration = dict(kind='eventtrack_train_calibration_v1', fit_sequences=['0000'],
-        evidence={'official_validation_used_for_selection': False, 'test_payloads_read': False},
-        sides={side: {name: {'score': {'slope': 1., 'intercept': 0., 'logit_clip': .000001},
-                            'covariance': {'matrix': np.eye(9).tolist()}} for name in CLASSES} for side in SIDES})
+    calibration = dict(
+        kind='eventtrack_train_calibration_v1',
+        fit_sequences=['0000'],
+        evidence={
+            'official_validation_used_for_selection': False,
+            'test_payloads_read': False
+        },
+        sides={side: {name: {
+            'score': {
+                'slope': 1.,
+                'intercept': 0.,
+                'logit_clip': .000001
+            },
+            'covariance': {
+                'matrix': np.eye(9).tolist()
+            }
+        }
+                      for name in CLASSES}
+               for side in SIDES})
     calibration_path = tmp_path / 'calibration.json'
     _write(calibration_path, calibration)
     roots = []
@@ -120,32 +162,56 @@ def _sources(tmp_path, split='val'):
             config = root / 'resolved-cache-config.py'
             config.write_text('# fixed config\n')
             # Include an empty frame to test full-cohort coverage with no detections.
-            n = 0 if side == 'vehicle-side' and shard == 1 else 2
+            n = 0 if empty_vehicle and side == 'vehicle-side' and shard == 1 else 2
             frame = _frame(n, side)
             bottom = frame.states.copy()
             bottom[:, 2] -= bottom[:, 5] / 2
             payload = root / 'frames' / row['sequence_id'] / (row['frame_id'] + '.npz')
             payload.parent.mkdir(parents=True)
-            np.savez_compressed(payload, boxes_lidar_bottom_xyz_dims_xyz_yaw_vxy=bottom,
-                gravity_centers_lidar=frame.states[:, :3], scores=frame.raw_scores,
-                class_indices=frame.class_indices, appearance_128=frame.appearance,
-                appearance_valid=frame.appearance_valid, image_rois_xyxy=np.zeros((n, 4)))
-            meta = dict(row, side=side, coordinate_system='source_lidar',
-                lidar_to_world_row_rotation=np.eye(3).tolist(), lidar_to_world_translation=[1, 2, 3])
+            np.savez_compressed(
+                payload,
+                boxes_lidar_bottom_xyz_dims_xyz_yaw_vxy=bottom,
+                gravity_centers_lidar=frame.states[:, :3],
+                scores=frame.raw_scores,
+                class_indices=frame.class_indices,
+                appearance_128=frame.appearance,
+                appearance_valid=frame.appearance_valid,
+                image_rois_xyxy=np.zeros((n, 4)))
+            meta = dict(row, side=side, coordinate_system='source_lidar', lidar_to_world_row_rotation=np.eye(3).tolist(), lidar_to_world_translation=[1, 2, 3])
             metadata = payload.with_suffix('.json')
             _write(metadata, meta)
-            launch = dict(kind='eventtrack_raw_cache_launch_v1', side=side, shard_count=2, shard_index=shard,
-                sequences=[row['sequence_id']], frames=1, checkpoint_sha256='4' * 64,
-                appearance_checkpoint_sha256='5' * 64, appearance_method=FEATURE_METHOD,
+            launch = dict(
+                kind='eventtrack_raw_cache_launch_v1',
+                side=side,
+                shard_count=2,
+                shard_index=shard,
+                sequences=[row['sequence_id']],
+                frames=1,
+                checkpoint_sha256='4' * 64,
+                appearance_checkpoint_sha256='5' * 64,
+                appearance_method=FEATURE_METHOD,
                 input_manifest_sha256=sha_file(inputs / 'input-manifest.json'),
-                resolved_config_sha256=sha_file(config), detector_decode_source='raw_head_before_tracking_summary_v1',
-                formal_v2_ready=False, gt_inputs=False, test_payloads_read=False, val_payloads_read=split == 'val',
-                optimizer_created=False, score_filter_changed=False, covariance_calibrated=False)
+                resolved_config_sha256=sha_file(config),
+                detector_decode_source='raw_head_before_tracking_summary_v1',
+                formal_v2_ready=False,
+                gt_inputs=False,
+                test_payloads_read=False,
+                val_payloads_read=split == 'val',
+                optimizer_created=False,
+                score_filter_changed=False,
+                covariance_calibrated=False)
             _write(root / 'launch-receipt.json', launch)
-            manifest = dict(launch, kind='eventtrack_raw_detector_cache_v1',
+            manifest = dict(
+                launch,
+                kind='eventtrack_raw_detector_cache_v1',
                 frames=[dict(arrays=record(payload, root), metadata=record(metadata, root), detections=n)],
-                frame_count=1, classes=list(CLASSES), weights_unchanged=True, raw_head_frames_verified=1,
-                legacy_placeholder_count=0, detection_count=n, appearance_valid_count=n)
+                frame_count=1,
+                classes=list(CLASSES),
+                weights_unchanged=True,
+                raw_head_frames_verified=1,
+                legacy_placeholder_count=0,
+                detection_count=n,
+                appearance_valid_count=n)
             _write(root / 'raw-cache-manifest.json', manifest)
             roots.append(root)
     return roots, calibration_path, inputs, tmp_path / 'sealed'
