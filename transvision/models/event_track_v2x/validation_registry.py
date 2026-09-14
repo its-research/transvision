@@ -16,6 +16,9 @@ from typing import Callable, Iterable, Iterator, Mapping
 
 import numpy as np
 
+# Keep the geometry-audit runtime usable without requiring a NumPy 2 upgrade.
+_trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+
 from .experiment import (
     CONFIRMATORY_BYTE_BUDGETS_V1,
     CONFIRMATORY_NETWORK_SEEDS_V1,
@@ -1138,7 +1141,7 @@ def _normalized_actual_byte_aucs_common_support(
     )
     width = upper - lower
     return {
-        scheduler_id: float(np.trapezoid(np.interp(grid, xs, ys), grid) / width)
+        scheduler_id: float(_trapezoid(np.interp(grid, xs, ys), grid) / width)
         for scheduler_id, (xs, ys) in fronts.items()
     }
 

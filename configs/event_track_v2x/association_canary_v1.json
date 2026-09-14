@@ -1,0 +1,15 @@
+{
+  "assignment_weight": 1.0,
+  "dropout": 0.1,
+  "epochs": 2,
+  "frames_per_step": 8,
+  "gradient_clip_norm": 5.0,
+  "hidden_dim": 128,
+  "kind": "association_training_config_v1",
+  "learning_rate": 0.001,
+  "max_positive_weight": 20.0,
+  "pairwise_bce_weight": 1.0,
+  "schema_version": 1,
+  "top_h": 3,
+  "weight_decay": 0.0001
+}

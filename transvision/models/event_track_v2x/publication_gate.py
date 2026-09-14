@@ -15,6 +15,9 @@ from typing import Any, Mapping
 
 import numpy as np
 
+# Geometry audits pin NumPy 1.26.4; NumPy 2 renamed the same trapezoidal rule.
+_trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+
 from .contracts import ArtifactDigestV1, EvidenceBundleV1
 from .experiment import ExperimentPlanV1
 from .statistics import (
@@ -359,10 +362,10 @@ def paired_pareto_auc_by_sequence_v1(
         )
         width = upper - lower
         treatment_auc[sequence_id] = float(
-            np.trapezoid(np.interp(grid, tx, ty), grid) / width
+            _trapezoid(np.interp(grid, tx, ty), grid) / width
         )
         control_auc[sequence_id] = float(
-            np.trapezoid(np.interp(grid, cx, cy), grid) / width
+            _trapezoid(np.interp(grid, cx, cy), grid) / width
         )
     return treatment_auc, control_auc
 

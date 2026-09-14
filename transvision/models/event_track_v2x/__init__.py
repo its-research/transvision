@@ -77,6 +77,7 @@ from .baseline_adapters import (
     probe_official_backend,
 )
 from .commit import AppendOnlyCommitLog, CommitRecord, GENESIS_HASH
+from .detection_cache_v2 import DetectionCacheV2
 from .contracts import (
     ArtifactDigestV1,
     DetectionCacheV1,
@@ -538,6 +539,7 @@ __all__ = [
     "DEFAULT_NETWORK_SEEDS_V1",
     "DEFAULT_TRAINING_SEEDS_V1",
     "DetectionCacheV1",
+    "DetectionCacheV2",
     "DetectionCacheError",
     "DetectionCacheIndexEntry",
     "DatasetReleaseError",

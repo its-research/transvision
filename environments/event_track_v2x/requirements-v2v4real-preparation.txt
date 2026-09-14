@@ -1,0 +1,3 @@
+# Preparation-only dependencies; do not install into the sealed SPD evaluator.
+numpy==1.26.4
+PyYAML==6.0.2

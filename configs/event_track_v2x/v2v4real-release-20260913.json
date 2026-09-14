@@ -1,0 +1,115 @@
+{
+  "kind": "v2v4real_official_box_metadata_snapshot_v1",
+  "observed_date": "2026-09-13",
+  "observed_timezone": "Asia/Shanghai",
+  "dataset": "V2V4Real",
+  "folder_url": "https://ucla.app.box.com/v/UCLA-MobilityLab-V2V4REAL/folder/279924274808",
+  "folder_id": "279924274808",
+  "metadata_only": true,
+  "payload_verified": false,
+  "paper_eligible": false,
+  "experiment_splits": ["train", "test"],
+  "compressed_bytes": {
+    "train": 10934461824,
+    "test": 3413492656,
+    "val_observed_not_in_experiment": 1045857068
+  },
+  "files": [
+    {
+      "name": "train_01.zip",
+      "split": "train",
+      "file_id": "1619935662984",
+      "file_version_id": "1781009625384",
+      "reported_sha1": "3d4ed3b254a9618a752bf0516e8a15d9b2c54dbd",
+      "size_bytes": 2119374798
+    },
+    {
+      "name": "train_02.zip",
+      "split": "train",
+      "file_id": "1619925738887",
+      "file_version_id": "1780998724487",
+      "reported_sha1": "8effb72b288e7a72b16031fe3b540f289aab83d0",
+      "size_bytes": 950136211
+    },
+    {
+      "name": "train_03.zip",
+      "split": "train",
+      "file_id": "1619916750660",
+      "file_version_id": "1780989709860",
+      "reported_sha1": "8eb69117c7884b725e14928095e6a4ae1b9fcd46",
+      "size_bytes": 1671705484
+    },
+    {
+      "name": "train_04.zip",
+      "split": "train",
+      "file_id": "1619912061459",
+      "file_version_id": "1780984576659",
+      "reported_sha1": "f661ee6acb50eaa81e9d8b611f2fd3bb06bca3f7",
+      "size_bytes": 832603449
+    },
+    {
+      "name": "train_05.zip",
+      "split": "train",
+      "file_id": "1619923727837",
+      "file_version_id": "1780996629437",
+      "reported_sha1": "ec17c5052cba3ac076a75acb30b5a202fdff498e",
+      "size_bytes": 1451830950
+    },
+    {
+      "name": "train_06.zip",
+      "split": "train",
+      "file_id": "1619904875978",
+      "file_version_id": "1780977727178",
+      "reported_sha1": "a65f109265e2f90761c9a9bb830848aef4c428c4",
+      "size_bytes": 1709593898
+    },
+    {
+      "name": "train_07.zip",
+      "split": "train",
+      "file_id": "1619910858734",
+      "file_version_id": "1780983474734",
+      "reported_sha1": "eca39d15d9a080b0e89f2d03add6ab17530399a0",
+      "size_bytes": 1347978238
+    },
+    {
+      "name": "train_08.zip",
+      "split": "train",
+      "file_id": "1619910258966",
+      "file_version_id": "1780982862966",
+      "reported_sha1": "ab5db3b81a138cc76ade138f7b9bef3e30bdc711",
+      "size_bytes": 851238796
+    },
+    {
+      "name": "test_01.zip",
+      "split": "test",
+      "file_id": "1619923463037",
+      "file_version_id": "1780996868637",
+      "reported_sha1": "17a4e711261d5bcc1fe2e2226d1633c9745701d2",
+      "size_bytes": 633582640
+    },
+    {
+      "name": "test_02.zip",
+      "split": "test",
+      "file_id": "1619910080470",
+      "file_version_id": "1780983046870",
+      "reported_sha1": "3347e36a29b0e18788359653660c28fb0c790142",
+      "size_bytes": 1228581180
+    },
+    {
+      "name": "test_03.zip",
+      "split": "test",
+      "file_id": "1619915891150",
+      "file_version_id": "1780989301550",
+      "reported_sha1": "b1191159de152a1b2a8223c8743113a904dddd73",
+      "size_bytes": 1551328836
+    },
+    {
+      "name": "val.zip",
+      "split": "val",
+      "file_id": "1619910191481",
+      "file_version_id": "1780983306681",
+      "reported_sha1": "123cb9a2ae44950400a8f6d49563dd8aed4104d8",
+      "size_bytes": 1045857068
+    }
+  ]
+}

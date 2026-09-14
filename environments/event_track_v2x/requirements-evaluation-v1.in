@@ -1,0 +1,16 @@
+# Sealed SPD evaluation pins, separate from the Python 3.12 research runtime.
+# TrackEval 1.0.0 declares Python >=3.8,<3.12. Use Python 3.10 here.
+# Verify package source trees and metric golden cases; imports are insufficient.
+# On macOS arm64 / CPython 3.10 use requirements-evaluation-macos-arm64-py310.lock.
+# This input file alone does not choose the compatible SciPy macOS 12 wheel.
+numpy==1.26.4
+scipy==1.15.3
+pandas==2.3.3
+shapely==2.0.7
+pyquaternion==0.9.9
+motmetrics==1.4.0
+nuscenes-devkit==1.2.0
+trackeval==1.0.0
+pytest==8.4.2
+# Required by the repository's shared protocol/publication imports in tests.
+cryptography==46.0.5
