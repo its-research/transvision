@@ -1,0 +1,39 @@
+{
+  "kind": "spd-nested-v2-source-freeze-v1",
+  "date": "2026-09-18",
+  "clearml_task_id": "ff89ad92e2b54b298ca4c40d9f483cf0",
+  "clearml_status": "completed",
+  "software_only": true,
+  "real_cache_completed": false,
+  "paper_performance_evidence": false,
+  "tests": {"passed": 80, "failed": 0, "errors": 0, "skipped": 0},
+  "code": {
+    "sha256": "1db655b1ba0d7ab241f9e4f17a2366bcf19dae0ad2c7410974107d2639ba9876",
+    "bytes": 14887,
+    "clearml_readback_verified": true
+  },
+  "bootstrap": {
+    "sha256": "3766a88b7420ac4911f3c4c5c8b19784c9d1a5596a917cab7126c33b8c7acdf9",
+    "bytes": 3095,
+    "clearml_readback_verified": true
+  },
+  "fixed_dispatch_parameters": {
+    "General/v2_code_task_id": "ff89ad92e2b54b298ca4c40d9f483cf0",
+    "General/v2_code_sha256": "1db655b1ba0d7ab241f9e4f17a2366bcf19dae0ad2c7410974107d2639ba9876"
+  },
+  "required_per_seed_parameters": [
+    "General/nested_seed",
+    "General/nested_calibration_task_id",
+    "General/nested_calibration_sha256"
+  ],
+  "dispatch_state": "not_submitted_pending_real_nested_calibration",
+  "remote_directory": "/home/lbin/Desktop/rbf-nested-v2-freeze-20260918.m0Zeud",
+  "scope": [
+    "Three-seed calibration identity and candidate protocol admission",
+    "Four raw shards derived from the frozen calibration's source list",
+    "Completed source tasks, exact archive bytes and manifest hashes required",
+    "No legacy source fallback for partial nested configuration",
+    "Cache builder binds calibration detector weights and nested sequence roles",
+    "Original DetectionCacheV2 numerical schema remains unchanged"
+  ]
+}

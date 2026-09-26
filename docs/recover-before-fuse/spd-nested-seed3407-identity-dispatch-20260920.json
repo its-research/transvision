@@ -1,0 +1,17 @@
+{
+  "kind": "spd_nested_identity_training_dispatch_v1",
+  "observed_at_utc": "2026-09-20T05:15:26Z",
+  "seed": 3407,
+  "task_id": "dabafc1bbeb544b3bca2cbdf4d207b4c",
+  "status": "in_progress",
+  "worker": "10.100.34.18-A100:gpu4,5,6,7",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "template_task_id": "f7da8e72146742f191ded68d8b57f481",
+  "source_task_id": "7a7586375f1c467b91956abf3a681d21",
+  "source_sha256": "f3649c4232ac29379b3a0eb39b4965bd61d284a7a0e365e40292001da8c1547f",
+  "rows_task_id": "f25a0dab1c1d44debf9aa2452e872465",
+  "rows_sha256": "1012829bacf40bc1edb46e70cb1771a7f9a7e7adfadf7fe0485328212716aca9",
+  "manifest_sha256": "b719faf1b39768079e588a4111461d45c60a37f1aa1917b715140ebba4451da4",
+  "training_completed": false,
+  "paper_performance_claimed": false
+}

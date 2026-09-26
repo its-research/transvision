@@ -1,0 +1,16 @@
+{
+  "kind": "spd_nested_v2_cache_dispatch",
+  "task_id": "0c939db517b24128b8b442c425bdb39e",
+  "status": "queued",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "seed": 2027,
+  "calibration_task_id": "b3a78f3068d04c7c9d6398acca9d36e8",
+  "calibration_sha256": "51f2154d81dd37b5bfbaf788847573f12d3bbf2c49a133fa04c6c2c643a596f3",
+  "code_task_id": "ff89ad92e2b54b298ca4c40d9f483cf0",
+  "code_sha256": "1db655b1ba0d7ab241f9e4f17a2366bcf19dae0ad2c7410974107d2639ba9876",
+  "bootstrap_sha256": "3766a88b7420ac4911f3c4c5c8b19784c9d1a5596a917cab7126c33b8c7acdf9",
+  "upstream_completed_and_fullstream_source_hashes_verified": true,
+  "intended_sequence_count": 46,
+  "cache_completed": false,
+  "paper_performance_verified": false
+}

@@ -1,0 +1,36 @@
+{
+  "kind": "spd-nested-rows-dispatch-v1",
+  "date": "2026-09-18",
+  "seed": 1337,
+  "task_id": "2486a74c9d534749b8d5834b5148ec51",
+  "observed_status": "in_progress",
+  "started_at_utc": "2026-09-18T09:22:53.531000Z",
+  "last_observed_update_utc": "2026-09-18T09:59:43.649000Z",
+  "sealed_inputs_ready_logged": true,
+  "historical_duration_reference": {
+    "task_id": "46d52f291a7d4d89ab3a281b6aa47364",
+    "started_at_utc": "2026-09-17T23:26:37.382000Z",
+    "completed_at_utc": "2026-09-18T01:32:35.578000Z",
+    "scope": "Legacy fit37 all46 preparation; different upstream cohort, duration reference only, not nested result evidence or a completion-time guarantee."
+  },
+  "dequeued_at_utc": "2026-09-18T09:14:17.970851Z",
+  "dispatch_hold": null,
+  "redispatch_reason": "Corrected typed parameter reading freeze published and independently verified; original task re-enqueued without duplication.",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "source_freeze_task_id": "8a482b15670e44449d98c5f22fc5afbd",
+  "source_code_sha256": "8eb9f8730a46bf167b2d7b07b3cdf8d18420de2ed30082ec8f919d43d108c6e6",
+  "cache_task_id": "5a76cc027970456f8e3b025dbc6d0e9b",
+  "cache_producer_status": "completed",
+  "independent_full_stream_readback": {
+    "cache-v2": {"bytes": 3175128610, "sha256": "43dc864cad46f4b85679ba9cb99e3da77321efeafe5bbbae17c2bd3d255f8a81"},
+    "manifest": {"bytes": 6580499, "sha256": "4882abe1c88c48559ba188afad45ef2d3be630dd5e79f90e265ea0bc6be39f7a"},
+    "readback": {"bytes": 389, "sha256": "0b594b3539055e6826a8b77b3e95bd0e83708e85adf988f83fb787449fc97ced"}
+  },
+  "producer_readback": {"frames": 16338, "sequences": 46, "detections": 14704200, "gt_in_cache": false, "test_payloads_read": false, "all_payloads_rehashed": true},
+  "calibration_task_id": "9273a21bdc764158bb3a22efc1de75a2",
+  "collection_task_id": "bceb0a009246474dbaa176a823dbfec1",
+  "rows_completed": false,
+  "identity_training_completed": false,
+  "paper_performance_evidence": false,
+  "verification_note": "Unauthenticated read initially returned HTTP 401. Authenticated ClearML session retry verified every byte of all three artifacts; no credentials were logged."
+}

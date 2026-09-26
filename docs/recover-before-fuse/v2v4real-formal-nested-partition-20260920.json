@@ -1,0 +1,36 @@
+{
+  "kind": "v2v4real_formal_nested_partition_completion_v1",
+  "observed_at_utc": "2026-09-20T04:20:42Z",
+  "protocol_id": "v2v4real-nominal-10hz-formal-v1",
+  "clearml": {
+    "task_id": "310283cf29374652a521dbbddf440475",
+    "status": "completed",
+    "partition_artifact": "nested-partition",
+    "partition_bytes": 5901,
+    "partition_sha256": "02373d0f59ca4e88757b6b3c3c22d9afda0ff94fe47f0f7d10f80211876bbcb2",
+    "source_artifact": "partition-source",
+    "source_bytes": 4342,
+    "source_sha256": "879c70c66804d7514834d6dbc78acdcb6237bc1eb9808c4a6d3fded858a65abc",
+    "full_stream_readback_verified": true
+  },
+  "upstream_group_evidence": {
+    "task_id": "45fbaf44ff534eeca41f52d49a880676",
+    "sha256": "fd6051425bb0cd4e4fae21af885a3e4a872e476b0161c46ce3672b3236d3a024",
+    "sequences": 32,
+    "name_groups": 15,
+    "physical_session_provenance_verified": false,
+    "grouping_evidence": "filename-prefix-proxy-only",
+    "limitation_disclosure_required": true
+  },
+  "roles": {
+    "detector_fit": {"groups": 10, "sequences": 22},
+    "calibration_fit": {"groups": 2, "sequences": 6},
+    "identity_selection": {"groups": 3, "sequences": 4}
+  },
+  "official_test_used_for_partition": false,
+  "gt_used_for_partition": false,
+  "measured_clock_required": false,
+  "statistical_independence_claimed": false,
+  "training_completed": false,
+  "paper_performance_claimed": false
+}

@@ -1,0 +1,63 @@
+{
+  "kind": "recover_before_fuse_gpu_utilization_audit_v1",
+  "observed_at_utc": "2026-09-20T05:20:00Z",
+  "a100_host": "10.100.34.18-A100",
+  "observations": [
+    {
+      "task_id": "f25a0dab1c1d44debf9aa2452e872465",
+      "worker": "10.100.34.18-A100:gpu4,5,6,7",
+      "role": "SPD seed3407 identity-row generation",
+      "status": "in_progress",
+      "running_seconds_at_sample": 4504,
+      "gpu_count": 4,
+      "recent_samples": 10,
+      "gpu_utilization_percent_each": [0, 0, 0, 0],
+      "gpu_memory_used_gb_each": [0, 0, 0, 0],
+      "gpu_power_watts_recent_average": [36.8661, 34.0090, 33.2482, 36.7036],
+      "machine_cpu_percent_recent_average": 2.2607,
+      "classification": "CPU-bound preprocessing occupying A100 allocation"
+    },
+    {
+      "task_id": "1fd7ac2023434d73a00aa6535d459e5d",
+      "worker": "10.100.34.18-A100:gpu0,1,2,3",
+      "role": "SPD seed1337 teacher replay",
+      "status": "in_progress",
+      "running_seconds_at_sample": 3337,
+      "gpu_count": 4,
+      "recent_samples": 10,
+      "gpu_utilization_percent_each": [0, 0, 0, 0],
+      "gpu_memory_used_gb_each": [0, 0, 0, 0],
+      "gpu_power_watts_recent_average": [35.0018, 37.4518, 36.2820, 34.8375],
+      "machine_cpu_percent_recent_average": 2.2700,
+      "classification": "CPU-bound replay occupying A100 allocation"
+    },
+    {
+      "task_id": "dabafc1bbeb544b3bca2cbdf4d207b4c",
+      "worker": "10.100.34.18-A100:gpu4,5,6,7",
+      "role": "SPD seed3407 identity DDP",
+      "status": "in_progress",
+      "gpu_count": 4,
+      "gpu_utilization_percent_each_latest": [17.1790, 17.1250, 16.4820, 16.7500],
+      "gpu_memory_used_gb_each_latest": [0.6700, 0.6700, 0.6700, 0.6700],
+      "observed_phase": "row readback and startup; no completed epoch logged",
+      "protocol_global_batch_size": 64,
+      "classification": "GPU-backed DDP startup; steady-state utilization not yet established"
+    }
+  ],
+  "decision": {
+    "running_cpu_jobs_interrupted": false,
+    "reason": "both jobs lack intermediate checkpoints; stopping would discard 56-75 minutes of verified live work",
+    "future_cpu_storage_tasks_use_a100": false,
+    "projection_replacement_task_id": "578e89ba3d964064ad495a8913fad628",
+    "projection_worker": "10.100.35.121-L40S:gpu0,1,2",
+    "projection_status": "in_progress",
+    "superseded_a100_task_id": "a3fa6ec8d6c842338dcea46501ba5c19",
+    "superseded_task_removed_from_queue": true,
+    "a100_reserved_for_next_real_ddp_stage": true,
+    "identity_ddp_task_id": "dabafc1bbeb544b3bca2cbdf4d207b4c",
+    "identity_batch_changed_during_startup": false,
+    "identity_batch_reason": "global batch 64 is frozen in the formal training contract; startup telemetry is not a steady-state basis for changing it"
+  },
+  "gpu_fully_utilized_at_observation": false,
+  "performance_result_claimed": false
+}

@@ -1,0 +1,22 @@
+{
+  "kind": "spd_nested_calibration_fit_publication",
+  "seed": 2027,
+  "task_id": "b3a78f3068d04c7c9d6398acca9d36e8",
+  "status_verified": "completed",
+  "artifact": "calibration",
+  "sha256": "51f2154d81dd37b5bfbaf788847573f12d3bbf2c49a133fa04c6c2c643a596f3",
+  "bytes": 17570,
+  "fullstream_publication_readback_verified": true,
+  "four_raw_archives_fullstream_verified_during_calibration": true,
+  "source_freeze_task_id": "a5f0306a60454a57b7943c6fa249ac27",
+  "raw_export_task_id": "48e81d9d38ea414d9ce2d0e012eb6822",
+  "fit_sequences": ["0005", "0010", "0022", "0030", "0034", "0072", "0093"],
+  "fit_frames": 2425,
+  "fit_candidates": 57933,
+  "candidate_policy": "raw-score>=0.05/all-class-top64",
+  "detector_fit_and_identity_selection_sequences_disjoint_from_calibration": true,
+  "all_numeric_values_finite": true,
+  "held_out_diagnostics_completed": false,
+  "paper_performance_verified": false,
+  "output_path": "/home/lbin/Desktop/rbf-nested-seed2027-calibration-20260918.umzistwt/calibration.json"
+}

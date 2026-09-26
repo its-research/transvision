@@ -1,0 +1,40 @@
+{
+  "kind": "spd-nested-stage-transition-observation-v1",
+  "observed_at_utc": "2026-09-18T04:46:27Z",
+  "training_task_id": "040a01e2ab9d4ee59f55e0e52581228f",
+  "seed": 2027,
+  "task_status": "in_progress",
+  "receipt_readback_sha256_verified": {
+    "vehicle-side-completion": "b703e4fecc2808c4e7863dae2b34d6fe4b4bd838b715a5ed4a92a4b6d9df7f2e",
+    "infrastructure-side-launch-receipt.json": "1c3e2e56cdf5af7420d95e565917bd623b52d817cbc7132fb47d4192b2f3cf36",
+    "infrastructure-side-optimizer-startup.json": "a7a2793d638fd19fe3fa81e06136d1b5d226e8ff2f34bdb6e37b384f650ecb2e"
+  },
+  "vehicle_final_checkpoint": {
+    "reported_bytes": 400419820,
+    "reported_sha256": "57bb75fa4649ba5339f9e8d4a340be235965318775e1630d613595011f55a009",
+    "completion_receipt_hash_matches_artifact_metadata": true,
+    "checkpoint_content_readback_verified": false,
+    "tensor_audit_completed": false,
+    "reported_epochs": 24,
+    "reported_iteration": 8040
+  },
+  "infrastructure_startup": {
+    "max_micro_iterations": 7488,
+    "latest_observed_iteration": 30,
+    "optimizer_evidence_iteration": 16,
+    "loss": 24.1975154876709,
+    "backbone_max_abs_update": 0.00010772421956062317,
+    "optimizer_state_entries": 369,
+    "batch_probe_only": false,
+    "epochs": 24,
+    "world_size": 4,
+    "batch_per_gpu": 4,
+    "effective_batch_size": 16,
+    "training_sequences": 30,
+    "official_val_test_loaded": false,
+    "resolved_config_sha256": "f5864fa72faaa875631c8bfa76e77b0e88e692315999e75bb6e951ee9a190071"
+  },
+  "both_sides_completed": false,
+  "collection_accepted": false,
+  "paper_performance_evidence": false
+}

@@ -1,0 +1,52 @@
+{
+  "kind": "v2v4real_formal_projection_dispatch_receipt_v1",
+  "observed_at_utc": "2026-09-20T07:02:00Z",
+  "protocol_id": "v2v4real-nominal-10hz-formal-v1",
+  "split": "official_test",
+  "source_task_id": "1988108fa06d4f458b595e9dd376b833",
+  "source_sha256": "296bda2e60aa138ca2c7394d1e7ec0170dd5edc2292b7ac12d196b909b7ec204",
+  "task_id": "4e93e12cd9cd4ea3864c9b9af57182f9",
+  "queue_id": "8d0f8b54037249eeb0f1cc70cbfe73ab",
+  "worker": "10.100.35.121-L40S:gpu0,1,2",
+  "status_at_observation": "completed",
+  "clock": {
+    "nominal_rate_hz": 10,
+    "measured": false,
+    "communication_delay_kind": "artificially_injected"
+  },
+  "official_test_used_for_training": false,
+  "gt_free_projection": true,
+  "result": {
+    "sequence_count": 9,
+    "paired_frame_count": 1993,
+    "source_frame_count": 3986,
+    "dataset_split": "test",
+    "official_test_unchanged": true,
+    "gt_in_projection": false
+  },
+  "artifacts": {
+    "projection": {
+      "bytes": 3638057349,
+      "sha256": "e1e0e3652425d351be86983946bf46b6e7c0ac8529a768dced936ef93f420f8d",
+      "independent_full_stream_readback": false
+    },
+    "projection-manifest": {
+      "bytes": 962,
+      "sha256": "d0e13e20f5ff2cafeb713fb66cd642ef861962fbf8ce99bef8e2ee9bd50a5601",
+      "independent_readback_verified": true
+    },
+    "split-admission": {
+      "bytes": 1248,
+      "sha256": "c540c3625e67fbbbc44b20253bf67a45302cfab2162ebc0de67866be55e0781c",
+      "independent_readback_verified": true
+    },
+    "publication-receipt": {
+      "bytes": 675616,
+      "sha256": "530f97f1d74a72dd7979a3999190b7e64972a3455d39d88795bc4061a8809231",
+      "independent_readback_verified": true
+    }
+  },
+  "producer_full_stream_readback": true,
+  "completion_verified": true,
+  "paper_performance_evidence": false
+}

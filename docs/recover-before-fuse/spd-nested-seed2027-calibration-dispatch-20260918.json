@@ -1,0 +1,19 @@
+{
+  "kind": "spd_nested_calibration_launch",
+  "seed": 2027,
+  "raw_export_task_id": "48e81d9d38ea414d9ce2d0e012eb6822",
+  "raw_export_status_verified": "completed",
+  "export_summary_sha256": "ca844a451c01659e8668cc437788751861e5060ee870ed8f3ac583dc38333b64",
+  "summary_and_four_manifests_fullstream_verified": true,
+  "summary_sequence_coverage_per_side": 46,
+  "summary_frame_counts": {"vehicle-side": 8504, "infrastructure-side": 7834},
+  "collection_task_id": "afcd45a8d7a54bf98b00888ee080e39c",
+  "collection_sha256": "b662e52026e3359aa4b18c204ab1c12d15f90d6ed4cbaa97f7f471d0d4e2f9f3",
+  "source_freeze_task_id": "a5f0306a60454a57b7943c6fa249ac27",
+  "source_archive_sha256": "c139f29f7b8879f46200da7a2dd6fd7cf0c39a019bf874353efe1db59f909fc4",
+  "frozen_python_sources_compared_before_execution": true,
+  "output_root": "/home/lbin/Desktop/rbf-nested-seed2027-calibration-20260918.umzistwt",
+  "calibration_status": "running_at_observation",
+  "raw_archives_fullstream_verification": "performed_by_running_calibration_not_yet_complete",
+  "paper_performance_verified": false
+}

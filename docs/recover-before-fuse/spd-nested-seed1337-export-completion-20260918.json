@@ -1,0 +1,26 @@
+{
+  "kind": "spd_nested_raw_export_completion_observation",
+  "task_id": "f0135c8c2fec4610907342556b835f57",
+  "status_verified": "completed",
+  "seed": 1337,
+  "summary_sha256": "a314794fdf694cfba46901f37b36a23c7776190098ec6313878ff85e6956f52e",
+  "all_four_archives_fullstream_hash_and_size_verified": true,
+  "producer_all_payloads_readback_verified": true,
+  "producer_whole_input_coverage_verified": true,
+  "frames": {"vehicle-side": 8504, "infrastructure-side": 7834},
+  "sequence_count_per_side": 46,
+  "remaining_archives_verified": {
+    "infrastructure-side-shard-0-raw-cache": {"bytes": 1047061065, "sha256": "41ac498c951ab38f3351c04056acc0396728ae57d9ebcb9fdf57c97b7fef7f77"},
+    "vehicle-side-shard-0-raw-cache": {"bytes": 577535434, "sha256": "25bafe0334928f851e60cb7da5a999eee3b7988d1cab9916c7842b07b2ef6b0f"}
+  },
+  "earlier_archive_checks": "spd-nested-seed1337-partial-export-readback-20260918.json",
+  "calibration_launch": {
+    "root": "/home/lbin/Desktop/rbf-nested-seed1337-calibration-20260918.jqdbhdyt",
+    "source_freeze_task_id": "a5f0306a60454a57b7943c6fa249ac27",
+    "source_archive_sha256": "c139f29f7b8879f46200da7a2dd6fd7cf0c39a019bf874353efe1db59f909fc4",
+    "frozen_archive_python_files_compared_with_runtime": true,
+    "status": "running_at_observation",
+    "completed": false
+  },
+  "paper_performance_verified": false
+}

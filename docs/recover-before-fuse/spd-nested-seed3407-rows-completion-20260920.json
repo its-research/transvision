@@ -1,0 +1,21 @@
+{
+  "kind": "spd_nested_identity_rows_completion_v1",
+  "observed_at_utc": "2026-09-20T05:15:26Z",
+  "seed": 3407,
+  "task_id": "f25a0dab1c1d44debf9aa2452e872465",
+  "status": "completed",
+  "artifacts": {
+    "rows": {"bytes": 208017753, "sha256": "1012829bacf40bc1edb46e70cb1771a7f9a7e7adfadf7fe0485328212716aca9"},
+    "manifest": {"bytes": 16536, "sha256": "b719faf1b39768079e588a4111461d45c60a37f1aa1917b715140ebba4451da4"},
+    "readback": {"bytes": 291, "sha256": "6eb53e66668528f61e3db66fe2baa55833a6de0db7a8f1fc05e8877fac4a037f"}
+  },
+  "full_stream_readback_verified": true,
+  "sequences": 46,
+  "nodes": 223355,
+  "supervised_rows": 106706,
+  "full_official_train_verified": true,
+  "official_val_or_test_read": false,
+  "gt_boxes_or_ids_in_shards": false,
+  "training_performed": false,
+  "paper_performance_claimed": false
+}

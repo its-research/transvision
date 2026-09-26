@@ -1,0 +1,17 @@
+{
+  "kind": "partial_raw_export_transport_verification",
+  "task_id": "f0135c8c2fec4610907342556b835f57",
+  "seed": 1337,
+  "whole_export_verified": false,
+  "calibration_started": false,
+  "archives_fullstream_verified": {
+    "infrastructure-side-shard-1-raw-cache": {"bytes": 926951302, "sha256": "4a20526acea8354501742a8214523a5a15cef78781300482f4bb502e1222cec3"},
+    "vehicle-side-shard-1-raw-cache": {"bytes": 575305228, "sha256": "477213e23c3d8a203a2f2ad04e0dc3b83ffdb1fc48c80ba00d1108f89889dc7b"}
+  },
+  "manifests_fullstream_verified": {
+    "infrastructure-side-shard-1-manifest": "5c8f8d6279d4c3a6488109b431805d97fffb9d01f650cebaf7375aba3316c6a3",
+    "vehicle-side-shard-0-manifest": "b87e90ccbfb26b6719b85cd5b7b8139273af56ebb38e9b4c3f60e624b846be58",
+    "vehicle-side-shard-1-manifest": "cb70a33d9720b30afc35071071d9934b7bd838be6830e33a0fcd7422ada4cfa6"
+  },
+  "scope": "Full bytes verified for listed archives; not an independent payload decode or whole-input acceptance. Producer task was still in progress."
+}

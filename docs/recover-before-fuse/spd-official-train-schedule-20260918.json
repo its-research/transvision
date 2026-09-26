@@ -1,0 +1,20 @@
+{
+  "kind": "spd-official-train-schedule-publication-v1",
+  "date": "2026-09-18",
+  "clearml_task_id": "7a0cb79d3ff144d689b565560d1b844b",
+  "status": "completed",
+  "schedule": {"sha256": "66197cec03671866a0f452b5e4ea21273aadf4d5015d2d9e77169347ee4dc29f", "bytes": 938688, "frames": 7445, "sequences": 46},
+  "source_supervision_task_id": "4df2ef2e0a7348119ccefe59796b9269",
+  "source_supervision_sha256": "247b2a5dda8649a15a6d1c707012470f0c90493b2f0aa7884a05c7a54427d3cc",
+  "source_sha256": "6e4a9a43a71481f342ac0c2553da2ae7b1fec3c51c9e7a15bd42653b3476f92c",
+  "tests_sha256": "11ee4fe1a421f748790aa0943d0d0a71ef0911d20cf78f642a487004d3f0a2d6",
+  "regression_sha256": "32945eebc3a9df830d7a41b91a0422376d7eaac62fa327d3f2c5d4b61414d3ed",
+  "tests_passed": 11,
+  "all_publication_artifacts_full_readback_verified": true,
+  "contains_gt": false,
+  "offline_extraction_from_gt_envelope": true,
+  "arrival_times_defined": false,
+  "replay_coverage_verified": false,
+  "paper_performance_evidence": false,
+  "next_step": "Bind runtime event schedule and teacher prediction/audit frames to this immutable official frame map; do not admit full official teacher coverage from counts alone."
+}

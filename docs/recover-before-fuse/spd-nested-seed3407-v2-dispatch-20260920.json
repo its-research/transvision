@@ -1,0 +1,33 @@
+{
+  "kind": "spd_nested_v2_cache_dispatch",
+  "observed_date": "2026-09-20",
+  "task_id": "4ec0ff6acc254481965bf09df371d912",
+  "status_at_receipt": "completed",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "seed": 3407,
+  "calibration_task_id": "984101252b9840108d2db58a1b684828",
+  "calibration_sha256": "2ec4f0a3f9f7a45c001e6c857d1c8fa41cb1d680d7c47919fdaa268ef70c20ac",
+  "code_task_id": "ff89ad92e2b54b298ca4c40d9f483cf0",
+  "code_sha256": "1db655b1ba0d7ab241f9e4f17a2366bcf19dae0ad2c7410974107d2639ba9876",
+  "source_task_id": "0c939db517b24128b8b442c425bdb39e",
+  "source_execution_contract": "successful seed2027 calibrated V2 all46 task",
+  "intended_sequence_count": 46,
+  "cache_completed": true,
+  "completed_artifacts": {
+    "cache-v2": {"bytes": 3115715919, "sha256": "993d4f7d5bdbd24ac36e7c364cd2ea1eb457bdfa50caddbe6bd1b1c06092d15d"},
+    "manifest": {"bytes": 6580499, "sha256": "9b0956ec85f7fde3647e49434b1a2919f40362bfb325b129a36af0b280d574d6"},
+    "readback": {"bytes": 389, "sha256": "d425be64bf1b8c105874b366b2b5507139fea962159da75a764fd1f6d66573ae"}
+  },
+  "producer_readback": {
+    "frames": 16338,
+    "detections": 14704200,
+    "sequences": 46,
+    "appearance_valid": 4958392,
+    "all_payloads_rehashed": true,
+    "exact_input_cohort_verified": true,
+    "gt_in_cache": false,
+    "test_payloads_read": false
+  },
+  "independent_authenticated_full_stream_readback": true,
+  "paper_performance_verified": false
+}

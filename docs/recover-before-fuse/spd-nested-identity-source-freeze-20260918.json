@@ -1,0 +1,32 @@
+{
+  "kind": "spd-nested-identity-software-source-freeze-v1",
+  "date": "2026-09-18",
+  "clearml_task_id": "ffc2b6085156467397dcad37ea5d55b5",
+  "publication_status": "completed",
+  "full_stream_readback_verified": true,
+  "artifacts": {
+    "code": {"sha256": "5b5429d7678f2abdd53a38b06d6e1dc22f7672d09109aaf11dea1d7c1c45fa75", "bytes": 1207567},
+    "bootstrap": {"sha256": "bd2f914881fe3a09c59b1f02a4c538449d9e0cbd67811c648251fcde7c410c2a", "bytes": 3621},
+    "tests": {"sha256": "cda5ade9f5605e5e80dbcbb8569e3c8976881f912a085de452839e4832f4b6ac", "bytes": 12958},
+    "pytest-junit": {"sha256": "731b3cf77aa0f049217c67133d7d06fda7d5fb3d7bfb8cb278235c5bdad8659b", "bytes": 12330}
+  },
+  "validation": {
+    "passed": 78,
+    "skipped": 0,
+    "remote_directory": "/home/lbin/Desktop/rbf-paper-identity-tests-20260918.BJzcKc",
+    "command": "CUDA_VISIBLE_DEVICES= OMP_NUM_THREADS=1 /home/lbin/miniconda3/bin/python -m pytest -q tests/event_track_v2x/test_spd_paper_identity_clearml.py tests/event_track_v2x/test_spd_nested_provenance.py tests/event_track_v2x/test_paper_pipeline.py --junitxml=identity-controller-tests.xml",
+    "controller_transport_gpu_and_subprocess_mocked": true,
+    "tensor_serialization_real": true,
+    "existing_cpu_training_reload_and_ddp_fixture_exercised": true,
+    "real_four_a100_controller_execution_verified": false
+  },
+  "dispatch_parameters": {
+    "General/identity_code_task_id": "ffc2b6085156467397dcad37ea5d55b5",
+    "General/identity_code_sha256": "5b5429d7678f2abdd53a38b06d6e1dc22f7672d09109aaf11dea1d7c1c45fa75"
+  },
+  "required_run_specific_parameters": ["General/identity_rows_task_id", "General/identity_rows_sha256", "General/identity_manifest_sha256", "General/identity_seed"],
+  "upstream_row_source_freeze_task_id": "224b18efda39441bafe2a44f100d7bbc",
+  "training_performed": false,
+  "paper_performance_evidence": false,
+  "remaining": ["complete matching-seed detector, export, calibration, V2 cache and nested row assets", "execute and verify real four-A100 identity training for each seed"]
+}

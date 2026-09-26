@@ -1,0 +1,22 @@
+{
+  "kind": "spd_nested_collection_publication",
+  "seed": 2027,
+  "training_task_id": "040a01e2ab9d4ee59f55e0e52581228f",
+  "training_status_verified": "completed",
+  "collection_task_id": "afcd45a8d7a54bf98b00888ee080e39c",
+  "collection_status_verified": "completed",
+  "collection_receipt_sha256": "b662e52026e3359aa4b18c204ab1c12d15f90d6ed4cbaa97f7f471d0d4e2f9f3",
+  "collection_receipt_bytes": 5235,
+  "local_collection": "/home/lbin/Desktop/rbf-nested-seed2027-collection-20260918.q9stxt5y/collected",
+  "vehicle_checkpoint_sha256": "57bb75fa4649ba5339f9e8d4a340be235965318775e1630d613595011f55a009",
+  "infrastructure_checkpoint_sha256": "7c8e759fdcef1fa5807de690b9b0e3357e33158b44704e2b2f12a2540bba564a",
+  "full_download_hash_and_size_verified": true,
+  "model_and_optimizer_tensors_finite": true,
+  "model_tensors_per_side": 651,
+  "optimizer_tensors_per_side": 738,
+  "metadata_iterations": {"vehicle-side": 8039, "infrastructure-side": 7487},
+  "architecture_load_verified": false,
+  "resume_equivalence_verified": false,
+  "publication_all_three_artifacts_fullstream_verified": true,
+  "paper_performance_verified": false
+}

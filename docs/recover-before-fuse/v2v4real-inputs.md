@@ -78,7 +78,7 @@ v2v4real-test-inputs-v1/
 
 ## 时间、标签与失败行为
 
-`frame_ordinal` 从零开始；`frame_key` 保留原始字符串。清单标记 `time_basis=ordinal-only-no-clock`，不产生 event time 或 arrival time。不得直接把 ordinal 乘以 0.1 秒并称为真实时间；若后续实验采用标称 10 Hz 代理时间，应另行冻结并明确标注。
+`frame_ordinal` 从零开始；`frame_key` 保留原始字符串。该原始准备清单仍标记 `time_basis=ordinal-only-no-clock`，本身不产生 event time 或 arrival time。正式实验已另行冻结 [`v2v4real-nominal-10hz-formal-v1`](v2v4real-nominal-10hz-formal-v1.md)：只有通过该协议的公共帧映射、split admission 和哈希绑定后，才可使用 `frame_ordinal * 100000 us` 的标称时间；不得称为真实采集时间或实测通信时延。
 
 `read_annotations()` 是离线标签接口，不由预测输入准备流程调用。它保留 `object_id`、`ass_id` 和原始类别，不进行类别合并、ROI 筛选、跨车去重或指标计算。实际分卷有 7,859 条源帧目标记录的 `ass_id=-1`；这个值不能直接用作所有目标共享的身份 ID。`corners_in()` 是通用几何计算，不是原生 GT 转换器：真实框数值应先按源车局部坐标解释，再投影到 ego。
 

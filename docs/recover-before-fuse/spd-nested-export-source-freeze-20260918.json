@@ -1,0 +1,45 @@
+{
+  "kind": "spd-nested-export-source-freeze-v1",
+  "date": "2026-09-18",
+  "source_task_id": "c1f4f328d78e4cb89cf588003d57e5f2",
+  "source_task_status": "completed",
+  "source_inventory_sha256": "8f1ba63e742f1854437388a28c4eb31a80ba297100276f6b558d039e6cf9b674",
+  "source_files": 8,
+  "all_source_artifacts_readback_verified": true,
+  "bootstrap_sha256": "cce93b8156a2227461756025466a1395f4e42df909f120397891533bc84d5dde",
+  "software_audit_task_id": "05b00b662550425e90b3e547d12318d9",
+  "software_audit_status": "completed",
+  "software_only": true,
+  "real_export_completed": false,
+  "paper_performance_evidence": false,
+  "tests": {"passed": 69, "failed": 0, "errors": 0, "skipped": 0},
+  "code_and_tests": {
+    "sha256": "67aa12f815bbfa801742760df54a4d6e79ed787f50f44247a01dc95c8b7fc32d",
+    "bytes": 25924,
+    "clearml_readback_verified": true
+  },
+  "regression_xml": {
+    "sha256": "b12cbae432bccda5f7b5f8f55594e8be144fff3845d1fc974501a02e5873694a",
+    "bytes": 10574,
+    "clearml_readback_verified": true
+  },
+  "fixed_dispatch_parameters": {
+    "General/export_code_task_id": "c1f4f328d78e4cb89cf588003d57e5f2",
+    "General/export_code_inventory_sha256": "8f1ba63e742f1854437388a28c4eb31a80ba297100276f6b558d039e6cf9b674",
+    "General/export_training_cohort": "nested-detector-fit"
+  },
+  "required_per_seed_parameters_not_yet_available": [
+    "General/export_seed",
+    "General/export_collection_task_id",
+    "General/export_collection_sha256"
+  ],
+  "dispatch_state": "not_submitted_pending_final_training_and_collection",
+  "remote_directory": "/home/lbin/Desktop/rbf-nested-export-freeze-20260918.t4QUEy",
+  "constraints": [
+    "Use the frozen bootstrap bytes as the ClearML task script",
+    "Require completed detector training and completed hash-bound collection before large asset downloads",
+    "Select seed 1337, 2027 or 3407 and its exact admitted detector task",
+    "Do not fall back to legacy fit37 when nested parameters are missing",
+    "Do not share an A100 allocation with an active training job"
+  ]
+}

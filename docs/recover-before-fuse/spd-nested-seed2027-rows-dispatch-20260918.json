@@ -1,0 +1,25 @@
+{
+  "kind": "spd-nested-rows-dispatch-v1",
+  "date": "2026-09-18",
+  "seed": 2027,
+  "task_id": "2f289360fd5d4bbd8d355ea66e2af50e",
+  "observed_status": "queued",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "source_freeze_task_id": "8a482b15670e44449d98c5f22fc5afbd",
+  "source_code_sha256": "8eb9f8730a46bf167b2d7b07b3cdf8d18420de2ed30082ec8f919d43d108c6e6",
+  "cache_task_id": "0c939db517b24128b8b442c425bdb39e",
+  "cache_producer_status": "completed",
+  "cache_completed_last_update_utc": "2026-09-18T09:22:53.439000Z",
+  "producer_admission_verified_with_live_typed_parameters": true,
+  "independent_full_stream_readback": {
+    "cache-v2": {"bytes": 2998909715, "sha256": "59793528a4db4b92f3b7f646596ea6253732717f4231374acd90c532c0a1d8f1"},
+    "manifest": {"bytes": 6580499, "sha256": "2c0616ca9c29f50a8936373aa42753c0f69add2d844198190af8d5e9b9a2b968"},
+    "readback": {"bytes": 389, "sha256": "ba6c040b81e14c2ca96cc01fb042cd7564d330c2cd9dc15a7abc35189e0a6e82"}
+  },
+  "producer_readback": {"frames": 16338, "sequences": 46, "detections": 14704200, "appearance_valid": 4678758, "gt_in_cache": false, "test_payloads_read": false, "all_payloads_rehashed": true},
+  "calibration_task_id": "b3a78f3068d04c7c9d6398acca9d36e8",
+  "collection_task_id": "afcd45a8d7a54bf98b00888ee080e39c",
+  "rows_completed": false,
+  "identity_training_completed": false,
+  "paper_performance_evidence": false
+}

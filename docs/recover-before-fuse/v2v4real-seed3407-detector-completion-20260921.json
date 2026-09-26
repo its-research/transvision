@@ -1,0 +1,58 @@
+{
+  "kind": "v2v4real_formal_detector_completion_audit_v1",
+  "observed_at_utc": "2026-09-21T00:57:31Z",
+  "task_id": "7c72f02af4704341aaad866f7bad8c15",
+  "status": "completed",
+  "completed_at_utc": "2026-09-20T16:13:23.190000Z",
+  "seed": 3407,
+  "protocol_id": "v2v4real-nominal-10hz-formal-v1",
+  "worker_id": "10.100.34.130-5090:gpu0,1,2,3",
+  "gpu_family": "5090",
+  "world_size": 4,
+  "source_task_id": "cd440bdb0ef34504965f15fd58376887",
+  "source_sha256": "7e797d124d4e5ae90cea4306558e6aa5e0396ebc89fcc1c18e3df6bce641477f",
+  "partition_task_id": "310283cf29374652a521dbbddf440475",
+  "partition_sha256": "02373d0f59ca4e88757b6b3c3c22d9afda0ff94fe47f0f7d10f80211876bbcb2",
+  "official_commit": "5a821e13753bafc611f95c47bc1a306acdcb0f7c",
+  "official_test_used": false,
+  "identity_selection_used": false,
+  "paper_eligible": true,
+  "selection": {
+    "rule": "minimum_global_validation_loss",
+    "epoch": 51,
+    "validation_loss": 0.5415934865164905,
+    "cohort": "calibration_fit",
+    "aggregation": "sample_weighted_all_reduce",
+    "no_padding_duplicates": true
+  },
+  "artifacts": {
+    "best-checkpoint": {
+      "bytes": 96816528,
+      "sha256": "0882c4d76db9cca3fd17f833c62b97cba6560b2c7bf75ac01e093ab8404c7e4e"
+    },
+    "epoch-log": {
+      "bytes": 14901,
+      "sha256": "37297f6e478086fdf7195b8c390698b110f5a8b33e4e85ebad8fb4dcd2b9e7ae"
+    },
+    "pip-report": {
+      "bytes": 908980,
+      "sha256": "9cecba017788c70d88826cb02311dbb3c75da7b48f1d756cb7f85a0b4f57e8be"
+    },
+    "publication-receipt": {
+      "bytes": 1710,
+      "sha256": "96d8d546ce5a9ced6f8696c4d7a8a616af5ea65e896d8f169c1165dea5cedc09"
+    },
+    "training-receipt": {
+      "bytes": 963,
+      "sha256": "08f481385a7188c0329d91db86c90939895d24e5734170677c450b31e627363f"
+    }
+  },
+  "all_artifacts_downloaded_and_sha256_verified": true,
+  "clearml_artifact_url_host_rewritten_for_authenticated_readback": {
+    "from": "10.100.34.118",
+    "to": "10.100.35.118"
+  },
+  "checkpoint_ready_as_frozen_detector_input": true,
+  "three_seed_detector_campaign_complete": false,
+  "paper_performance_evidence": false
+}

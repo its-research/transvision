@@ -1,0 +1,35 @@
+{
+  "kind": "spd-nested-row-upstream-provenance-software-v1",
+  "date": "2026-09-18",
+  "clearml_task_id": "432030f4f7fe412bb64f85fe1ce7e24e",
+  "clearml_status": "completed",
+  "synthetic_fixture": true,
+  "real_nested_rows_completed": false,
+  "paper_performance_evidence": false,
+  "tests": {"passed": 47, "failed": 0, "errors": 0, "skipped": 0},
+  "code_and_tests": {
+    "sha256": "0f9c4021a89b26a82264c20649d062bcf2888eea1e0fb8504600bf3572a5ca50",
+    "bytes": 1271944,
+    "clearml_readback_verified": true
+  },
+  "regression_xml": {
+    "sha256": "927aaa5b506feac0bf2dadf7a02ca91804b2d9ec7001f2de53e635bacf9ccc99",
+    "bytes": 8292,
+    "clearml_readback_verified": true
+  },
+  "remote_directory": "/home/lbin/Desktop/rbf-nested-row-provenance-20260918.bYoWwP",
+  "scope": [
+    "Derive SPD upstream sequence isolation from mutually hash-bound cache, calibration, collection and fixed official-sequence audit",
+    "Verify the frozen 30/7/9 partition, complete train frame coverage and ImageNet-only feature checkpoint identity",
+    "Wire optional upstream asset verification into prepare_paper_rows and recheck evidence before finalization",
+    "Require identity model seed and selection partition to match the upstream detector/cache seed",
+    "Keep legacy SPD rows without verified upstream evidence ineligible for non-fixture identity training",
+    "Port the single-deletion persistent LRU fix into the isolated paper pipeline worktree",
+    "Run synthetic SPD, V2V4Real and nominal-clock end-to-end regressions plus persistent-component tests"
+  ],
+  "remaining": [
+    "Wire immutable upstream asset selection into the ClearML row preparation bootstrap",
+    "Collect completed real nested detector weights and generate new raw/cache/calibration assets",
+    "Generate and verify real sequence-isolated row manifests before formal identity training"
+  ]
+}

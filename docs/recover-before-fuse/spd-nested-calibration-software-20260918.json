@@ -1,0 +1,34 @@
+{
+  "kind": "spd-nested-calibration-software-verification-v1",
+  "date": "2026-09-18",
+  "clearml_task_id": "a5f0306a60454a57b7943c6fa249ac27",
+  "clearml_status": "completed",
+  "synthetic_fixture": true,
+  "real_calibration_completed": false,
+  "paper_performance_evidence": false,
+  "tests": {"passed": 59, "failed": 0, "errors": 0, "skipped": 0},
+  "code": {
+    "sha256": "c139f29f7b8879f46200da7a2dd6fd7cf0c39a019bf874353efe1db59f909fc4",
+    "bytes": 25263,
+    "clearml_readback_verified": true
+  },
+  "regression_xml": {
+    "sha256": "92d3a4e2b1adcc08e0577a89932b2d1d844d188f78f87b7c4f5e0a3240528862",
+    "bytes": 9477,
+    "clearml_readback_verified": true
+  },
+  "remote_directory": "/home/lbin/Desktop/rbf-nested-calibration-integration-20260918.jqjzIX",
+  "scope": [
+    "Actual hash-bound archive streaming and full-train supervision parsing on synthetic inputs",
+    "Only the frozen seven calibration sequences enter matching and fitting",
+    "Real causal GT velocity reconstruction, candidate matching, score fitting and positive-definite covariance fitting",
+    "Reject unfinished raw export, changed seed binding and corrupted stream without success output",
+    "Three-seed admission tests and direct supervision/export dependency regression"
+  ],
+  "not_completed": [
+    "Final three-seed detector weight collection",
+    "Real nested-detector raw cache exports",
+    "Real seven-sequence calibration fitting and independent diagnostics",
+    "Paper tracking metrics and performance conclusions"
+  ]
+}

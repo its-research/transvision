@@ -1,0 +1,39 @@
+{
+  "kind": "spd-cache-calibration-binding-and-lru-regression-v1",
+  "date": "2026-09-18",
+  "clearml_task_id": "10437982d7e54d36b331340be2b08cc1",
+  "clearml_status": "completed",
+  "software_only": true,
+  "synthetic_fixture": true,
+  "real_cache_completed": false,
+  "paper_performance_evidence": false,
+  "tests": {"passed": 193, "failed": 0, "errors": 0, "skipped": 0},
+  "changes": [
+    "Require each raw detector checkpoint to match the calibration detector identity",
+    "For nested calibration, verify detector seed, source side and disjoint 30/7/9 sequence roles",
+    "Reject in-sample detector calibration and selection-set calibration for nested mode",
+    "Update persistent global LRU eviction indexes exactly once across OrderedDict implementations"
+  ],
+  "code_and_tests": {
+    "sha256": "45e0ccce097fea2a5a88073ba9ff2eaad6c267ebbbcd199e3044551b1e01851e",
+    "bytes": 928143,
+    "clearml_readback_verified": true
+  },
+  "corrected_regression_xml": {
+    "sha256": "00846a36dcccd685c4bb0956e62c5f4dcbbb1f8e6e86ec098bf1b5abf03645f6",
+    "bytes": 30728,
+    "clearml_readback_verified": true
+  },
+  "preserved_failures": [
+    "Local broad regression could not collect Torch-dependent tests because the local virtual environment lacks Torch",
+    "Remote initial collection required three additional test helper modules; XML retained as initial-collection-errors",
+    "Remote broad regression initially had 189 passed and two LRU KeyErrors; XML retained as prior-lru-failures"
+  ],
+  "remote_directory": "/home/lbin/Desktop/rbf-cache-calibration-binding-20260918.LP7IGm",
+  "running_detector_sources_modified": false,
+  "limitations": [
+    "These checks do not establish real-data tracking accuracy or throughput",
+    "The new cache builder still needs a new frozen dispatch bundle and real nested calibration assets",
+    "Historical completed caches and frozen experiment artifacts were not rewritten"
+  ]
+}

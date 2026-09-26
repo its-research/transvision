@@ -1,0 +1,50 @@
+{
+  "kind": "spd-nested-row-source-freeze-v1",
+  "date": "2026-09-18",
+  "clearml_task_id": "224b18efda39441bafe2a44f100d7bbc",
+  "clearml_status": "completed",
+  "software_only": true,
+  "real_nested_rows_completed": false,
+  "paper_performance_evidence": false,
+  "tests": {"passed": 82, "failed": 0, "errors": 0, "skipped": 0},
+  "code": {
+    "sha256": "1942c638ca1b296ca3e894bc3a2b83730b7c04f3b91cdef4d317958d93767778",
+    "bytes": 853706,
+    "clearml_readback_verified": true
+  },
+  "bootstrap": {
+    "sha256": "b0d6f2bb4c956a10d4b0714d8bf849356f273ca4a22b662064797adf0f653bf8",
+    "bytes": 3996,
+    "clearml_readback_verified": true
+  },
+  "regression_xml": {
+    "sha256": "b387a51d85d8386078fd6076af4917f55adaa5e8efb25db49163d5153292b2ea",
+    "bytes": 13500,
+    "clearml_readback_verified": true
+  },
+  "fixed_dispatch_parameters": {
+    "General/row_code_task_id": "224b18efda39441bafe2a44f100d7bbc",
+    "General/row_code_sha256": "1942c638ca1b296ca3e894bc3a2b83730b7c04f3b91cdef4d317958d93767778"
+  },
+  "required_per_seed_parameters": [
+    "General/row_seed",
+    "General/row_cache_task_id",
+    "General/row_cache_sha256",
+    "General/row_manifest_sha256",
+    "General/row_calibration_task_id",
+    "General/row_calibration_sha256",
+    "General/row_collection_task_id",
+    "General/row_collection_sha256"
+  ],
+  "dispatch_state": "not_submitted_pending_completed_nested_upstream_assets",
+  "remote_directory": "/home/lbin/Desktop/rbf-nested-row-freeze-20260918.iwVJy7",
+  "scope": [
+    "Explicit complete per-seed asset selection with no legacy fallback",
+    "Require completed frozen V2 producer with the expected bootstrap, source freeze and calibration parameters",
+    "Require completed calibration, collection, sequence audit and cache producers with byte-level hash verification",
+    "Derive upstream isolation from all parent assets and bind it into the row manifest",
+    "Reload every prepared training row and cross-check resulting provenance against selected asset hashes",
+    "Preserve all-class top64 candidates and keep GT outside model inputs",
+    "Require matching upstream seed and sequence partition during identity training"
+  ]
+}

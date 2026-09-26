@@ -1,0 +1,1157 @@
+{
+  "task": {
+    "id": "b95a706d83604ebcbebd94f476d83f69",
+    "name": "RBF V2V4Real pointpillar-smoke 87e74c247e7b four-A100",
+    "status": "completed",
+    "last_worker": "10.100.34.18-A100:gpu4,5,6,7",
+    "started": "2026-09-17 04:53:51.839000+00:00",
+    "completed": "2026-09-17 04:58:37.602000+00:00",
+    "last_update": "2026-09-17 04:58:37.605000+00:00"
+  },
+  "source_sha256": "87e74c247e7b34708b9f5e61927e2b48a81fcc01ad884841d5f2349b61541b36",
+  "runtime": {
+    "isolated": true,
+    "numpy_file": "/root/.clearml/venvs-builds/code/rbf-v2v4real-isolated-rranskj4/venv/lib/python3.12/site-packages/numpy/__init__.py",
+    "numpy_version": "1.26.4",
+    "python_prefix": "/root/.clearml/venvs-builds/code/rbf-v2v4real-isolated-rranskj4/venv",
+    "versions": {
+      "PyYAML": "6.0.2",
+      "cumm-cu126": "0.7.11",
+      "numpy": "1.26.4",
+      "open3d": "0.19.0",
+      "scipy": "1.14.1",
+      "shapely": "2.0.7",
+      "spconv-cu126": "2.3.8"
+    }
+  },
+  "report": {
+    "base_watched_versions": {
+      "PyYAML": "6.0.3",
+      "numpy": "2.4.2",
+      "scipy": "1.17.0",
+      "torch": "2.10.0"
+    },
+    "base_watched_versions_unchanged": true,
+    "checkpoint_loaded": false,
+    "container_system_dependencies": [
+      "libgl1"
+    ],
+    "cuda": "12.8",
+    "dataset_read": false,
+    "ddp_verified": false,
+    "detector_forward_verified": true,
+    "devices": [
+      {
+        "elapsed_seconds": 0.7934225309873,
+        "head_sha256": {
+          "psm": "32002ab11144eccbe249fccb49f75ac76d0fc2a28b4b3dd8ad739d464ff16486",
+          "rm": "dced72ef5bbafb64935571be26db830fa15c70f09ae0d149f6373a33a398f70c"
+        },
+        "head_shapes": {
+          "psm": [
+            1,
+            2,
+            50,
+            88
+          ],
+          "rm": [
+            1,
+            14,
+            50,
+            88
+          ]
+        },
+        "index": 0,
+        "max_abs_difference_to_first": {
+          "psm": 0,
+          "rm": 0
+        },
+        "name": "NVIDIA A100-PCIE-40GB",
+        "parameter_count": 8057360
+      },
+      {
+        "elapsed_seconds": 0.1093076309771277,
+        "head_sha256": {
+          "psm": "32002ab11144eccbe249fccb49f75ac76d0fc2a28b4b3dd8ad739d464ff16486",
+          "rm": "dced72ef5bbafb64935571be26db830fa15c70f09ae0d149f6373a33a398f70c"
+        },
+        "head_shapes": {
+          "psm": [
+            1,
+            2,
+            50,
+            88
+          ],
+          "rm": [
+            1,
+            14,
+            50,
+            88
+          ]
+        },
+        "index": 1,
+        "max_abs_difference_to_first": {
+          "psm": 0,
+          "rm": 0
+        },
+        "name": "NVIDIA A100-PCIE-40GB",
+        "parameter_count": 8057360
+      },
+      {
+        "elapsed_seconds": 0.11505562404636294,
+        "head_sha256": {
+          "psm": "32002ab11144eccbe249fccb49f75ac76d0fc2a28b4b3dd8ad739d464ff16486",
+          "rm": "dced72ef5bbafb64935571be26db830fa15c70f09ae0d149f6373a33a398f70c"
+        },
+        "head_shapes": {
+          "psm": [
+            1,
+            2,
+            50,
+            88
+          ],
+          "rm": [
+            1,
+            14,
+            50,
+            88
+          ]
+        },
+        "index": 2,
+        "max_abs_difference_to_first": {
+          "psm": 0,
+          "rm": 0
+        },
+        "name": "NVIDIA A100-PCIE-40GB",
+        "parameter_count": 8057360
+      },
+      {
+        "elapsed_seconds": 0.11056940298294649,
+        "head_sha256": {
+          "psm": "32002ab11144eccbe249fccb49f75ac76d0fc2a28b4b3dd8ad739d464ff16486",
+          "rm": "dced72ef5bbafb64935571be26db830fa15c70f09ae0d149f6373a33a398f70c"
+        },
+        "head_shapes": {
+          "psm": [
+            1,
+            2,
+            50,
+            88
+          ],
+          "rm": [
+            1,
+            14,
+            50,
+            88
+          ]
+        },
+        "index": 3,
+        "max_abs_difference_to_first": {
+          "psm": 0,
+          "rm": 0
+        },
+        "name": "NVIDIA A100-PCIE-40GB",
+        "parameter_count": 8057360
+      }
+    ],
+    "direct_requirements": [
+      "numpy==1.26.4",
+      "scipy==1.14.1",
+      "PyYAML==6.0.2",
+      "spconv-cu126==2.3.8",
+      "cumm-cu126==0.7.11",
+      "open3d==0.19.0",
+      "shapely==2.0.7"
+    ],
+    "full_detection_pipeline_verified": false,
+    "installed_distributions": {
+      "Brotli": "1.2.0",
+      "ConfigArgParse": "1.7.7",
+      "Flask": "3.1.3",
+      "GitPython": "3.1.46",
+      "Jinja2": "3.1.6",
+      "Markdown": "3.10.2",
+      "MarkupSafe": "3.0.3",
+      "PyJWT": "2.12.1",
+      "PySocks": "1.7.1",
+      "PyYAML": "6.0.2",
+      "Pygments": "2.19.2",
+      "Werkzeug": "3.1.7",
+      "absl-py": "2.4.0",
+      "addict": "2.4.0",
+      "aiohappyeyeballs": "2.6.1",
+      "aiohttp": "3.13.3",
+      "aiohttp-retry": "2.9.1",
+      "aiosignal": "1.4.0",
+      "amqp": "5.3.1",
+      "annotated-doc": "0.0.4",
+      "annotated-types": "0.7.0",
+      "antlr4-python3-runtime": "4.9.3",
+      "appdirs": "1.4.4",
+      "archspec": "0.2.5",
+      "asttokens": "3.0.2",
+      "asyncssh": "2.22.0",
+      "atpublic": "7.0.0",
+      "attrs": "25.4.0",
+      "bcrypt": "5.0.0",
+      "billiard": "4.2.4",
+      "blinker": "1.9.0",
+      "boltons": "25.0.0",
+      "boto3": "1.42.74",
+      "botocore": "1.42.74",
+      "ccimport": "0.4.4",
+      "celery": "5.6.2",
+      "certifi": "2025.11.12",
+      "cffi": "2.0.0",
+      "charset-normalizer": "3.4.4",
+      "clearml": "2.1.4",
+      "clearml-agent": "3.0.3",
+      "click": "8.3.1",
+      "click-didyoumean": "0.3.1",
+      "click-plugins": "1.1.1.2",
+      "click-repl": "0.3.0",
+      "cloudpickle": "3.1.2",
+      "colorama": "0.4.6",
+      "comm": "0.2.3",
+      "conda": "25.11.0",
+      "conda-libmamba-solver": "25.11.0",
+      "conda-package-handling": "2.4.0",
+      "conda_package_streaming": "0.12.0",
+      "configobj": "5.0.9",
+      "contourpy": "1.3.3",
+      "cryptography": "46.0.5",
+      "cuda-bindings": "12.9.4",
+      "cuda-pathfinder": "1.3.3",
+      "cumm-cu126": "0.7.11",
+      "cycler": "0.12.1",
+      "dash": "4.4.1",
+      "dictdiffer": "0.9.0",
+      "diskcache": "5.6.3",
+      "distlib": "0.4.0",
+      "distro": "1.9.0",
+      "dpath": "2.2.0",
+      "dulwich": "1.1.0",
+      "dvc": "3.66.1",
+      "dvc-data": "3.18.2",
+      "dvc-http": "2.32.0",
+      "dvc-objects": "5.2.0",
+      "dvc-render": "1.0.2",
+      "dvc-ssh": "4.2.2",
+      "dvc-studio-client": "0.22.0",
+      "dvc-task": "0.40.2",
+      "entrypoints": "0.4",
+      "executing": "2.2.1",
+      "fastjsonschema": "2.22.2",
+      "filelock": "3.25.2",
+      "fire": "0.7.1",
+      "flatbuffers": "25.12.19",
+      "flatten-dict": "0.4.2",
+      "flufl.lock": "9.0.0",
+      "fonttools": "4.61.1",
+      "frozendict": "2.4.7",
+      "frozenlist": "1.8.0",
+      "fsspec": "2026.2.0",
+      "funcy": "2.0",
+      "furl": "2.1.4",
+      "gitdb": "4.0.12",
+      "grandalf": "0.8",
+      "grpcio": "1.78.0",
+      "gto": "1.9.0",
+      "h2": "4.3.0",
+      "hpack": "4.1.0",
+      "hydra-core": "1.3.2",
+      "hyperframe": "6.1.0",
+      "idna": "3.11",
+      "importlib_metadata": "9.0.1",
+      "ipython": "9.17.1",
+      "ipython_pygments_lexers": "1.1.1",
+      "ipywidgets": "8.1.9",
+      "iterative-telemetry": "0.0.10",
+      "itsdangerous": "2.2.0",
+      "janus": "2.0.0",
+      "jedi": "0.20.0",
+      "jmespath": "1.1.0",
+      "joblib": "1.6.0",
+      "jsonpatch": "1.33",
+      "jsonpointer": "3.0.0",
+      "jsonschema": "4.26.0",
+      "jsonschema-specifications": "2025.9.1",
+      "jupyter_core": "5.9.1",
+      "jupyterlab_widgets": "3.0.17",
+      "kiwisolver": "1.4.9",
+      "kombu": "5.6.2",
+      "lark": "1.3.1",
+      "libmambapy": "2.4.0",
+      "markdown-it-py": "4.0.0",
+      "matplotlib": "3.10.8",
+      "matplotlib-inline": "0.2.2",
+      "mdurl": "0.1.2",
+      "menuinst": "2.4.1",
+      "ml_dtypes": "0.5.4",
+      "mpmath": "1.3.0",
+      "msgpack": "1.1.2",
+      "multidict": "6.7.1",
+      "narwhals": "2.26.0",
+      "nbformat": "5.11.1",
+      "nest-asyncio": "1.6.0",
+      "networkx": "3.6.1",
+      "ninja": "1.13.2",
+      "numpy": "1.26.4",
+      "nvidia-cublas-cu12": "12.8.4.1",
+      "nvidia-cuda-cupti-cu12": "12.8.90",
+      "nvidia-cuda-nvrtc-cu12": "12.8.93",
+      "nvidia-cuda-runtime-cu12": "12.8.90",
+      "nvidia-cudnn-cu12": "9.10.2.21",
+      "nvidia-cufft-cu12": "11.3.3.83",
+      "nvidia-cufile-cu12": "1.13.1.3",
+      "nvidia-curand-cu12": "10.3.9.90",
+      "nvidia-cusolver-cu12": "11.7.3.90",
+      "nvidia-cusparse-cu12": "12.5.8.93",
+      "nvidia-cusparselt-cu12": "0.7.1",
+      "nvidia-nccl-cu12": "2.27.5",
+      "nvidia-nvjitlink-cu12": "12.8.93",
+      "nvidia-nvshmem-cu12": "3.4.5",
+      "nvidia-nvtx-cu12": "12.8.90",
+      "omegaconf": "2.3.0",
+      "onnx": "1.20.1",
+      "onnx_graphsurgeon": "0.5.8",
+      "onnxruntime": "1.24.2",
+      "onnxsim": "0.6.2",
+      "onnxslim": "0.1.86",
+      "open3d": "0.19.0",
+      "opencv-python-headless": "4.13.0.92",
+      "orderedmultidict": "1.0.2",
+      "orjson": "3.11.7",
+      "packaging": "25.0",
+      "pandas": "3.0.5",
+      "parso": "0.8.7",
+      "pathlib2": "2.3.7.post1",
+      "pathspec": "0.12.1",
+      "pccm": "0.4.16",
+      "pexpect": "4.9.0",
+      "pillow": "12.1.0",
+      "pip": "25.0.1",
+      "platformdirs": "4.5.0",
+      "plotly": "7.1.0",
+      "pluggy": "1.6.0",
+      "polars": "1.38.1",
+      "polars-runtime-32": "1.38.1",
+      "portalocker": "4.3.2",
+      "prompt_toolkit": "3.0.52",
+      "propcache": "0.4.1",
+      "protobuf": "7.34.0",
+      "psutil": "7.0.0",
+      "ptyprocess": "0.7.0",
+      "pure_eval": "0.2.4",
+      "pybind11": "3.1.0",
+      "pycosat": "0.6.6",
+      "pycparser": "2.22",
+      "pydantic": "2.12.5",
+      "pydantic-settings": "2.13.1",
+      "pydantic_core": "2.41.5",
+      "pydot": "4.0.1",
+      "pygit2": "1.19.1",
+      "pygtrie": "2.5.0",
+      "pyparsing": "3.3.2",
+      "pyquaternion": "0.9.9",
+      "python-dateutil": "2.9.0.post0",
+      "python-dotenv": "1.2.1",
+      "referencing": "0.37.0",
+      "requests": "2.32.5",
+      "retrying": "1.4.2",
+      "rich": "14.3.3",
+      "rpds-py": "0.30.0",
+      "ruamel.yaml": "0.18.16",
+      "ruamel.yaml.clib": "0.2.14",
+      "s3transfer": "0.16.0",
+      "scikit-learn": "1.9.0",
+      "scipy": "1.14.1",
+      "scmrepo": "3.6.1",
+      "semver": "3.0.4",
+      "setuptools": "80.9.0",
+      "shapely": "2.0.7",
+      "shellingham": "1.5.4",
+      "shortuuid": "1.0.13",
+      "shtab": "1.8.0",
+      "six": "1.17.0",
+      "smmap": "5.0.2",
+      "spconv-cu126": "2.3.8",
+      "sqltrie": "0.11.2",
+      "sshfs": "2025.11.0",
+      "stack-data": "0.6.3",
+      "sympy": "1.14.0",
+      "tabulate": "0.9.0",
+      "tensorboard": "2.20.0",
+      "tensorboard-data-server": "0.7.2",
+      "termcolor": "3.3.0",
+      "threadpoolctl": "3.6.0",
+      "tomlkit": "0.14.0",
+      "torch": "2.10.0",
+      "torchvision": "0.25.0",
+      "tqdm": "4.67.3",
+      "traitlets": "5.16.1",
+      "triton": "3.6.0",
+      "truststore": "0.10.3",
+      "typer": "0.24.1",
+      "typing-inspection": "0.4.2",
+      "typing_extensions": "4.15.0",
+      "tzdata": "2025.3",
+      "tzlocal": "5.3.1",
+      "ultralytics": "8.4.13",
+      "ultralytics-thop": "2.0.18",
+      "urllib3": "2.5.0",
+      "vine": "5.1.0",
+      "virtualenv": "20.39.1",
+      "voluptuous": "0.16.0",
+      "wcwidth": "0.6.0",
+      "wheel": "0.45.1",
+      "widgetsnbextension": "4.0.16",
+      "yarl": "1.22.0",
+      "zc.lockfile": "4.0",
+      "zipp": "4.1.0",
+      "zstandard": "0.25.0"
+    },
+    "kind": "v2v4real_official_pointpillar_a100_smoke_v1",
+    "official_commit": "5a821e13753bafc611f95c47bc1a306acdcb0f7c",
+    "open3d_official_wheel_sha256": "01e4590dc2209040292ebe509542fbf2bf869ea60bcd9be7a3fe77b65bad3192",
+    "original_paper_runtime_reproduced": false,
+    "package_index": "http://10.100.34.109:3141/root/pypi/+simple/",
+    "paper_eligible": false,
+    "parameter_training": false,
+    "pip_report_sha256": "2030b7fef5c1f0419703229c99ffd3cf99f10753ff2aed0d5a662f1bb88dcb7c",
+    "pip_resolution": [
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=675d61ffbfa78604709862923189bad94014bef562cc35cf61d3a07bba02a7ed",
+            "hashes": {
+              "sha256": "675d61ffbfa78604709862923189bad94014bef562cc35cf61d3a07bba02a7ed"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/675/d61ffbfa78604/numpy-1.26.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        },
+        "name": "numpy",
+        "version": "1.26.4"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=8f9ea80f2e65bdaa0b7627fb00cbeb2daf163caa015e59b7516395fe3bd1e066",
+            "hashes": {
+              "sha256": "8f9ea80f2e65bdaa0b7627fb00cbeb2daf163caa015e59b7516395fe3bd1e066"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/8f9/ea80f2e65bdaa/scipy-1.14.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        },
+        "name": "scipy",
+        "version": "1.14.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476",
+            "hashes": {
+              "sha256": "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/80b/ab7bfc6298824/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        },
+        "name": "PyYAML",
+        "version": "6.0.2"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=88002b375d33561ac956e29e00dade16cad11d0e3413630a8ef35e92ddfda6e1",
+            "hashes": {
+              "sha256": "88002b375d33561ac956e29e00dade16cad11d0e3413630a8ef35e92ddfda6e1"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/880/02b375d33561a/spconv_cu126-2.3.8-cp312-cp312-manylinux_2_28_x86_64.whl"
+        },
+        "name": "spconv-cu126",
+        "version": "2.3.8"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=569fadb2773acb1fdd49f5406352e4415407a1dedebe33e6fd7603414dee9775",
+            "hashes": {
+              "sha256": "569fadb2773acb1fdd49f5406352e4415407a1dedebe33e6fd7603414dee9775"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/569/fadb2773acb1f/cumm_cu126-0.7.11-cp312-cp312-manylinux_2_28_x86_64.whl"
+        },
+        "name": "cumm-cu126",
+        "version": "0.7.11"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=01e4590dc2209040292ebe509542fbf2bf869ea60bcd9be7a3fe77b65bad3192",
+            "hashes": {
+              "sha256": "01e4590dc2209040292ebe509542fbf2bf869ea60bcd9be7a3fe77b65bad3192"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/01e/4590dc2209040/open3d-0.19.0-cp312-cp312-manylinux_2_31_x86_64.whl"
+        },
+        "name": "open3d",
+        "version": "0.19.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=a9469f49ff873ef566864cb3516091881f217b5d231c8164f7883990eec88b73",
+            "hashes": {
+              "sha256": "a9469f49ff873ef566864cb3516091881f217b5d231c8164f7883990eec88b73"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/a94/69f49ff873ef5/shapely-2.0.7-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        },
+        "name": "shapely",
+        "version": "2.0.7"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=7c78f1258d372de787b7ebe351fb56890f2141b8643c3a45b1842b23828d5245",
+            "hashes": {
+              "sha256": "7c78f1258d372de787b7ebe351fb56890f2141b8643c3a45b1842b23828d5245"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/7c7/8f1258d372de7/ccimport-0.4.4-py3-none-any.whl"
+        },
+        "name": "ccimport",
+        "version": "0.4.4"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=72120a91b10ee4d73f9446efd5d6a4ec218086feed7b1b479d2259844d1f658f",
+            "hashes": {
+              "sha256": "72120a91b10ee4d73f9446efd5d6a4ec218086feed7b1b479d2259844d1f658f"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/721/20a91b10ee4d7/dash-4.4.1-py3-none-any.whl"
+        },
+        "name": "dash",
+        "version": "4.4.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c",
+            "hashes": {
+              "sha256": "f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/f4b/cbefc12429192/flask-3.1.3-py3-none-any.whl"
+        },
+        "name": "Flask",
+        "version": "3.1.3"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=f2b8cbcaae10252b809fbe4d7470db75c09b769a32cbf816d20e5ca6d3c5a79d",
+            "hashes": {
+              "sha256": "f2b8cbcaae10252b809fbe4d7470db75c09b769a32cbf816d20e5ca6d3c5a79d"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/f2b/8cbcaae10252b/ipywidgets-8.1.9-py3-none-any.whl"
+        },
+        "name": "ipywidgets",
+        "version": "8.1.9"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=cc6698fa75f4fab8755ead786317815f13a6fee3b53311c0abb1a8b51d52f7ec",
+            "hashes": {
+              "sha256": "cc6698fa75f4fab8755ead786317815f13a6fee3b53311c0abb1a8b51d52f7ec"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/cc6/698fa75f4fab8/nbformat-5.11.1-py3-none-any.whl"
+        },
+        "name": "nbformat",
+        "version": "5.11.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=d373ce03ffd84010ed9839fa73672a9c8256990532e158440c0085db7d914b34",
+            "hashes": {
+              "sha256": "d373ce03ffd84010ed9839fa73672a9c8256990532e158440c0085db7d914b34"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/d37/3ce03ffd84010/pandas-3.0.5-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
+        },
+        "name": "pandas",
+        "version": "3.0.5"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=97e97c341c50c40965bb8f9a8a1ad201868d64e8baa06f9581bedeb3bc223eec",
+            "hashes": {
+              "sha256": "97e97c341c50c40965bb8f9a8a1ad201868d64e8baa06f9581bedeb3bc223eec"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/97e/97c341c50c409/pccm-0.4.16-py3-none-any.whl"
+        },
+        "name": "pccm",
+        "version": "0.4.16"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=b8488090f8acffbcb6b5d6a85571a6827a0a2981ffb75e5a0b27b87c4a6b7dd0",
+            "hashes": {
+              "sha256": "b8488090f8acffbcb6b5d6a85571a6827a0a2981ffb75e5a0b27b87c4a6b7dd0"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/b84/88090f8acffbc/pybind11-3.1.0-py3-none-any.whl"
+        },
+        "name": "pybind11",
+        "version": "3.1.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=056c92bb67ad4c28463c2f2653d9701449201e7e7a9e94e321be0f71c4fef2b8",
+            "hashes": {
+              "sha256": "056c92bb67ad4c28463c2f2653d9701449201e7e7a9e94e321be0f71c4fef2b8"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/056/c92bb67ad4c28/scikit_learn-1.9.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+        },
+        "name": "scikit-learn",
+        "version": "1.9.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=249bb56bbfd3cdc2a004ea0ff4c2b6ddc84d53bc2194761636eb314d5cfa5dfc",
+            "hashes": {
+              "sha256": "249bb56bbfd3cdc2a004ea0ff4c2b6ddc84d53bc2194761636eb314d5cfa5dfc"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/249/bb56bbfd3cdc2/addict-2.4.0-py3-none-any.whl"
+        },
+        "name": "addict",
+        "version": "2.4.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=61107bb1de0b53c4eb7a475a12de6783b0dc6c51bc9859f5accbe97d66f8a4b7",
+            "hashes": {
+              "sha256": "61107bb1de0b53c4eb7a475a12de6783b0dc6c51bc9859f5accbe97d66f8a4b7"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/611/07bb1de0b53c4/configargparse-1.7.7-py3-none-any.whl"
+        },
+        "name": "ConfigArgParse",
+        "version": "1.7.7"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=e43fd8a5033a9001e7e2973bab96070694b9f12f2e0ecf96d4683971b5ab1882",
+            "hashes": {
+              "sha256": "e43fd8a5033a9001e7e2973bab96070694b9f12f2e0ecf96d4683971b5ab1882"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/e43/fd8a5033a9001/fire-0.7.1-py3-none-any.whl"
+        },
+        "name": "fire",
+        "version": "0.7.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=e65f6e3f7b1fdf1a9e23f82434334a1ae84f14223eee835190cd2e841f8172ec",
+            "hashes": {
+              "sha256": "e65f6e3f7b1fdf1a9e23f82434334a1ae84f14223eee835190cd2e841f8172ec"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/e65/f6e3f7b1fdf1a/pyquaternion-0.9.9-py3-none-any.whl"
+        },
+        "name": "pyquaternion",
+        "version": "0.9.9"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc",
+            "hashes": {
+              "sha256": "ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/ba0/efaa9080b619f/blinker-1.9.0-py3-none-any.whl"
+        },
+        "name": "blinker",
+        "version": "1.9.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=c615d91d75f7f04f095b30d1c1711babd43bdc6419c1be9886a85f2f4e489417",
+            "hashes": {
+              "sha256": "c615d91d75f7f04f095b30d1c1711babd43bdc6419c1be9886a85f2f4e489417"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/c61/5d91d75f7f04f/comm-0.2.3-py3-none-any.whl"
+        },
+        "name": "comm",
+        "version": "0.2.3"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=0fb3915616adac85ccfdd737d26be1089845d2019819505b42d39888458f74d4",
+            "hashes": {
+              "sha256": "0fb3915616adac85ccfdd737d26be1089845d2019819505b42d39888458f74d4"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/0fb/3915616adac85/fastjsonschema-2.22.2-py3-none-any.whl"
+        },
+        "name": "fastjsonschema",
+        "version": "2.22.2"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=6d1645743cfd1a07eb695d85aa2b5fa66721f8cbae9431d4049f7084bbf06509",
+            "hashes": {
+              "sha256": "6d1645743cfd1a07eb695d85aa2b5fa66721f8cbae9431d4049f7084bbf06509"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/6d1/645743cfd1a07/ipython-9.17.1-py3-none-any.whl"
+        },
+        "name": "ipython",
+        "version": "9.17.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef",
+            "hashes": {
+              "sha256": "c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/c62/42fc49e35958c/itsdangerous-2.2.0-py3-none-any.whl"
+        },
+        "name": "itsdangerous",
+        "version": "2.2.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=7e6449d34eab04cd016befbd7d8c0d8acaaaab67cb59e076a69149f9031745f9",
+            "hashes": {
+              "sha256": "7e6449d34eab04cd016befbd7d8c0d8acaaaab67cb59e076a69149f9031745f9"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/7e6/449d34eab04cd/janus-2.0.0-py3-none-any.whl"
+        },
+        "name": "janus",
+        "version": "2.0.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=3dbbf9f6e4b592a2357b854608e980fe6390d131d7a82f011a377ef2ebef7aba",
+            "hashes": {
+              "sha256": "3dbbf9f6e4b592a2357b854608e980fe6390d131d7a82f011a377ef2ebef7aba"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/3db/bf9f6e4b592a2/joblib-1.6.0-py3-none-any.whl"
+        },
+        "name": "joblib",
+        "version": "1.6.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=ebf87fdc6073d142e114c72c9e29a9d7ca03fad818c5d300ce2adc1fb0743407",
+            "hashes": {
+              "sha256": "ebf87fdc6073d142e114c72c9e29a9d7ca03fad818c5d300ce2adc1fb0743407"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/ebf/87fdc6073d142/jupyter_core-5.9.1-py3-none-any.whl"
+        },
+        "name": "jupyter_core",
+        "version": "5.9.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=40ac1e9955acf116c4d995d9bfa082d86ad9ec6d91c4f134827cf5e0a5eb75e0",
+            "hashes": {
+              "sha256": "40ac1e9955acf116c4d995d9bfa082d86ad9ec6d91c4f134827cf5e0a5eb75e0"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/40a/c1e9955acf116/jupyterlab_widgets-3.0.17-py3-none-any.whl"
+        },
+        "name": "jupyterlab_widgets",
+        "version": "3.0.17"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=c629b661023a014c37da873b4ff58a817398d12635d3bbb2c5a03be7fe5d1e12",
+            "hashes": {
+              "sha256": "c629b661023a014c37da873b4ff58a817398d12635d3bbb2c5a03be7fe5d1e12"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/c62/9b661023a014c/lark-1.3.1-py3-none-any.whl"
+        },
+        "name": "lark",
+        "version": "1.3.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=29326d74f107c347fd1009bd58e38d9f7c7c5b51e6de97bc93dbc325d9038b54",
+            "hashes": {
+              "sha256": "29326d74f107c347fd1009bd58e38d9f7c7c5b51e6de97bc93dbc325d9038b54"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/293/26d74f107c347/narwhals-2.26.0-py3-none-any.whl"
+        },
+        "name": "narwhals",
+        "version": "2.26.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=dbb7fa18afce40d0a8e80d1bf162eceb3faa0ce5a77fe741ad09a74cf78f53f3",
+            "hashes": {
+              "sha256": "dbb7fa18afce40d0a8e80d1bf162eceb3faa0ce5a77fe741ad09a74cf78f53f3"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/dbb/7fa18afce40d0/plotly-7.1.0-py3-none-any.whl"
+        },
+        "name": "plotly",
+        "version": "7.1.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=42f0362e7343af78b25eb095c0cde300e746a0ab6647a835cc30764918490c93",
+            "hashes": {
+              "sha256": "42f0362e7343af78b25eb095c0cde300e746a0ab6647a835cc30764918490c93"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/42f/0362e7343af78/portalocker-4.3.2-py3-none-any.whl"
+        },
+        "name": "portalocker",
+        "version": "4.3.2"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb",
+            "hashes": {
+              "sha256": "43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/43a/0b8fd5a292850/threadpoolctl-3.6.0-py3-none-any.whl"
+        },
+        "name": "threadpoolctl",
+        "version": "3.6.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=f775618166caa0396c8e337099240f2bd3e5e917d203b2e6fbe21a58d3cb1f6b",
+            "hashes": {
+              "sha256": "f775618166caa0396c8e337099240f2bd3e5e917d203b2e6fbe21a58d3cb1f6b"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/f77/5618166caa039/traitlets-5.16.1-py3-none-any.whl"
+        },
+        "name": "traitlets",
+        "version": "5.16.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=a31a8774885b96fe825462f5d6496166f0c7cae111195b6465c801d230eb5a4e",
+            "hashes": {
+              "sha256": "a31a8774885b96fe825462f5d6496166f0c7cae111195b6465c801d230eb5a4e"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/a31/a8774885b96fe/widgetsnbextension-4.0.16-py3-none-any.whl"
+        },
+        "name": "widgetsnbextension",
+        "version": "4.0.16"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=bba5600596a7e21f3eef53281cf28d6a5195634d2f2b78ff9501a3272c6eaab0",
+            "hashes": {
+              "sha256": "bba5600596a7e21f3eef53281cf28d6a5195634d2f2b78ff9501a3272c6eaab0"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/bba/5600596a7e21f/importlib_metadata-9.0.1-py3-none-any.whl"
+        },
+        "name": "importlib_metadata",
+        "version": "9.0.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c",
+            "hashes": {
+              "sha256": "87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/87a/f6efd6b5e897c/nest_asyncio-1.6.0-py3-none-any.whl"
+        },
+        "name": "nest-asyncio",
+        "version": "1.6.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=65a24341b5ac09fcadcc37082660be40a94174e51a937fabf6e2cae26225fa2c",
+            "hashes": {
+              "sha256": "65a24341b5ac09fcadcc37082660be40a94174e51a937fabf6e2cae26225fa2c"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/65a/24341b5ac09fc/ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
+        },
+        "name": "ninja",
+        "version": "1.13.2"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=bbc004aeb542a74f3569aeddf42a2516efefcdaff90df0eb38fbfbf19f179f59",
+            "hashes": {
+              "sha256": "bbc004aeb542a74f3569aeddf42a2516efefcdaff90df0eb38fbfbf19f179f59"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/bbc/004aeb542a74f/retrying-1.4.2-py3-none-any.whl"
+        },
+        "name": "retrying",
+        "version": "1.4.2"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=cf642efadaf0a8ebbbf4bc7a31cec2f9b5f21a9f726f4ccbb08192c9c26f43a5",
+            "hashes": {
+              "sha256": "cf642efadaf0a8ebbbf4bc7a31cec2f9b5f21a9f726f4ccbb08192c9c26f43a5"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/cf6/42efadaf0a8eb/termcolor-3.3.0-py3-none-any.whl"
+        },
+        "name": "termcolor",
+        "version": "3.3.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a",
+            "hashes": {
+              "sha256": "9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/9ac/b47f6afd73f60/cloudpickle-3.1.2-py3-none-any.whl"
+        },
+        "name": "cloudpickle",
+        "version": "3.1.2"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=a9462224a505ade19a605f71f8fa63c2048833ce50abc86768a0d81d876dc81c",
+            "hashes": {
+              "sha256": "a9462224a505ade19a605f71f8fa63c2048833ce50abc86768a0d81d876dc81c"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/a94/62224a505ade1/ipython_pygments_lexers-1.1.1-py3-none-any.whl"
+        },
+        "name": "ipython_pygments_lexers",
+        "version": "1.1.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=7bdd9c2634f56713299976f4cbd59cb3fa92165cc5e05ea811fb253480728b67",
+            "hashes": {
+              "sha256": "7bdd9c2634f56713299976f4cbd59cb3fa92165cc5e05ea811fb253480728b67"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/7bd/d9c2634f56713/jedi-0.20.0-py2.py3-none-any.whl"
+        },
+        "name": "jedi",
+        "version": "0.20.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=3c821cf1c209f59fb2d2d64abbf5b23b67bcb2210d663f9918dd851c6da1fcf6",
+            "hashes": {
+              "sha256": "3c821cf1c209f59fb2d2d64abbf5b23b67bcb2210d663f9918dd851c6da1fcf6"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/3c8/21cf1c209f59f/matplotlib_inline-0.2.2-py3-none-any.whl"
+        },
+        "name": "matplotlib-inline",
+        "version": "0.2.2"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523",
+            "hashes": {
+              "sha256": "7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/723/6d1e080e4936b/pexpect-4.9.0-py2.py3-none-any.whl"
+        },
+        "name": "pexpect",
+        "version": "4.9.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695",
+            "hashes": {
+              "sha256": "d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/d55/58e0c25a4cb08/stack_data-0.6.3-py3-none-any.whl"
+        },
+        "name": "stack-data",
+        "version": "0.6.3"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=25ad4e16390cd314347dd8f1de67a2ac538ae658ed4ab9db16029c07c188e97f",
+            "hashes": {
+              "sha256": "25ad4e16390cd314347dd8f1de67a2ac538ae658ed4ab9db16029c07c188e97f"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/25a/d4e16390cd314/zipp-4.1.0-py3-none-any.whl"
+        },
+        "name": "zipp",
+        "version": "4.1.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=9da13157f5b28becde0bd374fc677dcd3c290614264eff096f167c469cd9f933",
+            "hashes": {
+              "sha256": "9da13157f5b28becde0bd374fc677dcd3c290614264eff096f167c469cd9f933"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/9da/13157f5b28bec/asttokens-3.0.2-py3-none-any.whl"
+        },
+        "name": "asttokens",
+        "version": "3.0.2"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017",
+            "hashes": {
+              "sha256": "760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/760/643d3452b4d77/executing-2.2.1-py2.py3-none-any.whl"
+        },
+        "name": "executing",
+        "version": "2.2.1"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=a8926eb2a1b915486941fdbd31e86a4baf88fe8c210f25f2f35ecec5b574ca1c",
+            "hashes": {
+              "sha256": "a8926eb2a1b915486941fdbd31e86a4baf88fe8c210f25f2f35ecec5b574ca1c"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/a89/26eb2a1b91548/parso-0.8.7-py2.py3-none-any.whl"
+        },
+        "name": "parso",
+        "version": "0.8.7"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35",
+            "hashes": {
+              "sha256": "4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/4b4/1f3967fce3af5/ptyprocess-0.7.0-py2.py3-none-any.whl"
+        },
+        "name": "ptyprocess",
+        "version": "0.7.0"
+      },
+      {
+        "download_info": {
+          "archive_info": {
+            "hash": "sha256=96cae060a313cfaad51bb761278bfb0e62dc0248d9315a81173752dc546cd37a",
+            "hashes": {
+              "sha256": "96cae060a313cfaad51bb761278bfb0e62dc0248d9315a81173752dc546cd37a"
+            }
+          },
+          "url": "http://10.100.34.109:3141/root/pypi/%2Bf/96c/ae060a313cfaa/pure_eval-0.2.4-py3-none-any.whl"
+        },
+        "name": "pure_eval",
+        "version": "0.2.4"
+      }
+    ],
+    "python": "3.12.12",
+    "random_weight_seed": 1337,
+    "random_weights": true,
+    "rotated_nms_keep": [
+      0,
+      2
+    ],
+    "source_edits": false,
+    "source_pins": {
+      "LICENSE": "054296a83ccba3cb068644f6258191112a72387d3edaeda7743f13bb2469ebd8",
+      "opencood/data_utils/pre_processor/base_preprocessor.py": "1234e467c3dc16d7712fd414291024262b04fb6e7ddaf174f1be94d2529761a2",
+      "opencood/data_utils/pre_processor/sp_voxel_preprocessor.py": "2b9a20da2138d3fc2c37fb98900ebbdc31739fc8b39135162532ef4e64b974d0",
+      "opencood/hypes_yaml/point_pillar_late_fusion.yaml": "138c4ad3508fdd7061f5b290c83ad8f0772fea33f0af0e2be56330423a3c92d1",
+      "opencood/hypes_yaml/yaml_utils.py": "2321d582a737659c4642c96a73f13b06678134ad136519959ec6292670213b6e",
+      "opencood/models/point_pillar.py": "21f36cce8ed105c8a125d147534c3d85cb7d95f92a46f1e8f1041a40fb821af5",
+      "opencood/models/sub_modules/base_bev_backbone.py": "ee89f2501c83c355aea09066f5f41b509317a9f40f8b6aa2276289cf9c4c9223",
+      "opencood/models/sub_modules/downsample_conv.py": "043711a14256db94b733d04bdc8839362c09fabff4f5383041db14a71a86de09",
+      "opencood/models/sub_modules/pillar_vfe.py": "38c94b45f1c7d3e10be4c0d927a5296106667e9908660cb5e202f80f72345fdc",
+      "opencood/models/sub_modules/point_pillar_scatter.py": "43631cabbc046c1812f8e101675dd6ca825ad6bfc0e6a863291c0fe61c9d5ea9",
+      "opencood/utils/box_utils.py": "961914a1291f57e86d9a7416e7318a3e911f0de8fb98a0c4492e2a9d5785de86",
+      "opencood/utils/common_utils.py": "12d89510b0e8f2c29def3b2cf1963ae790e226fa056d8d7cc0b0f70cd9d5be21",
+      "opencood/utils/pcd_utils.py": "8d5f25b47bafab367d688deb9ba2a4251a37a6e5d4a3531e78ed8828d0cf19ab",
+      "opencood/utils/transformation_utils.py": "09a5b0f3ce37a95d9d084de2edb5ea2c72263da0cbe965344416e0cb04a89741"
+    },
+    "source_transport": "clearml-verified-bundle",
+    "torch": "2.10.0+cu128",
+    "voxel_fixture": {
+      "counts": [
+        32,
+        1,
+        1
+      ],
+      "exact_match": true,
+      "points": 37,
+      "voxels": 3
+    }
+  },
+  "independent_report_checks_passed": true,
+  "local_regression": {
+    "passed": 43,
+    "skipped": 1,
+    "skip_reason": "Optional CPU reference integration not run in minimal local test environment; real GPU report verified separately."
+  },
+  "source_worktree": "/Users/lbin/Library/CloudStorage/OneDrive-Personal/AICT/School/transvision/work_dirs/rbf-pointpillar-runtime-20260917"
+}

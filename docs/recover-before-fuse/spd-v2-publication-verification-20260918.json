@@ -1,0 +1,18 @@
+{
+  "kind": "spd_development_cache_publication_verification",
+  "task_id": "2be3904205c4493698c662f5bb6cd791",
+  "verified_task_status": "completed",
+  "verification_date": "2026-09-18",
+  "verification_method": "Independent authenticated full streaming download from ClearML; byte count and SHA-256 checked on management host; process exit 0; task reloaded after verification.",
+  "artifacts": {
+    "cache-v2": {"bytes": 3370785329, "sha256": "9e72703d7b972cc8fef40e46cc811a8e926f716b85dcb750e3b530e28493fd23"},
+    "manifest": {"bytes": 6580499, "sha256": "c2bcf4052f33e801d0c379f5582a8b02a7c1a9901f3e5a26def66faf733466a6"},
+    "readback": {"bytes": 389, "sha256": "d12fea4d4972c41677a884cacd33e995611d361d979b0c19f1b95c72e36d7018"}
+  },
+  "calibration_sha256": "9e6c73af77142604bda1962d92460ba4a412262e9b5128f602d69638f7e136b0",
+  "worker_full_payload_readback": {"frames": 16338, "detections": 14704200, "sequences": 46, "all_payloads_rehashed": true, "exact_input_cohort_verified": true, "gt_in_cache": false},
+  "independent_supervision_precheck": {"audit_sha256": "96443d50d74a49d98df6828eb550c3d2086ec0b6bbd625c2f1b8707aeadc2880", "cooperative_pairs": 7445, "label_files_rehashed": 7445, "sequences": 46},
+  "identity_training_completed_with_this_cache": false,
+  "paper_performance_evidence": false,
+  "scope": "Seed1337 SPD development cache publication only. Does not establish held-out tracking performance, all-seed completion or full paper completion."
+}

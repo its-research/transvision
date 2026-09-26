@@ -1,0 +1,25 @@
+{
+  "kind": "clearml_runtime_readback_observation",
+  "task_id": "2be3904205c4493698c662f5bb6cd791",
+  "observed_task_last_update_utc": "2026-09-17T23:08:41.497000+00:00",
+  "observed_task_status": "in_progress",
+  "evidence_source": "ClearML reported console EVENTTRACK_DETECTION_CACHE_V2",
+  "worker_readback": {
+    "kind": "detection_cache_v2_full_readback",
+    "manifest_sha256": "c2bcf4052f33e801d0c379f5582a8b02a7c1a9901f3e5a26def66faf733466a6",
+    "frames": 16338,
+    "detections": 14704200,
+    "sequences": 46,
+    "source_frame_counts": {"infrastructure-side": 7834, "vehicle-side": 8504},
+    "appearance_valid": 5513661,
+    "all_payloads_rehashed": true,
+    "exact_input_cohort_verified": true,
+    "gt_in_cache": false,
+    "test_payloads_read": false
+  },
+  "published_artifacts_at_observation": [],
+  "published_cache_independently_verified": false,
+  "experiment_complete": false,
+  "paper_performance_evidence": false,
+  "next_gate": "Verify completed task and independently read published manifest, readback receipt and full cache archive before downstream training."
+}

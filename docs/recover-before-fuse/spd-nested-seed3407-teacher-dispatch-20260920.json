@@ -1,0 +1,17 @@
+{
+  "kind": "spd_nested_teacher_dispatch_v1",
+  "observed_at_utc": "2026-09-20T05:49:00Z",
+  "seed": 3407,
+  "task_id": "07de4f0f0e5a46139db66f18137b8efa",
+  "status_at_dispatch": "queued",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "identity_task_id": "dabafc1bbeb544b3bca2cbdf4d207b4c",
+  "identity_archive_sha256": "17c095e3bea872b921435687c51fe95c0432e6c76080f2007040965ffffcfca8",
+  "identity_checkpoint_sha256": "bd5f6a84b80c5c677c6814f0189d85ee292728a5425bfa2db94f410fd0902a54",
+  "cache_task_id": "4ec0ff6acc254481965bf09df371d912",
+  "cache_archive_sha256": "993d4f7d5bdbd24ac36e7c364cd2ea1eb457bdfa50caddbe6bd1b1c06092d15d",
+  "arrival_schedule_task_id": "59dca93e538749b6ba4bedf359404596",
+  "arrival_schedule_sha256": "0fc1282ad836a616d24fa680031c84b199d805eaad6752c80255c6c2ff3df531",
+  "completion_verified": false,
+  "paper_performance_evidence": false
+}

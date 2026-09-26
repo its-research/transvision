@@ -1,0 +1,92 @@
+{
+  "kind": "v2v4real_formal_projection_dispatch_receipt_v1",
+  "observed_at_utc": "2026-09-20T05:47:00Z",
+  "protocol_id": "v2v4real-nominal-10hz-formal-v1",
+  "split": "train",
+  "clock": {
+    "nominal_rate_hz": 10,
+    "measured": false,
+    "communication_delay_kind": "artificially_injected"
+  },
+  "source_publication": {
+    "task_id": "93f42e6fc3d34780b7488915cb6fb8a7",
+    "status": "completed",
+    "artifact": "source",
+    "sha256": "25a63d96f67096f9567cc54534e33f2956dc88dfe437b990181e26675f0fb98e",
+    "full_stream_readback_verified": true
+  },
+  "projection_task": {
+    "task_id": "72599160425d47ca9b7e8916bbb77b42",
+    "queue_id": "8d0f8b54037249eeb0f1cc70cbfe73ab",
+    "observed_status": "completed",
+    "worker": "10.100.35.121-L40S:gpu3,4,5",
+    "completion_verified": true,
+    "artifacts": {
+      "projection": {"bytes": 11660562518, "sha256": "2a022771710632db4d1011ded447fd6677e241bdff7c51e4f6d572a0c18523d5"},
+      "projection-manifest": {"bytes": 2068, "sha256": "a536855c2dc267f24d51ef2ddc8a9a181fb087ff5aedbc0db03dd9bd72775ba4"},
+      "split-admission": {"bytes": 2062, "sha256": "790e150ea1c05419c8ba5f36c7d31bf4bced09e803e2435c27c51ae97604a3f1"},
+      "publication-receipt": {"bytes": 2402881, "sha256": "8f0b06153602aa2f8d8ee729b7ae7ba873a3e5b44de6362e7dcf5bbd44ad8c41"}
+    },
+    "producer_full_stream_readback_verified": true,
+    "small_artifacts_independent_stream_readback_verified": true
+  },
+  "superseded_before_start": {
+    "task_id": "a3fa6ec8d6c842338dcea46501ba5c19",
+    "final_observed_status": "created",
+    "removed_from_queue": true,
+    "artifacts": 0,
+    "reason": "CPU/storage projection moved off A100; preserve A100 for DDP"
+  },
+  "failed_attempts": [
+    {
+      "task_id": "c6799a6c7abe4697876abc8aa61f839e",
+      "status": "failed",
+      "failure": "ClearML cache filename differed from exact official release filename",
+      "raw_assets_modified": false,
+      "artifacts_published": 0
+    },
+    {
+      "task_id": "4a2a4745019f41c499d38e320310d019",
+      "status": "failed",
+      "failure": "legacy frozen train_04 catalog record omitted the release filename",
+      "raw_assets_modified": false,
+      "artifacts_published": 0
+    },
+    {
+      "task_id": "6e42e9e3059f47f089acb522388ff201",
+      "status": "failed",
+      "failure": "initial strict legacy train_04 compatibility binding used an incorrect full SHA256",
+      "raw_assets_modified": false,
+      "artifacts_published": 0
+    },
+    {
+      "task_id": "578e89ba3d964064ad495a8913fad628",
+      "status": "failed",
+      "failure": "all eight train volumes passed full SHA256 verification, then the projection source bundle lacked v2v4real_numpy_yaml.py",
+      "raw_assets_modified": false,
+      "artifacts_published": 0
+    }
+  ],
+  "input_contract": {
+    "catalog_task_id": "14675561902041d7ab77fa2adbf2aeb0",
+    "catalog_sha256": "73bfa37d664ae0842368b5327be077627f06e1934530390b8a6571d77676f01d",
+    "official_train_volumes": 8,
+    "overlap_task_id": "00d61a24eae543679d9f2ef85882a420",
+    "overlap_sha256": "6eb4ae8cc2d86b01d542a656eb0c380cc126c42d20e5688eef50c41d449cc260",
+    "known_identical_cross_split_pcds": 294,
+    "official_original_split_preserved": true,
+    "statistical_independence_claimed": false,
+    "gt_in_published_projection": false
+  },
+  "software_validation": {
+    "focused_tests_passed": 14,
+    "py_compile_passed": true,
+    "diff_check_passed": true
+  },
+  "resource_gate": {
+    "minimum_worker_free_bytes": 107374182400,
+    "management_host_materialization": false
+  },
+  "formal_projection_completed": true,
+  "paper_performance_claimed": false
+}

@@ -1,0 +1,106 @@
+{
+  "kind": "recover_before_fuse_hardware_separation_dispatch_v1",
+  "observed_at_utc": "2026-09-20T14:23:38Z",
+  "policy": {
+    "cpu_tasks": "L40S workers only",
+    "gpu_parameter_training": "A100 workers, plus exactly the next independently parallel seed3407 task on one four-RTX-5090 worker"
+  },
+  "teacher_source": {
+    "task_id": "135c9562d9fa44cd86573b60ec94ceb1",
+    "sha256": "001e27e9ec74f2d278f07a72d8d2d9182086110d585b265ccfb4a56750149cf4",
+    "regression_sha256": "54649893e89cdc6c886d51ac2533941541803c7e492ef6234210012c62deefb9",
+    "readonly_decision_bound_does_not_materialize_prefixes": true,
+    "actual_action_materialization_cap_preserved": true,
+    "capacity_exhaustion_uses_existing_active_action": true,
+    "new_action_materialization_when_capacity_exhausted": false
+  },
+  "l40s_cpu_tasks": [
+    {
+      "seed": 1337,
+      "task_id": "f759e73da21d435d94ea845c4ff33dd7",
+      "worker": "10.100.35.121-L40S:gpu0,1,2",
+      "status": "in_progress",
+      "reported_scalar_titles": []
+    },
+    {
+      "seed": 3407,
+      "task_id": "d04649c09c3640c9815b2643365b5238",
+      "worker": "10.100.35.121-L40S:gpu3,4,5",
+      "status": "in_progress",
+      "reported_scalar_titles": []
+    }
+  ],
+  "detector_source": {
+    "task_id": "17ba02e37b36460ba34b5ab26be86748",
+    "sha256": "7968e53e7ab244cc4780926e25ae33fc707c33d61f771c697c3d92a1f1b616ff",
+    "official_commit": "5a821e13753bafc611f95c47bc1a306acdcb0f7c",
+    "official_cython_extension_built_before_dataset_import": true,
+    "regression_sha256": "d66f4a4b32d7e59706afc2f426d03697a640756b3474711a51abf45043abe26d"
+  },
+  "a100_gpu_tasks": [
+    {
+      "seed": 1337,
+      "task_id": "64f21d6043654a6192f1ce0809b60c1e",
+      "worker": "10.100.34.18-A100:gpu4,5,6,7",
+      "status": "in_progress"
+    },
+    {
+      "seed": 2027,
+      "task_id": "3ba32ad9592a412a8fb4d3ec6eb15faa",
+      "worker": "10.100.34.18-A100:gpu0,1,2,3",
+      "status": "in_progress"
+    }
+  ],
+  "single_5090_gpu_task": {
+    "seed": 3407,
+    "task_id": "7c72f02af4704341aaad866f7bad8c15",
+    "worker": "10.100.34.130-5090:gpu4,5,6,7",
+    "status": "in_progress",
+    "source_task_id": "cd440bdb0ef34504965f15fd58376887",
+    "source_sha256": "7e797d124d4e5ae90cea4306558e6aa5e0396ebc89fcc1c18e3df6bce641477f",
+    "formal_train_volumes_extracted": 8,
+    "formal_train_volumes_expected": 8,
+    "ddp_training_started": true,
+    "ddp_ranks_observed": [0, 1, 2, 3],
+    "gpu_utilization_observed": true,
+    "gpu_memory_used_gb_latest": [3.912, 4.689, 6.447, 7.079]
+  },
+  "superseded_tasks_stopped": [
+    "07de4f0f0e5a46139db66f18137b8efa",
+    "1fd7ac2023434d73a00aa6535d459e5d",
+    "6c82e7c0d39b4bd7a917506ed7dbd50d",
+    "87148f9b1bf54bdf8dbbe413b9e799f3",
+    "64f0f820aa3e484bb2ee6eb132f6ebcf",
+    "fe0f1ad5f1f940268b2ea16595b491ca",
+    "d8867d29131f43a9b6a4cdd0b2eed29a",
+    "6b73c0df2a8a4373b89da29552034ab6",
+    "8ed4e269efc1425a898b3cc2de82ff82",
+    "b96ed5ac5f92439f98e3001edaeedc61",
+    "b4a03531ecb842328feceebfe8323d6c",
+    "1203e4df882146aeb95b72d831aac81d",
+    "6590504939a4465a81a1b97f41fcae30",
+    "f0770195420941e5bed896b06e281f71"
+  ],
+  "retained_teacher_failure": {
+    "task_id": "6b73c0df2a8a4373b89da29552034ab6",
+    "reason": "read-only zero-step allocation ranking incorrectly applied the full action materialization node cap",
+    "outputs_committed": false,
+    "paper_performance_evidence": false
+  },
+  "retained_seed3407_teacher_failure": {
+    "task_id": "906faa6161c449d299b3fd53dbff014f",
+    "reason": "long history was rejected before checking whether the selected legal action was already an active materialized leaf",
+    "outputs_committed": false,
+    "paper_performance_evidence": false,
+    "replacement_task_id": "d04649c09c3640c9815b2643365b5238"
+  },
+  "retained_seed1337_teacher_failure": {
+    "task_id": "253d8cf7011f4cc8b72bd1561bd48cb2",
+    "reason": "long history was rejected before checking whether the selected legal action was already an active materialized leaf",
+    "outputs_committed": false,
+    "paper_performance_evidence": false,
+    "replacement_task_id": "f759e73da21d435d94ea845c4ff33dd7"
+  },
+  "completion_verified": false,
+  "paper_performance_evidence": false
+}

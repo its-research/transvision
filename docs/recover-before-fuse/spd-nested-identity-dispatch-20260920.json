@@ -1,0 +1,42 @@
+{
+  "kind": "spd_nested_identity_training_dispatch_v1",
+  "observed_date": "2026-09-20",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "source_freeze": {
+    "task_id": "7a7586375f1c467b91956abf3a681d21",
+    "code_sha256": "f3649c4232ac29379b3a0eb39b4965bd61d284a7a0e365e40292001da8c1547f",
+    "bootstrap_sha256": "bd2f914881fe3a09c59b1f02a4c538449d9e0cbd67811c648251fcde7c410c2a"
+  },
+  "runs": [
+    {
+      "seed": 1337,
+      "task_id": "b20f15594b6a48b68731868cc1d095f0",
+      "rows_task_id": "2486a74c9d534749b8d5834b5148ec51",
+      "rows_bytes": 213320356,
+      "rows_sha256": "e57f11c87e066a3d0e725a24cc2467a3ca0e51377c1aef1f326684c1596d96c7",
+      "manifest_sha256": "5abdb6c3e96c0f7ce52ca766d76eed3cf584c9fd7eaad5eab09e621d9d83a498",
+      "nodes": 229212,
+      "supervised_rows": 106317,
+      "status_at_receipt": "in_progress",
+      "worker": "10.100.34.18-A100:gpu0,1,2,3"
+    },
+    {
+      "seed": 2027,
+      "task_id": "f7da8e72146742f191ded68d8b57f481",
+      "rows_task_id": "2f289360fd5d4bbd8d355ea66e2af50e",
+      "rows_bytes": 210467763,
+      "rows_sha256": "1fbe9ca18d1599502ead9b74964131dcc3bc837926f03615e9e40f61d312e3f0",
+      "manifest_sha256": "7c5ae25f80fee4fa96771db4440899ad31aa52735dcfcfe9e3bc94f87e33439c",
+      "nodes": 225177,
+      "supervised_rows": 106368,
+      "status_at_receipt": "in_progress",
+      "worker": "10.100.34.18-A100:gpu4,5,6,7"
+    }
+  ],
+  "candidate_protocol": "rbf-all-class-top64-v1",
+  "split": "train",
+  "four_gpu_a100_required": true,
+  "training_complete": false,
+  "paper_performance_evidence": false,
+  "notes": "Both completed row archives were fully streamed and independently SHA-256 verified before dispatch. The visible pip resolver ERROR line is a dependency-conflict warning followed by successful row download, not a terminal task failure."
+}

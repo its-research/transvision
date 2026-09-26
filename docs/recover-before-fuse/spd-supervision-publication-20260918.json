@@ -1,0 +1,28 @@
+{
+  "kind": "spd_offline_supervision_publication_verification",
+  "task_id": "4df2ef2e0a7348119ccefe59796b9269",
+  "verified_status": "completed",
+  "verification_date": "2026-09-18",
+  "full_remote_stream_readback_verified": true,
+  "artifacts": {
+    "supervision": {"bytes": 60849802, "sha256": "247b2a5dda8649a15a6d1c707012470f0c90493b2f0aa7884a05c7a54427d3cc"},
+    "producer": {"bytes": 5615, "sha256": "497b017e819547229984f7727cd5cb6853fe3d85b426c676f2539fed3a1337cd"}
+  },
+  "dataset": "spd",
+  "split": "train",
+  "contains_gt": true,
+  "allowed_use": "offline training supervision only; never online inference inputs",
+  "frames": 16338,
+  "cooperative_pairs": 7445,
+  "exact_links": 35369,
+  "annotation_audit": {
+    "annotation_count": 224205,
+    "identity_components": 5042,
+    "ambiguous_components": 11,
+    "cross_linked_components": 814,
+    "status_counts": {"ambiguous": 2198, "matched": 222007}
+  },
+  "row_preparation_completed": false,
+  "identity_training_completed": false,
+  "paper_performance_evidence": false
+}

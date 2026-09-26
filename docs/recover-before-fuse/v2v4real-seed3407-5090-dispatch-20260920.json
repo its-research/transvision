@@ -1,0 +1,84 @@
+{
+  "kind": "v2v4real_single_next_5090_training_dispatch_v1",
+  "observed_at_utc": "2026-09-20T12:54:22Z",
+  "seed": 3407,
+  "protocol_id": "v2v4real-nominal-10hz-formal-v1",
+  "source_task_id": "cd440bdb0ef34504965f15fd58376887",
+  "source_sha256": "7e797d124d4e5ae90cea4306558e6aa5e0396ebc89fcc1c18e3df6bce641477f",
+  "training_task_id": "7c72f02af4704341aaad866f7bad8c15",
+  "queue_id": "5a84454c072349069e7b61af38637c6d",
+  "queue_name": "GPU4-5090",
+  "worker": "10.100.34.130-5090:gpu4,5,6,7",
+  "world_size": 4,
+  "status": "in_progress",
+  "runtime_gates": {
+    "worker_prefix": "10.100.34.130-5090:",
+    "exact_visible_gpu_count": 4,
+    "required_gpu_name": "RTX 5090",
+    "official_cython_extension_build": true,
+    "frozen_source_and_input_hashes": true,
+    "runtime_verified": true,
+    "gpu_assignment_verified": true,
+    "official_extensions_verified": true,
+    "formal_train_volumes_extracted": 8,
+    "formal_train_volumes_expected": 8,
+    "ddp_training_started": true,
+    "ddp_ranks_observed": [0, 1, 2, 3],
+    "gpu_utilization_observed": true,
+    "gpu_memory_used_gb_latest": [3.912, 4.689, 6.447, 7.079]
+  },
+  "superseded_a100_task": {
+    "task_id": "8ed4e269efc1425a898b3cc2de82ff82",
+    "prior_status": "queued",
+    "current_status": "stopped",
+    "artifacts": []
+  },
+  "superseded_incompatible_5090_attempt": {
+    "task_id": "b96ed5ac5f92439f98e3001edaeedc61",
+    "status": "stopped",
+    "reason": "the A100 runtime image rejected RTX 5090 before training",
+    "artifacts": []
+  },
+  "superseded_unreachable_files_attempt": {
+    "task_id": "b4a03531ecb842328feceebfe8323d6c",
+    "status": "failed",
+    "reason": "the 5090 network cannot route to 10.100.35.118:8081"
+  },
+  "authenticated_files_probe": {
+    "task_id": "fd458ba4bcf6462d849a2cd150dffb47",
+    "status": "completed",
+    "interface": "10.100.34.118:8081",
+    "bytes": 3134689,
+    "sha256": "ed74edac8a3bd00f993c2a48c11498260604c74bc78773e30aceac69d0af57ba",
+    "hash_matches_source_artifact": true
+  },
+  "superseded_missing_libgl_attempt": {
+    "task_id": "1203e4df882146aeb95b72d831aac81d",
+    "status": "failed",
+    "reason": "Open3D import failed because libGL.so.1 was absent from the default runtime library path",
+    "training_started": false
+  },
+  "readonly_libgl_inventory_probe": {
+    "task_id": "14d1896ec8c14d149d1f4f7f3cf8be6f",
+    "status": "completed",
+    "existing_mesa_lib": "/opt/nvidia/nsight-compute/2024.3.2/host/linux-desktop-glibc_2_11_3-x64/Mesa/libGL.so.1",
+    "image_modified": false
+  },
+  "superseded_hostname_rendezvous_attempt": {
+    "task_id": "6590504939a4465a81a1b97f41fcae30",
+    "status": "stopped",
+    "reason": "torchrun standalone rendezvous advertised unresolvable container hostname 509gpu",
+    "formal_train_volumes_extracted": 8,
+    "training_started": false
+  },
+  "superseded_files_auth_attempt": {
+    "task_id": "f0770195420941e5bed896b06e281f71",
+    "status": "failed",
+    "reason": "5090 task overrode the authenticated 10.100.34.118 file interface with 10.100.35.118 before the rewritten source download",
+    "training_started": false
+  },
+  "runtime_image": "gitlab.zhht.ai.com:5000/aitech/model_infer:py-3.12-cuda-12.6.2-torch-2.10-ultralytics-8.4.13-dvc-v2-onnx-clearml",
+  "other_5090_training_tasks_submitted": 0,
+  "completion_verified": false,
+  "paper_performance_evidence": false
+}

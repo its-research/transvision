@@ -1,0 +1,26 @@
+{
+  "kind": "spd_nested_raw_export_dispatch",
+  "observed_at": "2026-09-18T07:43:11.845846+00:00",
+  "task_id": "f0135c8c2fec4610907342556b835f57",
+  "status": "queued",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "queue_name": "GPU4-A100",
+  "seed": 1337,
+  "training_cohort": "nested-detector-fit",
+  "training_task_id": "f2ced9be51ef4e49a1a05dd8f4ecc3d3",
+  "collection_task_id": "bceb0a009246474dbaa176a823dbfec1",
+  "collection_sha256": "343dabda615253f5ec279c271ff6d6efdef9384268a315be29ded4ede7acd1ef",
+  "code_task_id": "c1f4f328d78e4cb89cf588003d57e5f2",
+  "code_inventory_sha256": "8f1ba63e742f1854437388a28c4eb31a80ba297100276f6b558d039e6cf9b674",
+  "bootstrap_sha256": "cce93b8156a2227461756025466a1395f4e42df909f120397891533bc84d5dde",
+  "shards": [["vehicle-side", 0], ["vehicle-side", 1], ["infrastructure-side", 0], ["infrastructure-side", 1]],
+  "intended_sequence_count": 46,
+  "recovery": "Recovered the existing created task by exact name, verified script hash and all parameters, resolved the GPU4-A100 queue and enqueued the same task using queue_id. No duplicate task created.",
+  "upstream_completed_status_rechecked": true,
+  "export_completed": false,
+  "paper_performance_evidence": false,
+  "concurrent_training_observation": {
+    "2027": {"task_id": "040a01e2ab9d4ee59f55e0e52581228f", "status": "in_progress", "latest_iteration": "7100/7488"},
+    "3407": {"task_id": "d707e30734f14c489a7609d2d5e01125", "status": "in_progress", "latest_iteration": "40/8040"}
+  }
+}

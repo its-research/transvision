@@ -1,0 +1,44 @@
+{
+  "kind": "spd_nested_seed_arrival_completion_v1",
+  "observed_at": "2026-09-20T11:48:39+08:00",
+  "seed": 3407,
+  "task": {
+    "id": "59dca93e538749b6ba4bedf359404596",
+    "status": "completed",
+    "name": "SPD zero-added-transport arrival schedule seed3407 cache 20260920"
+  },
+  "inputs": {
+    "cache_task_id": "4ec0ff6acc254481965bf09df371d912",
+    "cache_archive_sha256": "993d4f7d5bdbd24ac36e7c364cd2ea1eb457bdfa50caddbe6bd1b1c06092d15d",
+    "cache_manifest_sha256": "9b0956ec85f7fde3647e49434b1a2919f40362bfb325b129a36af0b280d574d6",
+    "official_schedule_task_id": "7a0cb79d3ff144d689b565560d1b844b",
+    "official_schedule_sha256": "66197cec03671866a0f452b5e4ea21273aadf4d5015d2d9e77169347ee4dc29f"
+  },
+  "verification": {
+    "cache_archive_bytes_streamed_and_hashed": 3115715919,
+    "metadata_payloads_verified": 16338,
+    "arrivals": 14890,
+    "measured_communication": false,
+    "added_transport_delay_us": 0,
+    "upload_full_stream_readback": true
+  },
+  "artifacts": {
+    "arrival-schedule": {
+      "bytes": 2688098,
+      "sha256": "0fc1282ad836a616d24fa680031c84b199d805eaad6752c80255c6c2ff3df531"
+    },
+    "receipt": {
+      "bytes": 765,
+      "sha256": "f1822f0abac2468e70e586cb8cfd72268aa7cdb3ebef9da2e136906bdf3b6465"
+    },
+    "source": {
+      "bytes": 13560,
+      "sha256": "6a0a10ea6d00e5da240734f5f78488c02c3c369af7d5a95d8f37599416a416c8"
+    }
+  },
+  "evidence_boundary": {
+    "formal_teacher_admitted": false,
+    "paper_performance_evidence": false,
+    "reason": "This is a label-free deterministic arrival input. Admission follows only after the matching completed identity checkpoint is bound to the teacher replay."
+  }
+}

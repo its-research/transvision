@@ -1,0 +1,467 @@
+diff --git a/tests/event_track_v2x/test_run_v2v4real_pointpillar_smoke.py b/tests/event_track_v2x/test_run_v2v4real_pointpillar_smoke.py
+index 3469a1a..bc7a610 100644
+--- a/tests/event_track_v2x/test_run_v2v4real_pointpillar_smoke.py
++++ b/tests/event_track_v2x/test_run_v2v4real_pointpillar_smoke.py
+@@ -1,8 +1,10 @@
+ from io import BytesIO
+ import hashlib
++import json
+ from pathlib import Path
+ import os
+ import sys
++import subprocess
+ from types import SimpleNamespace
+ 
+ import numpy as np
+@@ -12,6 +14,31 @@ from tools.event_track_v2x import run_v2v4real_pointpillar_smoke as smoke
+ from tools.event_track_v2x import submit_v2v4real_a100_runtime as submit
+ 
+ 
++def test_private_python_ignores_foreign_distribution_on_pythonpath(tmp_path):
++    # Reproduce a scheduler's package path overriding installed metadata.
++    metadata = tmp_path / "rbf_foreign_fixture-999.dist-info"
++    metadata.mkdir()
++    (metadata / "METADATA").write_text("Name: rbf-foreign-fixture\nVersion: 999\n")
++    env = dict(os.environ, PYTHONPATH=str(tmp_path))
++    code = "import importlib.metadata as m; print(m.version('rbf-foreign-fixture'))"
++    polluted = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
++    assert polluted.returncode == 0 and polluted.stdout.strip() == "999"
++    isolated = subprocess.run(smoke.private_python(sys.executable, "-c", code),
++                              env=env, capture_output=True, text=True)
++    assert isolated.returncode != 0 and "PackageNotFoundError" in isolated.stderr
++
++
++def test_private_python_preserves_venv_prefix_and_ignores_pythonhome(tmp_path):
++    import venv
++    root = tmp_path / "venv"
++    venv.EnvBuilder(with_pip=False, system_site_packages=True).create(root)
++    result = subprocess.run(smoke.private_python(root / "bin/python", "-c",
++                            "import sys; print(sys.prefix); print(sys.flags.isolated)"),
++                            env=dict(os.environ, PYTHONHOME=str(tmp_path / "invalid")),
++                            capture_output=True, text=True, check=True)
++    assert result.stdout.splitlines() == [str(root), "1"]
++
++
+ @pytest.mark.parametrize("count,name", [(0, "A100"), (3, "A100"), (8, "A100"), (4, "RTX 5090"), (4, "V100")])
+ def test_four_a100_gate(count, name):
+     fake = SimpleNamespace(cuda=SimpleNamespace(device_count=lambda: count, get_device_name=lambda _: name))
+@@ -59,6 +86,30 @@ def test_download_failure_does_not_leave_executable_source(tmp_path, monkeypatch
+     assert not (tmp_path / "source/module.py").exists()
+ 
+ 
++def test_source_download_retries_transport_failures_only(tmp_path, monkeypatch):
++    monkeypatch.setattr(smoke, "SOURCE_PINS", {"module.py": hashlib.sha256(b"expected").hexdigest()})
++    attempts, waits = [], []
++    def opener(*args, **kwargs):
++        attempts.append(1)
++        if len(attempts) < 3:
++            raise OSError("network unreachable")
++        return BytesIO(b"expected")
++    smoke.fetch_sources(tmp_path / "source", opener=opener, sleeper=waits.append)
++    assert waits == [1, 2] and len(attempts) == 3
++    smoke.verify_sources(tmp_path / "source")
++
++
++def test_source_download_exhaustion_leaves_no_executable(tmp_path, monkeypatch):
++    monkeypatch.setattr(smoke, "SOURCE_PINS", {"module.py": hashlib.sha256(b"expected").hexdigest()})
++    waits = []
++    def opener(*args, **kwargs):
++        raise OSError("network unreachable")
++    with pytest.raises(OSError):
++        smoke.fetch_sources(tmp_path / "source", opener=opener, sleeper=waits.append)
++    assert waits == [1, 2, 4]
++    assert not (tmp_path / "source/module.py").exists()
++
++
+ def test_download_verify_and_refuse_overwrite(tmp_path, monkeypatch):
+     monkeypatch.setattr(smoke, "SOURCE_PINS", {"opencood/model.py": hashlib.sha256(b"expected").hexdigest()})
+     output = tmp_path / "source"
+@@ -84,7 +135,8 @@ def test_arbitrary_probe_cannot_be_deployed():
+         submit.deploy(None, None, b"", "", probe_kind="arbitrary")
+ 
+ 
+-def test_pointpillar_submission_is_four_a100_no_training():
++@pytest.mark.parametrize("bundle_enabled", [False, True])
++def test_pointpillar_submission_is_four_a100_no_training(tmp_path, monkeypatch, bundle_enabled):
+     calls = {}
+     class Task:
+         TaskTypes = SimpleNamespace(testing="testing")
+@@ -96,22 +148,79 @@ def test_pointpillar_submission_is_four_a100_no_training():
+         def add_tags(self, tags): calls["tags"] = tags
+         def set_script(self, **kwargs): calls["script"] = kwargs
+         def set_packages(self, packages): calls["packages"] = packages
+-        def set_base_docker(self, image, **kwargs): calls["image"] = image
++        def upload_artifact(self, name, **kwargs):
++            assert "queue" not in calls
++            calls["artifact"] = (name, kwargs)
++            return True
++        def set_base_docker(self, image, **kwargs): calls["image"] = image; calls["docker_options"] = kwargs
+         def set_parameters(self, params): calls["parameters"] = params
+         @classmethod
+         def enqueue(cls, task, queue_name): calls["queue"] = queue_name; task.status = "queued"
+         def get_status(self): return self.status
+     source = b"fixture"
++    bundle = tmp_path / "source.json" if bundle_enabled else None
++    monkeypatch.setattr(smoke, "read_source_bundle", lambda path: calls.update(verified_bundle=path))
+     ready = lambda: [{"family": "A100", "queue": "GPU4-A100"}]
+-    result = submit.deploy(Task, ready, source, hashlib.sha256(source).hexdigest(), probe_kind="pointpillar")
++    result = submit.deploy(Task, ready, source, hashlib.sha256(source).hexdigest(),
++                           probe_kind="pointpillar", source_bundle=bundle)
++    if bundle_enabled:
++        assert calls["verified_bundle"] == bundle
++        assert calls["artifact"] == ("official-source", dict(artifact_object=bundle, wait_on_upload=True))
+     assert calls["script"]["entry_point"] == Path(smoke.__file__).name
+     assert calls["parameters"]["required_gpu_count"] == 4
+     assert calls["parameters"]["parameter_training"] is False
++    assert "apt-get install -y --no-install-recommends libgl1" in calls["docker_options"]["docker_setup_bash_script"]
++    assert calls["parameters"]["environment_changes"] == "task-container-libgl1-and-private-venv"
+     assert calls["queue"] == "GPU4-A100" and result["status"] == "queued"
+     assert result["pointpillar_smoke_submitted"] and not result["runtime_inventory_submitted"]
+     assert "pointpillar-smoke" in calls["create"]["task_name"]
+ 
+ 
++def test_source_bundle_roundtrip(tmp_path, monkeypatch):
++    monkeypatch.setattr(smoke, "SOURCE_PINS", {"LICENSE": hashlib.sha256(b"fixture\n").hexdigest()})
++    source = tmp_path / "source"; source.mkdir()
++    (source / "LICENSE").write_bytes(b"fixture\n")
++    bundle = tmp_path / "bundle.json"
++    smoke.write_source_bundle(source, bundle)
++    smoke.install_source_bundle(bundle, tmp_path / "installed")
++    assert (tmp_path / "installed/LICENSE").read_bytes() == b"fixture\n"
++    with pytest.raises(FileExistsError):
++        smoke.install_source_bundle(bundle, tmp_path / "installed")
++
++
++def test_source_artifact_requires_designated_server_and_success():
++    artifact = SimpleNamespace(url="https://untrusted.example/source.json", get_local_copy=lambda: "file")
++    with pytest.raises(ValueError):
++        smoke.download_source_artifact(artifact)
++    artifact.url = "http://10.100.35.118:8081/source.json"
++    assert smoke.download_source_artifact(artifact) == "file"
++    artifact.get_local_copy = lambda: None
++    with pytest.raises(RuntimeError, match="authenticated"):
++        smoke.download_source_artifact(artifact)
++
++
++def test_open3d_mirror_wheel_must_match_official_digest():
++    report = {"install": [{"metadata": {"name": "open3d"},
++                           "download_info": {"archive_info": {"hashes": {"sha256": smoke.OPEN3D_WHEEL_SHA256}}}}]}
++    smoke.verify_open3d_wheel(report)
++    report["install"][0]["download_info"]["archive_info"]["hashes"]["sha256"] = "wrong"
++    with pytest.raises(ValueError): smoke.verify_open3d_wheel(report)
++    with pytest.raises(ValueError): smoke.verify_open3d_wheel({"install": []})
++
++
++@pytest.mark.parametrize("fault", ["commit", "traversal", "content"])
++def test_source_bundle_rejects_tamper_before_write(tmp_path, monkeypatch, fault):
++    monkeypatch.setattr(smoke, "SOURCE_PINS", {"LICENSE": hashlib.sha256(b"fixture").hexdigest()})
++    content = dict(commit=smoke.COMMIT, files={"LICENSE": "fixture"})
++    if fault == "commit": content["commit"] = "wrong"
++    elif fault == "traversal": content["files"]["../escape.py"] = "bad"
++    else: content["files"]["LICENSE"] = "bad"
++    bundle = tmp_path / "bundle.json"; bundle.write_text(json.dumps(content))
++    with pytest.raises(ValueError):
++        smoke.install_source_bundle(bundle, tmp_path / "installed")
++    assert not (tmp_path / "installed").exists()
++
++
+ def test_hash_pinned_official_pointpillar_cpu_forward():
+     """Optional source integration check, explicitly not the A100 acceptance."""
+     location = os.environ.get("V2V4REAL_POINTPILLAR_REFERENCE_ROOT")
+diff --git a/tools/event_track_v2x/run_v2v4real_pointpillar_smoke.py b/tools/event_track_v2x/run_v2v4real_pointpillar_smoke.py
+index 22388af..de9adab 100644
+--- a/tools/event_track_v2x/run_v2v4real_pointpillar_smoke.py
++++ b/tools/event_track_v2x/run_v2v4real_pointpillar_smoke.py
+@@ -2,8 +2,10 @@
+ """Isolated official PointPillar/voxel/NMS smoke on four A100s, without GT.
+ 
+ This is a runtime prerequisite, not a pretrained detector or paper result.
+-Official sources are downloaded into this task's private directory, hash-checked
+-and left unchanged. They are not embedded in the ClearML script or artifacts.
++The task container requires libgl1 for Open3D's native extension.
++Official sources are hash-checked and left unchanged in a task-private directory.
++They may be transported as a verified private ClearML artifact, never as weights
++or data, to avoid requiring public GitHub connectivity on the GPU worker.
+ """
+ from __future__ import annotations
+ 
+@@ -18,6 +20,8 @@ import sys
+ import tempfile
+ import time
+ from urllib.request import urlopen
++from urllib.parse import urlparse
++from urllib.error import URLError
+ import venv
+ 
+ COMMIT = "5a821e13753bafc611f95c47bc1a306acdcb0f7c"
+@@ -42,6 +46,24 @@ SOURCE_PINS = {
+ PACKAGES = ("numpy==1.26.4", "scipy==1.14.1", "PyYAML==6.0.2",
+             "spconv-cu126==2.3.8", "cumm-cu126==0.7.11",
+             "open3d==0.19.0", "shapely==2.0.7")
++# Existing ClearML image's internal PyPI cache; use only in the task venv.
++PACKAGE_INDEX = "http://10.100.34.109:3141/root/pypi/+simple/"
++OPEN3D_WHEEL_SHA256 = "01e4590dc2209040292ebe509542fbf2bf869ea60bcd9be7a3fe77b65bad3192"
++
++
++def verify_open3d_wheel(pip_report):
++    wheels = [item for item in pip_report["install"] if item["metadata"]["name"].lower() == "open3d"]
++    if len(wheels) != 1 or wheels[0]["download_info"]["archive_info"]["hashes"].get("sha256") != OPEN3D_WHEEL_SHA256:
++        raise ValueError("Open3D wheel differs from official PyPI cp312 Linux wheel")
++
++
++def private_python(python, *args):
++    """Ignore agent PYTHONPATH/PYTHONHOME and user-site injection in children.
++
++    The venv still inherits the image's torch through system-site-packages;
++    its own pinned distributions must precede those inherited packages.
++    """
++    return [str(python), "-I", *map(str, args)]
+ 
+ 
+ def four_a100(torch):
+@@ -63,12 +85,20 @@ def verify_sources(root):
+             raise ValueError(f"source SHA-256 mismatch: {name}")
+ 
+ 
+-def fetch_sources(root, *, opener=urlopen):
++def fetch_sources(root, *, opener=urlopen, sleeper=time.sleep):
+     root = Path(root)
+     root.mkdir(exist_ok=False)
+     for name, digest in SOURCE_PINS.items():
+-        with opener(BASE_URL + name, timeout=45) as response:
+-            payload = response.read(2 * 1024 * 1024 + 1)
++        for attempt in range(4):
++            try:
++                with opener(BASE_URL + name, timeout=45) as response:
++                    payload = response.read(2 * 1024 * 1024 + 1)
++                break
++            except (URLError, OSError):
++                if attempt == 3:
++                    raise
++                print("RBF_SOURCE_RETRY " + json.dumps(dict(path=name, attempt=attempt + 1)), flush=True)
++                sleeper(2 ** attempt)
+         if len(payload) > 2 * 1024 * 1024 or hashlib.sha256(payload).hexdigest() != digest:
+             raise ValueError(f"downloaded source SHA-256 mismatch: {name}")
+         path = root / name
+@@ -78,6 +108,55 @@ def fetch_sources(root, *, opener=urlopen):
+     verify_sources(root)
+ 
+ 
++def read_source_bundle(bundle):
++    bundle = Path(bundle)
++    if bundle.stat().st_size > 32 * 1024 * 1024:
++        raise ValueError("source bundle too large")
++    content = json.loads(bundle.read_text())
++    if set(content) != {"commit", "files"} or content["commit"] != COMMIT:
++        raise ValueError("source bundle commit mismatch")
++    files = content["files"]
++    if not isinstance(files, dict) or set(files) != set(SOURCE_PINS):
++        raise ValueError("source bundle inventory mismatch")
++    for name, digest in SOURCE_PINS.items():
++        if not isinstance(files[name], str):
++            raise ValueError("source bundle text required")
++        payload = files[name].encode("utf-8")
++        if len(payload) > 2 * 1024 * 1024 or hashlib.sha256(payload).hexdigest() != digest:
++            raise ValueError(f"source bundle SHA-256 mismatch: {name}")
++    return files
++
++
++def write_source_bundle(source, bundle):
++    verify_sources(source)
++    with Path(bundle).open("x") as stream:
++        json.dump(dict(commit=COMMIT, files={name: (Path(source) / name).read_bytes().decode("utf-8")
++                                            for name in SOURCE_PINS}), stream, sort_keys=True)
++    read_source_bundle(bundle)
++
++
++def install_source_bundle(bundle, root):
++    files = read_source_bundle(bundle)  # Validate every entry before any write.
++    root = Path(root)
++    root.mkdir(exist_ok=False)
++    for name, content in files.items():
++        path = root / name
++        path.parent.mkdir(parents=True, exist_ok=True)
++        with path.open("xb") as stream:
++            stream.write(content.encode("utf-8"))
++    verify_sources(root)
++
++
++def download_source_artifact(artifact):
++    uri = urlparse(artifact.url)
++    if (uri.scheme, uri.hostname, uri.port) != ("http", "10.100.35.118", 8081):
++        raise ValueError("only the designated private source artifact is allowed")
++    result = artifact.get_local_copy()
++    if not result:
++        raise RuntimeError("authenticated source artifact download failed")
++    return result
++
++
+ def fixture_cloud():
+     """Fixed no-data fixture: truncation, repeated cells and three distinct cells."""
+     import numpy as np
+@@ -107,10 +186,20 @@ def child_run(root):
+     if Path(sys.prefix).resolve() != root / "venv" or sys.prefix == sys.base_prefix:
+         raise ValueError("smoke must run inside its task-private venv")
+     names = four_a100(torch)
++    runtime = dict(python_prefix=sys.prefix, numpy_version=np.__version__,
++                   numpy_file=np.__file__, isolated=bool(sys.flags.isolated),
++                   versions={spec.split("==")[0]: importlib.metadata.version(spec.split("==")[0])
++                             for spec in PACKAGES})
++    print("RBF_POINTPILLAR_RUNTIME " + json.dumps(runtime, sort_keys=True), flush=True)
++    if not sys.flags.isolated:
++        raise ValueError("smoke child requires isolated Python startup")
+     for spec in PACKAGES:
+         package, expected = spec.split("==")
+-        if importlib.metadata.version(package) != expected:
+-            raise ValueError(f"runtime version mismatch: {package}")
++        actual = runtime["versions"][package]
++        if actual != expected:
++            raise ValueError(f"runtime version mismatch: {package}: expected {expected}, got {actual}")
++    if np.__version__ != "1.26.4" or not Path(np.__file__).resolve().is_relative_to(root / "venv"):
++        raise ValueError("numpy must be imported from the pinned task-private venv")
+     source = root / "official-source"
+     verify_sources(source)
+     if "opencood" in sys.modules:
+@@ -177,6 +266,7 @@ def child_run(root):
+         source_pins=SOURCE_PINS, source_edits=False, devices=reports,
+         python=sys.version.split()[0], torch=str(torch.__version__), cuda=torch.version.cuda,
+         direct_requirements=list(PACKAGES), installed_distributions=versions,
++        container_system_dependencies=["libgl1"],
+         voxel_fixture=dict(points=len(cloud), voxels=3, counts=[32, 1, 1], exact_match=True),
+         rotated_nms_keep=keep, random_weight_seed=1337, random_weights=True,
+         dataset_read=False, checkpoint_loaded=False, detector_forward_verified=True,
+@@ -188,6 +278,9 @@ def child_run(root):
+ 
+ 
+ def bootstrap():
++    # Match the artifact's designated NIC so SDK attaches its existing auth.
++    # Same fix as run_clearml_forest_identity_ddp; never change server permissions.
++    os.environ["CLEARML_FILES_HOST"] = "http://10.100.35.118:8081"
+     from clearml import Task
+     import torch
+     task = Task.init(project_name="Thesis/Recover-Before-Fuse/Training",
+@@ -198,6 +291,11 @@ def bootstrap():
+     watched = ("numpy", "torch", "PyYAML", "scipy")
+     before = {p: importlib.metadata.version(p) for p in watched}
+     root = Path(tempfile.mkdtemp(prefix="rbf-v2v4real-isolated-", dir=Path.cwd())).resolve()
++    print("RBF_POINTPILLAR_BOOTSTRAP " + json.dumps(dict(stage="fetch-pinned-official-source")), flush=True)
++    if "official-source" in task.artifacts:
++        install_source_bundle(download_source_artifact(task.artifacts["official-source"]), root / "official-source")
++    else:
++        fetch_sources(root / "official-source")
+     print("RBF_POINTPILLAR_BOOTSTRAP " + json.dumps(dict(runtime_root=str(root), stage="create-venv")), flush=True)
+     venv.EnvBuilder(with_pip=True, system_site_packages=True).create(root / "venv")
+     python = str(root / "venv/bin/python")
+@@ -206,21 +304,24 @@ def bootstrap():
+                OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1")
+     pip_env = {k: v for k, v in env.items() if not k.startswith("PIP_")}
+     pip_env["PIP_CONFIG_FILE"] = os.devnull
+-    subprocess.run([python, "-m", "pip", "install", "--disable-pip-version-check",
+-                    "--index-url", "https://pypi.org/simple", "--only-binary=:all:",
+-                    "--report", str(root / "pip-report.json"), *PACKAGES],
++    subprocess.run(private_python(python, "-m", "pip", "install", "--disable-pip-version-check",
++                    "--index-url", PACKAGE_INDEX, "--trusted-host", "10.100.34.109", "--only-binary=:all:",
++                    "--report", str(root / "pip-report.json"), *PACKAGES),
+                    env=pip_env, check=True, timeout=1200)
+-    print("RBF_POINTPILLAR_BOOTSTRAP " + json.dumps(dict(stage="fetch-pinned-official-source")), flush=True)
+-    fetch_sources(root / "official-source")
+-    subprocess.run([python, str(Path(__file__).resolve()), "--child-root", str(root)],
++    pip_report = json.loads((root / "pip-report.json").read_text())
++    verify_open3d_wheel(pip_report)
++    subprocess.run(private_python(python, Path(__file__).resolve(), "--child-root", root),
+                    env=env, check=True, timeout=300)
+     after = {p: importlib.metadata.version(p) for p in watched}
+     if before != after:
+         raise RuntimeError("base environment changed during isolated setup")
+     report = json.loads((root / "smoke-report.json").read_text())
+     report["base_watched_versions_unchanged"] = before == after
++    report["source_transport"] = "clearml-verified-bundle" if "official-source" in task.artifacts else "official-github"
+     report["base_watched_versions"] = before
+     report["pip_report_sha256"] = hashlib.sha256((root / "pip-report.json").read_bytes()).hexdigest()
++    report["package_index"] = PACKAGE_INDEX
++    report["open3d_official_wheel_sha256"] = OPEN3D_WHEEL_SHA256
+     pip_report = json.loads((root / "pip-report.json").read_text())
+     report["pip_resolution"] = [dict(name=item["metadata"]["name"], version=item["metadata"]["version"],
+                                      download_info=item["download_info"])
+diff --git a/tools/event_track_v2x/submit_v2v4real_a100_runtime.py b/tools/event_track_v2x/submit_v2v4real_a100_runtime.py
+index 189a4d5..c45408f 100644
+--- a/tools/event_track_v2x/submit_v2v4real_a100_runtime.py
++++ b/tools/event_track_v2x/submit_v2v4real_a100_runtime.py
+@@ -1,7 +1,8 @@
+ #!/usr/bin/env python3
+ """Default read-only; explicitly deploy a small no-data four-A100 probe.
+ 
+-Only the probe source and diagnostic console records go to private ClearML.
++Only the probe, optional hash-verified public source bundle and diagnostic records
++go to private ClearML.
+ No datasets, model weights, predictions, queue settings or existing jobs change.
+ """
+ from __future__ import annotations
+@@ -28,13 +29,18 @@ PROBES = {
+ }
+ 
+ 
+-def deploy(Task, snapshot, source, expected_sha256, *, probe_kind="inventory"):
++def deploy(Task, snapshot, source, expected_sha256, *, probe_kind="inventory", source_bundle=None):
+     if probe_kind not in PROBES:
+         raise ValueError("only predeclared A100 probes may be submitted")
+     probe, purpose = PROBES[probe_kind]
+     digest = hashlib.sha256(source).hexdigest()
+     if digest != expected_sha256 or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256 or ""):
+         raise ValueError("probe source SHA-256 mismatch")
++    if source_bundle is not None:
++        if probe_kind != "pointpillar":
++            raise ValueError("source bundle is only for pointpillar")
++        from tools.event_track_v2x.run_v2v4real_pointpillar_smoke import read_source_bundle
++        read_source_bundle(source_bundle)
+     name = f"RBF V2V4Real {purpose} {digest[:12]} four-A100"
+     existing = Task.get_tasks(project_name=PROJECT, task_name="^" + re.escape(name) + "$",
+         task_filter={"status": ["created", "queued", "in_progress", "completed"]})
+@@ -49,11 +55,25 @@ def deploy(Task, snapshot, source, expected_sha256, *, probe_kind="inventory"):
+     task.set_script(repository="", branch="", commit="", diff=source.decode("utf-8"),
+                     working_dir=".", entry_point=probe.name)
+     task.set_packages(["clearml==2.1.2"])
+-    task.set_base_docker(IMAGE, docker_arguments="-e CLEARML_AGENT_FORCE_TASK_INIT=1 --shm-size 32g")
++    if source_bundle is not None:
++        if not task.upload_artifact("official-source", artifact_object=Path(source_bundle), wait_on_upload=True):
++            raise RuntimeError(f"source upload failed; task {task.id} not enqueued")
++    docker_options = dict(docker_arguments=("-e CLEARML_AGENT_FORCE_TASK_INIT=1 --shm-size 32g "
++                          "-e CLEARML_FILES_HOST=http://10.100.35.118:8081"))
++    if probe_kind == "pointpillar":
++        # Open3D's native CPU extension links libGL even for non-rendering use.
++        # This hook runs inside the disposable task container, never the host.
++        docker_options["docker_setup_bash_script"] = (
++            "set -e\napt-get update\n"
++            "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgl1\n")
++    task.set_base_docker(IMAGE, **docker_options)
+     task.set_parameters(dict(required_gpu_count=4, required_device="A100", class_scope="car",
+         source_sha256=digest, probe_kind=probe_kind, runtime_inventory_only=probe_kind == "inventory",
+-        detector_forward_planned=probe_kind == "pointpillar", environment_changes="task-private-venv-only",
+-        parameter_training=False, data_upload=False, V100_excluded=True, RTX5090_excluded=True))
++        detector_forward_planned=probe_kind == "pointpillar",
++        environment_changes=("task-container-libgl1-and-private-venv" if probe_kind == "pointpillar"
++                             else "task-private-venv-only"),
++        parameter_training=False, data_upload=False, official_source_bundle=source_bundle is not None,
++        V100_excluded=True, RTX5090_excluded=True))
+     fresh = snapshot()
+     if not fresh or any(r["family"] != "A100" or r["queue"] != QUEUE for r in fresh):
+         raise RuntimeError(f"capacity changed; task {task.id} remains created, not enqueued")
+@@ -71,6 +91,7 @@ def main(argv=None):
+     parser.add_argument("--execute", action="store_true")
+     parser.add_argument("--probe-sha256")
+     parser.add_argument("--probe-kind", choices=tuple(PROBES), default="inventory")
++    parser.add_argument("--source-bundle", type=Path)
+     args = parser.parse_args(argv)
+     source = PROBES[args.probe_kind][0].read_bytes()
+     if args.execute and hashlib.sha256(source).hexdigest() != args.probe_sha256:
+@@ -90,7 +111,8 @@ def main(argv=None):
+         result = dict(available_four_gpu_workers=snapshot(), active_hardware_policy="A100-only",
+                       snapshot_is_reservation=False, any_task_submitted=False)
+     else:
+-        result = deploy(Task, snapshot, source, args.probe_sha256, probe_kind=args.probe_kind)
++        result = deploy(Task, snapshot, source, args.probe_sha256, probe_kind=args.probe_kind,
++                        source_bundle=args.source_bundle)
+     print("RBF_RUNTIME_SUBMISSION " + json.dumps(result, sort_keys=True), flush=True)
+ 
+ 
+

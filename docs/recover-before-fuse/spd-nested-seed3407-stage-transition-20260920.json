@@ -1,0 +1,46 @@
+{
+  "kind": "spd_nested_seed_stage_transition_v1",
+  "observed_date": "2026-09-20",
+  "seed": 3407,
+  "detector_training": {
+    "task_id": "d707e30734f14c489a7609d2d5e01125",
+    "status": "completed",
+    "vehicle_checkpoint": {
+      "bytes": 400419820,
+      "sha256": "920b493880370be9a0ea2233c29c04e1dff84953aa2cf04c599dfc5060772bc4"
+    },
+    "infrastructure_checkpoint": {
+      "bytes": 400420268,
+      "sha256": "5b48292c0ff4d1276d3f7692c831f1c66ef31b8fadaa524c3864aa10395eb508"
+    },
+    "authenticated_full_readback": true,
+    "model_tensors_per_side": 651,
+    "optimizer_tensors_per_side": 738,
+    "all_tensors_finite": true,
+    "architecture_load_verified": false,
+    "resume_equivalence_verified": false
+  },
+  "collection": {
+    "task_id": "c09211b2f04f438ca7edfe8e00d1272c",
+    "status": "completed",
+    "receipt_bytes": 5235,
+    "receipt_sha256": "5916d25a9860c295c67d25a8e448ce1bb57e0155b0928a96e2f5aa0c1bf2750d",
+    "publication_full_readback": true
+  },
+  "raw_export": {
+    "task_id": "9336d5cfeb9f4dcc9f23a2c4c95c212f",
+    "status_at_receipt": "queued",
+    "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+    "code_task_id": "c1f4f328d78e4cb89cf588003d57e5f2",
+    "code_inventory_sha256": "8f1ba63e742f1854437388a28c4eb31a80ba297100276f6b558d039e6cf9b674",
+    "bootstrap_sha256": "cce93b8156a2227461756025466a1395f4e42df909f120397891533bc84d5dde",
+    "shards": [
+      ["vehicle-side", 0],
+      ["vehicle-side", 1],
+      ["infrastructure-side", 0],
+      ["infrastructure-side", 1]
+    ],
+    "hash_correction": "The created task was dequeued before worker assignment, corrected from a mistyped source inventory hash, verified, and the same task was re-enqueued. No duplicate task was created."
+  },
+  "paper_performance_evidence": false
+}

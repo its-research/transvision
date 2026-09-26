@@ -1,0 +1,28 @@
+{
+  "kind": "spd-nested-detector-collection-publication-v1",
+  "date": "2026-09-18",
+  "seed": 1337,
+  "training_task_id": "f2ced9be51ef4e49a1a05dd8f4ecc3d3",
+  "training_status": "completed",
+  "collection_task_id": "bceb0a009246474dbaa176a823dbfec1",
+  "collection_publication_status": "completed",
+  "collection_receipt_sha256": "343dabda615253f5ec279c271ff6d6efdef9384268a315be29ded4ede7acd1ef",
+  "collection_receipt_bytes": 5235,
+  "collector_sha256": "e4a9436bfb1a040ef7973bdb22f5f93730b310e3224d3032c5fe7acb16e4d841",
+  "binding_source_sha256": "931ef68ce2e3e850b7329c455486444a4543b321314087b17b04cd75145aeb39",
+  "remote_directory": "/home/lbin/Desktop/rbf-nested-seed1337-collection-20260918.6DnGKE",
+  "both_sides_full_download_hash_size_verified": true,
+  "publication_full_stream_readback_verified": true,
+  "checkpoints": {
+    "vehicle-side": {"sha256": "84c301e1f780b4f9489f407485af2335d71fba36e8887d5d29098b62616dba8e", "bytes": 400419820, "metadata_iteration": 8039},
+    "infrastructure-side": {"sha256": "137636f793821c4744f95f7e26231bb8e888d4a7139477b258a135b4a163fdc0", "bytes": 400420268, "metadata_iteration": 7487}
+  },
+  "per_side_tensor_audit": {"safe_weights_only_load": true, "all_model_and_optimizer_tensors_finite": true, "model_tensors": 651, "model_elements": 33631011, "optimizer_tensors": 738},
+  "nested_partition_binding_verified": true,
+  "epochs_per_side": 24,
+  "architecture_load_verified": false,
+  "resume_equivalence_verified": false,
+  "paper_performance_evidence": false,
+  "initial_download_issue": "ClearML default local cache permission denied before collection; authenticated stream download into the new collection directory succeeded without changing shared cache permissions",
+  "next": "Export all official-train raw queries using the frozen nested exporter and this collection receipt; run only on an available allocated worker"
+}

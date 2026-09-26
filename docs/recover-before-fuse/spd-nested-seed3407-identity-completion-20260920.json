@@ -1,0 +1,27 @@
+{
+  "kind": "spd_nested_identity_completion_v1",
+  "observed_at_utc": "2026-09-20T05:47:00Z",
+  "seed": 3407,
+  "task_id": "dabafc1bbeb544b3bca2cbdf4d207b4c",
+  "status": "completed",
+  "artifacts": {
+    "checkpoint": {"bytes": 5334, "sha256": "bd5f6a84b80c5c677c6814f0189d85ee292728a5425bfa2db94f410fd0902a54"},
+    "identity-training": {"bytes": 962342, "sha256": "17c095e3bea872b921435687c51fe95c0432e6c76080f2007040965ffffcfca8"},
+    "plan": {"bytes": 4890, "sha256": "e9b7c207b9ed5c1cab484d24943707a369b00ecbc16db2fb59e76c0ecba2a960"},
+    "receipt": {"bytes": 324, "sha256": "97d22da77d282dac3083f2907aac500bf0fe3ca95f68c06282aca279a2faec21"}
+  },
+  "verification": {
+    "full_stream_readback_all_artifacts": true,
+    "archive_member_inventory_verified": true,
+    "world_size": 4,
+    "epochs": 10,
+    "global_batch_size": 64,
+    "candidate_protocol": "rbf-all-class-top64-v1",
+    "fixture": false
+  },
+  "evidence_boundary": {
+    "software_training_completed": true,
+    "three_seed_campaign_completed": false,
+    "paper_performance_evidence": false
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "kind": "spd_nested_raw_export_dispatch",
+  "observed_at": "2026-09-18T07:54:16Z",
+  "task_id": "48e81d9d38ea414d9ce2d0e012eb6822",
+  "status": "queued",
+  "queue_id": "9350f33af13a448da8339eb7bea52fdf",
+  "queue_name": "GPU4-A100",
+  "seed": 2027,
+  "training_task_id": "040a01e2ab9d4ee59f55e0e52581228f",
+  "collection_task_id": "afcd45a8d7a54bf98b00888ee080e39c",
+  "collection_sha256": "b662e52026e3359aa4b18c204ab1c12d15f90d6ed4cbaa97f7f471d0d4e2f9f3",
+  "collection_fullstream_verified_before_dispatch": true,
+  "code_task_id": "c1f4f328d78e4cb89cf588003d57e5f2",
+  "code_inventory_sha256": "8f1ba63e742f1854437388a28c4eb31a80ba297100276f6b558d039e6cf9b674",
+  "bootstrap_sha256": "cce93b8156a2227461756025466a1395f4e42df909f120397891533bc84d5dde",
+  "shards": [["vehicle-side", 0], ["vehicle-side", 1], ["infrastructure-side", 0], ["infrastructure-side", 1]],
+  "intended_sequence_count": 46,
+  "export_completed": false,
+  "paper_performance_evidence": false
+}

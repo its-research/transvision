@@ -1,0 +1,31 @@
+{
+  "kind": "spd_nested_partial_detector_artifact_readback_v1",
+  "observed_date": "2026-09-18",
+  "task_id": "d707e30734f14c489a7609d2d5e01125",
+  "task_status_at_observation": "in_progress",
+  "seed": 3407,
+  "side": "vehicle-side",
+  "cohort": "nested-detector-fit",
+  "train_sequences": 30,
+  "epochs": 24,
+  "iterations": 8040,
+  "batch_per_gpu": 4,
+  "effective_batch_size": 16,
+  "artifacts": {
+    "vehicle-side-completion": {
+      "bytes": 389,
+      "sha256": "5c630ae43dab22775e9aed2a1b0f4573f3b6ea5e97c79a0ec4cd5aea5f4edd1d"
+    },
+    "vehicle-side-final-checkpoint": {
+      "bytes": 400419820,
+      "sha256": "920b493880370be9a0ea2233c29c04e1dff84953aa2cf04c599dfc5060772bc4",
+      "matches_completion_receipt": true
+    }
+  },
+  "authenticated_full_artifact_readback": true,
+  "tensor_finiteness_verified": false,
+  "architecture_load_verified": false,
+  "both_sides_complete": false,
+  "official_val_result_available": false,
+  "paper_performance_evidence": false
+}

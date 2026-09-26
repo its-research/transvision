@@ -1,0 +1,148 @@
+{
+  "kind": "v2v4real_formal_detector_training_dispatch_v1",
+  "observed_at_utc": "2026-09-20T12:54:22Z",
+  "protocol_id": "v2v4real-nominal-10hz-formal-v1",
+  "official_source_commit": "5a821e13753bafc611f95c47bc1a306acdcb0f7c",
+  "source_task_id": "17ba02e37b36460ba34b5ab26be86748",
+  "source_sha256": "7968e53e7ab244cc4780926e25ae33fc707c33d61f771c697c3d92a1f1b616ff",
+  "partition_task_id": "310283cf29374652a521dbbddf440475",
+  "partition_sha256": "02373d0f59ca4e88757b6b3c3c22d9afda0ff94fe47f0f7d10f80211876bbcb2",
+  "frozen_training": {
+    "seeds": [1337, 2027, 3407],
+    "epochs": 60,
+    "batch_size_per_rank": 8,
+    "selection_rule": "minimum_global_validation_loss",
+    "validation_aggregation": "sample_weighted_all_reduce_without_padding_duplicates",
+    "checkpoint_publication": "rank0_only",
+    "official_test_used": false,
+    "identity_selection_used": false
+  },
+  "resource_policy": {
+    "allowed_gpu_families": ["A100", "RTX 5090"],
+    "active_detector_workers": [
+      "10.100.34.18-A100:gpu0,1,2,3",
+      "10.100.34.18-A100:gpu4,5,6,7",
+      "10.100.34.130-5090:gpu4,5,6,7"
+    ],
+    "active_seeds": [1337, 2027, 3407],
+    "queued_seeds": [],
+    "world_size": 4,
+    "task_ids": [
+      "64f21d6043654a6192f1ce0809b60c1e",
+      "3ba32ad9592a412a8fb4d3ec6eb15faa",
+      "7c72f02af4704341aaad866f7bad8c15"
+    ],
+    "status_at_observation": "in_progress",
+    "private_volume_copy_before_extraction": true,
+    "isolated_pinned_runtime": true
+  },
+  "seed3407_5090_migration": {
+    "source_task_id": "cd440bdb0ef34504965f15fd58376887",
+    "source_sha256": "7e797d124d4e5ae90cea4306558e6aa5e0396ebc89fcc1c18e3df6bce641477f",
+    "task_id": "7c72f02af4704341aaad866f7bad8c15",
+    "worker": "10.100.34.130-5090:gpu4,5,6,7",
+    "status": "in_progress",
+    "superseded_a100_task_id": "8ed4e269efc1425a898b3cc2de82ff82",
+    "superseded_a100_status": "stopped",
+    "additional_5090_training_tasks_submitted": 0,
+    "superseded_incompatible_5090_attempt": "b96ed5ac5f92439f98e3001edaeedc61",
+    "superseded_unreachable_files_attempt": "b4a03531ecb842328feceebfe8323d6c",
+    "authenticated_files_probe_task_id": "fd458ba4bcf6462d849a2cd150dffb47",
+    "authenticated_files_probe_sha256_verified": true,
+    "superseded_missing_libgl_attempt": "1203e4df882146aeb95b72d831aac81d",
+    "readonly_libgl_inventory_probe_task_id": "14d1896ec8c14d149d1f4f7f3cf8be6f",
+    "superseded_hostname_rendezvous_attempt": "6590504939a4465a81a1b97f41fcae30",
+    "superseded_files_auth_attempt": "f0770195420941e5bed896b06e281f71",
+    "formal_train_volumes_extracted": 8,
+    "formal_train_volumes_expected": 8,
+    "ddp_training_started": true,
+    "ddp_ranks_observed": [0, 1, 2, 3],
+    "gpu_utilization_observed": true,
+    "gpu_memory_used_gb_latest": [3.912, 4.689, 6.447, 7.079],
+    "runtime_image": "gitlab.zhht.ai.com:5000/aitech/model_infer:py-3.12-cuda-12.6.2-torch-2.10-ultralytics-8.4.13-dvc-v2-onnx-clearml"
+  },
+  "retained_failures": [
+    {
+      "task_id": "b391eca93c284c21aae13e2e2eee3075",
+      "seed": 1337,
+      "worker_family": "L40S",
+      "reason": "ClearML cache filename did not preserve official release filename",
+      "training_started": false
+    },
+    {
+      "task_id": "b392a902f1224bd0b336b4e8037e3f6d",
+      "seed": 2027,
+      "worker_family": "L40S",
+      "reason": "strict source stability or official SHA-1 check failed during concurrent shared-cache read",
+      "training_started": false
+    },
+    {
+      "task_id": "c0015e6e0639497782bf6968099028c8",
+      "seed": 1337,
+      "worker_family": "L40S",
+      "reason": "task package installation was skipped by agent and DDP ranks raced on fresh output creation",
+      "training_started": false
+    },
+    {
+      "task_id": "d5d7cdbcadc044649766c0c6479a8071",
+      "seed": 2027,
+      "worker_family": "L40S",
+      "reason": "isolated Open3D runtime required missing system library libGL.so.1",
+      "training_started": false
+    },
+    {
+      "task_id": "8142acac122c46109df2928eb259d3e1",
+      "seed": 1337,
+      "worker_family": "L40S",
+      "reason": "DDP NCCL initialization could not load libnvidia-ml.so.1 because the container exposed compute capability without utility capability",
+      "training_started": false
+    },
+    {
+      "task_id": "332560a9dfd14ce0b2d56a5e47621890",
+      "seed": 2027,
+      "worker_family": "L40S",
+      "reason": "DDP NCCL initialization could not load libnvidia-ml.so.1 because the container exposed compute capability without utility capability",
+      "training_started": false
+    },
+    {
+      "task_id": "19c92919930546f78bb95374e112b87d",
+      "seed": 3407,
+      "worker_family": "L40S",
+      "reason": "superseded task was stopped before training so the corrected three-seed dispatch could use both admitted L40S workers",
+      "training_started": false
+    },
+    {
+      "task_id": "75ab296e2bf749408d06d142e24d27f9",
+      "seed": 1337,
+      "worker_family": "L40S",
+      "reason": "CUDA context creation failed before the first batch because the allocated L40S devices were already occupied by external processes",
+      "training_started": false
+    },
+    {
+      "task_id": "e3a0f8f5f44d4b15b1034ab3a8634da1",
+      "seed": 2027,
+      "worker_family": "L40S",
+      "reason": "the pinned official opencood.utils.box_overlaps Cython extension had not been built",
+      "training_started": false
+    },
+    {
+      "task_id": "6c82e7c0d39b4bd7a917506ed7dbd50d",
+      "seed": 3407,
+      "worker_family": "L40S",
+      "reason": "stopped when the user assigned CPU tasks to L40S and GPU parameter training to A100",
+      "training_started": false
+    }
+  ],
+  "excluded_nonconforming_attempts": [
+    "cc52c2dc41044ae19f4b22131797dc80",
+    "455aac8ec41b4ab39361e575352163ef",
+    "77e35c80a5bf472cb8d10127952899a8",
+    "4f7e8e1bb3104ba496d52d30c7a3a4d8",
+    "7dae26eb66d34ddb90b7d2faf97348d4",
+    "87148f9b1bf54bdf8dbbe413b9e799f3",
+    "64f0f820aa3e484bb2ee6eb132f6ebcf",
+    "fe0f1ad5f1f940268b2ea16595b491ca"
+  ],
+  "completion_verified": false,
+  "paper_performance_evidence": false
+}
