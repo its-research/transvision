@@ -118,7 +118,8 @@ def run(args):
             raise ValueError('full-train identity checkpoint and matching upstream required')
     signature = scorer.signature if scorer is not None else GeometryForestScorer(process_noise=config.state.process_noise).signature
     sources = dict(training_sources(), **allocation_sources())
-    for path in (Path(__file__), ROOT/'tools/event_track_v2x/run_persistent_forest_v2.py'):
+    for path in (Path(__file__), ROOT/'tools/event_track_v2x/run_persistent_forest_v2.py',
+                 ROOT/'transvision/models/event_track_v2x/experiment_progress.py'):
         sources[path.relative_to(ROOT).as_posix()] = sha_file(path)
     plan = dict(kind='component_allocation_teacher_full_train_plan_v1', cache_sha256=TRAIN_CACHE_SHA256,
         cooperative_metadata_sha256=args.cooperative_metadata_sha256, configuration=asdict(config),

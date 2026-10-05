@@ -16,8 +16,10 @@ import re
 import numpy as np
 
 from .v2v4real_inputs import V2V4RealInputError, pose_to_world, read_annotations
+from .paper_evaluation_policy import VEHICLE_PROTOCOL, NATIVE_VEHICLE_SELECTION, native_vehicle
 
 GT_RECIPE = 'v2v4real-real-matrix-late-gt-strict-car-first-id-two-stage-roi-v1'
+VEHICLE_GT_RECIPE = 'v2v4real-real-matrix-late-gt-native-vehicle-first-id-two-stage-roi-v1'
 GT_RANGE = (-100., -40., -5., 100., 40., 3.)
 CORNER_SIGNS = np.array([(x, y, z) for z in (-1., 1.)
                         for x, y in ((1., -1.), (1., 1.), (-1., 1.), (-1., -1.))])
@@ -84,15 +86,19 @@ def upright_corners(boxes, *, collated=False):
 
 
 def local_car_boxes(metadata, cav_id):
+    return _local_boxes(metadata, cav_id, vehicle=False)
+
+
+def _local_boxes(metadata, cav_id, *, vehicle):
     annotations = read_annotations(metadata)
     result, used = [], set()
     counts = Counter(a.raw_class for a in annotations)
     for annotation in annotations:
-        if annotation.raw_class != 'Car':
+        if not (native_vehicle(annotation.raw_class) if vehicle else annotation.raw_class == 'Car'):
             continue
         identity = native_id(annotation.object_id, annotation.associated_id, cav_id)
         if identity in used:
-            raise V2V4RealInputError('two strict-Car annotations share one same-CAV identity')
+            raise V2V4RealInputError('two selected annotations share one same-CAV identity')
         used.add(identity)
         # center_world is a legacy numeric field name, NOT native GT semantics.
         local_pose = pose_to_world((*annotation.center_world, *annotation.angle_degrees))
@@ -104,11 +110,22 @@ def local_car_boxes(metadata, cav_id):
         if inside.sum() >= 2:
             result.append(dict(track_id=identity, object_id=annotation.object_id,
                 associated_id=annotation.associated_id, cav_id=str(cav_id), box_lwh=box))
+            if vehicle:
+                result[-1]['raw_class'] = annotation.raw_class
     return result, dict(counts)
 
 
 def prepare_frame(metadata_by_cav, *, ego_cav):
     """Current-frame offline GT only; no history stitching or future ID repair."""
+    return _prepare_frame(metadata_by_cav, ego_cav=ego_cav, vehicle=False)
+
+
+def prepare_vehicle_frame(metadata_by_cav, *, ego_cav):
+    """Explicit native single-class vehicle route, retaining original obj_type."""
+    return _prepare_frame(metadata_by_cav, ego_cav=ego_cav, vehicle=True)
+
+
+def _prepare_frame(metadata_by_cav, *, ego_cav, vehicle):
     import torch
     if set(metadata_by_cav) != {'0', '1'} or ego_cav not in metadata_by_cav:
         raise V2V4RealInputError('explicit ego and both native CAV 0/1 frames required')
@@ -116,7 +133,7 @@ def prepare_frame(metadata_by_cav, *, ego_cav):
     order = [ego_cav, *sorted(set(metadata_by_cav) - {ego_cav})]
     chosen, source_counts, local_retained, duplicates = {}, {}, 0, []
     for cav in order:
-        boxes, classes = local_car_boxes(metadata_by_cav[cav], cav)
+        boxes, classes = _local_boxes(metadata_by_cav[cav], cav, vehicle=vehicle)
         source_counts[cav] = classes
         local_retained += len(boxes)
         corners = upright_corners([b['box_lwh'] for b in boxes], collated=True)
@@ -135,9 +152,11 @@ def prepare_frame(metadata_by_cav, *, ego_cav):
     for tid, row in sorted(chosen.items()):
         xy = row['corners_ego'][:, :2]
         if ((xy >= GT_RANGE[:2]) & (xy <= GT_RANGE[3:5])).all():
-            retained.append(dict(track_id=tid, raw_class='Car', selected_cav=row['cav_id'],
+            retained.append(dict(track_id=tid, raw_class=row['raw_class'] if vehicle else 'Car', selected_cav=row['cav_id'],
                 selected_object_id=row['object_id'], selected_associated_id=row['associated_id'],
                 corners_ego=row['corners_ego'].tolist()))
+            if vehicle:
+                retained[-1]['evaluation_class'] = 'vehicle'
         else:
             outside.append(tid)
     return dict(objects=retained, audit=dict(raw_classes_by_source=source_counts,
@@ -147,6 +166,15 @@ def prepare_frame(metadata_by_cav, *, ego_cav):
 
 def load_train_ground_truth(root, *, expected_manifest_sha256):
     """Hash-pinned evaluator/label consumer. Never reads raw YAML or point clouds."""
+    return _load_ground_truth(root, expected_manifest_sha256=expected_manifest_sha256, vehicle=False)
+
+
+def load_vehicle_ground_truth(root, *, expected_manifest_sha256):
+    """Separately named native vehicle GT; official test is evaluation-only."""
+    return _load_ground_truth(root, expected_manifest_sha256=expected_manifest_sha256, vehicle=True)
+
+
+def _load_ground_truth(root, *, expected_manifest_sha256, vehicle):
     root = Path(root).absolute()
     if (any(p.is_symlink() for p in (root, *root.parents)) or not root.is_dir()
             or re.fullmatch(r'[0-9a-f]{64}', expected_manifest_sha256 or '') is None):
@@ -164,12 +192,22 @@ def load_train_ground_truth(root, *, expected_manifest_sha256):
     if hashlib.sha256(raw['manifest.json']).hexdigest() != expected_manifest_sha256:
         raise V2V4RealInputError('GT manifest SHA-256 differs')
     manifest = json.loads(raw['manifest.json'])
-    if (manifest.get('kind') != 'v2v4real_native_train_gt_projection_v1' or manifest.get('recipe') != GT_RECIPE
-            or manifest.get('split') != 'train' or manifest.get('class_scope') != ['Car']
+    legacy_contract = (manifest.get('kind') == 'v2v4real_native_train_gt_projection_v1' and manifest.get('recipe') == GT_RECIPE
+            and manifest.get('split') == 'train' and manifest.get('class_scope') == ['Car']
+            and manifest.get('test_payloads_read') is False)
+    vehicle_contract = (manifest.get('kind') == 'v2v4real_native_vehicle_gt_projection_v1'
+            and manifest.get('recipe') == VEHICLE_GT_RECIPE
+            and manifest.get('evaluation_protocol') == VEHICLE_PROTOCOL
+            and manifest.get('native_label_source') == NATIVE_VEHICLE_SELECTION
+            and manifest.get('evaluation_class') == 'vehicle'
+            and manifest.get('split') in ('train', 'official_test')
+            and manifest.get('class_scope') == ['vehicle']
+            and manifest.get('test_payloads_read') is (manifest.get('split') == 'official_test'))
+    if (not (vehicle_contract if vehicle else legacy_contract)
             or manifest.get('time_basis') != 'ordinal-only-no-clock'
             or manifest.get('coordinate_frame') != 'current_ego_lidar' or manifest.get('inference_input') is not False
-            or manifest.get('GT_read') is not True or manifest.get('test_payloads_read') is not False):
-        raise V2V4RealInputError('explicit offline native strict-Car train GT contract required')
+            or manifest.get('GT_read') is not True):
+        raise V2V4RealInputError('explicit offline native GT contract required')
     for name, key in (('frames.jsonl', 'frames_sha256'), ('audit.jsonl', 'audit_sha256')):
         if hashlib.sha256(raw[name]).hexdigest() != manifest[key]:
             raise V2V4RealInputError('GT stream SHA-256 differs')
@@ -186,7 +224,9 @@ def load_train_ground_truth(root, *, expected_manifest_sha256):
         for row in frame['objects']:
             tid = row['track_id']
             points = np.asarray(row['corners_ego'])
-            if (type(tid) is not int or not 0 <= tid < 2**53 or row['raw_class'] != 'Car'
+            valid_class = (native_vehicle(row.get('raw_class')) and row.get('evaluation_class') == 'vehicle'
+                           if vehicle else row['raw_class'] == 'Car')
+            if (type(tid) is not int or not 0 <= tid < 2**53 or not valid_class
                     or points.shape != (8, 3) or points.dtype.kind not in 'fi' or not np.isfinite(points).all()
                     or not ((points[:, :2] >= GT_RANGE[:2]) & (points[:, :2] <= GT_RANGE[3:5])).all()):
                 raise V2V4RealInputError('GT identity, class or geometry differs')

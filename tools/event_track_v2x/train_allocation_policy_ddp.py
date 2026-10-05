@@ -2,7 +2,7 @@
 """Four-GPU priority-head fitting on complete, train-only teacher exports.
 
 Independent seeds may run on different four-GPU workers. One job stays on one
-host; V100/CPU fallback is forbidden by the production CLI. CPU/Gloo is a
+host; any supported GPU model is eligible, while L40S stays CPU-only. CPU/Gloo is a
 low-level test-only path. Equal-weight selection GROUPS, not candidate rows,
 are partitioned without padding. Sequence holdout never updates parameters or
 selects an epoch. This is not strict upstream-isolated training or final refit.
@@ -31,8 +31,9 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
 from tools.event_track_v2x.train_forest_identity_ddp import _gather,_rank_zero,ddp_sources,rank_rows
+from tools.event_track_v2x.priority_gpu_runtime import validate_runtime
 from transvision.models.event_track_v2x.allocation_policy import FEATURES,RECIPE,TARGET,FrozenPriorityPolicy
-from transvision.models.event_track_v2x.allocation_training import DATA_KIND,KIND,SEEDS,allocation_sources,groups
+from transvision.models.event_track_v2x.allocation_training import DATA_KIND,KIND,SEEDS,allocation_sources,groups,validate_backend_binding
 from transvision.models.event_track_v2x.detection_cache_v2 import canonical,contained_file,sha_file
 from transvision.models.event_track_v2x.forest_training_data import _new_json
 
@@ -58,7 +59,9 @@ def priority_ddp_sources():
     # The existing DDP helpers import the identity-training dependency closure.
     # Bind it explicitly rather than pretending this file is self-contained.
     return dict(ddp_sources(),**allocation_sources(),
-                **{Path(__file__).relative_to(ROOT).as_posix():sha_file(__file__)})
+                **{'transvision/models/event_track_v2x/experiment_progress.py':sha_file(ROOT/'transvision/models/event_track_v2x/experiment_progress.py'),
+                   'tools/event_track_v2x/priority_gpu_runtime.py':sha_file(ROOT/'tools/event_track_v2x/priority_gpu_runtime.py'),
+                   Path(__file__).relative_to(ROOT).as_posix():sha_file(__file__)})
 
 
 def sequence_partition(records):
@@ -76,6 +79,7 @@ def audit_data(data,manifest_sha256,*,require_full_train=True):
     data=Path(data);path=contained_file(data,'manifest.json')
     if sha_file(path)!=manifest_sha256: raise ValueError('priority data manifest changed')
     manifest=json.loads(path.read_bytes())
+    validate_backend_binding(manifest['binding'])
     if (manifest['kind']!=DATA_KIND or manifest['split']!='train'
             or manifest['source_sha256']!=allocation_sources()
             or manifest['feature_recipe']!=RECIPE or manifest['target_recipe']!=TARGET
@@ -104,6 +108,7 @@ def audit_data(data,manifest_sha256,*,require_full_train=True):
             positive_targets=positive,negative_targets=negative,max_abs_target=maximum)
     if require_full_train and statistics['fit']['nonzero_target_groups']==0:
         raise ValueError('all fitted targets are numerically zero; no informative priority training claim')
+    validate_backend_binding(manifest['binding'])
     if sha_file(path)!=manifest_sha256 or manifest['source_sha256']!=allocation_sources():
         raise ValueError('priority data or sources changed during audit')
     return manifest,fit,held,statistics
@@ -146,20 +151,6 @@ class GroupLoss(torch.nn.Module):
         return torch.stack(values).sum()*(world_size/global_count)
 
 
-def validate_runtime(runtimes,*,require_full_train):
-    if not runtimes or any(r['world_size']!=len(runtimes) for r in runtimes):
-        raise ValueError('complete actual rank inventory required')
-    if sorted(r['rank'] for r in runtimes)!=list(range(len(runtimes))) or len({r['host'] for r in runtimes})!=1:
-        raise ValueError('distinct ranks on one worker required')
-    if require_full_train:
-        if (len(runtimes)<4 or any(r['backend']!='nccl' or not r['device'].startswith('cuda:') for r in runtimes)
-                or len({r['device'] for r in runtimes})!=len(runtimes)
-                or len({r.get('gpu_uuid') for r in runtimes})!=len(runtimes)
-                or any(not r.get('gpu_uuid') or r['gpu_uuid'] in ('unavailable','None') for r in runtimes)
-                or any(not any(f in r.get('gpu_name','') for f in ('A100','5090')) for r in runtimes)):
-            raise ValueError('at least four distinct actual A100/5090 CUDA/NCCL GPUs required; V100 excluded')
-
-
 def fit_distributed(data,manifest_sha256,output,*,device,seed=1337,config=None,require_full_train=True):
     if not dist.is_initialized(): raise ValueError('initialized distributed process group required')
     if type(require_full_train) is not bool or type(seed) is not int or seed not in SEEDS:
@@ -173,9 +164,14 @@ def fit_distributed(data,manifest_sha256,output,*,device,seed=1337,config=None,r
     runtime=dict(rank=rank,world_size=world,device=str(device),host=socket.gethostname(),
                  backend=dist.get_backend(),torch=torch.__version__,torch_cuda=torch.version.cuda)
     if device.type=='cuda':
+        torch.set_float32_matmul_precision('highest')
+        torch.backends.cuda.matmul.allow_tf32=False
+        torch.backends.cudnn.allow_tf32=False
         props=torch.cuda.get_device_properties(device)
         runtime.update(gpu_name=props.name,gpu_uuid=str(getattr(props,'uuid','unavailable')),
-                       capability=[props.major,props.minor],total_memory_bytes=props.total_memory)
+                       capability=[props.major,props.minor],total_memory_bytes=props.total_memory,
+                       native_architectures=torch.cuda.get_arch_list(),
+                       TF32_matmul=torch.backends.cuda.matmul.allow_tf32,TF32_cudnn=torch.backends.cudnn.allow_tf32)
     runtimes=_gather(runtime);validate_runtime(runtimes,require_full_train=require_full_train)
     contract=dict(seed=seed,fit_config=asdict(config),manifest_sha256=manifest_sha256,
                   require_full_train=require_full_train)
@@ -201,7 +197,9 @@ def fit_distributed(data,manifest_sha256,output,*,device,seed=1337,config=None,r
         if output.exists() or any(p.is_symlink() for p in (output,*output.parents)):
             raise ValueError('new nonsymlink priority output required')
         output.mkdir();_new_json(output/'plan.json',plan);return sha_file(output/'plan.json')
+    from transvision.models.event_track_v2x.experiment_progress import ExperimentProgress
     plan_sha=_rank_zero(create_output);started=time.monotonic();directory=output/str(seed)
+    eta = ExperimentProgress("priority_training_epochs", config.epochs) if rank == 0 else None
     try:
         _rank_zero(lambda:directory.mkdir());torch.manual_seed(seed)
         model=priority_model(config.hidden).to(device);initial=policy(model).signature
@@ -242,6 +240,7 @@ def fit_distributed(data,manifest_sha256,output,*,device,seed=1337,config=None,r
             def save_epoch():
                 with (directory/'epochs.jsonl').open('ab') as stream:stream.write(canonical(entry)+b'\n')
                 print(json.dumps(entry,sort_keys=True),flush=True)
+                eta.update(epoch, force=True)
             _rank_zero(save_epoch)
         frozen=policy(model)
         if frozen.signature==initial: raise ValueError('optimizer did not change priority weights')

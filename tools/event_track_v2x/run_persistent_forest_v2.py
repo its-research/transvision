@@ -21,6 +21,8 @@ sys.path.insert(0, str(ROOT))
 
 import numpy as np
 
+from transvision.models.event_track_v2x.experiment_progress import ExperimentProgress
+
 from tools.event_track_v2x.run_tracking_v2 import schedule_rows, SPLIT_SHA
 from transvision.models.event_track_v2x.detection_cache_v2 import canonical, sha_file
 from transvision.models.event_track_v2x.forest_cache_stream import CacheDelivery, VerifiedForestCache
@@ -145,6 +147,7 @@ def replay_rows(cache, rows, output, config, *, birth_logit=-4., plan=None, lear
     timings, frame_timings, heads, rejected = [], [], {}, {'vehicle-side': 0, 'infrastructure-side': 0}
     tracker, stream, scene, frames = None, None, None, 0
     started = time.monotonic()
+    progress = ExperimentProgress("persistent_forest_replay_frames", len(rows))
     try:
         with prediction_path.open('xb') as predictions, audit_path.open('xb') as audits, timing_path.open('xb') as timing_file:
             for row in rows:
@@ -191,6 +194,7 @@ def replay_rows(cache, rows, output, config, *, birth_logit=-4., plan=None, lear
                 timing_file.write(canonical(dict(sequence_id=scene, frame_id=row['vehicle_frame'],
                     box_reference_timestamp_us=reference, decision_timestamp_us=decision,
                     step_seconds=step_seconds, frame_seconds=frame_seconds))+b'\n')
+                progress.update(frames, force=frames == len(rows))
                 if frames % 100 == 0:
                     print(json.dumps(dict(kind='persistent_forest_progress', frames=frames,
                         scheduled=len(rows), sequence=scene, elapsed_seconds=time.monotonic()-started)), flush=True)
@@ -269,7 +273,7 @@ def run(args):
             'persistent_joint_beam.py', 'persistent_class_bound_beam.py', 'persistent_slot_bound_beam.py',
             'persistent_sparse_slot_bound_beam.py',
             'persistent_reachable_slot_bound_beam.py',
-            'allocation_policy.py', 'learned_component_allocation.py')]
+            'allocation_policy.py', 'learned_component_allocation.py', 'experiment_progress.py')]
     sources += [ROOT/'transvision/models/event_track_v2x'/name for name in
                 ('frontier_completion.py','completion_component_tracking.py',
                  'covered_proposal_capacity.py','covered_completion_tracking.py')]

@@ -391,7 +391,7 @@ class PersistentComponentTracker(PersistentForestTracker):
                 state_updates=kernel.state_updates,
                 expansions=spent[component],
                 proposal_steps=proposal_spent[component],
-                resource_limited=limited[component],
+                resource_limited=limited[component] or decisions[component].get('resource_limited', False),
                 expired_output_only=expired,
                 merge_restart=bool(change and change.merge_restart),
                 predecessors=change.predecessors if change else (component, ),

@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 
 from .detection_cache_v2 import canonical
+from .paper_evaluation_policy import evaluation_class
 
 PAPER = 'rbf-all-class-top64-v1'
 LEGACY = 'rbf-car-first-top64-v1'
@@ -28,7 +29,9 @@ class PaperProtocol:
         allowed = {'spd': {'train', 'val'}, 'v2v4real': {'train', 'official_test'}}
         if self.dataset not in allowed or self.split not in allowed[self.dataset]:
             raise ValueError('dataset/split not authorized by paper protocol')
-        if (self.candidates not in {PAPER, LEGACY} or self.evaluation_class != 'car' or self.minimum_raw_score != .05 or type(self.maximum_detections) is not int
+        evaluation_class(self.dataset, self.evaluation_class)
+        if (self.candidates not in {PAPER, LEGACY} or (self.evaluation_class == 'vehicle' and self.candidates != PAPER)
+                or self.minimum_raw_score != .05 or type(self.maximum_detections) is not int
                 or self.maximum_detections != 64):
             raise ValueError('unsupported frozen candidate/evaluation protocol')
 

@@ -148,3 +148,86 @@ def test_figure_generator_uses_bound_oracle_inputs_and_fixture_watermark(tmp_pat
     source.write_text('changed')
     with pytest.raises(ValueError, match='source changed'):
         render(manifest, tmp_path / 'changed')
+
+
+from transvision.models.event_track_v2x.paper_evaluation_policy import (
+    VEHICLE_PROTOCOL, NATIVE_VEHICLE_SELECTION, vehicle_binding,
+)
+from transvision.models.event_track_v2x.paper_protocol import PaperProtocol
+
+def make_vehicle_evaluation(tmp_path, *, missing_binding=False):
+    from test_train_inference_evaluator import metric_fixture
+    from tools.event_track_v2x.evaluate_paper import adapter
+    root, _, replay, _ = metric_fixture(tmp_path, 'perfect')
+    m = adapter()
+    protocol = asdict(PaperProtocol('v2v4real', 'official_test', evaluation_class='vehicle'))
+    (replay/'plan.json').write_bytes(m.canonical(dict(protocol=protocol, model_binding={} if missing_binding else vehicle_binding())))
+    (replay/'receipt.json').write_bytes(m.canonical(dict(status='software_replay_completed', fixture=True,
+        completed_events=4, files={name: m.sha(replay/name) for name in ('plan.json', 'predictions.jsonl')})))
+    gtpath = root/'ground-truth.jsonl'
+    rows = [json.loads(line) for line in gtpath.read_bytes().splitlines()]
+    for row in rows:
+        for box in row['objects']:
+            box.update(class_label='vehicle', raw_class='Truck')
+    gtpath.write_bytes(b''.join(m.canonical(row)+b'\n' for row in rows))
+    manifest = dict(kind='rbf_paper_evaluation_gt_v1', fixture=True, protocol=protocol,
+        evaluation_protocol=VEHICLE_PROTOCOL, native_label_source=NATIVE_VEHICLE_SELECTION,
+        frames=4, roi=dict(kind='strict_radial_xy', radius_m=50.),
+        ground_truth=dict(path=gtpath.name, sha256=m.sha(gtpath)), sequence_clusters={'golden': 'recording1'})
+    (root/'manifest.json').write_bytes(m.canonical(manifest))
+    return root, replay, m
+
+
+def test_independent_vehicle_metrics_are_explicitly_auxiliary_and_commits_unchanged(tmp_path):
+    pytest.importorskip('nuscenes')
+    pytest.importorskip('trackeval')
+    from tools.event_track_v2x.evaluate_paper import evaluate
+    root, replay, m = make_vehicle_evaluation(tmp_path)
+    original = (replay/'predictions.jsonl').read_bytes()
+    result = evaluate(root/'manifest.json', m.sha(root/'manifest.json'), replay,
+                      m.sha(replay/'receipt.json'), tmp_path/'evaluation')
+    assert result['metrics']['HOTA'] == pytest.approx(1.)
+    assert result['protocol']['evaluation_class'] == 'vehicle'
+    assert result['metric_backend_class_alias'] == {'vehicle': 'car'}
+    assert result['evaluation_class_binding'] == vehicle_binding()
+    assert not result['native_v2v4real_tracking_metrics'] and not result['native_protocol_reproduction']
+    assert result['auxiliary_metrics_only']
+    assert 'lower_is_better_not_native_AB3DMOT' in result['amotp_definition']
+    assert (replay/'predictions.jsonl').read_bytes() == original
+    from transvision.models.event_track_v2x.paper_reports import validate_result
+    report_path = tmp_path/'evaluation/report.json'
+    record = dict(status='evaluated', table=1, evidence_kind='fixture', deterministic=True, seed=None,
+                  protocol=result['protocol'], metrics=result['metrics'], amotp_definition=result['amotp_definition'],
+                  artifacts=dict(prediction=dict(path=str(replay/'predictions.jsonl'), sha256=m.sha(replay/'predictions.jsonl')),
+                                 evaluation=dict(path=str(report_path), sha256=m.sha(report_path))))
+    validate_result(record)
+    with pytest.raises(ValueError, match='AMOTP definition'):
+        validate_result(dict(record, amotp_definition='native_IoU_AMOTP_higher_is_better'))
+
+
+def test_independent_vehicle_evaluation_rejects_unbound_legacy_predictions(tmp_path):
+    from tools.event_track_v2x.evaluate_paper import evaluate
+    root, replay, m = make_vehicle_evaluation(tmp_path, missing_binding=True)
+    with pytest.raises(ValueError, match='vehicle calibration binding'):
+        evaluate(root/'manifest.json', m.sha(root/'manifest.json'), replay,
+                 m.sha(replay/'receipt.json'), tmp_path/'evaluation')
+
+
+@pytest.mark.parametrize('bad', ['missing_obj_type', 'Pedestrian', 'car'])
+def test_vehicle_gt_rejects_silent_class_relabeling_even_when_resealed(tmp_path, bad):
+    root, replay, m = make_vehicle_evaluation(tmp_path)
+    path = root/'ground-truth.jsonl'
+    rows = [json.loads(line) for line in path.read_bytes().splitlines()]
+    if bad == 'missing_obj_type':
+        del rows[0]['objects'][0]['raw_class']
+    elif bad == 'Pedestrian':
+        rows[0]['objects'][0]['raw_class'] = 'Pedestrian'
+    else:
+        rows[0]['objects'][0]['class_label'] = 'car'
+    path.write_bytes(b''.join(m.canonical(row)+b'\n' for row in rows))
+    manifest = json.loads((root/'manifest.json').read_bytes())
+    manifest['ground_truth']['sha256'] = m.sha(path)
+    (root/'manifest.json').write_bytes(m.canonical(manifest))
+    with pytest.raises(ValueError, match='obj_type'):
+        evaluate(root/'manifest.json', m.sha(root/'manifest.json'), replay,
+                 m.sha(replay/'receipt.json'), tmp_path/'evaluation')

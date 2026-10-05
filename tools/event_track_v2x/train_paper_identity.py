@@ -30,6 +30,7 @@ def fit(data, expected_sha256, output, *, protocol, groups, config=None, seeds=S
     if protocol.candidates != PAPER or type(fixture) is not bool:
         raise ValueError('explicit main candidate protocol/evidence status required')
     config = config or FitConfig()
+    from transvision.models.event_track_v2x.experiment_progress import ExperimentProgress
     import torch.distributed as dist
 
     from transvision.models.event_track_v2x.paper_ddp import PaperDDP
@@ -51,7 +52,7 @@ def fit(data, expected_sha256, output, *, protocol, groups, config=None, seeds=S
     partition = training_partition(groups.values())
     records = {key: [r for r in manifest['shards'] if groups[r['sequence_id']] in ids] for key, ids in partition.items()}
     sources = dict(sources, **{str(Path(__file__).relative_to(ROOT)): sha_file(__file__)})
-    for name in ('paper_calibration.py', 'paper_protocol.py', 'paper_ddp.py'):
+    for name in ('paper_calibration.py', 'paper_protocol.py', 'paper_evaluation_policy.py', 'paper_ddp.py', 'experiment_progress.py'):
         sources['transvision/models/event_track_v2x/' + name] = sha_file(ROOT / 'transvision/models/event_track_v2x' / name)
     sources['tools/event_track_v2x/train_forest_identity_ddp.py'] = sha_file(ROOT / 'tools/event_track_v2x/train_forest_identity_ddp.py')
 
@@ -95,6 +96,8 @@ def fit(data, expected_sha256, output, *, protocol, groups, config=None, seeds=S
             best, selected, epoch_rows = float('inf'), None, []
             directory = output / f'seed-{seed}'
             write(lambda: directory.mkdir())
+            progress = (ExperimentProgress(f"paper_identity_seed_{seed}_epochs", config.epochs)
+                        if not dist.is_initialized() or dist.get_rank() == 0 else None)
             for epoch in range(1, config.epochs + 1):
                 stats = {}
                 for phase in ('fit', 'holdout'):
@@ -139,6 +142,8 @@ def fit(data, expected_sha256, output, *, protocol, groups, config=None, seeds=S
                 if score < best:
                     best, selected = score, epoch
                     best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+                if progress is not None:
+                    progress.update(epoch, force=True)
             model.cpu().load_state_dict(best_state)
             model.eval().requires_grad_(False)
             if model_digest(model) == initial:

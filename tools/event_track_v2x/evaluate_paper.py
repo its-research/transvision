@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent car evaluation of sealed paper replays, including per-sequence
+"""Independent dataset-specific evaluation of sealed paper replays, including per-sequence
 metrics.
 
 Runs only in the evaluator environment. No tracker, cache, model, or training module is imported; GT remains outside all prediction artifacts.
@@ -14,6 +14,23 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTER = ROOT / 'transvision/models/event_track_v2x/tracking_evaluation_v2.py'
+PROGRESS = ROOT / 'transvision/models/event_track_v2x/experiment_progress.py'
+CLASS_POLICY = ROOT / 'transvision/models/event_track_v2x/paper_evaluation_policy.py'
+
+
+def class_policy():
+    spec = importlib.util.spec_from_file_location('rbf_independent_class_policy', CLASS_POLICY)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def progress_class():
+    # Load only the standalone stdlib logger, without importing model packages.
+    spec = importlib.util.spec_from_file_location('rbf_evaluation_progress', PROGRESS)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.ExperimentProgress
 
 
 def adapter():
@@ -23,19 +40,20 @@ def adapter():
     return module
 
 
-def metric_vector(metrics):
+def metric_vector(metrics, class_name='car'):
     n = metrics['nuscenes']['label_metrics']
-    t = metrics['trackeval']['car']['summary']
+    t = metrics['trackeval'][class_name]['summary']
     return {
         **{k: t[k]
            for k in ('HOTA', 'AssA', 'DetA', 'IDF1')},
-        **{out: n[key]['car']
+        **{out: n[key][class_name]
            for out, key in (('AMOTA', 'amota'), ('AMOTP', 'amotp'), ('FP', 'fp'), ('FN', 'fn'), ('IDS', 'ids'), ('Frag', 'frag'))}
     }
 
 
 def evaluate(gt_manifest, gt_sha256, replay, receipt_sha256, output):
     module = adapter()
+    policy = class_policy()
     gt_manifest = Path(gt_manifest)
     replay = Path(replay)
     output = Path(output)
@@ -49,7 +67,8 @@ def evaluate(gt_manifest, gt_sha256, replay, receipt_sha256, output):
         raise ValueError('explicit independent GT manifest required')
     if receipt['status'] != 'software_replay_completed' or receipt['fixture'] != m['fixture']:
         raise ValueError('incomplete replay or mixed fixture/real evidence')
-    inputs = {gt_manifest: gt_sha256, replay / 'receipt.json': receipt_sha256, ADAPTER: module.sha(ADAPTER), Path(__file__): module.sha(__file__)}
+    inputs = {gt_manifest: gt_sha256, replay / 'receipt.json': receipt_sha256, ADAPTER: module.sha(ADAPTER), PROGRESS: module.sha(PROGRESS), Path(__file__): module.sha(__file__)}
+    inputs[CLASS_POLICY] = module.sha(CLASS_POLICY)
     for name, digest in receipt['files'].items():
         if Path(name).name != name:
             raise ValueError('unsafe replay artifact path')
@@ -62,10 +81,15 @@ def evaluate(gt_manifest, gt_sha256, replay, receipt_sha256, output):
     if any(module.sha(path) != sha for path, sha in inputs.items()):
         raise ValueError('evaluation input changed')
     plan = json.loads((replay / 'plan.json').read_bytes())
-    if plan['protocol'] != m['protocol'] or m['protocol']['evaluation_class'] != 'car':
+    if plan['protocol'] != m['protocol']:
         raise ValueError('GT/replay protocol differs')
     allowed = {'spd': {'train', 'val'}, 'v2v4real': {'train', 'official_test'}}
     protocol = m['protocol']
+    selected_class = policy.require_evaluation_binding(protocol, plan.get('model_binding'))
+    vehicle = selected_class == 'vehicle'
+    if vehicle and (m.get('evaluation_protocol') != policy.VEHICLE_PROTOCOL
+                    or m.get('native_label_source') != policy.NATIVE_VEHICLE_SELECTION):
+        raise ValueError('explicit native vehicle GT class provenance required')
     if protocol['dataset'] not in allowed or protocol['split'] not in allowed[protocol['dataset']]:
         raise ValueError('forbidden dataset split')
     gt = [json.loads(line) for line in gt_path.read_bytes().splitlines()]
@@ -78,13 +102,15 @@ def evaluate(gt_manifest, gt_sha256, replay, receipt_sha256, output):
         if len(ids) != len(set(ids)):
             raise ValueError('duplicate GT identity')
         for b in frame['objects']:
+            if vehicle and (b.get('class_label') != 'vehicle' or not policy.native_vehicle(b.get('raw_class'))):
+                raise ValueError('vehicle GT must preserve native obj_type and explicit vehicle class')
             mean = np.asarray(b['mean'], float)
             if mean.shape != (9, ) or not np.isfinite(mean).all() or np.any(mean[3:6] <= 0):
                 raise ValueError('invalid GT physical box')
     roi = m['roi']
 
     def within(box, frame):
-        if box['class_label'] != 'car':
+        if box['class_label'] != selected_class:
             return False
         xy = np.asarray(box['mean'][:3]) - np.asarray(frame['ego_translation_world'])
         if roi['kind'] == 'strict_radial_xy':
@@ -103,19 +129,41 @@ def evaluate(gt_manifest, gt_sha256, replay, receipt_sha256, output):
         raise ValueError('unknown explicit evaluation ROI')
 
     filtered_gt, filtered_p = copy.deepcopy(gt), copy.deepcopy(predictions)
+    if vehicle:
+        # Validate original immutable commits above. Only a separately bound
+        # working copy receives this explicit detector-channel interpretation.
+        mapping = plan['model_binding']['prediction_class_mapping']
+        for p in filtered_p:
+            for b in p['predictions']:
+                if b['class_label'] not in mapping:
+                    raise ValueError('prediction class outside bound native single-class detector')
+                b['class_label'] = mapping[b['class_label']]
     for g, p in zip(filtered_gt, filtered_p):
         g['objects'] = [b for b in g['objects'] if within(b, g)]
         p['predictions'] = [b for b in p['predictions'] if within(b, g)]
+    if vehicle:
+        # nuScenes TrackingBox accepts only its registered class names. This
+        # disclosed backend alias changes no geometry, thresholds, or IDs and
+        # is not the native V2V4Real IoU-based AMOTP metric.
+        for g, p in zip(filtered_gt, filtered_p):
+            for b in (*g['objects'], *p['predictions']):
+                b['class_label'] = 'car'
     # ROI was applied above to both sides. Do not apply the legacy SPD 50m ROI
     # again to a V2V4Real rectangular ROI. Metric engines remain unchanged.
     module._roi = lambda boxes, ego, name: [b for b in boxes if b['class_label'] == name]
     runtime = module.runtime_evidence()
+    progress = progress_class()
+    aggregate_progress = progress('independent_evaluation_aggregate', 1)
     metrics = module.compute_metrics(filtered_gt, filtered_p, classes=('car', ))
+    aggregate_progress.update(1, force=True)
     per_sequence = {}
-    for sid in sorted({g['sequence_id'] for g in gt}):
+    sequence_ids = sorted({g['sequence_id'] for g in gt})
+    sequence_progress = progress('independent_evaluation_sequences', len(sequence_ids))
+    for completed, sid in enumerate(sequence_ids, 1):
         indices = [i for i, g in enumerate(gt) if g['sequence_id'] == sid]
         result = module.compute_metrics([filtered_gt[i] for i in indices], [filtered_p[i] for i in indices], classes=('car', ))
         per_sequence[sid] = dict(metrics=metric_vector(result), frames=len(indices), cluster=m['sequence_clusters'][sid])
+        sequence_progress.update(completed, force=True)
     if any(module.sha(path) != sha for path, sha in inputs.items()):
         raise ValueError('inputs changed during evaluation')
     output.mkdir()
@@ -135,6 +183,15 @@ def evaluate(gt_manifest, gt_sha256, replay, receipt_sha256, output):
         runtime=runtime,
         input_sha256={str(path): sha
                       for path, sha in inputs.items()})
+    if vehicle:
+        report.update(evaluation_class_binding=policy.vehicle_binding(),
+            metric_backend_class_alias={'vehicle': 'car'},
+            native_v2v4real_tracking_metrics=False,
+            prediction_commit_class_labels_unchanged=True,
+            coverage_class_semantics={'car': 'vehicle'},
+            auxiliary_metrics_only=True)
+        metrics = dict(metrics, evaluation_class='vehicle', metric_backend_class_alias={'vehicle': 'car'},
+                       native_v2v4real_tracking_metrics=False)
     module.write_json(output / 'metrics.json', metrics)
     module.write_json(output / 'report.json', report)
     return report

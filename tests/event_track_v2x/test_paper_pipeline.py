@@ -1,5 +1,6 @@
 import json
 from dataclasses import asdict, replace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -170,6 +171,11 @@ def test_sequence_holdout_training_freeze_and_reload(tmp_path):
         seeds=(1337, ),
         fixture=True)
     assert result['fixture'] and not result['three_seed_training_complete']
+    # Class interpretation is a transitive protocol dependency, not merely a
+    # display label. Persist its bytes with the fitted checkpoint provenance.
+    policy_source = 'transvision/models/event_track_v2x/paper_evaluation_policy.py'
+    plan = json.loads((output / 'plan.json').read_bytes())
+    assert plan['source_sha256'][policy_source] == sha_file(Path(__file__).resolve().parents[2] / policy_source)
     scorer, checkpoint = load_identity_checkpoint(output / 'seed-1337', result['seeds'][0]['sha256'], config=config)
     assert set(checkpoint['partition']['fit']).isdisjoint(checkpoint['partition']['holdout'])
     assert checkpoint['model_sha256'] != checkpoint['initial_model_sha256']

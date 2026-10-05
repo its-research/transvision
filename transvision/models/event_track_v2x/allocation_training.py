@@ -5,6 +5,7 @@ results, identity labels, GT or raw embeddings are read.
 """
 from __future__ import annotations
 import hashlib
+import ast
 import json
 from dataclasses import asdict
 from pathlib import Path
@@ -28,6 +29,52 @@ def allocation_sources():
     return {'transvision/models/event_track_v2x/' + name: sha_file(Path(__file__).with_name(name)) for name in SOURCES}
 
 
+def backend_sources(configuration):
+    """Bind exclusive solver dependencies without relabeling legacy checkpoints.
+
+Follow local imports, including imports inside functions. Dynamic/nonlocal
+runtime dependencies still belong to the separate execution-environment gate.
+"""
+    if 'residual_partition_version' not in configuration:
+        return None
+    if type(configuration['residual_partition_version']) is not int or configuration['residual_partition_version'] != 1:
+        raise ValueError('unsupported exclusive backend binding version')
+    pending = ['exclusive_completion_tracking', 'exclusive_paper_runtime']
+    if 'recovery_off_version' in configuration:
+        if type(configuration['recovery_off_version']) is not int or configuration['recovery_off_version'] != 1:
+            raise ValueError('unsupported recovery-off backend binding version')
+        pending.extend(['recovery_off_tracking', 'recovery_off_paper_runtime', 'recovery_off_allocation'])
+    result = {}
+    while pending:
+        module = pending.pop()
+        name = 'transvision/models/event_track_v2x/' + module + '.py'
+        if name in result:
+            continue
+        path = Path(__file__).with_name(module + '.py')
+        data = path.read_bytes()
+        result[name] = hashlib.sha256(data).hexdigest()
+        for node in ast.walk(ast.parse(data)):
+            if isinstance(node, ast.ImportFrom) and node.level == 1:
+                pending.extend([node.module.split('.')[0]] if node.module else [a.name for a in node.names])
+    return dict(sorted(result.items()))
+
+
+def validate_backend_binding(binding, *, plan_sources=None):
+    expected = backend_sources(binding.get('configuration', {}))
+    if 'recovery_off_version' in binding.get('configuration', {}):
+        if (binding.get('model_progress_support_scope') != 'conditional_on_irreversibly_pruned_support'
+                or binding.get('unrestricted_priority_checkpoint_transfer') is not False):
+            raise ValueError('recovery-off conditional model-progress binding is missing or changed')
+    if expected is None:
+        if 'backend_implementation_sha256' in binding:
+            raise ValueError('legacy configuration has an unexpected exclusive backend binding')
+        return
+    if binding.get('backend_implementation_sha256') != expected:
+        raise ValueError('exclusive backend source binding missing or changed')
+    if plan_sources is not None and any(plan_sources.get(k) != v for k, v in expected.items()):
+        raise ValueError('teacher exclusive backend sources differ from current binding')
+
+
 def _directory(output):
     output = Path(output).absolute()
     if output.exists() or any(p.is_symlink() for p in (output, *output.parents)):
@@ -49,6 +96,7 @@ def export_training(replay, receipt_sha256, output):
     if sha_file(plan_path) != receipt['plan_sha256'] or sha_file(trace_path) != receipt['tracking_sha256']:
         raise ValueError('teacher plan or trace changed')
     plan = json.loads(plan_path.read_bytes())
+    validate_backend_binding(plan['allocation_training_binding'], plan_sources=plan['source_sha256'])
     sources = allocation_sources()
     if any(plan['source_sha256'].get(p) != h for p, h in sources.items()):
         raise ValueError('teacher solver/feature sources differ')
@@ -151,6 +199,7 @@ def fit_priority(data, manifest_sha256, output, *, epochs=10, hidden=32, learnin
     if sha_file(path) != manifest_sha256:
         raise ValueError('priority training manifest changed')
     manifest = json.loads(path.read_bytes())
+    validate_backend_binding(manifest['binding'])
     sources = allocation_sources()
     if (manifest['kind'] != DATA_KIND or manifest['split'] != 'train' or manifest['feature_recipe'] != RECIPE or manifest['feature_names'] != list(FEATURES)
             or manifest['target_recipe'] != TARGET or manifest['source_sha256'] != sources or require_full_train and manifest['full_official_train_trace'] is not True):
@@ -263,6 +312,7 @@ def fit_priority(data, manifest_sha256, output, *, epochs=10, hidden=32, learnin
                     official_validation_or_test_used_for_selection=False)
             _new_json(directory / 'checkpoint.json', checkpoint)
             results.append(dict(seed=seed, checkpoint_sha256=sha_file(directory / 'checkpoint.json'), policy_signature=policy.signature))
+        validate_backend_binding(manifest['binding'])
         if sha_file(path) != manifest_sha256 or allocation_sources() != sources:
             raise ValueError('priority data or source changed during fitting')
         receipt = dict(kind='component_priority_fit_receipt_v1', status='complete', seeds=results, paper_eligible=False, real_tracking_validation=False)
@@ -281,6 +331,7 @@ def load_priority(root, manifest_sha256, *, binding, require_full_train=True):
     if sha_file(path) != manifest_sha256:
         raise ValueError('allocation checkpoint identity differs')
     manifest = json.loads(path.read_bytes())
+    validate_backend_binding(binding)
     if (manifest['kind'] != KIND or manifest['split'] != 'train' or manifest['binding'] != binding or manifest['source_sha256'] != allocation_sources()
             or manifest['feature_recipe'] != RECIPE or manifest['target_recipe'] != TARGET or manifest['feature_names'] != list(FEATURES)
             or require_full_train and manifest['full_official_train_trace'] is not True):
@@ -297,9 +348,16 @@ def load_priority(root, manifest_sha256, *, binding, require_full_train=True):
 
 
 def training_binding(config, scorer_signature, frozen_cache_identity):
-    return dict(
+    result = dict(
         configuration=asdict(config),
         factor_scorer_signature=scorer_signature,
         frozen_cache_identity=frozen_cache_identity,
         factor_implementation_sha256={name: sha_file(Path(__file__).with_name(name))
                                       for name in (*SCORING_SOURCES, 'recoverable_states.py', 'fusion.py', 'arrays.py')})
+    backend = backend_sources(result['configuration'])
+    if backend is not None:
+        result['backend_implementation_sha256'] = backend
+    if 'recovery_off_version' in result['configuration']:
+        result['model_progress_support_scope'] = 'conditional_on_irreversibly_pruned_support'
+        result['unrestricted_priority_checkpoint_transfer'] = False
+    return result

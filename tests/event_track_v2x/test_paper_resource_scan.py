@@ -1,16 +1,19 @@
 """Synthetic-only train selection, real fresh processes and independent
 evaluation."""
 import copy
+import datetime
 import json
 import os
 import sys
+import threading
+import time
 from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 from test_paper_pipeline import native_frame
 
-from tools.event_track_v2x.scan_paper_resources import freeze_scan, plan_scan, run_scan
+from tools.event_track_v2x.scan_paper_resources import freeze_scan, plan_scan, run_scan, run_stage_with_eta
 from transvision.models.event_track_v2x.detection_cache_v2 import canonical, sha_file
 from transvision.models.event_track_v2x.forest_cache_stream import CacheDelivery
 from transvision.models.event_track_v2x.paper_native_cache import NativePaperCache, write_native_cache
@@ -108,17 +111,64 @@ def test_learned_candidates_require_actual_checkpoints(tmp_path, spec):
 def test_failed_worker_preserves_failure_without_completion_receipt(tmp_path, spec, monkeypatch):
     plan_scan(spec, tmp_path / 'plan')
 
-    def fail(*args, **kwargs):
-        from types import SimpleNamespace
-        return SimpleNamespace(returncode=23, stdout=b'', stderr=b'synthetic failure')
+    def fail(argv, env, stdout_path, stderr_path, timeout, *, job_id, stage):
+        Path(stdout_path).write_bytes(b'')
+        Path(stderr_path).write_bytes(b'synthetic failure')
+        return 23
 
-    monkeypatch.setattr('tools.event_track_v2x.scan_paper_resources.subprocess.run', fail)
+    monkeypatch.setattr('tools.event_track_v2x.scan_paper_resources.run_stage_with_eta', fail)
     with pytest.raises(RuntimeError, match='failed: 23'):
         run_scan(tmp_path / 'plan/plan.json', sha_file(tmp_path / 'plan/plan.json'), tmp_path / 'run', python=sys.executable, evaluator_python=sys.executable, timeout=60)
     assert not (tmp_path / 'run/receipt.json').exists()
     failure = json.loads((tmp_path / 'run/failure.json').read_bytes())
     assert failure['completed_jobs'] == []
     assert (tmp_path / 'run/geometry-1337/replay.stderr').read_bytes() == b'synthetic failure'
+
+
+def test_child_eta_forwards_only_progress_and_keeps_original_logs(tmp_path, capsys):
+    code = ('import json; '
+            'print(json.dumps(dict(kind="rbf_experiment_progress_v1", stage="paper_replay_events", '
+            'completed=2, total=4, eta_seconds=3, credential="must-not-forward")), flush=True); '
+            'print("private child diagnostic", flush=True)')
+    stdout, stderr = tmp_path / 'child.stdout', tmp_path / 'child.stderr'
+    returncode = run_stage_with_eta([sys.executable, '-c', code], dict(os.environ), stdout,
+                                    stderr, 10, job_id='fixture-1337', stage='replay')
+    assert returncode == 0 and stderr.read_bytes() == b''
+    assert b'must-not-forward' in stdout.read_bytes()
+    public = capsys.readouterr().out
+    rows = [json.loads(line) for line in public.splitlines()]
+    assert len(rows) == 1
+    finish = rows[0].pop('estimated_finish_utc')
+    assert abs((datetime.datetime.fromisoformat(finish) -
+                datetime.datetime.now(datetime.timezone.utc)).total_seconds() - 3) < 2
+    assert rows == [dict(kind='rbf_child_experiment_progress_v1', job_id='fixture-1337',
+                         subprocess_stage='replay', stage='paper_replay_events', completed=2,
+                         total=4, eta_seconds=3, eta_status='estimated',
+                         experiment_acceptance_proven=False)]
+    assert 'must-not-forward' not in public and 'private child diagnostic' not in public
+
+
+def test_child_eta_is_visible_before_child_exits(tmp_path, capsys):
+    code = ('import json,time; '
+            'print(json.dumps(dict(kind="rbf_experiment_progress_v1", stage="paper_replay_events", '
+            'completed=1, total=4, eta_seconds=9)), flush=True); time.sleep(3)')
+    result = []
+
+    def run():
+        result.append(run_stage_with_eta([sys.executable, '-c', code], dict(os.environ),
+                                         tmp_path / 'live.stdout', tmp_path / 'live.stderr',
+                                         10, job_id='fixture-2027', stage='replay'))
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    visible = ''
+    deadline = time.monotonic() + 2.5
+    while time.monotonic() < deadline and 'rbf_child_experiment_progress_v1' not in visible:
+        visible += capsys.readouterr().out
+        time.sleep(.05)
+    assert 'rbf_child_experiment_progress_v1' in visible and worker.is_alive()
+    worker.join(timeout=5)
+    assert not worker.is_alive() and result == [0]
 
 
 @pytest.mark.parametrize('max_rss', [1e12, 1.])

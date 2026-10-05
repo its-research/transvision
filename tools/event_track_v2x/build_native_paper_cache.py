@@ -13,6 +13,99 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
+def recalibrate_native_cache(raw_cache, raw_cache_sha256, calibration_path, calibration_sha256,
+                             calibration_receipt, calibration_receipt_sha256, output):
+    """Reuse native raw candidates; change only scores and their explicit binding.
+
+    This does not admit a missing velocity/covariance or raw-export conversion
+    contract. In particular it refuses the historical NMS builder below.
+    """
+    import numpy as np
+    from transvision.models.event_track_v2x.detection_cache_v2 import ARRAYS, canonical, sha_file
+    from transvision.models.event_track_v2x.paper_calibration import ExistenceCalibration
+    from transvision.models.event_track_v2x.paper_evaluation_policy import (
+        VEHICLE_PROTOCOL, NATIVE_VEHICLE_SELECTION, require_vehicle_binding, vehicle_binding,
+    )
+    from transvision.models.event_track_v2x.paper_native_cache import NativePaperCache, NativeDetectionFrame, write_native_cache
+    from transvision.models.event_track_v2x.experiment_progress import ExperimentProgress
+    from tools.event_track_v2x.fit_v2v4real_vehicle_calibration import pinned
+    output = Path(output).absolute()
+    receipt_output = output.parent/(output.name+'-recalibration-receipt.json')
+    if (output.exists() or receipt_output.exists() or any(p.is_symlink() for p in (output, receipt_output, *output.parents))
+            or Path(raw_cache).absolute() in output.parents):
+        raise ValueError('fresh vehicle cache and separate receipt outputs required')
+    model_path = pinned(calibration_path, calibration_sha256)
+    proof_path = pinned(calibration_receipt, calibration_receipt_sha256)
+    proof = json.loads(proof_path.read_bytes())
+    if (proof.get('kind') != 'v2v4real_native_vehicle_existence_calibration_v1'
+            or proof.get('protocol_id') != VEHICLE_PROTOCOL or proof.get('fit_split') != 'train'
+            or proof.get('official_test_used') is not False or proof.get('gt_written_to_calibration_artifact') is not False
+            or proof.get('calibration_sha256') != calibration_sha256):
+        raise ValueError('separate vehicle train-only calibration receipt required')
+    require_vehicle_binding(proof.get('evaluation_class_binding'))
+    calibration = ExistenceCalibration(**json.loads(model_path.read_bytes()))
+    if list(calibration.fit_groups) != proof.get('fit_groups'):
+        raise ValueError('calibration parameter training groups differ from receipt')
+    original = NativePaperCache(raw_cache, raw_cache_sha256)
+    manifest = json.loads(original.manifest_json)
+    producer = manifest['producer']
+    if (producer.get('candidate_protocol') != 'rbf-all-class-top64-v1'
+            or producer.get('postprocessing') != 'raw_score_ge_0.05_stable_top64_before_nms'
+            or producer.get('native_label_source') != NATIVE_VEHICLE_SELECTION
+            or producer.get('detector_checkpoint_sha256') != proof.get('checkpoint_sha256')):
+        raise ValueError('native raw-top64 vehicle detector lineage required; legacy NMS cache is not compatible')
+    retained_names = sorted(ARRAYS-{'scores'})
+    progress = ExperimentProgress('vehicle_raw_cache_recalibration', manifest['frame_count'],
+                                 eta_scope='score transformation and persistence only')
+    def frames():
+        for completed, entry in enumerate(manifest['frames'], 1):
+            frame = NativeDetectionFrame.load(raw_cache, entry)
+            if (frame.metadata['detector_checkpoint_sha256'] != proof['checkpoint_sha256']
+                    or frame.count > 64 or np.any(frame.raw_scores < .05) or np.any(frame.class_indices != 0)):
+                raise ValueError('raw native vehicle candidate or detector binding differs')
+            meta = dict(frame.metadata, calibration_sha256=calibration_sha256)
+            arrays = {key: getattr(frame, key) for key in retained_names}
+            yield NativeDetectionFrame(canonical(meta), scores=calibration.apply(frame.raw_scores), **arrays)
+            progress.update(completed)
+    new_producer = dict(producer, **vehicle_binding())
+    new_producer.update(raw_cache_sha256=raw_cache_sha256, calibration_receipt_sha256=calibration_receipt_sha256,
+        calibration_sha256=calibration_sha256, original_raw_candidate_arrays_reused=True,
+        raw_candidate_postprocessing_unchanged=True,
+        calibration_independent_acceptance_verified=proof.get('independent_acceptance_verified') is True)
+    digest = write_native_cache(output, frames(), split=manifest['split'], producer=new_producer, fixture=manifest['fixture'])
+    created = NativePaperCache(output, digest)
+    new_manifest = json.loads(created.manifest_json)
+    verification = ExperimentProgress('vehicle_cache_raw_byte_preservation', manifest['frame_count'],
+                                     eta_scope='local array preservation readback only; independent acceptance excluded')
+    if new_manifest['frame_count'] != manifest['frame_count'] or new_manifest['detection_count'] != manifest['detection_count']:
+        raise ValueError('candidate coverage changed during recalibration')
+    for completed, (old, new) in enumerate(zip(manifest['frames'], new_manifest['frames']), 1):
+        a, b = NativeDetectionFrame.load(raw_cache, old), NativeDetectionFrame.load(output, new)
+        for key in retained_names:
+            x, y = getattr(a, key), getattr(b, key)
+            if x.dtype != y.dtype or x.shape != y.shape or x.tobytes() != y.tobytes():
+                raise ValueError('raw candidate bytes changed during recalibration: '+key)
+        for key in set(a.metadata)-{'arrays_sha256', 'calibration_sha256'}:
+            if a.metadata[key] != b.metadata[key]:
+                raise ValueError('raw frame metadata changed during recalibration: '+key)
+        if not np.array_equal(b.scores, calibration.apply(a.raw_scores)):
+            raise ValueError('persisted vehicle calibration scores differ')
+        verification.update(completed)
+    NativePaperCache(raw_cache, raw_cache_sha256)
+    pinned(model_path, calibration_sha256); pinned(proof_path, calibration_receipt_sha256)
+    receipt = dict(kind='v2v4real_native_vehicle_cache_recalibration_v1', cache_sha256=digest,
+        raw_cache_sha256=raw_cache_sha256, calibration_sha256=calibration_sha256,
+        calibration_receipt_sha256=calibration_receipt_sha256, evaluation_class_binding=vehicle_binding(),
+        preserved_array_fields=retained_names, raw_array_bytes_preserved=True,
+        metadata_changes=['arrays_sha256', 'calibration_sha256'], frames=manifest['frame_count'],
+        detections=manifest['detection_count'], fixture=manifest['fixture'], gt_payload_opened=False,
+        detector_executed=False, independent_acceptance_verified=False,
+        new_velocity_covariance_contract_admitted=False, paper_results_verified=False)
+    with receipt_output.open('xb') as stream:
+        stream.write(canonical(receipt))
+    return receipt
+
+
 def build(source, manifest_path, manifest_sha256, output, *, device='cpu'):
     import numpy as np
     import yaml
@@ -124,10 +217,22 @@ def build(source, manifest_path, manifest_sha256, output, *, device='cpu'):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    for name in ('source', 'manifest', 'manifest-sha256', 'output'):
-        p.add_argument('--' + name, required=True)
+    for name in ('source', 'manifest', 'manifest-sha256', 'raw-cache', 'raw-cache-sha256',
+                 'calibration', 'calibration-sha256', 'calibration-receipt', 'calibration-receipt-sha256'):
+        p.add_argument('--' + name)
+    p.add_argument('--output', required=True)
     p.add_argument('--device', default='cpu')
     a = p.parse_args()
+    if a.raw_cache:
+        names = ('raw_cache_sha256', 'calibration', 'calibration_sha256', 'calibration_receipt', 'calibration_receipt_sha256')
+        if any(not getattr(a, name) for name in names) or any((a.source, a.manifest, a.manifest_sha256)):
+            p.error('raw-cache mode requires calibration parameters and receipt hashes; no detector execution arguments')
+        print(json.dumps(recalibrate_native_cache(a.raw_cache, a.raw_cache_sha256, a.calibration, a.calibration_sha256,
+             a.calibration_receipt, a.calibration_receipt_sha256, a.output), sort_keys=True))
+        return
+    if not all((a.source, a.manifest, a.manifest_sha256)) or any((a.raw_cache_sha256, a.calibration, a.calibration_sha256,
+                                                                          a.calibration_receipt, a.calibration_receipt_sha256)):
+        p.error('historical detector mode requires source, manifest and manifest-sha256 only')
     print(json.dumps(dict(cache_sha256=build(a.source, a.manifest, a.manifest_sha256, a.output, device=a.device))))
 
 

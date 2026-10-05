@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .covered_completion_tracking import CoveredCompletionLearned, CoveredCompletionTeacher, CoveredCompletionTracker, PersistentCoveredCompletionConfig
 from .detection_cache_v2 import canonical, sha_file
+from .experiment_progress import ExperimentProgress
 from .forest_cache_stream import CacheDelivery
 from .forest_tracking import PaperForestTrackingConfig as ForestTrackingConfig
 from .paper_protocol import PaperProtocol
@@ -148,6 +149,11 @@ def replay(cache, events, output, *, protocol, configuration, scorer, model_bind
         expected_sequences=sorted(sequences))
     write_once(output / 'plan.json', plan)
     trackers, streams, timings, databases = {}, {}, [], {}
+    progress = ExperimentProgress(
+        "paper_replay_events", len(events),
+        context=dict(sequence_ids=sorted(sequences), events_sha256=plan['events_sha256'],
+                     output_directory=str(output)),
+        eta_scope='this replay schedule only; excludes remaining schedules and independent acceptance')
     try:
         with (output / 'predictions.jsonl').open('xb') as predictions, (output / 'audit.jsonl').open('xb') as audits:
             for index, event in enumerate(events):
@@ -155,9 +161,11 @@ def replay(cache, events, output, *, protocol, configuration, scorer, model_bind
                 if sequence not in trackers:
                     path = output / ('sequence-' + str(len(trackers)) + '.sqlite')
                     trackers[sequence] = make_backend(path, sequence, configuration, allocation_policy=allocation_policy)
-                    origin = min(
-                        max(cache.describe(CacheDelivery(**d))[1][k] for k in ('box_reference_timestamp_us', 'source_image_timestamp_us')) for e in events
-                        if e['sequence_id'] == sequence for d in e['deliveries']) if any(e['deliveries'] for e in events if e['sequence_id'] == sequence) else 0
+                    # Match the frozen training feature recipe. The sealed
+                    # cache's reference clocks define the sequence origin;
+                    # availability still gates every delivery independently.
+                    origin = min(json.loads(metadata)['box_reference_timestamp_us']
+                                 for key, (_, metadata) in cache.index.items() if key[0] == sequence)
                     streams[sequence] = PersistentForestCacheStream(cache, trackers[sequence], scorer, origin_us=origin)
                 deliveries = [CacheDelivery(**d) for d in event['deliveries']]
                 side = {'single_vehicle': 'vehicle-side', 'single_remote': 'infrastructure-side'}.get(configuration['method'])
@@ -168,6 +176,7 @@ def replay(cache, events, output, *, protocol, configuration, scorer, model_bind
                 timings.append(dict(event=index, seconds=time.perf_counter() - started))
                 predictions.write(result.prediction_json + b'\n')
                 audits.write(result.tracking_audit_json + b'\n')
+                progress.update(index + 1)
         for sequence, tracker in trackers.items():
             databases[sequence] = dict(path=tracker.path.name, sha256=tracker.close())
         trackers.clear()

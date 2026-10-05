@@ -7,6 +7,7 @@ import numpy as np
 
 from .detection_cache_v2 import canonical, sha_file
 from .paper_protocol import SEEDS, require_same_protocol
+from .paper_evaluation_policy import evaluation_class, require_evaluation_binding
 
 METRICS = ('HOTA', 'AssA', 'DetA', 'IDF1', 'AMOTA', 'AMOTP', 'FP', 'FN', 'IDS', 'Frag')
 
@@ -81,8 +82,7 @@ def validate_result(record):
             raise ValueError('deterministic repetitions are not training seeds')
     elif record['seed'] not in SEEDS:
         raise ValueError('unsupported training seed')
-    if record['protocol']['evaluation_class'] != 'car':
-        raise ValueError('car-only evaluation required')
+    evaluation_class(record['protocol']['dataset'], record['protocol']['evaluation_class'])
     if set(record['metrics']) != set(METRICS) or any(not np.isfinite(v) for v in record['metrics'].values()):
         raise ValueError('complete finite metric vector required')
     if record['table'] in (2, 4):
@@ -92,6 +92,10 @@ def validate_result(record):
         if sha_file(binding['path']) != binding['sha256']:
             raise ValueError(name + ' evidence changed')
     evaluation = json.loads(Path(record['artifacts']['evaluation']['path']).read_bytes())
+    require_evaluation_binding(record['protocol'], evaluation.get('evaluation_class_binding'))
+    if (record['protocol']['evaluation_class'] == 'vehicle'
+            and record.get('amotp_definition') != evaluation.get('amotp_definition')):
+        raise ValueError('vehicle table AMOTP definition differs from evaluated metric')
     if (evaluation.get('status') != 'evaluated' or evaluation.get('metrics') != record['metrics'] or evaluation.get('protocol') != record['protocol']
             or evaluation.get('fixture') != (record['evidence_kind'] == 'fixture')
             or record['artifacts']['prediction']['sha256'] not in evaluation.get('input_sha256', {}).values()):

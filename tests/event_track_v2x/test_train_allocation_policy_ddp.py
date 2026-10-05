@@ -124,10 +124,12 @@ def test_data_preflight_rejects_wrong_provenance_before_output(priority_data,bad
         audit_data(data,sha_file(path),require_full_train=bad in ('fixture','false_full_flag'))
 
 
-@pytest.mark.parametrize('bad',['world','ranks','hosts','device','uuid','missing_uuid','family','cpu'])
-def test_gpu_inventory_requires_four_distinct_a100_or_5090_cards(bad):
+@pytest.mark.parametrize('bad',['world','ranks','hosts','device','uuid','missing_uuid','native_architecture','cpu'])
+def test_gpu_inventory_requires_actual_distinct_native_cards(bad):
     rows=[dict(rank=i,world_size=4,host='worker',device='cuda:'+str(i),backend='nccl',
-               gpu_uuid='uuid-'+str(i),gpu_name='NVIDIA A100') for i in range(4)]
+               gpu_uuid='uuid-'+str(i),gpu_name='Tesla V100',capability=[7,0],
+               native_architectures=['sm_70'],total_memory_bytes=32*1024**3,
+               TF32_matmul=False,TF32_cudnn=False) for i in range(4)]
     validate_runtime(rows,require_full_train=True)
     if bad=='world':rows=rows[:3]
     if bad=='ranks':rows[0]['rank']=1
@@ -135,7 +137,7 @@ def test_gpu_inventory_requires_four_distinct_a100_or_5090_cards(bad):
     if bad=='device':rows[0]['device']='cuda:1'
     if bad=='uuid':rows[0]['gpu_uuid']='uuid-1'
     if bad=='missing_uuid':rows[0]['gpu_uuid']='None'
-    if bad=='family':rows[0]['gpu_name']='Tesla V100'
+    if bad=='native_architecture':rows[0]['native_architectures']=['compute_70']
     if bad=='cpu':rows[0].update(device='cpu',backend='gloo')
     with pytest.raises(ValueError):validate_runtime(rows,require_full_train=True)
 

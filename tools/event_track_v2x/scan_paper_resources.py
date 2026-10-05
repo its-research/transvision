@@ -6,6 +6,7 @@ No GPU jobs or evaluator runs are launched by planning. Run is explicit. Frozen 
 """
 import argparse
 import copy
+import datetime
 import hashlib
 import json
 import math
@@ -13,11 +14,13 @@ import os
 import platform
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from transvision.models.event_track_v2x.detection_cache_v2 import canonical, sha_file  # noqa: E402
+from transvision.models.event_track_v2x.experiment_progress import ExperimentProgress  # noqa: E402
 from transvision.models.event_track_v2x.paper_protocol import PAPER, SEEDS, PaperProtocol  # noqa: E402
 
 
@@ -43,8 +46,103 @@ def fresh_directory(path):
     return path
 
 
+def run_stage_with_eta(argv, env, stdout_path, stderr_path, timeout, *, job_id, stage):
+    """Keep complete child logs on disk; forward only bounded progress fields."""
+    allowed_stages = {'paper_replay_events', 'independent_evaluation_aggregate',
+                      'independent_evaluation_sequences'}
+
+    def forward(line):
+        try:
+            row = json.loads(line)
+        except (ValueError, UnicodeDecodeError):
+            return
+        if not isinstance(row, dict) or row.get('kind') != 'rbf_experiment_progress_v1' or row.get('stage') not in allowed_stages:
+            return
+        if (type(row.get('completed')) is not int or type(row.get('total')) is not int
+                or row['total'] <= 0 or not 0 <= row['completed'] <= row['total']):
+            return
+        eta = row.get('eta_seconds')
+        if eta is not None and (type(eta) not in (int, float) or not math.isfinite(eta) or eta < 0):
+            return
+        finish = None
+        if eta is not None:
+            try:
+                finish = (datetime.datetime.now(datetime.timezone.utc)
+                          + datetime.timedelta(seconds=eta)).isoformat()
+            except OverflowError:
+                pass
+        print(json.dumps(dict(kind='rbf_child_experiment_progress_v1', job_id=job_id,
+                              subprocess_stage=stage, stage=row['stage'], completed=row['completed'],
+                              total=row['total'], eta_seconds=eta, estimated_finish_utc=finish,
+                              eta_status='warming_up' if eta is None else 'estimated',
+                              experiment_acceptance_proven=False), sort_keys=True), flush=True)
+
+    with Path(stdout_path).open('xb') as stdout, Path(stderr_path).open('xb') as stderr:
+        process = subprocess.Popen(argv, env=env, stdout=stdout, stderr=stderr)
+        deadline = time.monotonic() + timeout
+        pending = b''
+        with Path(stdout_path).open('rb', buffering=0) as reader:
+            while True:
+                chunk = reader.read(65536)
+                if chunk:
+                    pending += chunk
+                    lines = pending.split(b'\n')
+                    pending = lines.pop()
+                    for line in lines:
+                        forward(line)
+                    if len(pending) > 1048576:
+                        pending = b''
+                    continue
+                if process.poll() is not None:
+                    if pending:
+                        forward(pending)
+                    return process.returncode
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    process.kill()
+                    process.wait()
+                    raise subprocess.TimeoutExpired(argv, timeout)
+                try:
+                    process.wait(timeout=min(1., remaining))
+                except subprocess.TimeoutExpired:
+                    pass
+
+
 def bindings(plan):
-    return [plan[k] for k in ('cache_manifest', 'schedule', 'gt_manifest', 'environment_lock')]
+    return [plan[k] for k in ('cache_manifest', 'schedule', 'gt_manifest', 'environment_lock')] + ([plan['GPU_runtime']] if 'GPU_runtime' in plan else [])
+
+
+def gpu_contract(plan):
+    if 'GPU_runtime' not in plan:
+        return None
+    from transvision.models.event_track_v2x.paper_gpu_resources import validate_contract
+    return validate_contract(json.loads(checked(plan['GPU_runtime']).read_bytes()))
+
+
+def source_files(gpu=False):
+    result = list((ROOT / 'transvision/models/event_track_v2x').glob('*.py')) + [
+        ROOT / 'tools/event_track_v2x/persistent_mht_tracking.py', ROOT / 'tools/event_track_v2x/run_paper.py', ROOT / 'tools/event_track_v2x/evaluate_paper.py']
+    if gpu:
+        result.append(ROOT / 'tools/event_track_v2x/rbf_gpu_replay_measurement.py')
+    return result
+
+
+def trial_files(gpu=False):
+    result = {'configuration.json', 'replay/receipt.json', 'replay/plan.json', 'replay/resources.json', 'replay/predictions.jsonl', 'evaluation/report.json'}
+    if gpu:
+        from transvision.models.event_track_v2x.paper_gpu_resources import trial_files as gpu_files
+        result |= gpu_files()
+    return result
+
+
+def validate_plan_source(plan):
+    expected = 'rbf_resource_scan_plan_v2_GPU' if 'GPU_runtime' in plan else 'rbf_resource_scan_plan_v1'
+    if plan['kind'] != expected or plan['source_sha256'] != sha_file(__file__):
+        raise ValueError('unknown or stale source plan')
+    if 'GPU_runtime' in plan:
+        current = {str(p): sha_file(p) for p in source_files(True)}
+        if plan['GPU_source_sha256'] != current:
+            raise ValueError('GPU runtime sources changed after scan plan')
 
 
 def plan_scan(spec, output):
@@ -56,6 +154,7 @@ def plan_scan(spec, output):
         raise ValueError('freeze requires exactly the three declared seeds')
     for asset in bindings(spec):
         checked(asset)
+    gpu = gpu_contract(spec)
     cache = json.loads(checked(spec['cache_manifest']).read_bytes())
     gt = json.loads(checked(spec['gt_manifest']).read_bytes())
     if cache['split'] != 'train' or gt['protocol'] != spec['protocol'] or gt['fixture'] != spec['fixture']:
@@ -67,6 +166,8 @@ def plan_scan(spec, output):
         raise ValueError('unsupported predeclared objective')
     limits = spec['constraints']
     allowed = {'peak_rss_bytes', 'state_file_bytes', 'p95_seconds', 'model_forward_calls', 'posterior_search_steps', 'action_search_steps', 'assignment_solves'}
+    if gpu is not None:
+        allowed |= {'peak_device_tensor_bytes', 'peak_device_reserved_bytes', 'replay_wall_seconds', 'replay_process_seconds'}
     if not limits or not set(limits) <= allowed or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0 for v in limits.values()):
         raise ValueError('positive predeclared resource constraints required')
     jobs, seen = [], set()
@@ -102,6 +203,9 @@ def plan_scan(spec, output):
     result = {k: copy.deepcopy(spec[k]) for k in ('protocol', 'fixture', 'seeds', 'objective', 'constraints', 'cache_manifest', 'schedule', 'gt_manifest', 'environment_lock')}
     result.update(
         kind='rbf_resource_scan_plan_v1', jobs=jobs, source_sha256=sha_file(__file__), selection_split='train', equal_resources_claimed=False, full_dataset_verified=False)
+    if gpu is not None:
+        result.update(kind='rbf_resource_scan_plan_v2_GPU', GPU_runtime=copy.deepcopy(spec['GPU_runtime']),
+                      GPU_source_sha256={str(p): sha_file(p) for p in source_files(True)})
     write(output / 'plan.json', result)
     return result
 
@@ -110,10 +214,10 @@ def run_scan(plan_path, plan_sha256, output, *, python, evaluator_python, timeou
     plan_path = checked(dict(path=str(Path(plan_path).absolute()), sha256=plan_sha256))
     plan = json.loads(plan_path.read_bytes())
     PaperProtocol(**plan['protocol']).require_train()
-    if plan['kind'] != 'rbf_resource_scan_plan_v1' or plan['source_sha256'] != sha_file(__file__):
-        raise ValueError('unknown or stale source plan')
+    validate_plan_source(plan)
     for asset in bindings(plan):
         checked(asset)
+    gpu = gpu_contract(plan)
     if platform.system() not in ('Darwin', 'Linux'):
         raise ValueError('ru_maxrss units not defined on this platform')
     for executable in (python, evaluator_python):
@@ -122,13 +226,10 @@ def run_scan(plan_path, plan_sha256, output, *, python, evaluator_python, timeou
     if type(timeout) is not int or timeout <= 0:
         raise ValueError('positive subprocess timeout required')
     output = fresh_directory(output)
-    source_files = list((ROOT / 'transvision/models/event_track_v2x').glob('*.py')) + [
-        ROOT / 'tools/event_track_v2x/persistent_mht_tracking.py', ROOT / 'tools/event_track_v2x/run_paper.py', ROOT / 'tools/event_track_v2x/evaluate_paper.py'
-    ]
-    source_hashes = {str(p): sha_file(p) for p in source_files}
+    source_hashes = {str(p): sha_file(p) for p in source_files(gpu is not None)}
     runtime = dict(
         source_sha256=source_hashes,
-        device='cpu',
+        device=gpu['device'] if gpu else 'cpu',
         system=platform.system(),
         machine=platform.machine(),
         platform=platform.platform(),
@@ -138,12 +239,16 @@ def run_scan(plan_path, plan_sha256, output, *, python, evaluator_python, timeou
         scan_source_sha256=sha_file(__file__),
         runner_source_sha256=sha_file(ROOT / 'tools/event_track_v2x/run_paper.py'),
         evaluator_source_sha256=sha_file(ROOT / 'tools/event_track_v2x/evaluate_paper.py'),
+        evaluator_environment=dict(PYTHONPATH='removed', PYTHONHOME='removed', PYTHONNOUSERSITE='1'),
         threads={
-            'OMP_NUM_THREADS': '1',
-            'OPENBLAS_NUM_THREADS': '1'
+            'OMP_NUM_THREADS': str(gpu['OMP_NUM_THREADS']) if gpu else '1',
+            'OPENBLAS_NUM_THREADS': str(gpu['OPENBLAS_NUM_THREADS']) if gpu else '1'
         })
+    if gpu:
+        runtime.update(GPU_runtime=plan['GPU_runtime'], GPU_contract=gpu, actual_device_identity_in_trial_bindings=True)
     write(output / 'runtime.json', runtime)
     completed = []
+    progress = ExperimentProgress('paper_resource_scan_jobs', len(plan['jobs']))
     try:
         for job in plan['jobs']:
             root = fresh_directory(output / job['id'])
@@ -162,11 +267,15 @@ def run_scan(plan_path, plan_sha256, output, *, python, evaluator_python, timeou
             for field in ('checkpoint', 'priority'):
                 if job[field] is not None:
                     command += ['--' + field, str(checked(job[field]).parent), '--' + field + '-sha256', job[field]['sha256']]
+            if gpu:
+                command += ['--device', gpu['device'], '--resource-contract', str(checked(plan['GPU_runtime'])),
+                            '--resource-contract-sha256', plan['GPU_runtime']['sha256']]
             if plan['fixture']:
                 command.append('--fixture')
             env = dict(os.environ, **runtime['threads'], PYTHONDONTWRITEBYTECODE='1')
             # A fresh process for every trial makes process-lifetime peak RSS
             # method-specific. No process pool or reused GPU model instance.
+            stage_seconds = {}
             for stage, argv in [('replay', command),
                                 ('evaluation', [
                                     evaluator_python,
@@ -177,20 +286,29 @@ def run_scan(plan_path, plan_sha256, output, *, python, evaluator_python, timeou
                                 ])]:
                 if stage == 'evaluation':
                     argv[argv.index('PENDING')] = sha_file(run / 'receipt.json')
-                process = subprocess.run(argv, env=env, capture_output=True, timeout=timeout)
-                with (root / (stage + '.stdout')).open('xb') as stream:
-                    stream.write(process.stdout)
-                with (root / (stage + '.stderr')).open('xb') as stream:
-                    stream.write(process.stderr)
-                if process.returncode:
-                    raise RuntimeError(job['id'] + ' ' + stage + ' failed: ' + str(process.returncode))
+                stage_env = dict(env)
+                if stage == 'evaluation':
+                    # Keep the independent interpreter's own numerical/binary
+                    # packages; the research/test PYTHONPATH may have another ABI.
+                    stage_env.pop('PYTHONPATH', None)
+                    stage_env.pop('PYTHONHOME', None)
+                    stage_env['PYTHONNOUSERSITE'] = '1'
+                stage_started = time.monotonic()
+                returncode = run_stage_with_eta(argv, stage_env, root / (stage + '.stdout'),
+                                                root / (stage + '.stderr'), timeout,
+                                                job_id=job['id'], stage=stage)
+                stage_seconds[stage] = time.monotonic()-stage_started
+                if returncode:
+                    raise RuntimeError(job['id'] + ' ' + stage + ' failed: ' + str(returncode))
             completed.append(
                 dict(
                     id=job['id'],
+                    process_wall_seconds=stage_seconds,
                     files={
                         name: sha_file(root / name)
-                        for name in ('configuration.json', 'replay/receipt.json', 'replay/plan.json', 'replay/resources.json', 'replay/predictions.jsonl', 'evaluation/report.json')
+                        for name in sorted(trial_files(gpu is not None))
                     }))
+            progress.update(len(completed), force=True)
         for asset in bindings(plan):
             checked(asset)
         if any(sha_file(p) != digest for p, digest in source_hashes.items()):
@@ -217,10 +335,10 @@ def run_scan(plan_path, plan_sha256, output, *, python, evaluator_python, timeou
 def freeze_scan(plan_path, plan_sha256, run, receipt_sha256, output):
     plan = json.loads(checked(dict(path=str(Path(plan_path).absolute()), sha256=plan_sha256)).read_bytes())
     PaperProtocol(**plan['protocol']).require_train()
-    if plan['kind'] != 'rbf_resource_scan_plan_v1' or plan['source_sha256'] != sha_file(__file__):
-        raise ValueError('unknown or stale source plan')
+    validate_plan_source(plan)
     for asset in bindings(plan):
         checked(asset)
+    gpu = gpu_contract(plan)
     events = [json.loads(line) for line in checked(plan['schedule']).read_bytes().splitlines() if line.strip()]
     events_sha256 = hashlib.sha256(canonical(events)).hexdigest()
     run = Path(run).absolute()
@@ -231,11 +349,13 @@ def freeze_scan(plan_path, plan_sha256, run, receipt_sha256, output):
     if [r['id'] for r in receipt['jobs']] != [j['id'] for j in plan['jobs']]:
         raise ValueError('incomplete or reordered trial cohort')
     runtime = json.loads((run / 'runtime.json').read_bytes())
+    if gpu and (runtime['device'] != gpu['device'] or runtime['GPU_contract'] != gpu or runtime['GPU_runtime'] != plan['GPU_runtime']):
+        raise ValueError('scan GPU runtime differs from plan')
     scale = {'Darwin': 1, 'Linux': 1024}[runtime['system']]
-    candidates = {}
+    candidates = {}; GPU_hardware = None
     for job, evidence in zip(plan['jobs'], receipt['jobs']):
         root = run / job['id']
-        required_files = {'configuration.json', 'replay/receipt.json', 'replay/plan.json', 'replay/resources.json', 'replay/predictions.jsonl', 'evaluation/report.json'}
+        required_files = trial_files(gpu is not None)
         if set(evidence['files']) != required_files:
             raise ValueError('incomplete artifact evidence')
         for name, sha in evidence['files'].items():
@@ -260,6 +380,18 @@ def freeze_scan(plan_path, plan_sha256, run, receipt_sha256, output):
             state_file_bytes=sum(d['file_bytes'] for d in costs['databases'].values()),
             p95_seconds=costs['latency']['p95_seconds'],
             **costs['costs'])
+        if gpu:
+            from transvision.models.event_track_v2x.paper_gpu_resources import validate_trial
+            measurements, hardware = validate_trial(root, gpu, plan['GPU_runtime']['sha256'], events, recorded_plan, replay)
+            if GPU_hardware is not None and hardware != GPU_hardware:
+                raise ValueError('resource scan mixed physical GPUs or runtime versions')
+            GPU_hardware = hardware
+            if (set(evidence['process_wall_seconds']) != {'replay', 'evaluation'}
+                    or any(type(t) not in (int, float) or not math.isfinite(t) or t <= 0
+                           for t in evidence['process_wall_seconds'].values())
+                    or evidence['process_wall_seconds']['replay'] < measurements['replay_wall_seconds']):
+                raise ValueError('invalid fresh-process timing evidence')
+            values.update(measurements, replay_process_seconds=evidence['process_wall_seconds']['replay'])
         score = report['metrics'][plan['objective']]
         if not math.isfinite(score) or any(not math.isfinite(values[k]) or values[k] < 0 for k in plan['constraints']):
             raise ValueError('nonfinite or negative measurement')
@@ -295,6 +427,10 @@ def freeze_scan(plan_path, plan_sha256, run, receipt_sha256, output):
         equal_resources_claimed=False,
         paper_results_verified=False,
         deterministic_baseline_seeds='repeated fresh-process trials, not independently trained models')
+    if gpu:
+        result.update(GPU_runtime=plan['GPU_runtime'], actual_GPU_hardware=GPU_hardware,
+                      memory_target_independently_accepted=False, warmup_measured_separately=True,
+                      GPU_device_usage_includes_other_processes=True, exclusive_GPU_use_independently_verified=False)
     write(output / 'receipt.json', result)
     return result
 

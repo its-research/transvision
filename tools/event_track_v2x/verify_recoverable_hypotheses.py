@@ -136,6 +136,29 @@ def verify_algebra(rng, trials):
     amplified = posterior_omitted_mass(.001, log_likelihood_ratio=math.log(1e6))
     false_ratio_bound = posterior_omitted_mass(.001, log_likelihood_ratio=math.log(2.))
     must(amplified > .99 and amplified > false_ratio_bound, "counterexample was not realized")
+    zero_one_loss = np.array([[0., 1.], [1., 0.]])
+    certain_model = np.array([1., 0.])
+    full_risks = zero_one_loss @ certain_model
+    restricted_regret = float(full_risks[1] - min(full_risks))
+    must(restricted_regret > 0., "unequal-action counterexample was not realized")
+    wrong_model = np.array([.999, .001])
+    truth = wrong_model[::-1]
+    truth_risks = zero_one_loss @ truth
+    wrong_action = int(np.argmin(zero_one_loss @ wrong_model))
+    truth_regret = float(truth_risks[wrong_action] - min(truth_risks))
+    explicit_zeta = float(.5 * np.abs(truth - wrong_model).sum())
+    model_only_bound = .001
+    must(truth_regret > model_only_bound
+         and truth_regret <= regret_upper_bound(.001, zeta=explicit_zeta),
+         "uncalibrated-model counterexample was not realized")
+    # Two apparent one-bit components share a cross-component interaction.
+    # Dropping it would multiply their independent partitions and falsely
+    # certify both the normalizer and any omitted-mass bound derived from it.
+    cross_weights = {(0, 0): 10., (0, 1): 1., (1, 0): 1., (1, 1): 10.}
+    coupled_z = math.fsum(cross_weights.values())
+    false_product_z = 2. * 2.
+    must(coupled_z != false_product_z,
+         "invalid component-independence premise was not exposed")
     return {"random_cases": trials, "max_bayes_formula_absolute_error": max_formula_error,
             "minimum_regret_bound_slack": min_model_margin,
             "minimum_explicit_tv_regret_bound_slack": min_approximate_margin,
@@ -143,12 +166,16 @@ def verify_algebra(rng, trials):
                 "likelihood_amplification": {"initial_omitted": .001, "likelihood_ratio": 1e6,
                                               "updated_omitted": amplified, "invalid_assumed_ratio": 2.,
                                               "invalid_bound": false_ratio_bound},
-                "unequal_action_sets": {"eta": 0., "regret_after_deleting_optimal_action": 1.,
+                "unequal_action_sets": {"eta": 0., "regret_after_deleting_optimal_action": restricted_regret,
                                          "claimed_bound_without_action_assumption": 0.},
-                "uncalibrated_model": {"model": [.999, .001], "truth": [.001, .999],
-                                       "truth_regret": .998, "model_only_bound": .001,
-                                       "explicit_zeta": .998,
-                                       "valid_with_explicit_zeta": regret_upper_bound(.001, zeta=.998)},
+                "uncalibrated_model": {"model": wrong_model.tolist(), "truth": truth.tolist(),
+                                       "truth_regret": truth_regret, "model_only_bound": model_only_bound,
+                                       "explicit_zeta": explicit_zeta,
+                                       "valid_with_explicit_zeta": regret_upper_bound(.001, zeta=explicit_zeta)},
+                "dependent_components": {"cross_weights": [10., 1., 1., 10.],
+                                         "true_partition": coupled_z,
+                                         "invalid_independent_product": false_product_z,
+                                         "premise_rejected": True},
             }, "epsilon_and_zeta": "computed against synthetic known distributions only; not estimated for real data"}
 
 

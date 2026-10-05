@@ -3,7 +3,8 @@
 
 No detector, test selection, identity learning, tracking metric or upload. This
 is a separate evaluator artifact, NEVER part of the inference-only projection.
-The CLI deliberately does not unlock official test during protocol development.
+The historical default remains strict-Car/train. The separately named vehicle
+protocol permits official test for evaluator-only native vehicle GT.
 """
 from __future__ import annotations
 
@@ -26,17 +27,22 @@ from tools.event_track_v2x.prepare_v2v4real_inputs import _read
 from tools.event_track_v2x.v2v4real_gt_oracle import native_oracle, SOURCE_HASHES, COMMIT
 from transvision.models.event_track_v2x.detection_cache_v2 import canonical, sha_file
 from transvision.models.event_track_v2x.v2v4real_inputs import load_raw_yaml, MAX_YAML_BYTES
-from transvision.models.event_track_v2x.v2v4real_ground_truth import prepare_frame, native_id, GT_RECIPE, GT_RANGE
+from transvision.models.event_track_v2x.v2v4real_ground_truth import prepare_frame, prepare_vehicle_frame, native_id, GT_RECIPE, VEHICLE_GT_RECIPE, GT_RANGE
+from transvision.models.event_track_v2x.paper_evaluation_policy import VEHICLE_PROTOCOL, NATIVE_VEHICLE_SELECTION, native_vehicle
 
 NUMERIC_ATOL_M = 1e-4  # Fixed before real comparison: float32 compound geometry at a 100 m ROI.
 SOURCES = ('tools/event_track_v2x/prepare_v2v4real_ground_truth.py',
     'tools/event_track_v2x/v2v4real_gt_oracle.py', 'tools/event_track_v2x/audit_v2v4real_native_volume.py',
     'tools/event_track_v2x/extract_v2v4real_archive.py', 'tools/event_track_v2x/prepare_v2v4real_inputs.py',
     'transvision/models/event_track_v2x/v2v4real_ground_truth.py',
+    'transvision/models/event_track_v2x/paper_evaluation_policy.py',
     'transvision/models/event_track_v2x/v2v4real_inputs.py', 'transvision/models/event_track_v2x/v2v4real_numpy_yaml.py')
 
 
-def prepare(volume, receipt_sha256, ego_agents, output, *, oracle_root=None):
+def prepare(volume, receipt_sha256, ego_agents, output, *, oracle_root=None, evaluation_protocol=None):
+    if evaluation_protocol not in (None, VEHICLE_PROTOCOL):
+        raise ValueError('unknown explicitly named evaluation protocol')
+    vehicle = evaluation_protocol == VEHICLE_PROTOCOL
     volume, ego_agents = ordinary(volume, directory=True), ordinary(ego_agents)
     output = Path(output).absolute()
     ordinary(output.parent, directory=True)
@@ -50,8 +56,11 @@ def prepare(volume, receipt_sha256, ego_agents, output, *, oracle_root=None):
     if sha_file(receipt_file) != receipt_sha256:
         raise ValueError('volume receipt SHA-256 differs')
     receipt = json.loads(receipt_file.read_bytes())
-    if receipt.get('split') != 'train':
+    if not vehicle and receipt.get('split') != 'train':
         raise ValueError('protocol development CLI accepts official train only; test remains unopened')
+    if vehicle and receipt.get('split') not in ('train', 'test', 'official_test'):
+        raise ValueError('native vehicle GT requires official train or official test volume')
+    split = 'train' if receipt.get('split') == 'train' else 'official_test'
     native_audit = audit_volume(volume, receipt_sha256)
     files = {r['path']: r for r in receipt['files'] if r['path'].endswith('.yaml')}
     groups = defaultdict(dict)
@@ -64,7 +73,7 @@ def prepare(volume, receipt_sha256, ego_agents, output, *, oracle_root=None):
     raw_classes, local_id_values = Counter(), defaultdict(set)
     error_max = 0.
     oracle_frames = 0
-    with native_oracle(oracle_root) if oracle_root else nullcontext(None) as oracle:
+    with native_oracle(oracle_root, vehicle=vehicle) if oracle_root else nullcontext(None) as oracle:
         for (scene, key), paths in sorted(groups.items()):
             if set(paths) != {'0', '1'}:
                 raise ValueError('both source labels required at every frame')
@@ -76,9 +85,9 @@ def prepare(volume, receipt_sha256, ego_agents, output, *, oracle_root=None):
                 metadata[cav] = load_raw_yaml(data)
                 for oid, annotation in metadata[cav]['vehicles'].items():
                     raw_classes[annotation['obj_type']] += 1
-                    if annotation['obj_type'] == 'Car':
+                    if native_vehicle(annotation['obj_type']) if vehicle else annotation['obj_type'] == 'Car':
                         local_id_values[(scene, cav, str(oid))].add(native_id(oid, annotation.get('ass_id', oid), cav))
-            result = prepare_frame(metadata, ego_cav=egos[scene])
+            result = (prepare_vehicle_frame if vehicle else prepare_frame)(metadata, ego_cav=egos[scene])
             if oracle:
                 reference = oracle(metadata, egos[scene])
                 actual = {o['track_id']: np.asarray(o['corners_ego']) for o in result['objects']}
@@ -122,6 +131,16 @@ def prepare(volume, receipt_sha256, ego_agents, output, *, oracle_root=None):
         GT_read=True, inference_input=False, public_results_directly_comparable=False,
         full_official_split_verified=False, detector_executed=False, tracking_evaluation_performed=False,
         parameter_training_performed=False, test_payloads_read=False, paper_eligible=False)
+    if vehicle:
+        manifest.update(kind='v2v4real_native_vehicle_gt_projection_v1', recipe=VEHICLE_GT_RECIPE,
+            split=split, class_scope=['vehicle'], evaluation_class='vehicle',
+            evaluation_protocol=VEHICLE_PROTOCOL, native_label_source=NATIVE_VEHICLE_SELECTION,
+            native_class_codes_are_not_paper_category_names=True,
+            selected_native_annotation_counts={k: v for k, v in raw_classes.items() if native_vehicle(k)},
+            excluded_native_annotation_counts={k: v for k, v in raw_classes.items() if not native_vehicle(k)},
+            reference_scope='unchanged_native_numeric_GT_definitions_and_native_Pedestrian_exclusion',
+            test_payloads_read=split == 'official_test',
+            permitted_use='evaluation_only' if split == 'official_test' else 'train_only_fit_or_selection')
     output.mkdir()
     # Completion manifest is last. Incomplete output is retained for diagnosis.
     for name, data in (('frames.jsonl', raw_stream), ('audit.jsonl', audit_stream), ('manifest.json', canonical(manifest))):
@@ -138,5 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('--ego-agents', type=Path, required=True)
     parser.add_argument('--oracle-root', type=Path)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--evaluation-protocol', choices=[VEHICLE_PROTOCOL])
     args = parser.parse_args()
-    prepare(args.volume, args.receipt_sha256, args.ego_agents, args.output, oracle_root=args.oracle_root)
+    prepare(args.volume, args.receipt_sha256, args.ego_agents, args.output, oracle_root=args.oracle_root,
+            evaluation_protocol=args.evaluation_protocol)

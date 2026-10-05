@@ -675,7 +675,7 @@ class PersistentForestTracker:
                 branches=branch_states,
                 state_updates=self.state_updates,
                 expansions=expansions,
-                resource_limited=limited,
+                resource_limited=limited or decision.get('resource_limited', False),
                 frontier_restarted_from_root=restarted,
                 prefix_node_count=self.prefix_count,
                 prefix_cache_entries=len(self.cache),

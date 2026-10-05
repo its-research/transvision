@@ -49,7 +49,9 @@ def definitions(tree, names, namespace, filename):
 
 
 @contextmanager
-def native_oracle(root):
+def native_oracle(root, *, vehicle=False):
+    if type(vehicle) is not bool:
+        raise ValueError('explicit boolean native vehicle selection required')
     sources = verified_sources(root)
     modules = {n: types.ModuleType(n) for n in ('opencood', 'opencood.utils',
         'opencood.data_utils', 'opencood.data_utils.datasets')}
@@ -75,7 +77,13 @@ def native_oracle(root):
         data = {}
         for cav in [ego_cav, *sorted(set(metadata_by_cav)-{ego_cav})]:
             metadata = copy.deepcopy(metadata_by_cav[cav])
-            metadata['vehicles'] = {k: v for k, v in metadata['vehicles'].items() if v['obj_type'] == 'Car'}
+            if vehicle:
+                # The unchanged pinned project_world_objects applies its own
+                # exact Pedestrian exclusion. No producer class helper is used.
+                if any(not isinstance(v.get('obj_type'), str) or not v['obj_type'] for v in metadata['vehicles'].values()):
+                    raise ValueError('explicit native obj_type required')
+            else:
+                metadata['vehicles'] = {k: v for k, v in metadata['vehicles'].items() if v['obj_type'] == 'Car'}
             boxes, mask, ids = processor.generate_object_center([dict(params=metadata, cav_id=int(cav))], np.eye(4))
             transform = numeric['x1_to_x2'](metadata['lidar_pose'], metadata_by_cav[ego_cav]['lidar_pose'])
             data[cav] = dict(object_bbx_center=torch.from_numpy(boxes), object_bbx_mask=torch.from_numpy(mask),

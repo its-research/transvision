@@ -81,7 +81,32 @@ def decode_persistent(kernel, active, weights, retained, eta, indices, fallback,
             action_space='all_supported_legal_histories',
             selected_outside_active=False)
     if kernel.n > kernel.config.max_decision_nodes:
-        raise ValueError('full action materialization exceeds decision-node capacity')
+        # The complete fallback already belongs to the immutable legal prefix
+        # store. Reuse it without materializing or truncating the action space.
+        # Unit bounded loss gives a conservative regret upper bound when the
+        # conditional Bayes search cannot be performed within this limit.
+        if kernel._prefix(fallback).depth != kernel.n:
+            raise ValueError('capacity fallback must be a complete legal history')
+        return fallback, dict(
+            decision_rule='conditional_Hamming_capacity_undecided',
+            status='undecided',
+            resource_limited=True,
+            resource_limit_kind='full_action_materialization_nodes',
+            required_nodes=kernel.n,
+            available_nodes=kernel.config.max_decision_nodes,
+            risk_bound=1.,
+            conditional_risk=None,
+            relaxed_bayes_lower=None,
+            optimization_gap=None,
+            empty_loss_scope=not indices,
+            action_search_complete=False,
+            action_search_steps=0,
+            action_materialization_prefixes=0,
+            action_materialization_steps=0,
+            action_space='all_supported_legal_histories',
+            selected_outside_active=fallback not in active,
+            fallback_handle=fallback,
+            numeric_certificate=False)
     factors = ForestFactors(tuple(kernel._observation(i).node for i in range(kernel.n)), tuple(kernel._row(i) for i in range(kernel.n)))
     action, audit = conditional_action(
         factors,

@@ -139,6 +139,32 @@ def test_dual_format_preparation_training_and_internal_baselines(tmp_path, datas
             fixture=True)
         factor_hashes.append([json.loads(line)['factor_rows_sha256'] for line in (output / 'audit.jsonl').read_bytes().splitlines()])
     assert factor_hashes[0] == factor_hashes[1] == factor_hashes[2]
+    # The RBF main path uses the explicit residual-partition backend. Exercise
+    # its real teacher -> export -> fit -> checkpoint -> learned replay chain;
+    # covered-backend fixture success cannot establish this interface.
+    from transvision.models.event_track_v2x import exclusive_paper_runtime as exclusive
+    exclusive_config = exclusive.default_configuration(allocation='teacher')
+    exclusive_config['state']['expansion_budget'] = 1
+    exclusive_teacher = tmp_path/'exclusive-teacher'
+    exclusive.replay(cache, events, exclusive_teacher, protocol=PaperProtocol(dataset, 'train'),
+        configuration=exclusive_config, scorer=scorer, model_binding=binding, fixture=True)
+    exclusive_data = tmp_path/'exclusive-priority-data'
+    exclusive_manifest = export(exclusive_teacher, sha_file(exclusive_teacher/'receipt.json'), exclusive_data)
+    assert exclusive_manifest['binding']['backend_implementation_sha256']
+    assert exclusive_manifest['full_official_train_trace'] is False
+    exclusive_fit = tmp_path/'exclusive-priority-fit'
+    fitted = fit_priority(exclusive_data, sha_file(exclusive_data/'manifest.json'), exclusive_fit,
+        epochs=1, hidden=4, require_full_train=False, select_best_train_holdout=True)
+    exclusive_policy, _ = load_priority(exclusive_fit/'1337', fitted['seeds'][0]['checkpoint_sha256'],
+        binding=exclusive_manifest['binding'], require_full_train=False)
+    exclusive_factors = []
+    for strategy in ('bound', 'learned'):
+        target = tmp_path/('exclusive-'+strategy)
+        exclusive.replay(cache, events, target, protocol=PaperProtocol(dataset, 'train'),
+            configuration=dict(exclusive_config, allocation=strategy), scorer=scorer, model_binding=binding,
+            allocation_policy=exclusive_policy if strategy == 'learned' else None, fixture=True)
+        exclusive_factors.append([json.loads(line)['factor_rows_sha256'] for line in (target/'audit.jsonl').read_bytes().splitlines()])
+    assert exclusive_factors[0] == exclusive_factors[1]
     import os
     import subprocess
     evaluator_python = os.environ.get('RBF_EVALUATOR_PYTHON')

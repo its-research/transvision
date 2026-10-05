@@ -21,6 +21,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.event_track_v2x.prepare_v2v4real_inputs import inventory_native_root
+from transvision.models.event_track_v2x.experiment_progress import ExperimentProgress
 
 MAX_FILES = 200_000
 MAX_FILE_BYTES = 128 * 1024**2
@@ -109,8 +110,12 @@ def extract_volume(archive_path, release_path, release_sha256, output):
         raise ValueError('fresh output directory required')
     with zipfile.ZipFile(archive_path) as archive:
         entries, total = checked_members(archive)
+        if total <= 0:
+            raise ValueError('empty native archive payload')
         if shutil.disk_usage(output.parent).free < total + 1024**3:
             raise ValueError('insufficient free space for extracted volume and 1 GiB reserve')
+        progress = ExperimentProgress('v2v4real_volume_extraction_bytes', total)
+        extracted_bytes = 0
         staging = Path(tempfile.mkdtemp(prefix='.' + output.name + '-', dir=output.parent))
         try:
             payload = staging / 'payload'
@@ -130,9 +135,12 @@ def extract_volume(archive_path, release_path, release_sha256, output):
                             raise ValueError('ZIP payload exceeds declared size')
                         digest.update(block)
                         out.write(block)
+                        extracted_bytes += len(block)
+                        progress.update(extracted_bytes)
                 if size != row.file_size:
                     raise ValueError('ZIP payload size differs')
                 inventory.append(dict(path=row.filename, bytes=size, sha256=digest.hexdigest()))
+            progress.update(total, force=True)
             native = inventory_native_root(payload)
             if stamp(archive_path) != original_stamp or digest_file(archive_path) != (source_sha1, source_sha256):
                 raise ValueError('source changed during extraction')

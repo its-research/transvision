@@ -14,10 +14,9 @@ def export(replay, receipt_sha256, output):
     import numpy as np
 
     from transvision.models.event_track_v2x.allocation_policy import FEATURES, RECIPE, TARGET
-    from transvision.models.event_track_v2x.allocation_training import DATA_KIND, _validate_group, allocation_sources, training_binding
-    from transvision.models.event_track_v2x.covered_completion_tracking import PersistentCoveredCompletionConfig
+    from transvision.models.event_track_v2x.allocation_training import DATA_KIND, _validate_group, allocation_sources, training_binding, validate_backend_binding
+    from transvision.models.event_track_v2x.paper_runtime_selection import allocation_configuration
     from transvision.models.event_track_v2x.detection_cache_v2 import canonical, sha_file
-    from transvision.models.event_track_v2x.forest_tracking import load_tracking_config
     root = Path(replay)
     output = Path(output)
     if sha_file(root / 'receipt.json') != receipt_sha256:
@@ -37,7 +36,9 @@ def export(replay, receipt_sha256, output):
     if producer is None:
         raise ValueError('teacher lacks frozen upstream producer binding')
     c = plan['configuration']
-    config = PersistentCoveredCompletionConfig(state=load_tracking_config(c['state']), **c['limits'])
+    config = allocation_configuration(c)
+    binding = training_binding(config, plan['scorer_signature'], producer)
+    validate_backend_binding(binding, plan_sources=plan['source_sha256'])
     groups = {}
     frames = 0
     for line in (root / 'audit.jsonl').read_bytes().splitlines():
@@ -81,7 +82,7 @@ def export(replay, receipt_sha256, output):
         shards=shards,
         replay_receipt_sha256=receipt_sha256,
         source_sha256=sources,
-        binding=training_binding(config, plan['scorer_signature'], producer),
+        binding=binding,
         full_official_train_trace=False,
         labels_are_model_not_true_risk=True,
         future_or_gt_inputs=False,
