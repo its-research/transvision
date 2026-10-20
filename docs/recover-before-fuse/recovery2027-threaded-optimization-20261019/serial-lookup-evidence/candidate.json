@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "events": 1,
+  "resumed_after_events": 313,
+  "includes_event313": true,
+  "event_seconds": 15.597686973400414,
+  "process_CPU_seconds": 14.175414935,
+  "CPU_wall_ratio": 0.9088151954308422,
+  "native_metrics": {
+    "wrappers": 14,
+    "calls": 0,
+    "max_native_workers": 0,
+    "setup_wall_seconds": 0.0010822033509612083,
+    "setup_CPU_seconds": 0.0010824499999984027
+  },
+  "database_sha256": "71f5ff9a4d2f7153d6f6ad83261d3556ee8979bd75f792822400faaa11aa5fe1",
+  "full_452_events_qualified": false,
+  "full_scientific_acceptance": false,
+  "native_threads": 8
+}

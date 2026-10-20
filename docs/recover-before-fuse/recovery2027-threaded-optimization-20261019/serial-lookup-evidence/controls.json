@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "paired_events": 24,
+  "projection_calls": 488,
+  "close_reopen_after_merge": true,
+  "scope": "isolated history-projection candidate: full tracker merge/rescore/close-reopen/empty-event parity; indexed slot lookup and prepared native adapter 4 and 8 threads",
+  "real_seed2027_qualified": false,
+  "full_replay_qualified": false
+}
