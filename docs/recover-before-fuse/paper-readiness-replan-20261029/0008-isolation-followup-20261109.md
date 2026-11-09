@@ -1,5 +1,15 @@
 # 0008隔离失败后的限定接续
 
+## 待授权候选：仅一次诊断容器放宽两项策略
+
+入口6,836字节，SHA256 `2700256fc1c5ea6c3f77a813ed9582d2d82413e6e41bee8b270de4547fb20fe3`；投递器、收集器已在112准备，语法及授权15项/报告13项拒绝检查通过。证明在0008目录 `optimized-deployment/relaxed-preparation-controls.json`。未创建Task、未执行实际探针，没有实际人类授权。
+
+仅对一个新诊断容器设置 `--security-opt seccomp=unconfined --security-opt apparmor=unconfined`；不加capability、不用privileged、不改宿主或worker配置。入口先确认实测Seccomp=0、AppArmor=unconfined以及有效能力位保持原值，才执行原小文件只读挂载/独立网络命名空间检查。报告明确记录此次策略放宽，不沿用旧版“没有请求额外权限”的声明。原模型、数据库、数值oracle不挂载或读取。
+
+这会关闭该容器的两层默认防护，不应描述为无权限变化或已证明最小权限。Docker官方文档将unshare列为默认seccomp受限操作，但现有证据仍未确定原拒绝的唯一层。参考：https://docs.docker.com/engine/security/seccomp/ 和 https://docs.docker.com/reference/cli/docker/container/run/ 。本候选只验证在明确放宽条件下所需隔离能否建立，不授权在此模式下运行真实模型/数据或完整0008。
+
+执行须先获具体新Task发布、单容器策略放宽和一次失败后隔离验证授权，再刷新A100四卡物理空闲。所有新失败保存且不自动重试；通过后仍需单独审查科学入口权限方案、真实输入隔离和完整产物容量。
+
 ## 最新结果：2026-11-09 14:57北京时间
 
 用户批准 `call_7dcd86d0a97f4a3583b52ef092782226/0` 后，修正版软件复验在112通过，含授权12项拒绝、报告15项拒绝及正例。探针原3,996字节SHA未变。一次性Task `b48cd725f534460a86663720855a787c` 实际绑定A100 GPU4–7并completed；2,277字节注册报告完整HTTP及保存后SHA均为 `1011e0435395b6f2dabbf2275c4c8c4600a5cf50e30a5a9b77b387293ea1abe2`。
