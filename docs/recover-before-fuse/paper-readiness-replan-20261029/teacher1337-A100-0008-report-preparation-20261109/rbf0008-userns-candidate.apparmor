@@ -1,0 +1,7 @@
+# Candidate only. No executable attachment; select explicitly for one new container.
+# This named unconfined profile grants userns permission. It is NOT a restrictive sandbox.
+abi <abi/4.0>,
+
+profile rbf0008-userns-candidate flags=(unconfined) {
+  userns,
+}

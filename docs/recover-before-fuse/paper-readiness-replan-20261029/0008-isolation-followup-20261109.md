@@ -1,5 +1,17 @@
 # 0008隔离失败后的限定接续
 
+## 15:06规则审查与命名策略候选（未加载）
+
+Ubuntu官方说明明确区分：普通unconfined应用可创建用户命名空间，但后续namespace capability可被拒绝；命名AppArmor策略可显式授予 `userns,`。这与实测 `apparmor_restrict_unprivileged_userns=1` 及放宽后uid_map失败相符，是当前较强解释，尚缺本机拒绝审计或受控成功对照，不能认定唯一根因。Linux映射规则还要求目标namespace的CAP_SETUID/CAP_SETGID及其他条件，不能仅从父进程UID0推出映射应当成功。
+
+官方依据：https://documentation.ubuntu.com/release-notes/24.04/#unprivileged-user-namespace-restrictions ；https://man7.org/linux/man-pages/man7/user_namespaces.7.html 。
+
+已准备无可执行文件自动附着路径的命名策略 `rbf0008-userns-candidate`，仅供未来显式选择的新容器。258字节源码SHA `47bef8e674dcc2445bc9028bd89b55edd5399789f954613ffe48c218c8007093`，112现有AppArmor parser 4.0.1以 `--skip-kernel-load --skip-cache --stdout` 离线编译exit0，无stderr；没有在112或A100加载。它采用 `flags=(unconfined)` 加 `userns,`，不是限制性沙箱，不应声称比默认策略更严格。
+
+候选在 `teacher1337-A100-0008-report-preparation-20261109/rbf0008-userns-candidate.apparmor`，语法收据 `optimized-deployment/named-profile-offline.json`。112编译成功不证明A100解析器/内核兼容，也不能直接把112编译二进制加载A100。
+
+下一项外部依赖：确认A100管理方能否审核并加载这个独立命名策略，或提供已允许userns的现成策略名。仅能通过ClearML访问A100，当前无已授权宿主策略管理路径；本轮不创建特权Task、不挂宿主securityfs、不更改全局sysctl、不重启AppArmor/worker。未取得这项管理能力前，不继续盲目重复同一unshare试验。未来选择该策略的Task发布及隔离单次验证仍需独立封版和具体授权，不能继承前次已使用许可。
+
 ## 最新终态：2026-11-09 15:02北京时间
 
 用户批准 `call_8faea28e90134e55a71ed904af768ebd/0` 后，封版源码再次全SHA核对，调度门槛确认A100 GPU4–7空闲，单次Task `74ec08a914bf4ec3aafdb60667e5ef73` 已执行并failed。原次数已使用，没有自动重试。
