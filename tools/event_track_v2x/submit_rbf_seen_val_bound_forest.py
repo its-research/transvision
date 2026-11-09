@@ -105,7 +105,7 @@ def dispatch(args,Task,api,base,publication_path):
         now=datetime.datetime.now(datetime.timezone.utc)
         value=dict(kind='rbf_seen_val_bound_forest_GPU_dispatch_v1',jobs=jobs+[job],
             checked_at_utc=now.isoformat(),source_freeze_sha256=sha(Path(__file__).resolve().parent/'source-freeze.json'),
-            GPU_model_restriction=False,L40S_CPU_only=True,TF32_enabled=False,
+            GPU_model_restriction=True,allowed_multi_GPU_model="A100",L40S_CPU_only=True,TF32_enabled=False,
             actual_memory_utilization_admitted=False,full_seen_val_forest_admission=False,paper_performance_complete=False)
         atomic(JOURNAL,value)
         path=R/'receipts'/('rbf-seen-val-bound-forest-dispatch-'+now.strftime('%Y%m%dT%H%M%S%fZ')+'.json')
@@ -122,7 +122,7 @@ def dispatch(args,Task,api,base,publication_path):
             '-e TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0 -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1')
         task.set_parameters(dict(plan=canonical(plan).decode(),recipe_sha256=job['recipe_sha256'],
             semantic_seen_val_identity=identity,seed=args.seed,world_size=choice['world_size'],
-            GPU_model_restriction=False,TF32_enabled=False,memory_target_percent='75-80',
+            GPU_model_restriction=True,allowed_multi_GPU_model="A100",TF32_enabled=False,memory_target_percent='75-80',
             artificial_memory_padding=False,full_seen_val_forest_admission=False,
             ETA='unknown_until_actual_transfer_or_forest_event_progress',paper_performance_complete=False))
         task.add_tags(['Recover-Before-Fuse','SPD-seen-val-exploratory','all-class-top64',

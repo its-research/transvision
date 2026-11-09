@@ -1,0 +1,11 @@
+# 0094原注册归档直读路线：仅设计评估，未授权或执行
+
+原rank5来源收据绑定Task da292c8e4a084b689f8b1daedbc42cbd / replay-rank5，注册50,298,166,260字节，SHA8802e2cdd64f6f990c45160379511b155c60f41eb59760669b6ee2c53c9f5a4b；完整inventory SHA0b8c19c8927f66509e39c0b1bdb3e8aadd20b8988de9f03c91e5fdbbcc00f769。0094原7文件合计14,678,159,902字节。直读50.30GB归档可减少Mac跨VPN往返，但下载量更大，尚无同次LAN吞吐实测，不能宣称必然更快或预填ETA。
+
+已读既有stream_original_archive_selected_sequence_wire.py与batch流读器：原实现检查全归档注册size/SHA、全部42文件原SHA、7目录、7个选中成员原SHA、gzip CRC、tar隐藏/重复成员、全部尾随padding和精确EOF；禁止跨host重定向、Range、Content-Encoding变化及代理回退。认证只在内存，不保存或打印，不重试。这些门槛均须保留。
+
+不能直接把原wire输出替换为discard sink后宣布numeric_use_admitted。原结果明确registered_artifact_after_stream_recheck_required=true、external_selected_bytes_readback_required=true、numeric_use_admitted=false。未来新路线必须有独立原7载荷SHA/EOF接收核验及前后注册身份重查，显式记录来源协议变化；不得篡改原结果布尔值或冒称Mac现存7文件已重新读取。只读源数据完整性与当前物理文件存放位置分开说明。
+
+可评估有界内存pipe/接收器，不保存50GB归档或14.68GB载荷；保留完整独立wire/原7校验和元数据身份。新接收器需合成正常、截断、错误SHA、尾随、重复/路径篡改控制及独立报告，实际归档读取仍需具体一次授权。原冻结模块可在112复用已有来源副本；缺少的原inventory小文件暂存也需明确覆盖。
+
+本次未读取新HTTP归档正文、未传输新inventory、未修改0040原流、未发布Task或新增数值计算。0094原反向传输请求仍待明确回复；本设计不替代或增加其执行次数，也不自行选择另一条路线绕过授权。未创建直读执行入口或宣称已验证。

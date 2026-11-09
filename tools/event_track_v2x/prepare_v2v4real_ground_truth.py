@@ -61,7 +61,8 @@ def prepare(volume, receipt_sha256, ego_agents, output, *, oracle_root=None, eva
     if vehicle and receipt.get('split') not in ('train', 'test', 'official_test'):
         raise ValueError('native vehicle GT requires official train or official test volume')
     split = 'train' if receipt.get('split') == 'train' else 'official_test'
-    native_audit = audit_volume(volume, receipt_sha256)
+    native_audit = (audit_volume(volume, receipt_sha256, native_vehicle_only=True) if vehicle
+                    else audit_volume(volume, receipt_sha256))
     files = {r['path']: r for r in receipt['files'] if r['path'].endswith('.yaml')}
     groups = defaultdict(dict)
     for name in sorted(files):

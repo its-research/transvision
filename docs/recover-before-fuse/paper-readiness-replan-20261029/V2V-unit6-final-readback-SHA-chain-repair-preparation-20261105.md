@@ -1,0 +1,22 @@
+# V2V单元6最终来源汇合：SHA层级修复候选
+
+状态：仅文本准备，未暂存112、未计算候选SHA、未语法检查、未测试或重做汇合。具体单次批准待回复；goal续行不替代批准。
+
+## 已核实失败点
+
+原生产d0951c264a2e4e20a41c3284757eaea8和独立Task ae186234c75d4dc19cbd65964cb958ee均completed。原收集器已下载65份注册证据，逐文件大小/SHA保存检查完成；最终validate第62行混合了两种不同收据的SHA：
+
+1. API-terminal.final_receipt_sha256 = dfccf2ec1690f85af366c394b4533c3c172e73989ba4ab97649a6fc92490a387，等于verification/authorized-unit6-complete.json的实际字节SHA。
+2. authorized-unit6-complete.json.sha256 = 6bc906cf050ea95faf9175739d9f6a60544c488b3c2c51cb05cfbc121cdec18d，等于它声明的unit6-six-checks-terminal-full-readback.json实际字节SHA。
+
+原断言要求两者相等，因而失败。已定位的是这个断言错误，不宣称其后尚未运行的全部原断言均已通过。失败容器、全部65文件、首次观察、失败收据及日志保留；112 preservation.json SHA为268eda331c32b6340b1ce1d327d3ec6660f4ff115be08e90af175fb1b3ce80cd。
+
+## 具体修复与拒绝边界
+
+候选文件为同目录repair_unit6_final_receipt_chain_once_candidate.py，11,056字节。只允许Linux执行，严格核对原validator SHA 27d60d47e5005e96e486cf20742a574435187a2c85be5b13877c26dbf55fe909及原collector SHA ef18027bfd105301992abb70175fdb0f330cb1aaf9744adaf7c81b6a172c3954。
+
+仅将一处混合断言替换为两处独立绑定：API的SHA必须等于注册inventory中授权收据的SHA；授权收据的SHA必须等于注册inventory中六项终态证明的SHA。原始文件不修改，候选在内存编译前须逐字节证明单点替换可完全还原原源码。其余原来源、数据库、模型、配置、预算、六项数值、逐case及1e-8/1e-4断言全部继续执行，不删断言、不改报告、不构造替代收据。
+
+拟先一次软件控制：两个不同SHA的正例、5项错误/交换链路拒绝、源码单点还原及完整语法。它们只验证这个链路修复，不等于真实报告或科学资格。通过后才运行一次完整保存报告汇合：重验全部65份实际保存字节与当前注册身份、Task源码/参数/worker、原manifest及原完整validate；不重复下载大数据库，不执行模型、事件或oracle，不新建ClearML任务。
+
+候选要求新的具体授权、全新输出目录和单次控制/执行标记；任一步失败均留证且不自动重试。具体ROOT计划为112新目录，容器映射/repair；原/candidate及证据只读复用，保持原冻结镜像/SDK，只写新小报告。Mac仅发送文件字节，由112计算完整SHA及执行控制。全部通过后仍须保存最终证明SHA并与其他5个合格单元汇合，才能更新6/81；当前仍5/81，A–K及论文未完成。

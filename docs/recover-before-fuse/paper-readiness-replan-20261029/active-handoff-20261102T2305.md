@@ -1,0 +1,13 @@
+# 本轮执行交接（2026-11-02 23:05北京时间）
+
+本轮属于进展：V2V原生磁盘报告完成并全SHA收集；0022原暂存、预检完成且首次数值验收已实际启动。
+
+0022：23份文件250860071字节全SHA读回通过；原预检exit0，32692输入/51冻结源码及原模型缓存/schedule全部通过。原控制器teacher1337-series17-remote-SHA-candidates-20261031/sequence0022/control_first0022_once.py，SHA34bb1f71386ce699d13fac062cbc4b6bd1953cb412d82141e8117a178ad086b1，原授权e5b510701ee3789161b933dee12dea0aa1406554562e4c7ac846e390b4232859。numeric-launch-execution-20261102T2303.json已成功；容器aa1d1762c31fb1b10873a87510e2cbee54fe379cd839988094a125e06b86c171于23:04:06.498290启动，23:04:35 Running=true、OOMKilled=false、Restarting=false，实际见证读回日志到3500行。尚未六项完成，不增加19/46合格数。stage修复、source preflight、numeric单次均已使用，绝不能重复提交。阶段输出/home/lbin/rbf-original1337-first0022-cache-numeric-20261031/output/verification；终态后用已准备collect0022_outputs_via112_once.py和原来源汇合，禁止Mac SHA collector。
+
+V2V：原生磁盘Task0d16e98cd819465bb6c2e76e8e5fdcf3 completed。报告全HTTP SHA及保存后反向SHA在112通过。详见V2V-unit6-Linux-independent-route-candidate-20261101/disk-collection-route-candidate-20261102/native-disk-inventory-verified-and-next-route.md。实际原生ext4/clearml_agent_cache空闲5624844779520字节；前四卡无计算进程；source/runtime full-route尚未在ubuntu26执行。
+
+完整来源/磁盘Task入口在112准备，7249字节c019d283b9106e0918f61c5f5b6064b3ffd88298b6911a137e7d382f02fd8b3a；调度收集器4287字节8e46a74bb378c5b4620f26f3a59e0ce9b2b1d7151ed5a8162c50670aef9b7684；已有6项拒绝及精确挂载选择控制通过。Mac控制器control_complete_source_disk_via112.py只运维。具体API发布/原37MB包与286MB历史归档下载及DB暂存/全来源预检许可已提出，等待答复；不能用已使用的只读库存许可替代。完整来源预检不消耗单元6尚未使用的生产/独立次数；源包发布Task6269…已完整SHA通过。
+
+主森林：原控制器PID39338于23:05仍存活，启动09:11:49；最新原反向流进度23:00:08=17448304640/35727575040。state未最终通过，234成员终验未知。不得启动A100重跑。原A100重跑授权仍有效，最终保全后重新现场资源准入。
+
+整个A–K目标未完成，保持active。不加定时任务，不停止重启现有任务，不自动重试，不在Mac计算，不提交推送。保留本轮误选更早控制器的软件包装校验失败（未调用预检/数值）；已纠正为既有remote-SHA控制器，无科学门槛改变。

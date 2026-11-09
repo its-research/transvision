@@ -1,0 +1,13 @@
+# Teacher见证存储热点与复用边界
+
+只读源码和既有资源报告文本；没有在Mac计算SHA、转换数据库或执行模型。
+
+112从原已登记bootstrap解码得到`exclusive_teacher_probe_witness.py`，9923字节，原SHA6a6972ce97a851e4ae31c44631610ba0dd15e9eb7e2d7e1c45b27866d18ab43e。其`_store_witness`已经对canonical原始字节做SHA去重并使用zlib level1压缩；因此“再加一次普通压缩”不是尚未实施的基础优化。必须保留canonical原字节SHA和碰撞检查。
+
+原teacher1337/0094资源报告中，数据库13268443136字节，`priority_probe_witnesses`分配11382034432字节，events表1411174400字节，observations表90853376字节。该报告为既有原来源文本，本轮没有重新全SHA核验，不把它当作teacher2027峰值测量。空间主项是完整见证，而非仅模型输入。
+
+已有`compact_teacher_database.py`/`compact_witness_storage.py`按共享列表片段保存见证，独立解码逐字节恢复原canonical快照；封存库转换已有完整逐见证、非见证类型/行顺序/schema资格。0094准备记录的原库约13.27GB、compact解码身份约2.15GB也属于已封存输入，不是新生产峰值结论。
+
+112已发现既有编码器和转换器，可优先复用而无需从Mac新增源码传输。明确边界：现有转换器要求源库封闭且无journal/WAL，不能直接在活producer数据库上调用；边生产边共享编码仍须单独的软件/事务/碰撞/原字节检查及真实范围数值对照，不能由封存转换资格自动推定。
+
+后续优先评估原编码器的live写入接口，保持teacher算法、原搜索预算、所有目标和每条见证原字节不变。若仅做封存后转换，原库与新库共存会增加短时峰值，不能冒充已解决全rank累积空间问题。不修改当前0040、单元7或其他活任务，不删除源数据或失败结果。

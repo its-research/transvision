@@ -1,0 +1,18 @@
+# CoopTrack已有组件复用范围
+
+本次只读取原root reconciliation和原review JSON文本，不重新hash、运行模型/指标、读取大预测或跨机传输。不能据本次文本审阅宣称新产物字节验收。
+
+原始引用：full-A-K-post-optimized-audit-reconciliation-20261021.json的package J及CoopTrack_native_required_protocol_row_field_binding_current_20261025，指向：
+/Volumes/Data/test/recover-before-fuse/native-protocol-fingerprints-20261025/CoopTrack-native-row-complete-field-binding/review-v2-with-actual-INF-inputs.json
+原登记SHA：994dc948c583aa86dcc37049b29565f56f84da2a3a49b0b2bc879fa7ccf82fdb。
+
+原记录明确已有native prediction/metric components复用，覆盖作者commit29f1c52c8a0ec0e2a753f0695eb4e288bc5ed399、127源码blob、实际严格载入权重、原生特征、split/类别/频率/ROI-ignore/runtime/预测与独立指标九类来源字段。合作端原3316帧/21序列、11原输出文件372,532,995字节及原INF查询输入1,987,849,187字节在原记录中已有字节验收。
+
+两项边界必须保留：
+
+- 合作端完整预测和指标组件可复用，当前待办不得笼统写为CoopTrack尚未执行或重新跑整套模型。
+- 原INF Task b003115a4c054cf29efe76e057d73700在预测之后评价失败。其3316项原查询独立字节组件合格不等于standalone INF native evaluation完成，不能重标原失败Task或删失败证据。
+
+原scope还保留：provided_frozen_dataset_byte_identity=true、dataset_publisher_release_identity_newly_authenticated=false、SPD_seen_val_exploratory=true、same_input_or_same_resource_equivalence=false、cross_native_protocol_ranking_allowed=false、whole_J/whole_A_K=false。不新增作者私有训练日志门槛，也不要求重复已匹配的作者权重训练。
+
+当前J真正开放项仍为SparseCoop实际原生资格/权重链、Long-SCOPE可核验资产、当前RBF原生表示桥接，以及I/K正式同资源和统计汇合。没有因为复用CoopTrack组件就关闭这些要求。未来正式论文汇合仍应按实际使用来源范围核对原完整字节链，不以本次文本摘要替代原收据。

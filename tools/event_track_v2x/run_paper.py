@@ -60,6 +60,8 @@ def main():
     run.add_argument('--device', default='cpu')
     run.add_argument('--resource-contract')
     run.add_argument('--resource-contract-sha256')
+    run.add_argument('--nominal-admission')
+    run.add_argument('--nominal-admission-sha256')
     run.add_argument('--fixture', action='store_true')
     run.add_argument('--evaluation-protocol', choices=['v2v4real-official-benchmark-vehicle-v1'],
                      help='Explicit opt-in; omitted preserves historical car protocol hashes')
@@ -101,6 +103,14 @@ def main():
     replay = runtime(configuration).replay
     events = [json.loads(line) for line in Path(a.schedule).read_text().splitlines() if line.strip()]
     cache = (VerifiedForestCache if a.dataset == 'spd' else NativePaperCache)(a.cache, a.cache_sha256)
+    nominal_binding = None
+    if a.dataset == 'v2v4real':
+        if not a.nominal_admission or not a.nominal_admission_sha256:
+            raise ValueError('V2V replay requires explicit hash-pinned nominal admission')
+        from transvision.models.event_track_v2x.paper_nominal_admission import validate
+        nominal_binding = validate(cache, events, configuration, a.nominal_admission, a.nominal_admission_sha256)
+    elif a.nominal_admission or a.nominal_admission_sha256:
+        raise ValueError('nominal admission is only supported for V2V')
     if protocol.evaluation_class == 'vehicle':
         from transvision.models.event_track_v2x.paper_evaluation_policy import require_vehicle_binding
         require_vehicle_binding(json.loads(cache.manifest_json)['producer'])
@@ -144,6 +154,8 @@ def main():
     if protocol.evaluation_class == 'vehicle':
         from transvision.models.event_track_v2x.paper_evaluation_policy import vehicle_binding
         binding.update(vehicle_binding())
+    if nominal_binding is not None:
+        binding['nominal_schedule_binding'] = nominal_binding
     arguments = dict(protocol=protocol, configuration=configuration, scorer=scorer, model_binding=binding, allocation_policy=policy, fixture=a.fixture)
     if resource_contract is not None:
         from transvision.models.event_track_v2x.paper_gpu_resources import measured_replay

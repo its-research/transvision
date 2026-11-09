@@ -1,0 +1,19 @@
+0050首次数值尝试容器：226803daf900231070466853afed7bcedb39a85e785b123a237857ade30b75f1，实际开始UTC 2026-11-02T02:05:14.816563216Z。启动回执位于外置盘根目录0050-first-numeric-authorized-20261102T1004.json，独立开始观察为0050-actual-start-observation-20261102T1006.json。终态前不得调用来源汇合。
+
+当前汇合候选是join0050_canonical_source_receipt_db_binding_fix.py，112 SHA256 bbbeb4bc61b72f17f651ef702ec2ccd1b0510bcd201922ced8bd2afdb42ef5fd。远端目录为/home/lbin/rbf0050-canonical-source-join-db-binding-fix-preparation-20261102。旧候选仍绑定0035数据库SHA，软件正例检查已拒绝，保留为历史，不能执行。后续软件入口漏传注册observed_at的问题也已修正，原两份失败检查记录保留。
+
+source-protocol-complete-metadata-controls-on112.json证明0050真实来源正例和20项篡改/缺失/重复/错序列拒绝控制通过；无原始载荷或数值重算。冻结四参数admit_batch_source(source,terminal,contract,metadata_root)保留。来源数据库原SHA d0428d4bc4911de870d7a943c5c2c19837201c9148c91c8ec9df843a7555eaae严格来自已验合同，不放宽任何来源条件。
+
+先等实际容器终态，再用collect0050_outputs_via112_once.py完整收集到/Volumes/Data/test/recover-before-fuse/teacher1337-first0050-terminal-collection-20261102，指定上述启动回执和原开始观察。正常退出、报告及保存后SHA全部通过后，才可首次执行run_join0050_canonical_once.py。该控制器沿用已明确批准的teacher1337系列范围，运行前校验原系列SHA及0050单次槽、20项软件控制、同一容器身份、原来源当前注册和完整保存后文件SHA。真实汇合失败不得自动重试。
+
+汇合本身不推进队列索引。后续索引必须以原已合格18序列为只读前驱，经原checked_prior和新进程独立读取，再做保存后SHA核验。当前0050尚未合格，不增加18/46，也不准入优先级训练或声称A–K完成。
+
+日志解释：原冻结accept.py的verify_sequence先执行fresh和action，再执行trajectory。action和trajectory均按25事件输出进度，轨迹最终检查169事件后才返回完整报告。因此末条independent_full_legal_action_search=150/169不能证明实时仍在动作阶段，也不能宣称后19事件已完成；它也可能已经进入尚未输出首25事件进度的轨迹检查。CPU增长只证明消耗计算时间，不替代事件/状态结果。2026-11-02 10:31的同一容器仍运行；112未发现现成py-spy工具，未安装依赖、附加暂停式调试器或发送信号。只在实际终态及完整报告通过后执行收集和汇合。
+
+19序列后续索引入口：control_index19_after_final_join_once.py，112准备SHA 9b5a91be6aa87b52c2be450612f941d46e8e26bd5e0ee3f143126e193ad15849。适配器../checked_prior_and_canonical0050_index_adapter.py，SHA 4f82bed6772a22ae9c8030525e574caf902e5787e6762de33a3f254158db87ee；原加载器和索引分派AST不变。index19-software-controls-on112.json记录24项合成检查通过，包含真实prior18的SHA、原18行不变、错误容差/终态/计数拒绝和重复计数拒绝；只在内存使用合成0050证明，未写正式索引，不能据此计为19/46。实际执行仍须等前述完整终态、收集和来源汇合证明，并保留原18序列的8项证据挂载只读。该阶段完成后还须新进程原checked_prior读取及保存后SHA，才可公布新资格。
+# 已执行收口（2026-11-02）
+
+本文件下方“等待终态/首次执行”段落为准备历史，不应重复调用。0050已正常退出、完成169事件/91,263标签/3,895因子行的原六项及因子报告检查、原canonical来源汇合，汇合SHA732a4dc0c3792f025fb2085882c166384d098c44175478757db314a5e929baa6；完整保存后SHA通过。19序列索引及新进程原checked_prior读回已执行通过，原18份不变：2,514事件、1,933,393标签、60,641因子行，剩27序列；索引SHA58473f65491fa6a1af71439b5a70c31073a2467277da923a2f8db33be20d6819。
+
+真实文件位于../0050-canonical-final-join-20261102及../0050-index-join-on112-20261102；终态收集在/Volumes/Data/test/recover-before-fuse/teacher1337-first0050-terminal-collection-20261102。不要重跑已使用的收集、汇合和index19槽。0087完整新入口的单次资格已经于14:58:37使用，已正常退出并读回通过，后续检查应读取既有结果而非再次launch。完整46及优先级训练未放行，所有失败历史保留。
+

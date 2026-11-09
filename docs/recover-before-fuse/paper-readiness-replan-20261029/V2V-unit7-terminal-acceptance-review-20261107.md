@@ -1,0 +1,37 @@
+# 单元7终态后的验收判定顺序
+
+真实终态已完成并审查：Task6ad715d5…于10:22:13.557 completed，平台wall4215.111秒含初始化；六项监督器wall3694.870秒。55份注册产物完整SHA及inventory连接通过，原六项报告逐字段/来源/容差审查通过。fresh_state43992状态、最大绝对误差2.7622348852673895e-13；因子28288行最大误差3.186028243362671e-5；动作185项容量未决不算最优。注册读回证明SHA282a819647e1071b5c82b9a5e318c5ec49041fd6e80b9018c3478c9179eb9f53，source-pinned报告连接审查c74ed43b…，原终态证明2943c03d9f2f24c27b7ac68e63d67128c92ee7086734676b36dec90efb9f316b。新源绑定coverage ac6220ab4cc5cf15b14e57eb35a10f1532f66b44bf7a614d1146dc8861a16a03确认7单元/1308事件/148317因子行。原6单元分组证明仅复核小证明SHA，不重复数值。仍非全81或A–K接受；大原生载荷未被外部注册reader再次下载，不将此边界隐去。下文所有等待/未执行描述为历史准备，不能覆盖本段真实结果。原待批日志探针无须再运行。
+
+来源锚定候选afde6fd8…的8项原拒绝规则回归现已在112通过：有效正例、错误事件/因子计数、改变容差、非零阶段退出码、缺检查、报告SHA断链、运行时断链。证明`unit7-source-pinned-review-regression-controls.json` SHA256 e67e96ceb9dd11b45721b8a763fdb958c606baafad52648086e823b022ddc4d2。此前5项来源控制证明039654f0…亦适用同一源码。两组都是合成小报告，未执行真实数值或更新正式索引；结束辅助检查扩展，等待真实产物后按原字段审查。
+
+当前外部来源锚定候选为112 `review_unit7_registered_semantic_reports_source_pinned_prepared.py`，4167字节，SHA256 afde6fd88d8befc05cc1c6466050088fb089ed9cb02a63b986571f2bd653437c；旧入口和测试保留。它额外硬绑定原协调器c9d4b0dc…、实际生产manifest dd224176…、Linux路线8abfa79c…及原seed/序列/delay。仅检查报告相互一致不足以防止它们共同引用错误来源，故不能以旧版本独立判断来源资格。新候选语法及5项合成控制通过（原锚点正例、全部报告共同伪造运行时、错误路线、错误协调器、错误序列），证明SHA039654f09eb39b97070c2d223f78e3d90aad76f50fbbf441bfb179ecd284cc00。旧8项尚未对本候选全量回归，不相加宣称13项新版本测试；真实报告未执行，正式计数未变。
+
+112新增准备的只读辅助入口`review_unit7_registered_semantic_reports_prepared.py`，3702字节，SHA256 f10f2b142ad49d88e9252812c9a9416bce7589f2417b9be468362268ab3b8ce2，语法通过。它仅检查未来既有完整注册读回目录中的Task/生产身份、三阶段exit0、原汇总报告、六项报告大小/SHA连接、运行时/数据库共同身份、原事件/因子计数及容差；不调用oracle、不联网、不改正式索引。尚未运行真实报告或合成测试，不能称新入口已具备完整资格。其通过也仍需最终审查原数值报告字段，不自动宣布完整科学验收。
+
+后续112纯合成控制已完成8项：有效小报告正例，以及事件计数、因子计数、语义容差、监督器失败、缺一项检查、报告SHA断链、运行时身份变化的拒绝检查全部通过。证明`unit7-registered-semantic-review-synthetic-controls.json` SHA256 1ed0b3d395148ec30fad91d658abd680ea643e3affa235ec7375ce454b195823。未读取真实报告或数据库、未运行oracle/GPU、未修改正式索引。此结果更新上段“尚未合成测试”的历史准备状态，但不替代真实数值验收。
+
+本轮只读检查112原独立Task入口及收集器，未执行数值、下载或修改活任务。目标Task为6ad715d5b78a4a9ba7c2d1d064752b8f，原生产02fb34e987ff49398bc7bed33d618e44。此文件为收集审查清单，不是新的验收证明。
+
+## 先保全，再判定
+
+1. 确认平台真实终态，运行既有registered-output reader 5753192d4a67b20c6a40d210a474f973869efd1078e71db9e0324581c5d6a27e一次。它在非终态只返回held、不消耗下载尝试；失败不自动重试。
+2. 完整核对所有注册文件大小/SHA、稳定注册集合、目标Task源码28094277…、原生产身份、native inventory路径安全与编码键无冲突。inventory中不大于2MiB的每个文件必须有对应上传记录。
+3. 大于2MiB的原生文件只有清单SHA和保留路径，不是完整读回。不得把all_registered_bytes_and_SHA_passed解释成全部大型原生产/数值载荷已独立读回。
+4. 单独核对Task终态、independent-API-terminal中的failure和成功声明、原unit7-complete.json及其SHA、监督器退出码、collection终态和六项报告。上传finally可在失败时产生完整注册产物；文件齐全不是成功。
+5. 检查raw、factors、structure、causal、fresh_state、conditional_action_search真实覆盖，原221事件、28,288因子行、冻结来源/输入/模型/配置/预算及语义1e-8和因子1e-4。任何分项缺失、来源错误、报告不合格都不更新正式计数。
+6. 对照原生产归档完整压缩SHA0e443321…与原封存成员，区分此前流扫描的尺寸/CRC证据和流水线实际逐成员SHA证明。不得用前者替代后者。
+7. 全部严格通过并形成来源—六项报告—收集证明连接后，才将原正式6/81更新为7/81及相应事件/因子总数。即便通过，仍非全部81单元或A–K合格。
+
+## 实际入口审查发现的报告边界
+
+原Task仅在supervisor.main正常返回、unit7-complete.json存在后设置成功声明；异常写入failure，随后finally尝试上传terminal、所有小文件及全量文件SHA清单。该声明属于worker声明，外部仍须审查原报告。
+
+原注册产物收集器有意将numeric_accepted_by_this_transport_reader设为false，并将original_semantic_reports_still_require_review设为true。即使输出来的full_SHA_passed为true，也只能确认注册产物传输；inventory_binding_errors必须为空，之后仍执行上述来源及数值报告审查，不修改阈值或代替原oracle。
+
+目前未观察终态。本清单不授权新探针、源码发布、任务切换或重跑。
+
+## 原监督链输出机制核对
+
+112只读源码核对确认：外层按registered-collection → six-independent-checks → terminal-full-SHA串行执行，子进程stdout/stderr写原生文件，不直接流送ClearML控制台。六项监督器按raw → factors → structure → causal → fresh_state → conditional_action_search串行；每30秒wait超时只打印当前子进程wall/CPU/RSS到外层重定向日志，然后继续等待，不发送信号、不重试子进程。此30秒不是数值总时限；requests的120秒是网络读取时限，也不是完整验收上限。
+
+因此平台控制台长期没有业务行可由既定重定向解释，但这不能证明真实阶段已进入或有效计算。待批日志探针的当前safe-tail规则主要提取完成/计数/错误，不保证提取含stage/CPU的周期JSON，且五秒观察不保证跨越30秒采样；不得承诺它必然取得CPU增量或确诊卡住。若获批，只按实际读到的文件阶段、尺寸、时间与尾部报告，缺失信息继续未知，不扩大只读范围。

@@ -1,0 +1,636 @@
+{
+  "effective_at": "2026-10-11T02:31:59.483791+00:00",
+  "authority": "User 2026-10-12: 解除标签，本周后续实验接着回到A100和112；后续都按照四卡进行训练",
+  "L40_dispatch_allowed": false,
+  "CPU_allowed_host": "Admitted A100 via ClearML or explicitly admitted SSH112",
+  "multi_GPU": [
+    "A100",
+    "ubuntu26-2 via ClearML after per-task admission"
+  ],
+  "single_GPU": "10.100.35.112",
+  "CPU_must_not_claim_GPU": true,
+  "shared_CPU_RAM_disk_contract_required": true,
+  "existing_GPU_tasks_preserved": true,
+  "updated_at": "2026-11-03T22:52:18.386235+08:00",
+  "V2V_SparseCoop_latest_directive": {
+    "authority": "User 2026-11-03: V2V/SparseCoop 使用四卡",
+    "physical_GPUs_per_task": 4,
+    "eight_physical_GPU_dispatch_allowed_for_these_tasks": false,
+    "preferred_existing_route": "ubuntu26-2 four-card ClearML worker after task-specific admission",
+    "scope": "Future V2V and SparseCoop execution; preserve existing tasks and all source/publication/retry gates",
+    "V2V_existing_unit6_dispatch_already_four_card": true,
+    "SparseCoop_original_eight_rank_qualification_not_transferable_without_validation": true,
+    "SparseCoop_original_effective_batch": 48,
+    "SparseCoop_four_card_training_semantics_qualified": false,
+    "keep_original_models_inputs_budgets_and_tolerances": true,
+    "full_runtime_and_complete_storage_admission_still_required": true,
+    "no_task_started_by_this_routing_update": true,
+    "record": "docs/recover-before-fuse/paper-readiness-replan-20261029/V2V-SparseCoop-four-card-route-20261103/four-card-execution-boundary.md"
+  },
+  "CPU_execution": "A100 via ClearML under task-specific admission, or SSH112 inheriting host resources; no arbitrary hard caps. SSH112 does not globally disable CUDA.",
+  "independent_CPU_worker_required": false,
+  "SSH_deployment_required": false,
+  "CPU_payload_must_disable_CUDA": false,
+  "GPU_worker_overlap_must_not_be_forced": true,
+  "GPU_3090_dispatch_allowed": false,
+  "GPU_3090_latest_directive": {
+    "authority": "User 2026-11-04: 3090 停止，暂不使用",
+    "dispatch_allowed": false,
+    "automatic_restart_or_migration_allowed": false,
+    "stopped_task": "18abed2123c14d63ac411ec7ea6ba611",
+    "ClearML_status_verified": "stopped",
+    "registered_artifacts_preserved": 125,
+    "qualified_partial_source_groups_preserved": 29,
+    "other_hosts_and_tasks_unchanged": true,
+    "resumption_requires_new_user_instruction": true
+  },
+  "GPU_3090_host": "10.100.34.27",
+  "GPU_3090_queues": {
+    "4": "a42b106a00ce4ac09a42454df7541e89",
+    "8": "f599c282a8a848d1a0c8d47519a679c3"
+  },
+  "prior_route": "resource-routing-CPU-A100-no-L40-20261010.json",
+  "explicit_A100_task_bindings_preserved": true,
+  "physical_GPU_intersection_admission_required": true,
+  "hardware_runtime_memory_qualification_required": true,
+  "all_idle_workers_dispatch_allowed": false,
+  "single_GPU_dispatch": "SSH",
+  "single_GPU_ClearML_worker_required": false,
+  "task_hardware_memory_runtime_contract_required": true,
+  "explicit_existing_task_bindings_preserved": true,
+  "recovery_off2027_current_task": "03225babc6c34e45b56f202190ddfcb0",
+  "recovery_off2027_previous_task": "63172afc57e44d2fa75ab3906b4ad264",
+  "recovery_off2027_previous_status": "failed",
+  "recovery_off2027_restart_record": "docs/recover-before-fuse/recovery-off2027-authorized-restart-20261011/retry-A100-submission.json",
+  "recovery_off2027_explicit_binding": "Full46 production completed on physical A100 GPU4-7; full registered archives and all46 factor/five-oracle report bytes/provenance/numeric results verified for supplied seed2027 train schedule. This does not qualify unrestricted forest or full scientific A-K scope.",
+  "recovery_off2027_current_task_status": "completed",
+  "recovery_off2027_failure_record": "/Users/lbin/transvision/docs/recover-before-fuse/recovery-off2027-authorized-restart-20261011/failure-diagnosis-current.json",
+  "route_scope": "subsequent experiments this week; preserve existing running bindings",
+  "A100_GPU8_queue_pause_removed": true,
+  "subsequent_training_GPU_count": 4,
+  "subsequent_training_hardware": "A100",
+  "subsequent_training_queue": "GPU4-A100",
+  "subsequent_training_policy": "All subsequent training uses four physical A100 GPUs; preserve existing active and already submitted task bindings. Verify four-card runtime, memory, effective batch and frozen algorithm budgets before deployment; do not overlap occupied physical GPUs.",
+  "recovery_off2027_last_observed_worker": "10.100.34.18-A100:gpu4,5,6,7",
+  "recovery_off2027_state_checked_at": "2026-10-20T17:00:11.990122+00:00",
+  "A100_access": "ClearML only; no SSH",
+  "new_arbitrary_resource_caps_allowed": false,
+  "resource_limit_authority": "User 2026-10-19: 不要增加此类限制：1 CPU／2 GiB",
+  "recovery_off2027_restart_gate": "Validate multithreaded version on Linux and real events, then restart with four A100 GPUs; preserve old task and artifacts",
+  "GPU_runtime_user_selection": "A100 four GPUs per latest user instruction",
+  "GPU_runtime_authority": "User 2026-10-20: 使用A100四卡，尽快开始下一项任务",
+  "GPU_runtime_selection_scope": "Subsequent GPU tasks; resolve exact platform environment identity before deployment; preserve live tasks",
+  "ubuntu26_2_resolution": {
+    "host": "10.100.34.212",
+    "queue": "GPU4-2080ti",
+    "is_container_image": false,
+    "dispatch_selected": true,
+    "authority": "User 2026-10-21: ubuntu26-2也利用起来；是clearml运行环境",
+    "resource_admitted": false,
+    "transport": "ClearML only",
+    "scope": "Additional qualified parallel work; preserve existing A100 teacher/scorer and all separate retry gates",
+    "admission_directory": "/Users/lbin/transvision/docs/recover-before-fuse/ubuntu26-2-admission-20261021"
+  },
+  "task_specific_route_exceptions": {
+    "teacher3407_two_card_20261020": {
+      "authority": [
+        "User: 查看L40是否可启动teacher",
+        "User: teacher3407 改为两卡运行",
+        "User: 不禁用cuda"
+      ],
+      "hardware": "L40S",
+      "physical_GPU_count": 2,
+      "logical_rank_count": 4,
+      "CUDA_enabled": true,
+      "transport": "ClearML",
+      "scope": "teacher3407 and necessary admission only; does not authorize unrelated L40 jobs",
+      "current_resource_probe_task": "217cfecdacb8451b9dd3d4f8861a461d",
+      "producer_candidate": "docs/recover-before-fuse/teacher-authorized-restart-20261011/two-card-20261020/teacher3407-two-card-candidate.py",
+      "dispatch_ready": false,
+      "teacher_dispatched": false,
+      "gates": [
+        "fresh physical UUID occupancy",
+        "native CUDA and original numerical tolerance",
+        "input full bytes",
+        "full raw plus cumulative archive storage peak"
+      ],
+      "superseded": true,
+      "superseded_by": "teacher3407_four_A100_compact_20261020"
+    },
+    "teacher3407_four_A100_compact_20261020": {
+      "authority": [
+        "存储优化后的版本在A100上进行",
+        "四卡"
+      ],
+      "hardware": "A100",
+      "physical_GPU_count": 4,
+      "logical_rank_count": 4,
+      "CUDA_enabled": true,
+      "transport": "ClearML",
+      "producer_candidate": "docs/recover-before-fuse/teacher-authorized-restart-20261011/four-A100-compact-20261020/teacher3407-four-A100-compact-candidate.py",
+      "queue": "GPU4-A100",
+      "candidate_worker": "10.100.34.18-A100:gpu0,1,2,3",
+      "dispatch_ready": true,
+      "teacher_dispatched": true,
+      "gates": [
+        "Runtime physical UUID and >=454501766510 free bytes checks",
+        "Complete input bytes and original lineage verification in selected runtime"
+      ],
+      "finite_storage_interface_passed": true,
+      "storage_readiness": {
+        "path": "/Users/lbin/transvision/docs/recover-before-fuse/teacher-authorized-restart-20261011/four-A100-compact-20261020/storage-readiness.json",
+        "sha256": "3862e11193cca786e194ddf67f39b543556f8ce4929f03cfa00d4b224268e1e1"
+      },
+      "task_id": "2642a57055da45d19d817b131d84fac1",
+      "runtime_admission_passed": true,
+      "observed_status": "in_progress",
+      "observed_worker": "10.100.34.18-A100:gpu0,1,2,3",
+      "observed_at": "2026-10-20T17:01:44.472745+00:00",
+      "input_prepared_disk_free_bytes": 479831654400,
+      "production_replay_observed": true,
+      "scientific_acceptance": false,
+      "superseded": true,
+      "superseded_by_task": "75f081a82a3a4d4eb115437c2e27e69c",
+      "current_status": "stopped",
+      "current_status_checked_at": "2026-10-21T13:52:32.263226+00:00"
+    },
+    "teacher_cache_control_3090_20261027": {
+      "authority": "User: 不排队了，用3090空闲的",
+      "scope": "Same authorized once-only original/cached8-event26049-label CPU control and necessary readonly admission only",
+      "transport": "ClearML",
+      "hardware": "RTX3090 host10.100.34.27",
+      "physical_GPU_allocation": 4,
+      "GPU_compute": false,
+      "requires_free_physical_group_and_fresh_UUID_RAM_disk_environment_admission": true,
+      "preempt_existing_jobs": false,
+      "A100_teacher_modified": false,
+      "probe_task_id": "c8d3305453c345c38314a30a83b0c513",
+      "control_submitted": true,
+      "automatic_retry": false,
+      "control_task_id": "47a9824bebf44f5bb23223af188a4764",
+      "once_authority_consumed": true,
+      "current_probe_task_id": "37c9a238368a49c9ae4432aeb71d8433",
+      "probe_status": "failed_preserved",
+      "qualification_method": "registered full8 reference plus current4UUID/DeviceMinor; mandatory live runtime admission before compute",
+      "terminal_status": "completed",
+      "control_full_readback_qualified": true,
+      "terminal_proof_path": "/Volumes/Data/test/recover-before-fuse/teacher-cache-control-3090-full-readback-20261027T1034/complete-control-readback.json",
+      "terminal_proof_sha256": "574831631f21fdf982548d4103053d9ea18e5e6474770142ec480af77507aea3",
+      "further_dispatch_authorized": false,
+      "full46_acceptance": false,
+      "observed_terminal_at": "2026-10-27T10:34:37.288503+08:00",
+      "route_record_reconciled_at": "2026-10-27T10:53:10.951266+08:00"
+    },
+    "teacher_full46_source_load_3090_20261027": {
+      "authority": "Direct human reply to call_44ecfa6eb2984da59600761cf5109105: 批准发布并做一次Linux加载准入",
+      "scope": "Only the published fixed overlay and one CPU/Linux source-module load; no46-sequence numerical run or teacher switch",
+      "hardware": "10.100.34.27 RTX3090 idle physical4GPU group",
+      "transport": "ClearML",
+      "GPU_compute": false,
+      "runtime_UUID_RAM_disk_and_physical_nonoverlap_required": true,
+      "no_preemption": true,
+      "no_waiting_queue_submission": true,
+      "publication_task_id": "cfdb8850b700431d86ea0e32b4479e7d",
+      "publication_full_SHA_readback": true,
+      "source_load_task_submitted": false,
+      "once_execution_authority_consumed": false,
+      "automatic_retry": false,
+      "current_status": "completed_on_restored112_source_load_only",
+      "execution_count_consumed": true,
+      "further_dispatch_authorized": false,
+      "superseded_by_restored112_completed_execution": "/Volumes/Data/test/recover-before-fuse/local-workspace/transvision/docs/recover-before-fuse/teacher-witness-payload-cache-candidate-20261027/full46-source-preserving-candidate/linux-load-admission-preparation/restored112-source-load/complete-source-load-admission-readback.json",
+      "full46_numeric_run_authorized": false
+    }
+  },
+  "L40_dispatch_policy_scope": "Default false; previous teacher3407 two-card exception superseded by explicit four-A100 compact instruction; preserve prior probe and results",
+  "recovery_off2027_route_history_pre_full46_20261021": {
+    "recovery_off2027_current_task": "11359cd1a18c4083bb144ca3f6a6f352",
+    "recovery_off2027_current_task_status": "stopped",
+    "recovery_off2027_explicit_binding": "Previous task preserved; next authorized restart uses GPU4-A100 after multithread validation",
+    "recovery_off2027_last_observed_worker": "10.100.34.18-A100:gpu0,1,2,3,4,5,6,7",
+    "recovery_off2027_state_checked_at": "2026-10-19T08:29:22.617525+00:00"
+  },
+  "recovery_off2027_full46_terminal_evidence": {
+    "path": "/Users/lbin/transvision/docs/recover-before-fuse/recovery2027-a100-restart-20261020/full-replay-candidate/terminal-collection-active.json",
+    "sha256": "db8f7944462c2e556b482eaef9dc6405caabc3937ffd0a0d62216670c1da95f0",
+    "platform_status": "completed",
+    "all46_archive_member_bytes_verified": true,
+    "scientific_acceptance": false
+  },
+  "CPU_input_admission_20261021": {
+    "task_id": "dd9cbfd2406542beab010b77533856b1",
+    "last_observed_status": "completed",
+    "last_worker": "10.100.34.18-A100:gpu4,5,6,7",
+    "record": "/Users/lbin/transvision/docs/recover-before-fuse/recovery2027-a100-restart-20261020/full-replay-candidate/CPU-input-preflight-transport-fixed-submission-20261021.json",
+    "CUDA_disabled": true,
+    "actual_input_admission_pass": true,
+    "scientific_acceptance": false,
+    "automatic_retry": false,
+    "terminal_readback": "/Users/lbin/transvision/docs/recover-before-fuse/recovery2027-a100-restart-20261020/full-replay-candidate/CPU-input-preflight-transport-fixed-terminal-20261021.json",
+    "checked_at": "2026-10-21T00:44:26.637574+00:00"
+  },
+  "V2V_cache_CUDA_scorer_qualification_20261021": {
+    "task_id": "644720b18626441f8949838e9c9729a9",
+    "last_observed_status": "completed",
+    "expected_worker": "10.100.34.18-A100:gpu4,5,6,7",
+    "record": "/Users/lbin/transvision/docs/recover-before-fuse/v2v-full-replay-inputs-20261011/A100-cache-scorer-uuid-fixed-submission-20261021.json",
+    "CUDA_enabled": true,
+    "world_size": 4,
+    "physical_GPU_indices": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "prefix_events": 108,
+    "no_tracker": true,
+    "preserve_teacher_task": "2642a57055da45d19d817b131d84fac1",
+    "explicit_single_retry_approved": true,
+    "further_automatic_retry_allowed": false,
+    "scientific_acceptance": false,
+    "checked_at": "2026-10-21T00:40:08.135887+00:00",
+    "last_observed_worker": "10.100.34.18-A100:gpu4,5,6,7",
+    "actual_dependency_import_pass": true,
+    "actual_GPU_numeric_pass": true,
+    "terminal_full_SHA_readback": "/Users/lbin/transvision/docs/recover-before-fuse/v2v-full-replay-inputs-20261011/A100-cache-scorer-terminal-readback-644720b18626441f8949838e9c9729a9.json",
+    "single_retry_authority_consumed": true
+  },
+  "V2V_cache_CUDA_scorer_preserved_attempts_20261021": [
+    {
+      "task_id": "b7b763da1e324de2acc0933fbc7ab292",
+      "last_observed_status": "failed",
+      "last_observed_worker": "10.100.34.18-A100:gpu4,5,6,7",
+      "checked_at": "2026-10-20T17:46:08.348592+00:00",
+      "CUDA_enabled": true,
+      "physical_GPU_indices": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "world_size": 4,
+      "no_tracker": true,
+      "prefix_events": 108,
+      "scientific_acceptance": false,
+      "record": "/Users/lbin/transvision/docs/recover-before-fuse/v2v-full-replay-inputs-20261011/A100-cache-scorer-submission-20261021.json",
+      "preserve_teacher_task": "2642a57055da45d19d817b131d84fac1",
+      "physical_overlap_with_eight_card_worker": true,
+      "failure_preserved": true,
+      "corrected_retry_submitted": false
+    },
+    {
+      "task_id": "3ff5cfcce4d6455cb39526dcce57bd95",
+      "last_observed_status": "failed",
+      "last_observed_worker": "10.100.34.18-A100:gpu4,5,6,7",
+      "expected_worker": "10.100.34.18-A100:gpu4,5,6,7",
+      "checked_at": "2026-10-20T23:44:47.328233+00:00",
+      "CUDA_enabled": true,
+      "physical_GPU_indices": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "world_size": 4,
+      "no_tracker": true,
+      "prefix_events": 108,
+      "scientific_acceptance": false,
+      "record": "/Users/lbin/transvision/docs/recover-before-fuse/v2v-full-replay-inputs-20261011/A100-cache-scorer-dependency-fixed-submission-20261021.json",
+      "preserve_teacher_task": "2642a57055da45d19d817b131d84fac1",
+      "physical_overlap_with_eight_card_worker": true,
+      "explicit_single_retry_approved": true,
+      "further_automatic_retry_allowed": false,
+      "failure_preserved": true,
+      "terminal_readback": "/Users/lbin/transvision/docs/recover-before-fuse/v2v-full-replay-inputs-20261011/A100-cache-scorer-terminal-readback-3ff5cfcce4d6455cb39526dcce57bd95.json"
+    },
+    {
+      "task_id": "df06f22b33a641a288b49104b4df266a",
+      "last_observed_status": "failed",
+      "last_observed_worker": "10.100.34.18-A100:gpu4,5,6,7",
+      "checked_at": "2026-10-21T00:29:15.001880+00:00",
+      "CUDA_enabled": true,
+      "physical_GPU_indices": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "world_size": 4,
+      "no_tracker": true,
+      "prefix_events": 108,
+      "scientific_acceptance": false,
+      "record": "/Users/lbin/transvision/docs/recover-before-fuse/v2v-full-replay-inputs-20261011/A100-cache-scorer-runtime-install-fixed-submission-20261021.json",
+      "preserve_teacher_task": "2642a57055da45d19d817b131d84fac1",
+      "physical_overlap_with_eight_card_worker": true,
+      "explicit_single_retry_approved": true,
+      "further_automatic_retry_allowed": false,
+      "actual_dependency_import_pass": true,
+      "sealed_scoring_import_pass": true,
+      "failure_before_model_execution": true,
+      "failed_stage": "four-GPU-cache-scoring/GPU-UUID-assertion",
+      "terminal_full_SHA_readback": "/Users/lbin/transvision/docs/recover-before-fuse/v2v-full-replay-inputs-20261011/A100-cache-scorer-terminal-readback-df06f22b33a641a288b49104b4df266a.json",
+      "single_retry_authority_consumed": true
+    }
+  ],
+  "CPU_input_admission_failed_attempt_20261021": {
+    "task_id": "a0dfca28f231495393494f99ce94fe8a",
+    "status": "failed",
+    "failed_stage": "source-restore",
+    "input_restore_started": false,
+    "failure_record": "/Users/lbin/transvision/docs/recover-before-fuse/recovery2027-a100-restart-20261020/full-replay-candidate/CPU-input-preflight-failure-and-fixed-candidate-20261021.json",
+    "retry_authorization_pending": true,
+    "automatic_retry": false
+  },
+  "full46_independent_CPU_outputs_20261021": {
+    "task_id": "dd343428c89e4f80acf68b3c501043ff",
+    "status": "completed",
+    "checked_at": "2026-10-21T10:40:52.134316+00:00",
+    "last_worker": "10.100.34.18-A100:gpu4,5,6,7",
+    "worker_currently_reserved_for_this_terminal_task": false,
+    "superseded_task_preserved": "36eaa02cf66240819b4d9c85a605be73",
+    "CUDA_disabled": true,
+    "scope": "seed2027 recovery-off supplied complete train schedule; report numeric results and provenance, not full scientific acceptance",
+    "sequences": 46,
+    "events": 7445,
+    "factor_rows": 225177,
+    "all_five_report_values_and_provenance_verified": true,
+    "terminal_factor_report_readback_pending": false,
+    "original_factor_atol_rtol": 0.0001,
+    "original_semantic_atol_rtol": 1e-08,
+    "terminal_readback": {
+      "path": "/Users/lbin/transvision/docs/recover-before-fuse/independent-fresh-state-optimization-20261021/a100-replacement/full-CPU-output-terminal-readback-20261021.json",
+      "sha256": "92492758f2c72c65da89b8783b9555ef452d228735b95b0d355a6555edea8099"
+    },
+    "numeric_summary": {
+      "path": "/Users/lbin/transvision/docs/recover-before-fuse/independent-fresh-state-optimization-20261021/a100-replacement/full46-terminal-numeric-summary-20261021.json",
+      "sha256": "61e7fcd36913a9dc36d876262cbffcc25863f9cf5f3df81888c0522b69021c41"
+    },
+    "remote_identity_refresh": {
+      "path": "/Users/lbin/transvision/docs/recover-before-fuse/routing-terminal-state-refresh-20261021T1841.json",
+      "sha256": "61758a1674a1b3e87a109c8d0da9a95628d20236e3218f2f02b19371f051dba4"
+    },
+    "scientific_acceptance": false,
+    "automatic_retry": false
+  },
+  "full46_independent_CPU_outputs_pre_replacement_20261021": {
+    "task_id": "36eaa02cf66240819b4d9c85a605be73",
+    "status": "in_progress",
+    "last_worker": "10.100.34.18-A100:gpu4,5,6,7",
+    "checked_at": "2026-10-21T00:49:25.475403+00:00",
+    "submission": "/Users/lbin/transvision/docs/recover-before-fuse/recovery2027-a100-restart-20261020/full-replay-candidate/full-CPU-output-submission-20261021.json",
+    "CUDA_disabled": true,
+    "scope": "46 sequences7445events225177 factors then all semantic outputs",
+    "input_admission_task": "dd9cbfd2406542beab010b77533856b1",
+    "automatic_retry": false,
+    "scientific_acceptance": false,
+    "phase": "independent semantics",
+    "producer_log_factor_sequences": 46,
+    "producer_log_factor_rows": 225177,
+    "terminal_factor_report_readback_pending": true,
+    "actual_semantic_checks_passed": false,
+    "superseded_by": "dd343428c89e4f80acf68b3c501043ff",
+    "status_at_current_terminal_refresh": "stopped"
+  },
+  "V2V_complete_cache_CUDA_scorer_20261021": {
+    "task_id": "7d4d3d5a5b3d4c24a8d45a10345a5a5d",
+    "status_at_observation": "in_progress",
+    "checked_at": "2026-10-21T20:12:53.851684+08:00",
+    "worker": "10.100.34.18-A100:gpu4,5,6,7",
+    "physical_GPU_indices": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "CUDA_enabled": true,
+    "scope": "seed2027 official_test9sequences x3delays;5979events;scorer only",
+    "completed_cases_in_logs": 19,
+    "completed_events_in_logs": 3869,
+    "total_cases": 27,
+    "total_events": 5979,
+    "independent_numeric_acceptance": false,
+    "teacher_preserved": "2642a57055da45d19d817b131d84fac1",
+    "submission": {
+      "path": "/Users/lbin/transvision/docs/recover-before-fuse/v2v-full-replay-inputs-20261011/full-scorer-candidate-20261021/replacement-admission-20261021/full-scorer-submission.json",
+      "sha256": "909fc2944c8dc1dd7058d454bb52cc4bfa6c393f0575cf9bb82795c009a76eb3"
+    },
+    "scientific_acceptance": false,
+    "automatic_retry": false,
+    "completed_rows_in_logs": 427796,
+    "latest_observation": {
+      "path": "/Users/lbin/transvision/docs/recover-before-fuse/manual-current-progress-20261021T201253.json",
+      "sha256": "5af02f985aa298f7808331da73ab114b63d2678fd18bd2716858d81f90a8a384"
+    }
+  },
+  "latest_live_occupancy_evidence": {
+    "path": "/Volumes/Data/test/recover-before-fuse/V2V-independent-raw-context-inputs-20261023/workers-readonly-20261024T020322.json",
+    "sha256": "18c48ce72a8837ed4fbda214fc622c517f492614b5b98f3ca6c4a836788ab869"
+  },
+  "latest_live_occupancy": {
+    "observed_at": "2026-10-24T02:03:22+08:00",
+    "A100": [
+      {
+        "worker": "10.100.34.18-A100:gpu0,1,2,3,4,5,6,7",
+        "task": null,
+        "last_report": "2026-10-23T18:02:55.568688+00:00"
+      },
+      {
+        "worker": "10.100.34.18-A100:gpu0,1,2,3",
+        "task": {
+          "id": "832a23d19dec4ddab3aa07963e5f6b27",
+          "last_iteration": 0,
+          "name": "teacher3407 hotpath-v2 reuse-report-atomic-fix GPU4-7 20261023",
+          "running_time": 53101000
+        },
+        "last_report": "2026-10-23T18:03:08.211707+00:00"
+      },
+      {
+        "worker": "10.100.34.18-A100:gpu4,5,6,7",
+        "task": null,
+        "last_report": "2026-10-23T18:03:09.295289+00:00"
+      }
+    ],
+    "GPU4_7_physical_runtime_admission_pending": true,
+    "teacher_reserved": true
+  },
+  "A100_GPU8_physical_overlap_dispatch_allowed": false,
+  "storage_location_clarification": {
+    "recorded_at": "2026-10-21T13:53:22.392733+00:00",
+    "user_instruction": "112无外置，是本机当前有外置（mac mini）",
+    "SSH112_external_disk_required": false,
+    "local_Mac_external_archive_root": "/Volumes/Data/test/recover-before-fuse",
+    "SSH112_working_storage": "internal disk; admit per-task temporary peak, output, RAM and runtime before launch",
+    "SSH112_external_disk_absence_is_blocker": false,
+    "new_experiment_or_failure_retry_authority_granted_by_this_clarification": false,
+    "prior_observation": "SSH112-resource-observation-20261021T134428Z.json"
+  },
+  "latest_live_occupancy_history_pre_20261023_refresh": {
+    "latest_live_occupancy": {
+      "teacher": {
+        "task_id": "75f081a82a3a4d4eb115437c2e27e69c",
+        "status": "in_progress",
+        "worker": "10.100.34.18-A100:gpu0,1,2,3",
+        "observed_at": "2026-10-21T13:52:32.263226+00:00"
+      },
+      "scorer": {
+        "task_id": "7d4d3d5a5b3d4c24a8d45a10345a5a5d",
+        "status": "in_progress",
+        "worker": "10.100.34.18-A100:gpu4,5,6,7",
+        "observed_at": "2026-10-21T13:52:32.263226+00:00"
+      }
+    },
+    "latest_live_occupancy_evidence": {
+      "path": "/Users/lbin/transvision/docs/recover-before-fuse/teacher-combined-storage-candidate-20261021/authorized-replacement/replacement-latest-live.json",
+      "sha256": "354cf9d0b6bc3c1cc1cedd17233c43fc0ea2cf5afba71e5d04bcd02cb2161796"
+    }
+  },
+  "SSH112_temporary_hardware_defer": {
+    "contact_and_dispatch_deferred": false,
+    "authority": "User:112已联通，可以继续使用",
+    "restored_at": "2026-10-27T12:41:04.630881+08:00",
+    "connectivity_driver_GPU_memory_observation": "/Volumes/Data/test/recover-before-fuse/local-workspace/transvision/docs/recover-before-fuse/SSH112-restoration-20261027/connection-and-resources.json",
+    "observation_sha256": "5a33dfb1e2c1219e8f0fb49d96afe90e3884a9f229d43f887e4b01d3d4e9fded",
+    "task_specific_input_runtime_storage_admission_still_required": true,
+    "failure_retry_and_publication_authorization_gates_unchanged": true
+  },
+  "route_history": [
+    {
+      "at": "2026-10-24T02:06:27.663787+08:00",
+      "reason": "Apply latest explicit user restoration and unrestricted SSH112 instruction",
+      "previous": {
+        "SSH112_temporary_hardware_defer": {
+          "authority": "User:112先不用联通了，主机硬件问题；112暂不处理",
+          "contact_and_dispatch_deferred": true,
+          "recorded_at": "2026-10-23T14:37:12.561263+08:00"
+        },
+        "CPU_execution": "A100 via ClearML with CUDA disabled, or explicitly admitted SSH112; observe actual CPU RAM disk without adding arbitrary hard caps",
+        "CPU_payload_must_disable_CUDA": true,
+        "latest_live_occupancy": {
+          "teacher": {
+            "task_id": "832a23d19dec4ddab3aa07963e5f6b27",
+            "status": "in_progress",
+            "worker": "10.100.34.18-A100:gpu0,1,2,3",
+            "observed_at": "2026-10-23T14:37:12.561263+08:00",
+            "registered_plan_GPU_UUIDs_normalized": [
+              "34b2e1f1-f1e9-9b47-b959-25a229ad3f8c",
+              "61cda1ee-cb79-9c9c-16fe-8e77bc60c51f",
+              "805b5ff4-452d-24ef-5ceb-cf0531a9e6dc",
+              "1127a71f-f719-b690-0ba8-964a5aae51a1"
+            ],
+            "source_sha256": "dd5cbd260733b4a890092fb18079d0468e848651ead520d2a700696a9e9829a0",
+            "reserved_physical_GPU_count": 4
+          },
+          "forest2027_GPU_qualification": {
+            "task_id": "780b98fe452046249fdddcb33b3c7b7b",
+            "status": "in_progress",
+            "worker": "10.100.34.18-A100:gpu4,5,6,7",
+            "observed_at": "2026-10-23T14:37:12.561263+08:00",
+            "registered_plan_GPU_UUIDs_normalized": [
+              "4c2f5864-985f-a768-63f4-8e018a8722fb",
+              "decfb0b5-3433-6a46-d51f-e3e295928133",
+              "fb345e2e-e231-9037-fbd3-ba0218db9997",
+              "fca4bf43-c561-4454-5a83-74680cf58784"
+            ],
+            "source_sha256": "27ff79c588552b62c1527a8d3d1e1c90499444cb3c678ea5640b88d4dea4b55d",
+            "reserved_physical_GPU_count": 4
+          }
+        },
+        "latest_live_occupancy_evidence": {
+          "path": "/Volumes/Data/test/recover-before-fuse/routing-live-bindings-20261023T143712.json",
+          "sha256": "77172ed0c58a26e8a883c0af23e7c370651ee9a371721a2aa6001a0447559e84"
+        }
+      }
+    },
+    {
+      "at": "2026-10-27T08:42:52.895964+08:00",
+      "reason": "Reconcile later direct human exclusion; retain earlier restored state as history",
+      "previous": {
+        "SSH112_temporary_hardware_defer": {
+          "contact_and_dispatch_deferred": false,
+          "authority": [
+            "User: 外挂硬盘恢复，112恢复",
+            "User: 112驱动已装好",
+            "User: 112不要加限制"
+          ],
+          "recorded_at": "2026-10-24T02:06:27.663787+08:00",
+          "restoration_evidence": "/Volumes/Data/test/recover-before-fuse/forest2027-a100-gpu0-3-20261023/gpu-candidate/prefix-hybrid-112-unrestricted-20261024/112-full0000-launch-receipt-20261024T0135.json"
+        },
+        "single_GPU": "10.100.35.112",
+        "single_GPU_dispatch": "SSH",
+        "CPU_allowed_host": "A100 or explicitly admitted SSH112"
+      }
+    }
+  ],
+  "CPU_payload_CUDA_policy": {
+    "SSH112": "No global CUDA disable; selected independent CPU reference remains CPU by algorithm, while GPU candidates may use CUDA.",
+    "A100": "CPU-only diagnostic payloads disable CUDA when their explicit task contract requires it; GPU experiments retain CUDA."
+  },
+  "SSH112_resource_policy": {
+    "authority": "User:112不要加限制",
+    "inherit_host_limits": true,
+    "add_CPU_affinity": false,
+    "add_thread_caps": false,
+    "add_memory_rlimits": false,
+    "add_cgroup_caps": false,
+    "globally_disable_CUDA": false,
+    "preserve_original_algorithm_budgets": true,
+    "preserve_original_numeric_tolerances": true,
+    "current_timing_comparison_no_parallel_numerical_jobs": true
+  },
+  "SSH112_current_dispatch_allowed": true,
+  "SSH112_hardware_defer_history": [
+    {
+      "contact_and_dispatch_deferred": true,
+      "authority": "User:112不可达，后续暂不考虑，直到修复。请判断使用A100完成当前112要完成的任务。如果可以，立即执行",
+      "recorded_at": "2026-10-27T08:42:52.895964+08:00",
+      "restoration_requires_new_human_confirmation": true,
+      "no_new_connectivity_attempt_performed": true
+    }
+  ],
+  "teacher_full46_source_load_completed_restored112": {
+    "proof": "/Volumes/Data/test/recover-before-fuse/local-workspace/transvision/docs/recover-before-fuse/teacher-witness-payload-cache-candidate-20261027/full46-source-preserving-candidate/linux-load-admission-preparation/restored112-source-load/complete-source-load-admission-readback.json",
+    "sha256": "060eb5521399a5260151a3638a8bd8eb6d0c3a98ed344c628d8f67f51059d172",
+    "scope": "source load only",
+    "execution_count_consumed": true,
+    "3090_duplicate_dispatch_allowed": false,
+    "full_numeric_run_authorized": false
+  },
+  "latest_direct_authorized_routes_20261028": {
+    "authority": [
+      "使用3090整机",
+      "以及5090后四卡"
+    ],
+    "supersedes_prior_hardware_exclusions_for_these_routes": true,
+    "3090": "10.100.34.27-3090:gpu0,1,2,3,4,5,6,7",
+    "5090": "10.100.34.130-5090:gpu4,5,6,7",
+    "scope": "Current already-authorized experimental work after task-specific physical/resource/runtime admission; no arbitrary new experiments or failure retries",
+    "preserve_other_tasks": true,
+    "teacher_route": "3090 whole host; four independent CPU lanes, CUDA disabled",
+    "forest_route": "5090 rear four candidate; original GPU and storage eligibility not yet established",
+    "probes": {
+      "3090": "2f7044f03a3745089deee51659264c32",
+      "5090": "657e47a063154fcaa4ac05d3780868d7"
+    }
+  },
+  "latest_direct_user_Mac_compute_policy": {
+    "effective_at": "2026-10-31T19:11:19.561425+08:00",
+    "authority": "Direct user: 不要在mac上进行任何计算",
+    "Mac_experiment_computation_allowed": false,
+    "prohibited": [
+      "model or numerical execution",
+      "database compaction or lossless storage conversion",
+      "large file SHA sweeps",
+      "local experimental controls and benchmark runs"
+    ],
+    "Mac_role": "lightweight remote dispatch, status inspection, and existing artifact storage only",
+    "current_local_attempt": "0001 interrupted by user instruction; source, logs and intermediate database preserved; not qualified",
+    "preserved_remote_tasks": [
+      "112 teacher1337 0016",
+      "3090 teacher3407 18abed2123c14d63ac411ec7ea6ba611",
+      "all A100 tasks"
+    ],
+    "remote_admission_required": true,
+    "automatic_migration_or_retry_authorized_by_this_policy": false,
+    "stop_evidence": "/Volumes/Data/test/recover-before-fuse/local-workspace/transvision/docs/recover-before-fuse/paper-readiness-replan-20261029/mac-computation-disabled-by-user-20261031T191030/stop-and-preservation-record.json"
+  }
+}

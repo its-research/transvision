@@ -1,0 +1,43 @@
+# 0040正式汇合接续检查
+
+2026-11-06只读核对112的成功入口 `/home/lbin/rbf0056-index22-execution-20261105/execution-source.py`，本记录不是0040资格证明。
+
+必须沿用冻结 `join_collected_teacher1337_receipt.py`（SHA 1c383068fb8e9f4ff9241c58e72f7ade2b9b14d8461f40b9c18de10156429dd3）和 `audit_collected_teacher1337_receipt.py`（SHA abdf59f097b1e12a351762557938cb86ecfe565cc815340df169c32e39a8079f）。实际原函数为checked_prior、audit.audit、joined_index。先核对完整22序列旧索引及来源链，再追加0040；不能直接增计数。
+
+## 0040接续门槛
+
+1. 原数值容器exit0/无重启，原六项语义报告和2633因子行按1e-8/1e-4合格。
+2. 原7文件完整SHA和精确EOF通过，绑定0040/source_preparation/原容器；客户端正常退出且源文件前后元数据稳定。过程IO不替代来源合格。
+3. 112-only收集成功，完整小产物及既有压缩输入完整SHA、当前注册archive身份、冻结数值后置条件通过。
+4. 按此前0056成功流程完整保全小结果归档，并由112核验外置保存归档及全部成员SHA；不能把112局部收集等同外置保全。
+5. 仅对新收据target_report执行显式路径映射，并保存原收据路径/SHA及原7文件证明路径/SHA。可逆证明其他字段不变；原审计与原joined_index不修改。
+6. 所有既有序列行逐项保持不变，新序列不重复。依据经检查的原targets标签数和因子数计算新总计，不从本准备文档填造资格。
+7. full46_accepted、priority_training_admitted、full_A_K_complete继续false；通过正式汇合之后才考虑0094的新鲜资源准入。
+
+尚未执行0040正式收集、外置保全或索引更新。上述既有SHA仍须在112实际执行时重新核对；Mac只读写文本和传输字节，不计算SHA或索引。
+
+## 实际112独立挂载树准备完成
+
+已定位0056成功容器74555f567c16a6c68fb87001139aed7516b210465c9aca2b54f6afc90367ed1f，当前22索引SHA为4e11854a880c67f597ad26626d8004542cb7c325b79b20242f24292e800ff7a5。
+
+112新准备根 `/home/lbin/rbf0040-index23-preparation-20261106` 已复制57份、783,049字节原镜像元数据，逐文件源/副本全SHA一致，旧树未改。新输出及嵌套readback挂载目录已预建；准备检查曾捕获缺少readback子目录，记录保留并在任何容器启动前补齐。这是可逆目录准备，不是科学或正式汇合尝试。
+
+挂载计划SHA866c55d6c2f2842ff4ed20da085a3d06c6d7985cc7090448810a6f63fe05db18；57文件SHA清单SHA81a470f0ab6aa0c44dbe28502a50a4158e4f0886d9eb3cc644f1eedd26fe27e4。所有旧挂载改为只读，只给新输出目录写权限。源收集目录和外置保全证明尚未就绪，不创建容器。
+
+根据22索引及0040实际报告在112计算，全部门槛通过后预期应为23序列、3,227事件、2,467,556标签、78,314因子行；这些仅是未来汇合一致性断言，当前正式计数仍22/46，未写新索引。执行源码尚未准备/运行，仍需原checked_prior/audit/join完整通过及所有旧行不变。
+
+## 21:32 正式汇合执行源码准备
+
+112已生成 `join0040_source_bound_index23_prepared.py`，5,221字节，SHA1f9c6b1f98c0cb7837a9b2e0f73fba8c9c07f10af152443a78a944abc5b1fd37。来源是原0056成功execution-source.py，SHAadabb06709ef142aaf0b500bfd5868848916f723195c238a4de82f0d04b7746e；所有绑定改动可逐项逆向还原，冻结checked_prior/audit/join调用及其源码SHA、所有旧行相等断言完整保留。
+
+新入口要求实际原7来源、最终收集、外置保全三份证明的完整SHA参数，并绑定原0040容器、source_preparation与原接收器e32ef436...完整SHA/精确EOF断言；独立输出添加排他尝试记录。原0040接收器没有0056协议里的numeric_or_model_rerun字段，因此没有编造该字段，而是保留实际原接收器源码绑定及其真实格式。完整既有审计不修改，原1e-8/1e-4不变。
+
+准备生成器第一次逆向检查因空字符串删除映射不可逆而拒绝，未写出执行入口；改为整句可逆映射后静态检查通过。这不是汇合或科学重跑。最终保留execution-source-binding-diff.json和execution-source-preparation-proof.json。新execution-plan-with-source仍executed=false，实际收集/外置证明尚缺，不启动容器或写正式23索引。
+
+## 22:08 旧22来源链在新镜像命名空间实测通过
+
+只读元数据预检容器9bcc6f8d3e736f76762c306c9ee2ba7a3099ef8070326d194f1cd491bee0f7b6使用原e5冻结镜像、1000:1000、只读根和全部旧来源只读挂载，无网络；实际UTC14:08:50.505248694开始、14:08:50.615174534结束，exit0。ROOT/old22-namespace-readonly-preflight-once保留入口、启动、日志和实际终态。
+
+原checked_prior实际通过，原22索引SHA仍4e11854a880c67f597ad26626d8004542cb7c325b79b20242f24292e800ff7a5；全部46原行及来源inventory已检查，22序列/3034事件/2283704标签/75681因子不变。SQLite连接被预检作用域拦截，实际0次；没有Torch或数值/模型调用，没有新0040审计/汇合。报告完整SHAf43672cfafe9d2df6185ca21ae9510d96fdb2efb993e5fbfbad9cab5f277d3ab。
+
+这证明旧来源镜像和只读挂载别名可实际复用；尚不存在的0040最终collection/readback未来挂载未在此创建或读取。完整原7、真实客户端终态、实际收集及外置保全仍须通过，最终新索引仍未执行。没有停止/重启任何旧容器，也未改变原输入或容差。

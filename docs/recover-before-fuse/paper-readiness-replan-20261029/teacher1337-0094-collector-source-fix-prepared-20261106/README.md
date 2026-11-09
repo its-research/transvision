@@ -1,0 +1,11 @@
+# 0094 收集器来源修正候选
+
+后续准备更新：已在112从既有冻结0056模板按0094原序列常量重建原collector，完整SHA精确匹配cb5d439faf1fd2c22fb4d8e9286fda2ac962490a6e33b1b0fb6d3c8316fbe94e，没有跨机传输源码。112目录为`/home/lbin/rbf-approved0094-Linux-collection-preparation-20261106`。在该基线上生成rank5修正候选SHA90dba920747ea5c0ef20b502b716205db0b24987723dd8fa0c6d43e995c86434，语法解析通过，未执行收集。下文原“需暂存”仅记录早先路径，不再把该候选的跨机传输作为必要前置；仍须AST/拒绝控制和Linux-only来源/退出码适配。
+
+未执行、未暂存112、未在Mac运行SHA或语法检查。
+
+原合同和batch_source_admission均绑定rank5：artifact replay-rank5，archive 50298166260字节、SHA8802e2cdd64f6f990c45160379511b155c60f41eb59760669b6ee2c53c9f5a4b。原collector却硬编码replay-rank4，属于最终收集前可定位的程序错误。
+
+新候选仅增加原合同artifact严格断言，并按该合同索引实时产物；原collector和全部历史SHA保持不变。198事件、11314因子、19356见证、934表及原1e-8/1e-4数值断言保留，尚未在Linux通过AST/拒绝测试，因此不宣称资格。
+
+该文件仍保留原SSH收集流程及原字段，不是Linux-only执行入口；不得在Mac运行，也不能直接将其改称Linux收集。下一步在获具体源码暂存授权后由112核验原/候选SHA、仅该来源改动的AST差异及rank4/缺失artifact拒绝，再准备Linux-only原7来源证明与真实本地退出码适配。0040须完整收口，0094原一次科学许可尚未使用，不因本候选增加次数。

@@ -24,7 +24,7 @@ def active_reservations(jobs,workers,statuses):
     """Release finished tasks; reserve only actual cards once a worker binds."""
     reserved = []
     for job in jobs:
-        assigned = [binding(w) for w in workers if w.get('task',{}).get('id') == job['task_id']]
+        assigned = [binding(w) for w in workers if (w.get('task') or {}).get('id') == job['task_id']]
         assigned = [item for item in assigned if item is not None]
         if assigned:
             reserved.extend(assigned)
@@ -51,14 +51,14 @@ def snapshot(api,jobs,dry_reserved=()):
             continue
         for card in key[1]:
             physical.add((key[0],card))
-            if worker.get('task',{}).get('id'):
+            if (worker.get('task') or {}).get('id'):
                 busy.add((key[0],card))
     fleet = dict(checked_at_utc=now.isoformat(),physical_non_L40_GPUs=len(physical),
         physical_worker_task_bound_GPUs=len(busy),physical_unbound_GPUs=len(physical-busy),
         worker_binding_is_not_utilization_measurement=True,
         pipeline_task_live_statuses=statuses,
         finished_task_reservations_released=True,assigned_worker_uses_actual_card_binding=True,
-        workers=[dict(id=w['id'],ip=w.get('ip'),task_id=w.get('task',{}).get('id'),
+        workers=[dict(id=w['id'],ip=w.get('ip'),task_id=(w.get('task') or {}).get('id'),
             queues=[q['id'] for q in w.get('queues',[])],last_activity_time=str(w['last_activity_time'])) for w in workers],
         queues=[dict(id=q['id'],name=q['name'],pending=[e['task'] for e in q.get('entries',[])]) for q in queues])
     return choices,fleet
@@ -85,7 +85,7 @@ def main():
         now = datetime.datetime.now(datetime.timezone.utc)
         value = dict(kind='rbf_matching_seen_val_generic_GPU_joint_identity_dispatch_v1',
             checked_at_utc=now.isoformat(),jobs=jobs,execution_source_preparation_sha256=sha(execution_root/'preparation.json'),
-            GPU_model_restriction=False,L40S_CPU_only=True,TF32_enabled=False,paper_performance_complete=False)
+            GPU_model_restriction=True,allowed_multi_GPU_model="A100",L40S_CPU_only=True,TF32_enabled=False,paper_performance_complete=False)
         atomic(JOURNAL,value)
         path = R/'receipts'/('rbf-matching-seen-val-joint-GPU-dispatch-'+now.strftime('%Y%m%dT%H%M%S%fZ')+'.json')
         new(path,value);register(path,value['kind'])
@@ -145,7 +145,7 @@ def main():
             '-e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_TF32_OVERRIDE=0 '
             '-e TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0 -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1')
         task.set_parameters(dict(plan=canonical(plan).decode(),recipe_sha256=hashlib.sha256(canonical(plan)).hexdigest(),
-            semantic_inference_identity=semantic,seed=seed,world_size=choice['world_size'],GPU_model_restriction=False,
+            semantic_inference_identity=semantic,seed=seed,world_size=choice['world_size'],GPU_model_restriction=True,allowed_multi_GPU_model="A100",
             TF32_enabled=False,ETA='unknown_until_real_input_transfer_or_NN_row_progress',paper_performance_complete=False))
         task.add_tags(['Recover-Before-Fuse','seen-val-exploratory','joint-cross-source-temporal','all-class-top64',
             'frozen-nested-selected-final-refit','full-input-admitted','independent-output-acceptance-pending'])

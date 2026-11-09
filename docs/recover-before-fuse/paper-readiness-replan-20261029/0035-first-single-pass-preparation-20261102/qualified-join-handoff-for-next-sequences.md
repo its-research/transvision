@@ -1,0 +1,11 @@
+# 0035合格收口与后续序列复用边界
+
+0035已于2026-11-02 09:32:44北京时间exit0。117事件、2,119因子行及全部小产物保存后SHA通过。原第一次来源汇合漏传metadata_root，失败执行和日志保留；经用户单次授权，补传原ROOT后的汇合通过。
+
+已合格的来源汇合实现为join0035_metadata_root_fix.py，SHA256 9f61b59afb95ffd5ac53adc7c703c01e062f7d3e480234fe3ae3f578b13b7784。合格证明SHA256 9ec1ea4bc2fd045b895ea90fd69c09482c65d04964e0848addaf6186111232fb。旧三参数调用的join0035_canonical_source_receipt_remote.py只是失败历史，后续不能以它为未修复模板。
+
+下一序列的来源汇合准备应明确核对各自冻结batch_source_admission.py的实际签名和SHA，并按原函数要求传入其自身元数据目录；当前原函数为admit_batch_source(source, terminal, contract, metadata_root)。目录是当前序列暂存证明位置，原绝对路径仍只作来源身份，不改写。不得仅替换序列号后直接执行；来源合同、归档rank、当前注册身份、原七文件、报告及模型/参考行数均需各自严格绑定。
+
+18序列合格索引为 ../original1337-eighteen-targets-eighteen-factors-current-source-join-20261102.json，SHA256 bef136552f6440069c8fe238778d9a75ec2a1e19b1221eef8d71fa6dbe4d0f42；原checked_prior和新进程独立读取通过，累计2,345事件、1,842,130标签、56,746因子行。后续索引应以前18份已验记录为只读前驱，不能退回17份后覆盖或遗漏0035，也不能把完整46序列或优先级训练当作已准入。
+
+下一项真实数值任务仍须等0087已授权对照结束并完整留证、112原资源重新准入。当前归档传输带来的共享负载需记录，不能把该负载下的耗时用于正式同资源结论。所有旧结果和失败记录保留，不新增资源限制、不禁用GPU，不自动重试新失败。

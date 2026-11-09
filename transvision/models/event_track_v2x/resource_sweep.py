@@ -126,7 +126,114 @@ def _reference(value, filename=None):
     return dict(path=str(path), sha256=value['sha256'])
 
 
+CURRENT_REFIT_KIND = 'rbf_current_final_refit_cpu_resource_sweep_v2'
+
+
+def require_l40_cpu_worker():
+    if sys.platform != 'linux' or os.environ.get('CUDA_VISIBLE_DEVICES') != '':
+        raise ValueError('current-refit CPU experiment requires Linux L40 with CUDA disabled')
+    task_id = os.environ.get('CLEARML_TASK_ID')
+    if not task_id:
+        raise ValueError('L40 worker Task identity required before model loading')
+    from clearml import Task
+    task = Task.get_task(task_id=task_id)
+    task.reload()
+    if not str(task.data.last_worker or '').startswith('10.100.35.121-L40S:'):
+        raise ValueError('current-refit CPU experiment is not on designated L40 worker')
+    return str(task.data.last_worker)
+
+
+def validate_current_refit_spec(spec):
+    from .final_refit_resource_contract import validate_final_refit
+    require_l40_cpu_worker()
+    fields = {'kind', 'inputs', 'jobs', 'repetitions', 'order_seed', 'timeout_seconds'}
+    if set(spec) != fields or spec['kind'] != CURRENT_REFIT_KIND:
+        raise ValueError('exact current-refit resource schema required')
+    if (type(spec['repetitions']) is not int or not 3 <= spec['repetitions'] <= 100
+        or type(spec['order_seed']) is not int
+        or type(spec['timeout_seconds']) not in (int, float)
+        or not math.isfinite(spec['timeout_seconds']) or spec['timeout_seconds'] <= 0):
+        raise ValueError('predeclared repetitions, order seed and finite timeout required')
+    if type(spec['inputs']) is not dict or set(spec['inputs']) != {str(s) for s in SEEDS}:
+        raise ValueError('all three explicit seed input contracts required')
+    if type(spec['jobs']) is not list or not 1 <= len(spec['jobs']) <= 256:
+        raise ValueError('one to 256 predeclared jobs required')
+    from tools.event_track_v2x.run_tracking_v2 import schedule_rows
+    inputs, metadata, frozen_inputs, frames = {}, {}, {}, set()
+    for seed in SEEDS:
+        item = spec['inputs'][str(seed)]
+        if type(item) is not dict or set(item) != {'cache', 'schedule', 'checkpoint', 'refit_evidence'}:
+            raise ValueError('exact per-seed cache/schedule/checkpoint/evidence required')
+        checkpoint = _reference(item['checkpoint'], 'checkpoint.json')
+        cp = json.loads((Path(checkpoint['path'])/'checkpoint.json').read_bytes())
+        admission = validate_final_refit(cp, checkpoint['sha256'], item['refit_evidence'])
+        if admission['seed'] != seed:
+            raise ValueError('input key and admitted checkpoint seed differ')
+        cache_ref = _reference(item['cache'], 'manifest.json')
+        schedule_ref = _reference(item['schedule'])
+        rows = schedule_rows(Path(schedule_ref['path']), schedule_ref['sha256'])
+        cache = VerifiedForestCache(cache_ref['path'], cache_ref['sha256'])
+        cm = json.loads(cache.manifest_json)
+        if (cm['split'] != 'val' or cm['frame_count'] != 7189
+            or set(cm['sequences']) != {r['sequence_id'] for r in rows}):
+            raise ValueError('each seed requires full official SPD val inputs')
+        frozen = frozen_cache_identity(cache)
+        if cp['frozen_cache_identity'] != frozen:
+            raise ValueError('seed detector/calibration input identity differs')
+        inputs[str(seed)] = dict(cache=cache_ref, schedule=schedule_ref,
+            checkpoint=checkpoint, refit_evidence=item['refit_evidence'], admission=admission)
+        metadata[seed], frozen_inputs[seed] = cp, frozen
+        frames.add(len(rows))
+    if len(frames) != 1:
+        raise ValueError('complete scheduled frame coverage differs across seeds')
+    jobs, identifiers, groups = [], set(), {}
+    for raw in spec['jobs']:
+        required = {'id', 'backend', 'configuration', 'seed'}
+        if (type(raw) is not dict or not required <= set(raw)
+            or set(raw)-required-{'allocation_checkpoint'}
+            or type(raw['id']) is not str or not raw['id'] or raw['id'] in identifiers
+            or type(raw['seed']) is not int or raw['seed'] not in SEEDS):
+            raise ValueError('unique job and admitted seed required')
+        seed = raw['seed']; identifiers.add(raw['id']); config = configuration(raw)
+        item = inputs[str(seed)]
+        scorer, cp = load_identity_checkpoint(item['checkpoint']['path'],
+            item['checkpoint']['sha256'], config=config.state, device='cpu')
+        if cp != metadata[seed]:
+            raise ValueError('loaded checkpoint differs from admitted final refit')
+        job = dict(raw, configuration=asdict(config), checkpoint=item['checkpoint'],
+            cache=item['cache'], schedule=item['schedule'], refit_evidence=item['refit_evidence'])
+        allocation = raw.get('allocation_checkpoint')
+        if (raw['backend'] in LEARNED_COMPONENT_KINDS) != (allocation is not None):
+            raise ValueError('learned backend requires its own qualified priority checkpoint')
+        if allocation is not None:
+            job['allocation_checkpoint'] = _reference(allocation, 'checkpoint.json')
+            _, priority = load_priority(job['allocation_checkpoint']['path'], job['allocation_checkpoint']['sha256'],
+                binding=training_binding(config, scorer.signature, frozen_inputs[seed]), require_full_train=True)
+            if priority['seed'] != seed:
+                raise ValueError('priority checkpoint seed differs')
+        family = _digest([raw['backend'], asdict(config)])
+        if seed in groups.setdefault(family, set()):
+            raise ValueError('duplicate configuration and training seed')
+        groups[family].add(seed); job['family_sha256'] = family; jobs.append(job)
+    if any(seeds != set(SEEDS) for seeds in groups.values()):
+        raise ValueError('each configuration requires all three admitted seeds')
+    order, generator = [], random.Random(spec['order_seed'])
+    for repetition in range(spec['repetitions']):
+        indices = list(range(len(jobs))); generator.shuffle(indices)
+        order.extend(dict(repetition=repetition, job_index=i) for i in indices)
+    return dict(spec, inputs=inputs, jobs=jobs, execution_order=order,
+        cohort_mode='full-spd-val', scheduled_frames=frames.pop(),
+        source_sha256=source_snapshot(), thread_environment=THREAD_ENV, device='cpu',
+        paper_eligible=False, physically_equal_resources_claimed=False, exclusive_host_verified=False,
+        order_policy='randomized_complete_blocks_no_warmup_exclusion', page_cache_reset=False,
+        current_final_refit_evidence_bound=True, new_runtime_numerically_qualified=False)
+
+
 def validate_spec(spec, *, allow_fixture=False):
+    if type(spec) is dict and spec.get('kind') == CURRENT_REFIT_KIND:
+        if allow_fixture:
+            raise ValueError('current final-refit contract cannot be used as fixture')
+        return validate_current_refit_spec(spec)
     if sys.platform not in ('darwin', 'linux'):
         raise ValueError('resource RSS units are defined only for macOS and Linux')
     fields = {'kind', 'cache', 'schedule', 'jobs', 'repetitions', 'order_seed', 'timeout_seconds'}
@@ -229,15 +336,20 @@ def worker(plan, job, output):
     torch.set_num_interop_threads(1)
     config = configuration(job)
     formal = plan['cohort_mode'] == 'full-spd-val'
-    _reference(plan['schedule'])
+    current = plan['kind'] == CURRENT_REFIT_KIND
+    if current:
+        require_l40_cpu_worker()
+    schedule = job['schedule'] if current else plan['schedule']
+    cache_ref = job['cache'] if current else plan['cache']
+    _reference(schedule)
     if formal:
         from tools.event_track_v2x.run_tracking_v2 import schedule_rows
-        rows = schedule_rows(Path(plan['schedule']['path']), plan['schedule']['sha256'])
+        rows = schedule_rows(Path(schedule['path']), schedule['sha256'])
     else:
         if plan['cohort_mode'] != 'fixture-only':
             raise ValueError('unknown resource cohort mode')
-        rows = json.loads(Path(plan['schedule']['path']).read_bytes())
-    cache = VerifiedForestCache(plan['cache']['path'], plan['cache']['sha256'])
+        rows = json.loads(Path(schedule['path']).read_bytes())
+    cache = VerifiedForestCache(cache_ref['path'], cache_ref['sha256'])
     metadata = json.loads(cache.manifest_json)
     if formal and (metadata['split'] != 'val' or metadata['frame_count'] != 7189
             or set(metadata['sequences']) != {r['sequence_id'] for r in rows}):
@@ -246,7 +358,10 @@ def worker(plan, job, output):
     scorer, policy = None, None
     if job['checkpoint'] is not None:
         scorer, meta = load_identity_checkpoint(job['checkpoint']['path'], job['checkpoint']['sha256'], config=config.state)
-        if (formal and meta.get('full_official_train') is not True
+        if current:
+            from .final_refit_resource_contract import validate_final_refit
+            validate_final_refit(meta, job['checkpoint']['sha256'], job['refit_evidence'])
+        if (formal and not current and meta.get('full_official_train') is not True
                 or meta['frozen_cache_identity'] != frozen or meta['seed'] != job['seed']):
             raise ValueError('worker checkpoint training identity differs')
     elif formal:
@@ -395,7 +510,7 @@ def run_sweep(spec, output, *, allow_fixture=False):
                 planned=len(plan['execution_order']), job_id=job['id'])), flush=True)
         if source_snapshot() != plan['source_sha256']:
             raise ValueError('sweep sources changed')
-        receipt = dict(kind=KIND, status='complete', plan_sha256=sha_file(output/'plan.json'), runs=results,
+        receipt = dict(kind=plan['kind'], status='complete', plan_sha256=sha_file(output/'plan.json'), runs=results,
             cohort_mode=plan['cohort_mode'], raw_factors_equal_within_seed=True,
             repeated_predictions_identical=True, separate_fresh_process_per_run=True,
             resource_limits_are_algorithmic_not_matched_physical_budgets=True,
@@ -403,7 +518,7 @@ def run_sweep(spec, output, *, allow_fixture=False):
         _write(output/'receipt.json', receipt)
         return receipt
     except BaseException as error:
-        _write(output/'failure.json', dict(kind=KIND, status='failed', completed_runs=len(results),
+        _write(output/'failure.json', dict(kind=plan['kind'], status='failed', completed_runs=len(results),
             plan_sha256=sha_file(output/'plan.json'), error_type=type(error).__name__, error=str(error),
             completed_runs_are_not_a_complete_comparison=True, paper_eligible=False))
         raise

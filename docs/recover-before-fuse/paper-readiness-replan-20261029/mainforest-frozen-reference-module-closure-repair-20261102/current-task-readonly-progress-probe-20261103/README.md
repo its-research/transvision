@@ -1,0 +1,11 @@
+# abaf单次共享缓存只读进度诊断：等待具体发布/执行许可
+
+目标仅abaf7070a8ac4a5597dfedf88f7c8806，原bootstrap SHA545dcf3b1c785f3dd41d8499a20e31e1b816a827e3b0032d4df33fe3dca5f768。当前04:06实测GPU4–7 in_progress，前四卡空闲，最后可见阶段仍为namespace材料化。四路stdout/stderr由固定协调器写各rank文件，平台安静不是计算/停滞证据。
+
+待发布仅probe.py为Task源码到原API http://10.100.35.118:8008，4,575字节，SHAfe919484b92bfc27d688f6f9f97f9c0ead96be4e820c615a6f2130be20ce013b。在空闲、不与活Task重叠的A100四卡worker运行一次；不用八卡重叠例外，不调用GPU，不改CPU/RAM/线程/affinity，不发信号，不改目标Task。只读/clearml_agent_cache/rbf-full46-abaf7070a8ac4a5597dfedf88f7c8806的request身份、指定终态/启动/资源元数据和rank ETA/小日志的有界尾部，两样本间隔5秒。不读数据库、模型、PID、内存或环境；缺文件只报告unknown，不推断失败或已计算。
+
+13项路径/读取边界和23项授权/调度/源码控制在112通过；实际probe.main、SDK投递和HTTP收集均未执行。具体证据在112 /home/lbin/rbf-owned-mainforest-progress-probe-preparation-20261103/software-controls.json 及control-software-checks.json。dispatcher SHAdff60dbad14da2ac9937123adb1296c6509f6b42694facc4a2ce79781c7e8bc8，collector SHA9f3b17dd87375d736f4965862f53c367169d96aed5e0af3b94106a0b8da0f206。
+
+只有收到新具体许可后才写approved授权记录并调用dispatch_once.py --authorization <grant>。dispatcher要求精确新scope mainforest_abaf_shared_cache_CPU_readonly_progress_once、目标与源码SHA、最大1次、原API/FILES、所有敏感访问false、物理重叠例外false，旧6291许可被拒绝。实际Task/源码/空闲worker及空队列检查在create前和enqueue前执行；保留attempt.json，失败不自动重试。
+
+终态后collect_once.py只读取registered readonly-target-progress报告，绑定实际Task源码、目标参数及A100四卡worker，原FILES URL、精确大小/SHA/EOF与禁止重定向均在112核验；Mac只保存字节，再将保存副本送112复核SHA。结果上传原http://10.100.34.118:8081；诊断不证明46序列或科学资格。报告缺失/失败保留，不自动重试。本项不重启teacher或主森林，也不消耗新的完整数值重跑次数。

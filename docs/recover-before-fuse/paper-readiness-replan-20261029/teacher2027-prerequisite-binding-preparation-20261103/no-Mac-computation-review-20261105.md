@@ -1,0 +1,7 @@
+# 元数据入口执行位置复核
+
+完整读取dispatch_metadata_readback_once.py后，确认PREPARE、EXECUTE和verify均为发送至112的Python代码字符串。hashlib、AST、原归档成员检查及保存后报告SHA在112执行。Mac外层只做ClearML SDK元数据、授权/结果封装、base64字节传输和文件保存，不在Mac运行归档、模型或SHA计算。
+
+此前仅搜索到嵌入字符串中的hashlib后，曾在对话误称旧入口含本地SHA并需改为112执行；该判断不准确，已在同轮完整代码审查后明确更正。不能为此制造新替代入口或重复源控制次数；原三文件来源、合成控制及一次真实元数据读取门槛继续保留。
+
+当前真实读取仍待直接批准；本次未运行dispatcher、暂存新源码、下载归档或创建teacher。Task目前共有九项登记产物，原读取器明确只构造attempt-preservation和attempt-preservation-readback两项请求；不把“只读两项”误写为“Task只有两项”。两项大小及登记SHA已实时核对一致，不能代替完整下载SHA或成员验证。

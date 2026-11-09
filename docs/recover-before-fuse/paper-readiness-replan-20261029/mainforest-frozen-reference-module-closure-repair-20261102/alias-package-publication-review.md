@@ -1,0 +1,11 @@
+# 原引用模块补齐包：单次发布待授权
+
+包paired-runtime-job-reference-alias-repair.tar.gz为1,791,462字节、100成员，SHA256 da312c03a7bab0619d15e2fbe504399cd17bdd2e9000ed134ff4f97b6d599b4f。相对原包仅新增原oracle逐字节副本frozen_cpu_reference.py及该项来源pin；原模型、输入、预算、数值算子与1e-8/1e-4容差不变。实际同镜像新Python进程导入控制已通过。
+
+入口publish_alias_package_once.py只在Mac执行SDK元数据编排，不调用upload_artifact或Mac哈希。发布/完整读回在112执行publish_alias_package_remote.py，按已安装ClearML HTTP driver的multipart field/filename协议向既有 http://10.100.34.118:8081 上传。112核对原包SHA后，只尝试一次HTTP POST和一次完整GET/SHA；成功后Mac注册已验SHA资产，并再次核对平台注册大小/SHA/URI。所有凭证只传入远端进程内存，不持久化或打印。
+
+worker 3,764字节、SHA256 ded01f764ad5d7a617ff69288847f45d34d67f1346c2c13964f730deda46fbfa；controller 3,548字节、SHA256 bf39afc7ef340ead2b1ac50c96920ee24e018b5f1286501a934df6dd5050a99f。112已完成34项软件控制，包含完整实际包SHA、模拟multipart上传/完整读回、HTTP失败/重定向/编码/截断/篡改/来源变化拒绝、授权正反例、Task创建前预检及注册前全SHA约束。没有实际HTTP上传/下载、没有新Task，模拟成功不代表服务器实际认证/发布已通过。
+
+执行命令为SDKPY publish_alias_package_once.py --authorization <具体授权记录>。授权scope mainforest2027_reference_alias_package_publication_once，必须精确绑定包大小/SHA、worker SHA、原目的地、maximum_attempts=1及automatic_retry=false，Mac_computation_allowed/experiment_execution_allowed/source_deletion_allowed均为false。尝试记录authorized-alias-job-publication.json与远端尝试目录排他使用，失败保留且不自动重试。
+
+这项只授权源码包发布与完整SHA读回，不授权主森林失败后的新完整验收、不替代35.73GB失败归档传输许可，不修改teacher或其他现有任务。新完整验收仍须原失败保全、收集存储部署、独立授权和最新运行资源准入。

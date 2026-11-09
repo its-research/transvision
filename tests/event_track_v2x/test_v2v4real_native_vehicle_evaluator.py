@@ -116,6 +116,16 @@ def test_fixed_source_and_official_seqmap_identity(source):
     assert evidence['files'][wrapper.SEQMAP] == '840783eed9ab01cdd359015b03ef9b9ba0f867a1ab78882e7dd2d8323f8d1c5f'
 
 
+def test_original_track_mean_confidence_boundary_is_preserved():
+    # Original CPython 3.7 result: this repeated score track falls below .1.
+    # Modern compensated sum retains it, changing the evaluator's TP/FP/FN.
+    scores = [0.1] * 10
+    mean = wrapper.original_native_sum(scores) / len(scores)
+    assert mean.hex() == '0x1.9999999999999p-4'
+    assert mean < 0.1
+    assert wrapper.original_native_sum([1, 2, 3]) == 6
+
+
 def test_fixed_geometry_analytic_yaw_and_explicit_rigid_transform(source):
     import numpy as np
     world, native = wrapper.load_geometry(source)

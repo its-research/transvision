@@ -7,12 +7,15 @@ candidates/BEV features, not fabricated velocity/covariance or paper metrics.
 """
 from __future__ import annotations
 import argparse
+import ast
 import hashlib
 import importlib
+import importlib.machinery
 import json
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import subprocess
 import sys
 import tarfile
 import time
@@ -21,6 +24,8 @@ import numpy as np
 
 SOURCE_ARCHIVE_SHA='f47f391db33e02813b05e10f598ecf9240877463a8e32b61bc5841a8769d38ea'
 CORE_SHA='5138ba83aa381b722828265b4dfb4934bd53cc533685fd004db862b3158cd48b'
+EXTENSION_BUILDER='project/tools/event_track_v2x/run_v2v4real_detector_clearml.py'
+EXTENSION_BUILDER_SHA='094dc725ff6a6dac9be863c204e4f734fdd49ff5e2d8430e34c15aac97017304'
 PROJECTION_TASK='4e93e12cd9cd4ea3864c9b9af57182f9'
 PROJECTION_SHA='d0e13e20f5ff2cafeb713fb66cd642ef861962fbf8ce99bef8e2ee9bd50a5601'
 FRAME_SHA='5662c02a999eac83e8523f4cd0f483721fd49b2f5cfd19ea8bdf7471af42d61a'
@@ -31,6 +36,7 @@ CHECKPOINTS={1337:'c6982b189ff2852f62d583ecbc271b688aeb4d4ada3822ecf02ed6bd01488
              3407:'0882c4d76db9cca3fd17f833c62b97cba6560b2c7bf75ac01e093ab8404c7e4e'}
 PROTOCOL_ID='v2v4real-nominal-10hz-formal-v1'
 KIND='v2v4real_official_test_raw_native_features_v1'
+SHARD_KIND='v2v4real_official_test_raw_native_features_shard_v1'
 PACKAGE='_rbf_frozen_official_test_native_core'
 
 
@@ -84,9 +90,101 @@ def frozen_core(directory):
     return importlib.import_module(PACKAGE+'.paper_pointpillar')
 
 
+def bind_frozen_point_reader(directory, files):
+    """Resolve the original PCD reader's lazy import from its original archive."""
+    directory=Path(directory).absolute()
+    if any(n in ('tools','transvision') or n.startswith(('tools.','transvision.')) for n in sys.modules):
+        raise ValueError('ambient project namespace already loaded; use a fresh rank process')
+    verify_runtime_sources(directory,files)
+    sys.path.insert(0,str(directory/'project'))
+    prepare=importlib.import_module('tools.event_track_v2x.prepare_v2v4real_inputs')
+    inputs=importlib.import_module('transvision.models.event_track_v2x.v2v4real_inputs')
+    bindings={}
+    for module in (prepare,inputs):
+        path=Path(module.__file__).absolute()
+        relative=path.relative_to(directory).as_posix()
+        if relative not in files or sha(path)!=files[relative]:
+            raise ValueError('point reader resolved outside original source bytes')
+        bindings[module.__name__]=dict(path=relative,sha256=files[relative])
+    if prepare._read.__module__!=prepare.__name__:
+        raise ValueError('original bounded point reader binding differs')
+    verify_runtime_sources(directory,files)
+    return bindings
+
+
 def verify_runtime_sources(directory,files):
     for relative,digest in files.items():
         asset(Path(directory)/relative,digest)
+
+
+def build_frozen_extensions(directory,files,receipt_path):
+    """Run only the original hash-pinned builder, before importing OpenCOOD.
+
+    Extracting its function AST avoids executing the unrelated ClearML training
+    controller. The function body and its two subprocess calls remain unchanged.
+    Generated binaries are additional runtime assets; all 403 original source
+    files must still have their original bytes after the build.
+    """
+    directory=Path(directory).absolute();source=directory/'official'
+    receipt_path=Path(receipt_path)
+    if receipt_path.exists():raise ValueError('fresh extension build receipt required')
+    verify_runtime_sources(directory,files)
+    builder=asset(directory/EXTENSION_BUILDER,EXTENSION_BUILDER_SHA)
+    tree=ast.parse(builder.read_bytes(),filename=str(builder))
+    functions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='build_official_extensions']
+    if len(functions)!=1:raise ValueError('original extension builder absent')
+    suffixes=tuple(importlib.machinery.EXTENSION_SUFFIXES)
+    def binaries():
+        return sorted(p for p in (source/'opencood/utils').glob('box_overlaps*')
+                      if p.name.endswith(suffixes))
+    if binaries():raise ValueError('fresh source must not contain prebuilt extension')
+    commands=[]
+    def recorded_run(command,**kwargs):
+        record=dict(argv=[str(x) for x in command],cwd=str(kwargs['cwd']),
+            check=kwargs.get('check'),timeout_seconds=kwargs.get('timeout'),status='started')
+        commands.append(record)
+        try:
+            result=subprocess.run(command,**kwargs)
+            record.update(status='completed',returncode=result.returncode)
+            return result
+        except Exception as exc:
+            record.update(status='failed',error_type=type(exc).__name__)
+            if isinstance(exc,subprocess.CalledProcessError):record['returncode']=exc.returncode
+            raise
+    namespace=dict(Path=Path,subprocess=types.SimpleNamespace(run=recorded_run),json=json)
+    module=ast.Module(body=functions,type_ignores=[])
+    exec(compile(module,str(builder),'exec'),namespace)
+    receipt=dict(kind='v2v4real_frozen_official_extension_build_v1',status='started',
+        source_archive_sha256=SOURCE_ARCHIVE_SHA,builder_path=EXTENSION_BUILDER,
+        builder_sha256=EXTENSION_BUILDER_SHA,
+        builder_function_ast_sha256=hashlib.sha256(ast.dump(functions[0],include_attributes=False).encode()).hexdigest(),
+        python_executable=sys.executable,python_version=sys.version,commands=commands,
+        original_source_count=len(files),original_sources_unchanged=False,
+        binaries=[],subprocess_import_verified=False,independent_runtime_acceptance=False)
+    try:
+        namespace['build_official_extensions'](sys.executable,source,dict(os.environ))
+        verify_runtime_sources(directory,files)
+        built=binaries()
+        if len(built)!=1 or built[0].is_symlink() or not built[0].is_file() or not built[0].stat().st_size:
+            raise ValueError('one newly built box_overlaps extension required')
+        if len(commands)!=2 or any(c['status']!='completed' or c['returncode']!=0 for c in commands):
+            raise ValueError('original extension build and import commands did not complete')
+        receipt.update(status='completed',original_sources_unchanged=True,subprocess_import_verified=True,
+            binaries=[dict(path=str(p.relative_to(directory)),sha256=sha(p),bytes=p.stat().st_size) for p in built])
+    except Exception as exc:
+        receipt.update(status='failed',error_type=type(exc).__name__)
+        with receipt_path.open('xb') as f:f.write(canonical(receipt))
+        raise
+    with receipt_path.open('xb') as f:f.write(canonical(receipt))
+    return receipt
+
+
+def verify_built_extensions(directory,receipt):
+    if receipt.get('status')!='completed' or receipt.get('subprocess_import_verified') is not True:
+        raise ValueError('completed original extension build required')
+    for binary in receipt['binaries']:
+        path=asset(Path(directory)/binary['path'],binary['sha256'])
+        if path.stat().st_size!=binary['bytes']:raise ValueError('built extension size changed')
 
 
 def device_identity(torch,device):
@@ -122,6 +220,23 @@ def validate_scope(projection,admission,records):
 
 class IdentityCalibration:
     def apply(self,scores):return np.asarray(scores,dtype=np.float64)
+
+
+def shard_records(records,rank=0,world_size=1):
+    """Partition the original schedule by complete frame pairs, including empty frames."""
+    if type(rank) is not int or type(world_size) is not int or not 1<=world_size<=1993 or not 0<=rank<world_size:
+        raise ValueError('invalid frame-pair shard')
+    grouped={}
+    for row in records:
+        grouped.setdefault((row['sequence_id'],row['frame_ordinal']),[]).append(row)
+    selected=[]
+    for ordinal,(_,pair) in enumerate(sorted(grouped.items())):
+        if (len(pair)!=2 or sum(r['is_ego'] is True for r in pair)!=1
+                or sum(r['is_ego'] is False for r in pair)!=1 or len({r['frame_key'] for r in pair})!=1):
+            raise ValueError('invalid original frame pair')
+        if ordinal%world_size==rank:selected.extend(sorted(pair,key=lambda r:not r['is_ego']))
+    if not selected:raise ValueError('empty schedule shard')
+    return selected
 
 
 def export_rows(records,inputs_root,detector,lidar_range,read_pcd,mask_ego,mask_range,output,*,progress=None):
@@ -181,7 +296,7 @@ def pack(work,output,manifest,rows,projection_path,admission_path):
     return sha(output/'native-features')
 
 
-def run(source_archive,inputs_root,admission,checkpoint,seed,output,*,device='cuda:0'):
+def run(source_archive,inputs_root,admission,checkpoint,seed,output,*,device='cuda:0',rank=0,world_size=1):
     producer_sha=sha(__file__)
     if type(seed) is not int or seed not in CHECKPOINTS:raise ValueError('frozen seed required')
     source_archive=asset(source_archive,SOURCE_ARCHIVE_SHA);checkpoint=asset(checkpoint,CHECKPOINTS[seed])
@@ -191,11 +306,17 @@ def run(source_archive,inputs_root,admission,checkpoint,seed,output,*,device='cu
     if output.exists() or any(p.is_symlink() for p in (output,*output.parents)):raise ValueError('fresh output directory required')
     import torch
     import yaml
-    output.mkdir(parents=True);files=extract_source(source_archive,output/'frozen-runtime');core=frozen_core(output/'frozen-runtime')
+    output.mkdir(parents=True);files=extract_source(source_archive,output/'frozen-runtime')
+    point_reader_binding=bind_frozen_point_reader(output/'frozen-runtime',files)
+    core=frozen_core(output/'frozen-runtime')
     source=output/'frozen-runtime/official'
+    extension_receipt_path=output/'extension-build-receipt.json'
+    extension_build=build_frozen_extensions(output/'frozen-runtime',files,extension_receipt_path)
+    extension_receipt_sha=sha(extension_receipt_path)
     loader=importlib.import_module(PACKAGE+'.v2v4real_inputs')
     projection,records=loader.load_prepared_frames(inputs_root,expected_manifest_sha256=PROJECTION_SHA)
     validate_scope(projection,json.loads(admission.read_bytes()),records)
+    records=shard_records(records,rank,world_size)
     if any(n=='opencood' or n.startswith('opencood.') for n in sys.modules):raise ValueError('unverified detector namespace already loaded')
     sys.path.insert(0,str(source))
     from opencood.data_utils.post_processor import build_postprocessor
@@ -229,11 +350,18 @@ def run(source_archive,inputs_root,admission,checkpoint,seed,output,*,device='cu
         rows=len(rows),rows_sha256=hashlib.sha256(index).hexdigest(),total_candidates=sum(r['candidates'] for r in rows),
         appearance_valid_candidates=valid,gt_read=False,official_test_read=True,paper_metric=False,
         projection_manifest=dict(path='projection-manifest',sha256=PROJECTION_SHA),split_admission=dict(path='split-admission',sha256=ADMISSION_SHA))
+    if world_size>1:
+        manifest.update(kind=SHARD_KIND,shard=dict(rank=rank,world_size=world_size,
+            rule='sorted_original_frame_pair_ordinal_mod_world_size',full_source_rows=3986,
+            projection_frames_sha256=FRAME_SHA))
     verify_runtime_sources(output/'frozen-runtime',files)
+    verify_built_extensions(output/'frozen-runtime',extension_build)
     for p,h in ((source_archive,SOURCE_ARCHIVE_SHA),(checkpoint,CHECKPOINTS[seed]),(projection_path,PROJECTION_SHA),(inputs_root/'frames.jsonl',FRAME_SHA),(admission,ADMISSION_SHA)):
         asset(p,h)
     archive_sha=pack(output/'raw',output,manifest,rows,projection_path,admission)
     verify_runtime_sources(output/'frozen-runtime',files)
+    verify_built_extensions(output/'frozen-runtime',extension_build)
+    asset(extension_receipt_path,extension_receipt_sha)
     for p,h in ((source_archive,SOURCE_ARCHIVE_SHA),(checkpoint,CHECKPOINTS[seed]),(projection_path,PROJECTION_SHA),(inputs_root/'frames.jsonl',FRAME_SHA),(admission,ADMISSION_SHA)):
         asset(p,h)
     if sha(__file__)!=producer_sha:raise ValueError('producer source changed during execution')
@@ -247,6 +375,11 @@ def run(source_archive,inputs_root,admission,checkpoint,seed,output,*,device='cu
         original_checkpoint_known_overlap_disclosed=True,statistical_independence_claimed=False,
         original_partition_sha256_is_training_provenance_only=True,independent_raw_acceptance=False,
         covariance_velocity_and_identity_admission=False,formal_metrics_complete=False)
+    receipt['shard']=dict(rank=rank,world_size=world_size)
+    receipt['point_reader_binding']=point_reader_binding
+    receipt['extension_build']=dict(path=extension_receipt_path.name,sha256=extension_receipt_sha,
+        builder_sha256=EXTENSION_BUILDER_SHA,binaries=extension_build['binaries'],
+        original_sources_unchanged=True,subprocess_import_verified=True,independent_runtime_acceptance=False)
     (output/'raw-export-receipt.json').write_bytes(canonical(receipt));return receipt
 
 
@@ -254,7 +387,9 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('source-archive','inputs-root','admission','checkpoint','output'):p.add_argument('--'+name,required=True)
     p.add_argument('--seed',type=int,choices=sorted(CHECKPOINTS),required=True);p.add_argument('--device',default='cuda:0')
-    a=p.parse_args();print(json.dumps(run(a.source_archive,a.inputs_root,a.admission,a.checkpoint,a.seed,a.output,device=a.device)))
+    p.add_argument('--rank',type=int,default=0);p.add_argument('--world-size',type=int,default=1)
+    a=p.parse_args();print(json.dumps(run(a.source_archive,a.inputs_root,a.admission,a.checkpoint,a.seed,a.output,
+        device=a.device,rank=a.rank,world_size=a.world_size)))
 
 
 if __name__=='__main__':main()

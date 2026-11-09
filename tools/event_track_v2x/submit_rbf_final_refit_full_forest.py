@@ -46,7 +46,7 @@ def main():
         now = datetime.datetime.now(datetime.timezone.utc)
         value = dict(kind='rbf_final_refit_full_train_exclusive_forest_GPU_dispatch_v1',
             checked_at_utc=now.isoformat(),jobs=jobs,
-            preparation_sha256=sha(ROOT/'preparation.json'),GPU_model_restriction=False,
+            preparation_sha256=sha(ROOT/'preparation.json'),GPU_model_restriction=True,allowed_multi_GPU_model="A100",
             L40S_CPU_only=True,TF32_enabled=False,full_forest_independently_accepted=False,
             learned_Stage2_complete=False,paper_performance_complete=False)
         atomic(JOURNAL,value)
@@ -99,7 +99,7 @@ def main():
             '-e TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0 -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1')
         task.set_parameters(dict(plan=canonical(plan).decode(),recipe_sha256=digest,
             semantic_forest_identity=semantic,seed=seed,world_size=choice['world_size'],
-            GPU_model_restriction=False,TF32_enabled=False,
+            GPU_model_restriction=True,allowed_multi_GPU_model="A100",TF32_enabled=False,
             ETA='unknown_until_actual_transfer_or_committed_event_progress',paper_performance_complete=False))
         task.add_tags(['Recover-Before-Fuse','all-class-top64','final-refit-full-train',
             'exclusive-recoverable-forest','bound-allocation','independent-full-forest-admission-pending'])

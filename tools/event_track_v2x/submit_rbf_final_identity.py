@@ -35,20 +35,25 @@ def available(workers,queues,now,reserved=()):
     answer = []
     for queue in queues:
         match = re.match(r'^GPU(4|8)-',queue['name'])
-        if not match or 'L40' in queue['name'] or pending[queue['id']] or 'force_workers:off' in queue.get('tags',[]):
+        if not match or 'A100' not in queue['name'].upper() or pending[queue['id']] or 'force_workers:off' in queue.get('tags',[]):
             continue
         size = int(match[1])
         idle = []
         unsafe = False
         for worker in workers:
-            if not any(q['id']==queue['id'] for q in worker.get('queues',[])) or worker.get('task',{}).get('id'):
+            if not any(q['id']==queue['id'] for q in worker.get('queues',[])):
+                continue
+            if 'A100' not in worker['id'].upper():
+                unsafe = True
+                continue
+            if (worker.get('task') or {}).get('id'):
                 continue
             key = binding(worker)
             stamp = datetime.datetime.fromisoformat(str(worker['last_activity_time']).replace('Z','+00:00'))
             if key is None or len(key[1]) != size or not 0 <= (now-stamp).total_seconds() < 90:
                 unsafe = True
                 continue
-            busy = any(intersects(key,binding(other)) and (other.get('task',{}).get('id')
+            busy = any(intersects(key,binding(other)) and ((other.get('task') or {}).get('id')
                 or any(pending.get(q['id'],False) for q in other.get('queues',[])))
                 for other in workers if other['id'] != worker['id'])
             if busy or any(intersects(key,item) for item in reserved):
@@ -98,7 +103,7 @@ def main():
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         value = dict(kind='rbf_nested_selected_all_class_final_refit_GPU_dispatch_v1',
             checked_at_utc=now,preparation_sha256=sha(args.preparation),jobs=jobs,
-            GPU_model_restriction=False,L40S_CPU_only=True,paper_performance_complete=False)
+            GPU_model_restriction=True,allowed_multi_GPU_model="A100",L40S_CPU_only=True,paper_performance_complete=False)
         atomic(journal,value)
         version = R/'receipts'/('rbf-nested-selected-all-class-full-train-refit-GPU-dispatch-'
             +datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'.json')
@@ -162,7 +167,7 @@ def main():
             '-e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_TF32_OVERRIDE=0 '
             '-e TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0 -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1')
         task.set_parameters(dict(recipe=canonical(recipe).decode(),recipe_sha256=digest,
-            semantic_training_identity=identity,seed=seed,GPU_model_restriction=False,
+            semantic_training_identity=identity,seed=seed,GPU_model_restriction=True,allowed_multi_GPU_model="A100",
             world_size=choice['world_size'],epochs=selection['fit_config']['epochs'],
             ETA='unknown_until_actual_optimizer_progress',paper_performance_complete=False))
         task.add_tags(['Recover-Before-Fuse','all-class-top64','joint-cross-source-temporal',

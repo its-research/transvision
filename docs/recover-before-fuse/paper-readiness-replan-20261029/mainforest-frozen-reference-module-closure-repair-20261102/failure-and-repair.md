@@ -1,0 +1,27 @@
+# 主森林2027：6291尝试失败与原引用模块缺失修复
+
+平台Task6291e52825e245a08c9a113fd80d1707终态failed。平台本次执行2026-11-02北京时间07:12:42.310至08:10:20.594，57分38.284秒；不把创建/排队时间或旧尝试累计其中。
+
+四个已启动rank均在进入fresh_state子入口的设置阶段失败。直接错误为independent_batched_history.py第9行import frozen_cpu_reference抛ModuleNotFoundError。四份底层stderr均635字节、SHA 5fed1066…；四份rank层stderr均1975字节、SHA65262e37…。rank2前序工作墙钟2275.719秒，而其失败fresh子进程仅0.152439秒；不是该GPU入口持续计算37分钟。其余rank5–7未启动，旧rank0六序列复用，完整合格仍6/46。根因证据不支持把这次失败称为OOM、GPU数值不一致或性能慢。
+
+七份小注册产物已完整读回，另从注册tar通过Range读取19份失败日志/终态元数据，各自完整核验注册索引中SHA，并再次核对保存后字节。扫描234个tar成员头，网络读137079字节，耗时约2.20秒，未读取未选SQLite正文。证据保存在外置盘mainforest2027-6291e528-small-metadata-readback-20261102与mainforest2027-6291e528-selected-failure-metadata-20261102。
+
+完整attempt-preservation归档35,727,575,040字节，SHA15f649531899bb0419e3f2b1a457aeef6becde71d3d2f2baa15e48f381717482仍保留在原Task和文件服务器。112约10.05GB空闲，原完整收集器在下载前按原容量门槛拒绝；没有下载大归档。原收集目录的files=[]只表示没有读回注册资产，不是整包SHA通过。完整归档独立读回/SHA仍缺，不能用成员范围读取或生产端自查替代。原失败目录与记录全部保留。
+
+修复候选只添加cuda-fresh/frozen_cpu_reference.py，直接使用既有cuda-fresh/oracle.py的原9628字节，SHA46d5f6b474202961077e43f9c572f6ecfb0a98e992e9f4b19fcd37cccfce1c58，并在source-pins.json中新增这一来源项。其余所有原代码、门槛、原6序列复用报告均逐成员SHA不变；没有更换模型、输入、预算、数值函数或1e-8/1e-4容差。
+
+112原e5镜像实际新进程控制：原五文件缺模块错误复现；添加原字节模块后相关实际模块加载通过；篡改原引用文件被原SHA断言拒绝。未加载数据库、未运行GPU算术或独立序列。修复包1791462字节、100成员、解包16978236字节，SHA da312c03a7bab0619d15e2fbe504399cd17bdd2e9000ed134ff4f97b6d599b4f；独立tar成员读回及Mac保存后字节在112全SHA回核通过。尚未发布或启动新实验。
+
+下一步仍须准备并核对：修正版bootstrap在大数据/原rank检查前执行同解释器模块导入准入；更新新包绑定、独立终态收集与单次投递授权入口；准备不在112新增35GB副本的完整归档保存/核验路线。具体新包发布与失败后的完整验收新尝试需要原约定下的单独授权，当前没有擅自提交。原已准备的活任务stderr探针现已不需要，不消耗其未使用次数；不修改teacher或其他活任务。
+
+后续准备更新：dependency-first bootstrap已在112完成实际同镜像导入控制，SHA545dcf3b…。完整归档流式入口已完成45项控制，具体大传输授权已提出，尚未执行GET。独立完整收集验证器verify_reference_alias_collected_full46.py现SHA5cd0b54b…，在实际100成员修复包上全部来源SHA校验通过，14项模块证据正反例通过；原验证器全文可逆，只有包SHA、包字节数及新增导入证明门槛变化，原数值验收断言不变。
+
+单次投递候选dispatch_reference_alias_full46_once.py已在112完成语法、精确改动及原API/SHA函数AST检查，SHAea77fb31…。它要求6291完整失败归档保存及234成员SHA证据，逐字节绑定112原收据，要求新包发布/读回完成、单独新尝试授权、原镜像和最新物理worker交集核验后才允许创建Task。没有执行投递。
+
+Linux独立收集候选collect_reference_alias_outputs.py已准备，SHAa1995175…。原下载、完整SHA、容量门槛与46/7445/225177范围检查保留，新增要求已注册导入产物与bootstrap报告完全一致；禁止在Mac执行。源码/AST检查通过，不等于实际终态收集或运行环境准入。仍须解决未来完整产物的Linux可用存储/流式收集部署，以及新包发布入口；不能因112当前空间不足降低收集容量门槛。新完整验收授权尚未申请或收到。
+
+发布入口更新：publish_alias_package_once.py（Mac仅SDK元数据编排）及publish_alias_package_remote.py（112实际SHA、HTTP上传/完整读回）已准备。112实际包SHA与34项软件控制通过，控制详见publication-software-controls-on112.json，完整范围见alias-package-publication-review.md。真实HTTP上传、下载与新Task均为0。已提出原目的地的具体包发布/完整SHA读回授权请求，尚未收到答复；不把软件模拟当实际服务器发布通过，不把发布许可扩大为失败后的完整验收新尝试。
+
+后续已补齐独立收集Task及最终报告读回的软件入口：collection_task_entry.py当前100391字节、SHAc4527852…；包含六份逐文件SHA绑定代码/原收据，112完成36项来源/协议检查。生产投递控制当前SHA7dad98fa…，收集投递控制SHA0690b4ff…；50项正反授权与调度边界检查通过。最终读回器SHA5d433137…，24项计数、容差、来源SHA链及零产物不冒充成功的检查通过。软件准备不代表实际A100资源或数据验收通过。
+
+已提出新的条件式完整重跑及独立收集各一次请求，范围同时明确两份Task源码到原API的发布、收集报告到原FILES的发布/完整SHA读回；详细范围与完整SHA在full46-retry-and-independent-collection-review.md。当前该请求、原大归档传输请求、修复包发布请求均未得到本轮答复。新Task数为0。旧投递/收集候选的SHA保留作历史，不能作为当前入口指纹。

@@ -40,7 +40,7 @@ def save(jobs, preparation_sha256):
     now = datetime.datetime.now(datetime.timezone.utc)
     value = dict(kind='rbf_nested_detector_matching_seen_val_raw_GPU4_dispatch_v1',
         checked_at_utc=now.isoformat(),preparation_sha256=preparation_sha256,jobs=jobs,
-        GPU_model_restriction=False,L40S_CPU_only=True,full_online_RBF_accepted=False,
+        GPU_model_restriction=True,allowed_multi_GPU_model="A100",L40S_CPU_only=True,full_online_RBF_accepted=False,
         paper_performance_complete=False)
     write(JOURNAL,value)
     path = R/'receipts'/('rbf-nested-detector-matching-seen-val-raw-GPU-dispatch-'+now.strftime('%Y%m%dT%H%M%S%fZ')+'.json')
@@ -145,7 +145,7 @@ def main():
             '-e NVIDIA_TF32_OVERRIDE=0 -e TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0 -e PYTHONDONTWRITEBYTECODE=1')
         task.set_parameters(dict(recipe=canonical(recipe).decode(),recipe_sha256=identity,
             semantic_export_identity=identity,seed=item['seed'],side=item['side'],world_size=4,
-            GPU_model_restriction=False,TF32_enabled=False,ETA='unknown until actual shard frame progress',
+            GPU_model_restriction=True,allowed_multi_GPU_model="A100",TF32_enabled=False,ETA='unknown until actual shard frame progress',
             independent_acceptance=False,paper_performance_complete=False))
         task.add_tags(['Recover-Before-Fuse','all-class-raw-queries','nested-detector-fit',
             'SPD-seen-val-exploratory','no-GT-inputs','TF32-disabled','independent-acceptance-pending'])

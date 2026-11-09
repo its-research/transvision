@@ -4,6 +4,7 @@
 A successful process is not a metric receipt.
 """
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -14,6 +15,30 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+
+
+def sha_file(path):
+    h = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(8 * 1024**2), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def native_environment(plan):
+    source = Path(plan['source']).absolute()
+    paths = [source]
+    if plan['method'] == 'DMSTrack':
+        # The fixed author's SETUP.md declares these module roots. The native
+        # AB3DMOT files use both qualified and unqualified package imports.
+        paths.extend([source / 'AB3DMOT', source / 'AB3DMOT/Xinshuo_PyToolbox',
+                      source / 'V2V4Real'])
+    return dict(os.environ, PYTHONPATH=os.pathsep.join(map(str, paths)),
+                PYTHONDONTWRITEBYTECODE='1')
+
+
 def consumed_checkpoints(plan):
     """Bind the paths the pinned native entrypoint actually opens.
 
@@ -21,7 +46,6 @@ def consumed_checkpoints(plan):
     load_model_path.replace('ego', cav_id). There is no remote-checkpoint CLI
     argument. A hash for an unrelated second file cannot bind that load.
     """
-    from transvision.models.event_track_v2x.detection_cache_v2 import sha_file
     ego = Path(plan['checkpoint']['path']).absolute()
     roles = {'checkpoint': ego}
     if plan['method'] == 'DMSTrack':
@@ -70,7 +94,6 @@ def collect_native_outputs(contract):
     if contract['kind'] != 'sparsecoop_native_output_paths_v1':
         from tools.event_track_v2x.public_native_outputs import collect
         return collect(contract)
-    from transvision.models.event_track_v2x.detection_cache_v2 import sha_file
     root = Path(contract['root'])
     test = root/'test'
     if not test.is_dir() or any(p.is_symlink() for p in (test, *test.parents)):
@@ -123,7 +146,6 @@ def command(plan, output):
 
 
 def run(plan, output, *, execute=False):
-    from transvision.models.event_track_v2x.detection_cache_v2 import canonical, sha_file
     registry = json.loads((ROOT / 'configs/event_track_v2x/paper/public-baselines.json').read_text())
     record = next(r for r in registry['baselines'] if r['name'] == plan['method'])
     if 'commit' not in record:
@@ -160,7 +182,7 @@ def run(plan, output, *, execute=False):
         raise ValueError('new isolated output required')
     output.mkdir()
     (output / 'plan.json').write_bytes(canonical(dict(plan, invocation=result)))
-    env = dict(os.environ, PYTHONPATH=str(source), PYTHONDONTWRITEBYTECODE='1')
+    env = native_environment(plan)
     with (output / 'process.log').open('xb') as log:
         completed = subprocess.run(argv, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT, check=False)
     checkpoint_error = None

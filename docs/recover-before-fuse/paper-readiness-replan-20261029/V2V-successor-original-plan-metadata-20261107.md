@@ -1,0 +1,65 @@
+# V2V后继单元：仅原计划元数据核对
+
+## 当前真实结果：发布通过，原预检失败
+
+Task9fd9bba4a08e46eeaac296c0a7ddeb9c发布原11376640字节包，完整SHA3e9bcb68…读回通过。Task b45c509f162e418cb2c146fc40999a52 10:58:19.308开始、11:04:49.125 failed（含初始化389.817秒），0注册产物；SDK默认服务地址等值断言失败，未到包下载、来源/原生挂载或GPU资源检查。实际输出URI34:8081已核对；未取得worker内部默认地址值，不猜具体哪个字段不符。四份失败证据`complete-failed-preflight-small-evidence-SHA.json` SHA dd6e87e8f70ae1882c2303b8ae0451bf4a2f4c3d69c85b487b093aaf8bb83985。
+
+修正版`unit8_namespace_preflight_service_identity_fix_prepared.py` 5599字节/SHAb750189becdc3bd38f0169837fa4210321523892a9d290d866b1badb14d7c155：以实际Task身份/注册源码SHA和显式output_uri替代默认地址字面比较；仍锁原API发布目的地、原文件服务器包URI与输出，额外绑定前次失败和已成功发布Task。其余AST反向一致，证明cd461998…；新单次投递/收集准备e57a1e2b…；12项合成控制956152e1…，无真实Task或重跑。原包保持3e9bcb68…不重传，服务/容器配置不改。新源码发布及单次修正版来源预检待具体批准，原次数已消耗，生产及独立数值未执行。下文运行中记录仅历史。
+
+## 已实际获批并开始的来源预检
+
+用户直接批准“发布、读回及单次来源预检”，实际grant996bce80…已在112保存。包发布Task9fd9bba4a08e46eeaac296c0a7ddeb9c完成原包3e9bcb68…完整SHA读回，源包保留。预检Task b45c509f162e418cb2c146fc40999a52于北京时间10:58:19.308由ubuntu26-2前四卡开始，10:58:52仍in_progress、0注册产物，不能称通过。批准已使用于该单次发布/预检，失败不自动重试；不得重复投递。当前未执行单元8生产或oracle。下文“待批准/未提交”为此前准备历史，不覆盖本段事实。
+
+后续科学入口仅静态准备：`unit8_complete_independent_task_unsubmitted_prepared.py`，6309字节，SHA5369286c729bed49fe9e0b67442938153082798f4010084067d437929a604c5f；相对已合格单元7入口仅改字符串（新单元范围/路径/包和pipeline SHA），所有运算、数值常量与资源算术的原AST一致，8GiB有效内存门槛保留。证明717f4d8e669a3e322801924094bec1e874782f2856d80b3ba38ebd1b86351063。未导入/执行该入口，未发布；新预检收据尚不存在，完整科学dispatcher不能最终锁定，更无科学授权。当前待回复请求仅发布与一次来源预检，不包括该6309字节入口发布或生产/独立数值执行。
+
+## 当前待批准的具体发布与单次来源预检
+
+源码包11376640字节/11成员/SHA3e9bcb680af0139cb25448ea3637f357beddeca38a184dfcdb187741048f7b55；目标文件服务器原10.100.34.118:8081。当前Task入口`unit8_namespace_preflight_task_source_grant_prepared.py`为5236字节/SHAbbf127604ba80e987a06eae89c9d7ff199fb6fcb704d83cecbc8f7c26e0f1a4b，目标API原10.100.35.118:8008。它在下载之前核对具体人类批准、包/Task源码SHA、单次scope和禁止生产/数值执行字段；旧b428526a版本仅历史准备，不使用。
+
+发布器`publish_unit8_prepared_package_source_grant_once.py`3497字节/SHA7c17218c55546a9b1018e115b79eebc7fc662651b4a03c6775ade7b9617c9721；投递器`dispatch_unit8_namespace_preflight_once_prepared.py`5094字节/SHA922d91ea8119a24fa6af5d4b16704b8884b330b196db25aff878d6a1e03ca241；收集器`collect_unit8_namespace_preflight_once_prepared.py`4082字节/SHA9a19f27d0bbe589e011931a15636c8441023c7b0c96cc201662dd0d2af841d72。均在112，不在Mac计算。8项发布/worker授权合成控制及6项报告范围控制通过，证明a50d83b094b954991308f03d0630a5b66a0a9154e137e54ad1a9ab6c7874d1f8。收集器不下载控制台配置、不接受原始数据库，未终态不消耗读回次数；来源预检通过不算生产/六项oracle或完整容量准入。
+
+10:46:57.981北京时间ClearML只读刷新：ubuntu26-2前四卡空闲，后四卡仍SAM3 e9614d78…，八卡worker空闲，各心跳新鲜。投递前必须再查队列仅原两组四卡监听、前四卡唯一空闲接取候选及八卡空闲，容器内再读真实原生磁盘/挂载与GPU进程；当前worker空闲不冒充实际UUID/资源准入。未提交或发布，实际grant为空。本次拟请求仅包发布/完整读回、一次来源/原生磁盘预检及小报告读回；不包含单元8生产或独立数值许可，不复用单元7已使用授权。
+
+当前完整未提交候选包已在112生成并逐成员字节/SHA核对：`unit8-derived-full-pipeline-unsubmitted-candidate.tar`，11376640字节、11成员，SHA256 3e9bcb680af0139cb25448ea3637f357beddeca38a184dfcdb187741048f7b55。准备证明`full-pipeline-package-and-authority-controls-preparation.json` SHA209771b7b64f99126b0833ab1d2a10c8ebd5ebbb3c5be98a8ef3578c17fe3348。完整pipeline已改绑单元8与当前prefix-fixed validator；9项纯合成授权控制通过，旧unit7 scope、未批准、多次数、自动重试和来源/producer漂移均拒绝。所有合成grant仅在内存，明确SYNTHETIC_ONLY，无真实grant或Task。
+
+源码合同另12项正/拒绝控制及3项合成容量控制通过，证明354fdf6808248a650a0d7db57d584d5e6330e819a3f56dd9e8904a2dc43be66f；不等于真实worker容量准入。原完整依赖manifest 3ca04146…的8214条记录本就含cases/34及resource/relocation，故保留原依赖清单不变，不需为这三份元数据新增传输/补充包。完整命名空间、实际资源/容量及新源码发布/单次科学许可尚未通过；包未发布、未执行生产或oracle。
+
+单元8合同/来源绑定正例现已通过（仅自有源码检查，无oracle）：合同SHA60fb42684a21f7ef1d38508b5987df16ada34315ebac03c927f76a2d0043c239，六文件manifest SHA4d7a8b2c1be58e1ee529d4060baca1af5f3b27e64103ad6682e3a517401599d8；当前validator为`validate_unit8_prepared_sources_prefix_fixed.py` SHAd2ff879e9c299e4d1e0ba28f453e16ba224a6732b34b91bc7a8d3459874253d1，正例证明675e706709bf6d6eb825cdf5d7f48a9d28d17689e5fdfe9e5612fdf3cb388678。合同仍ready_to_execute=false、specific_scientific_and_publication_grant_bound=false、producer_task_id=null，并显式拒绝复用单元7科学授权。
+
+静态validator首次生成错误地重复拼接序列名前缀，正例拒绝，原错误文件保留；修正版只改该一条字符串常量，反向AST一致已核对。未运行生产、独立数值或完整命名空间准入。尚需篡改拒绝控制、单元8补充来源清单/布局、完整pipeline和发布/执行授权，不能因源码正例通过即启动。
+
+完整helper静态准备推进：新目录112 `bound-helper-candidate-v2`已含原root候选及5个改绑helper（收集、容量、原六项、Linux六项、Linux终态读回），各自语法与按实际改动AST位置反向还原均通过。证明`helper-source-position-specific-reverse-AST-proof.json` SHA256 ddb6a54bac4b042aee9a21962d86ad5680235fa43820b36c11a6a4826e5b7b3d。改动限原案例索引/序列/375事件/48000行/文件路径与新来源SHA，容量scorer输入按原绑定改为33312864字节；原8GiB余量、模型/预算/容差与数值oracle来源保留。未导入或执行真实模块/数值。
+
+首轮静态builder在容量helper反向检查失败：反向按值映射8→7误碰原8GiB常量；无容量文件写出，已写root/collector保留为未合格中间准备，不入最终包。新目录改为逐AST位置核对，不再全局逆替换数字，完整原AST可还原。该失败属于本地源码准备控制，不是一次科学或准入尝试；没有重试任何模型/验收任务。合同、validator、完整新来源补充与pipeline尚未合格，仍不具备发布或执行许可。
+
+原包闭包已静态列出：11成员，除大root外有7个Python helper及3份JSON，涵盖收集、容量、原/ Linux六项协调器、终态读回、来源validator、pipeline、执行合同、来源manifest和原绑定。112以原包SHA02fe2194…逐成员读取源码形成`original-package-rebinding-inventory.json` SHA0c2ffe7699ac8a1a152a97d8726281556cc20d8648f6dad7aaddf8860ea65e1a，标出固定unit7字符串与221/28288计数常量，未执行或修改成员。后继完整包必须同步绑定这些入口和合同，不能只替换大root。新包尚未构建/发布，科学授权仍为空。
+
+输入绑定原锚点已定位并核对：原source manifest完整SHAece23a7afe2061b265b2b61078f7f18e527452fd8d1fbd89e6098a7bc948998f，登记seed1337/input-binding.json为1439368字节、SHA5764959feca71163f125178e1eb356d3dd2da6aeeb5d1582b5e6614a8500aa34；112现有副本完整匹配。checkpoint JSON完整SHA亦匹配原计划555933fe…，单元8案例唯一，原scorer输入引用33312864字节、SHAacebcd18e40ce4093e282ca8538a2bf1b23d42ad8f5d50133d809a934d565524。未读取该载荷或权重，不能称实际scorer输入已验。112小证明`original-input-binding-checkpoint-metadata-diagnostic.json` SHA527fea50b05089921f2202c95b9f028ddd38a5c4229b1419d4903070af0a05e9。完整来源预检、容量、资源、生产和独立验收均仍未通过。
+
+来源定位更新：三份小文件并非112全机缺失；在`/home/lbin/rbf-approved-V2V-unit6-control-preparation-20261101/namespace/V2V-independent-raw-context-inputs-20261023/full81-collected-20261024T0134`全部存在，分别1591/1597/12041字节，定向只读诊断完整SHA均匹配原计划登记值。另future-full-input-cold-preflight命名空间和Mac外置也存在同大小文件，但本轮不读取其正文或做传输。112证明`existing-namespace-three-source-files-diagnostic.json` SHAcb4c935ec12c5e57e988af57a604dbbbb5e48243073a82b80cc055ca61fdaf83。先前clean-namespace失败仍保留，原失败入口未重跑；无需新增三文件跨机传输。尚未形成完整来源preflight/组合只读树，更未准入生产，不能把这三份匹配当整体通过。
+
+新增真实来源阻碍：112对原小元数据连接的首次尝试在第一来源门槛AssertionError退出1，成功证明未创建，未执行数值。随后只读存在性检查确认clean-namespace缺原cases/34/result.json、resource-admission.json、relocation.json；checkpoint JSON和input-binding.json存在，但不能据存在视为原SHA连接已通过。失败记录`small-metadata-source-gate-failure-preserved.json`已在112保存；不自动重试或新传输。单元8目前不具备完整来源准入，须先定位原小文件、具体准备必要的暂存及SHA连接，再按既有授权规则接续。
+
+后续静态准备新增：112 `/home/lbin/rbf-V2V-unit8-static-candidate-preparation-20261107/unit8-native-production-root-unsubmitted-candidate.py`，11298545字节，SHA256 fc4eaff7cd9aaaad2760cb3b3dc89caf5ce721a0946fc5da397a6d88d6a2fa87。相对原root仅变更PLAN.unit_index=8、候选scope及临时目录前缀；其余PLAN（原模型/输入/实现/预算/来源/环境与资源门槛）逐结构一致，完整源码反向还原逐字节一致。未执行root；仅提取纯选择函数做index8正例及bool/负数/越界/浮点/未准入设备5项拒绝控制。证明SHA1fa702d876d99fbb9843dcefc0e3c435ea93a74b40f5d4c94e6ba5ab52289116。
+
+这不是可启动的最终包：实际授权为空、外层Task合同未准备、完整单元8独立入口/产物容量尚未合格。源中candidate_not_authorized文本保留，无Task/发布/下载/模型或oracle执行。下文“未生成单元8入口”为本次准备之前的历史状态，不能将新增候选误称已准入或已授权。
+
+112完整核对原execution-units.json SHA256 028f962f47ae98b02a432ddf76e8a3303d7ff53ef3823d03354e36b5301be87d，81单元。未导入原数值模块、读取新数据库/权重或执行模型。首个尝试的错误只是只读定位路径错误，随后在既有clean-namespace中找到原文件，不是科学失败或重跑。
+
+| 原unit_index | seed | sequence_id | delay_us | 原事件 | 原因子行 |
+|---|---|---|---|---|---|
+| 8 | 1337 | testoutput_CAV_data_2022-03-21-09-35-07_7 | 0 | 375 | 48000 |
+| 9 | 1337 | testoutput_CAV_data_2022-03-15-09-54-40_0 | 100000 | 147 | 12189 |
+| 10 | 1337 | testoutput_CAV_data_2022-03-15-10-29-43_3 | 100000 | 114 | 9508 |
+
+三者原checkpoint JSON文件SHA均为555933fe561286b8cfeeda138f55aa49cdd19f718ea1783c2ed7700497f8c18b，这是原元数据文件SHA，不是模型权重SHA，不能混为新的模型或重训证据。
+
+112证明`/home/lbin/rbf-V2V-unit7-original-source-preparation-20261106/future-unit8-10-original-plan-metadata-only.json` SHA256 4cfc3c669aa04b444baaf7257c10d23b12a8b8ae4b1241bef3df8b672d4472b7。
+
+下一单元8需要单独来源/环境/完整产物容量和科学执行准入；不能套用单元7的221事件规模或一次性批准。当前未准备最终投产包、未发布或创建Task、未宣称新执行授权。单元7尚在独立验收中，正式仍6/81。该元数据准备不增加完成数或给出整体ETA。
+
+## 生产入口静态复用边界
+
+112静态AST读取单元7原生产root，完整源码SHA08a0ea9adb880fcf41599bc832e146446d0a620a9e32181df1485cc000cb0bb9。`validate_execution_selection`只校验整数index在0到80和设备属于原四卡集合；技术上索引可选，不等于科学授权。实际PLAN的unit_index固定7、scope明确unit7，authority仍为候选未授权文本，真正人类批准由外层Task合同绑定，不从该内层字符串推断。
+
+可复用的嵌入续接文件为原replay、seal、execution-units、已验证output-prefilter和其冻结实现。后继8应保留这些冻结来源及原预算/数值算子，只改变明确的单元选择和本次输出命名；仍需重新绑定候选/外层合同、完整容量、实际资源及独立六项范围。不能直接改活Task参数，不能原封沿用单元7发布包/收集器或其一次性授权。未生成或运行单元8入口。

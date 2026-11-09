@@ -1,5 +1,7 @@
 # Resilient V2X
 
+Documentation navigation: [all project docs](docs/README.md) · [Recover Before Fuse / EventTrackV2X experiments](docs/recover-before-fuse/README.md).
+
 **Temporally Valid Feature Repair and Reliability-Aware Routing for Collaborative 3D Detection**
 
 Vehicle-to-everything (V2X) collaborative perception extends ego-vehicle sensing with roadside observations, but it is vulnerable to two coupled degradations: communication latency makes remote features stale, while short LiDAR or camera outages remove current evidence. Resilient V2X addresses both within an explicit decision-time information boundary. It repairs the newest valid historical features with a Perception Trajectory Field (PTF), then uses Dynamic Expert Routing (DER) to fuse LiDAR, camera, and cross-modal experts according to availability, latency, and reliability.

@@ -20,7 +20,8 @@ from transvision.models.event_track_v2x.v2v4real_inputs import (
 )
 
 
-def audit_volume(volume, receipt_sha256):
+def audit_volume(volume, receipt_sha256, *, native_vehicle_only=False):
+    if type(native_vehicle_only) is not bool:raise ValueError('explicit native vehicle audit scope required')
     volume = ordinary(volume, directory=True)
     raw = ordinary(volume / 'receipt.json').read_bytes()
     if hashlib.sha256(raw).hexdigest() != receipt_sha256:
@@ -51,8 +52,13 @@ def audit_volume(volume, receipt_sha256):
                 raise ValueError('YAML digest differs')
             metadata = load_raw_yaml(data)
             projection = pose_projection(metadata)
-            annotations = read_annotations(metadata)
-            classes.update(a.raw_class for a in annotations)
+            if native_vehicle_only:
+                from transvision.models.event_track_v2x.v2v4real_ground_truth import native_vehicle_annotations
+                annotations,raw_classes=native_vehicle_annotations(metadata)
+                classes.update(raw_classes)
+            else:
+                annotations = read_annotations(metadata)
+                classes.update(a.raw_class for a in annotations)
             keys.update(metadata.keys())
             associations.update('minus_one' if a.associated_id == '-1' else 'other' for a in annotations)
             rotation = np.asarray(projection['source_to_world'])[:3, :3]
@@ -77,6 +83,8 @@ def audit_volume(volume, receipt_sha256):
         maximum_determinant_residual=max(x[1] for x in matrix_errors),
         source_sha256={str(p.relative_to(root) if p.is_absolute() else p): digest_file(p if p.is_absolute() else root / p)[1] for p in sources},
         all_volume_file_hashes_verified=True, raw_yaml_read=True, point_cloud_format_validated=False,
+        annotation_geometry_scope='native_vehicle_after_exact_Pedestrian_exclusion' if native_vehicle_only else 'all_raw_annotations',
+        association_value_scope='native_vehicle' if native_vehicle_only else 'all_raw_annotations',
         class_mapping_applied=False, identity_mapping_verified=False, full_official_split_verified=False,
         tracking_evaluation_performed=False, paper_eligible=False)
 

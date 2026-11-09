@@ -40,10 +40,13 @@ class _ExclusivePartitionKernel(_RootPartitionKernel):
             excluded = []
             for leaf, weight in zip(active, weights):
                 if self.ancestor(leaf, prefix.depth) == h:
-                    if self._prefix(leaf).depth != self.n:
+                    # These depth/SHA reads were adjacent touches of the same
+                    # immutable prefix, with no intervening cache operation.
+                    leaf_prefix = self._prefix(leaf)
+                    if leaf_prefix.depth != self.n:
                         raise ValueError('residual exclusion must reference a complete current class')
                     excluded_count[leaf] += 1
-                    excluded.append(dict(handle=leaf, sha256=self._prefix(leaf).sha256, log_weight=weight))
+                    excluded.append(dict(handle=leaf, sha256=leaf_prefix.sha256, log_weight=weight))
             gross = self._upper(h)
             value = residual_log_upper(gross, [r['log_weight'] for r in excluded], nodes=self.n)
             body = dict(handle=h, sha256=prefix.sha256, depth=prefix.depth,

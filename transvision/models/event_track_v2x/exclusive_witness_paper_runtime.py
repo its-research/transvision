@@ -10,6 +10,8 @@ from dataclasses import asdict
 from pathlib import Path
 from .exclusive_completion_tracking import PersistentExclusiveCompletionConfig
 from .exclusive_teacher_probe_witness import ExclusiveWitnessTeacher
+from .compact_teacher_probe_witness import CompactWitnessTeacher
+from .compact_witness_storage import FORMAT as COMPACT_WITNESS_FORMAT
 from .exclusive_paper_runtime import default_configuration as _exclusive_configuration
 from .detection_cache_v2 import canonical, sha_file
 from .experiment_progress import ExperimentProgress
@@ -27,13 +29,20 @@ def make_backend(path, sequence, configuration, *, allocation_policy=None):
         raise ValueError('separately named exclusive raw witness teacher required')
     config = PersistentExclusiveCompletionConfig(
         state=ForestTrackingConfig(**configuration['state']), **configuration['limits'])
-    return ExclusiveWitnessTeacher(path, sequence_id=sequence, config=config)
+    storage = configuration.get('teacher_witness_storage', 'legacy_full_snapshots_v1')
+    classes = {'legacy_full_snapshots_v1': ExclusiveWitnessTeacher,
+               COMPACT_WITNESS_FORMAT: CompactWitnessTeacher}
+    if storage not in classes:
+        raise ValueError('unknown teacher witness storage format')
+    return classes[storage](path, sequence_id=sequence, config=config)
 
 
 def default_configuration(method='rbf', *, allocation='teacher', width=4):
     if method != 'rbf' or allocation != 'teacher':
         raise ValueError('exclusive raw witness teacher runtime only')
-    return _exclusive_configuration(method, allocation='teacher', width=width)
+    configuration = _exclusive_configuration(method, allocation='teacher', width=width)
+    configuration['teacher_witness_storage'] = COMPACT_WITNESS_FORMAT
+    return configuration
 
 
 def write_once(path, payload):

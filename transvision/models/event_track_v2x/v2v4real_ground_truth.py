@@ -89,15 +89,33 @@ def local_car_boxes(metadata, cav_id):
     return _local_boxes(metadata, cav_id, vehicle=False)
 
 
+def native_vehicle_annotations(metadata):
+    """Apply the native Pedestrian exclusion before selected-box validation.
+
+    The reference does not decode Pedestrian geometry. Preserve the original
+    mapping and raw class counts; every selected vehicle still uses the strict
+    annotation parser, including positive dimensions and finite coordinates.
+    """
+    objects=metadata.get('vehicles')
+    if not isinstance(objects,dict):raise V2V4RealInputError('raw vehicles mapping required')
+    selected={};counts=Counter()
+    for oid,item in objects.items():
+        if not isinstance(item,dict):raise V2V4RealInputError('native annotation mapping required')
+        include=native_vehicle(item.get('obj_type'))
+        counts[item['obj_type']]+=1
+        if include:selected[oid]=item
+    return read_annotations(dict(metadata,vehicles=selected)),counts
+
+
 def _local_boxes(metadata, cav_id, *, vehicle):
-    annotations = read_annotations(metadata)
+    annotations,counts = native_vehicle_annotations(metadata) if vehicle else (read_annotations(metadata),None)
     result, used = [], set()
-    counts = Counter(a.raw_class for a in annotations)
+    if counts is None:counts = Counter(a.raw_class for a in annotations)
     for annotation in annotations:
         if not (native_vehicle(annotation.raw_class) if vehicle else annotation.raw_class == 'Car'):
             continue
         identity = native_id(annotation.object_id, annotation.associated_id, cav_id)
-        if identity in used:
+        if identity in used and not vehicle:
             raise V2V4RealInputError('two selected annotations share one same-CAV identity')
         used.add(identity)
         # center_world is a legacy numeric field name, NOT native GT semantics.

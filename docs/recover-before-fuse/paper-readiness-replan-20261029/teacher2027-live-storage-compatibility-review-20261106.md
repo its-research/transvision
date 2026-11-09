@@ -1,0 +1,17 @@
+# teacher2027 生产存储候选兼容性审查
+
+2026-11-06，在112静态解析既有原bootstrap中的PATCHES/REPLACEMENTS并解码源码；未执行模块、真实数据库或数值oracle，Mac仅记录文本。
+
+发现原exclusive_teacher_probe_witness.py第73行直接使用zlib.decompress(bytes(prior[1]))比较重复见证。候选格式以RBFW2标记并引用priority_witness_chunks，不能将候选数据库直接交给该旧读取路径。候选子类覆盖整个_store_witness，避免该方法内部旧重复读取，但这不证明外部独立验收器、转换器和收集器均兼容。
+
+生产切换前必须证明：所有实际见证消费者使用经来源绑定的双格式读取器；原canonical字节/SHA和见证引用逐项一致；事务及savepoint回滚不遗留可见孤立引用；同一真实序列完整搜索、标签、状态和因子报告保持原容差；完整归档/独立验收/注册来源说明显式标记新存储格式。不能仅凭子类继承或合成事务测试宣称数值资格。
+
+当前helper每次存储都重新canonical、codec.store并完整codec.read校验，重复项可能多次解码。因此只可称存储候选，不能宣称加速；需记录端到端CPU、墙钟及数据库/归档峰值。不得以删除原数据、减少见证或改变预算解决空间。
+
+该分支未集成生产bootstrap，也不替换待回复的ec7a9f24两文件发布候选。真实数据资格执行及新候选发布须沿用既有具体授权门槛。0040本轮仍由docker inspect确认running；不因存储准备停止或重启任何任务。
+
+## 17:37 适配类合成执行通过
+
+112实际导入已准备子类和真实候选helper/codec，但原teacher父类及canonical接口均使用明确的合成夹具，未导入真实数值oracle。7组长度0/1/63/64/65/128/257见证检查：原canonical字节及SHA逐项一致、重复写入不增行、成本计数单调、峰值原始编码字节准确、savepoint回滚消除新增见证、缺少外层事务拒绝。AST确认仅覆盖_store_witness。
+
+结果在112的shared-witness-live-storage-prepared/synthetic-subclass-control-once/subclass-controls.json，时间2026-11-06T17:37:47.089360+08:00，SHA256 d0ba538acc7c2f6db0109f5427e8c5c58bd91bba190f2849a7efedcacffae936。该结果只支持适配类合成协议，不支持真实teacher数值等价、生产资格或加速结论。活任务及原待发布bootstrap均未修改。

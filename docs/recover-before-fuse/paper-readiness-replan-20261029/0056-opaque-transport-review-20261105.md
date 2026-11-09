@@ -1,0 +1,16 @@
+# 0056纯字节传输候选审查（未执行）
+
+审查对象stream_0056_opaque_once_candidate.py仅作为Mac字节传输：本地只检查文件类型、路径和元数据稳定性，读取原清单并流式发送；未执行该文件，不声称语法或软件检查通过。真实SHA、来源和数值工作必须在112完成。
+
+当前不能直接使用：它依赖112尚未准备/资格化的stage-wire.json、validate_incoming_source_bytes_once.py和execute_pinned_original_REMOTE.py。不得将其远端路径存在或本审查视为资格。原19文件完整暂存已包含逐文件SHA和精确EOF；如果额外source-readback会重复完整传输，应先明确是否确有独立需要，不能为凑检查重复发送547MB。默认规划应优先保持原stage校验，不扩增读回范围。
+
+下一实现必须逐条保留：
+
+- 在112核对原controller SHA9bcd6dae2d7b4941680434088a2178bd229fb1ed3e3ef1433b4a26230302080c、manifest SHAbe3406083da21faf5c4c1e9e05e52c3fb461f75608839618d3c7c50c95a7099a，直接采用原REMOTE正文和validate_authorization，不替换其数值或资源逻辑。
+- wire由112从这两个原文件及实际直接授权构造；固定0056、seed1337、188事件、4964因子和原模型/source Task。Mac本地清单与wire的任何内容差异必须由原逐文件SHA和EOF拒绝，不能新增“相信本地清单”分支。
+- 0072完整来源/最终收集通过，原当前slot从未消费且新目录不存在后，才使用0056原暂存一次。暂存失败保留部分结果，不修正同root继续，不把观察超时当失败。
+- 源文件传输前后元数据稳定；源SHA由112验证。不能在Mac调用原controller main（其manifest/controller/grant/19sources均会本地SHA）。
+- 原free>decoded+8GiB+stage、MemAvailable>8GiB、活容器集合、原镜像、冻结依赖和marker必须原样保留，不能因本机编排变化扩大allowlist或降低磁盘门槛。观察到空闲不替代实际启动时重验。
+- 原source-preflight完整通过再启动单次数值，原容差1e-8/1e-4、GPU可见、无新CPU/RAM/线程限制。单次stage、preflight、numeric的状态分别保留。
+
+新helper源码必须准备成可审核范围，再沿用已有具体跨机暂存授权约定；本审查不是新源码发布或失败重试批准，也不消耗0056现有单次科学执行授权。

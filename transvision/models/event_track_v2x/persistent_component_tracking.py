@@ -72,6 +72,20 @@ class _GlobalLRU(OrderedDict):
         super().move_to_end(key, last=last)
         self.namespace_order[key[0]].move_to_end(key, last=last)
 
+    def _get_and_touch(self, key, missing):
+        """Read one existing value and apply the original two LRU touches.
+
+        Only the value lookup may return ``missing``. Broken namespace indexes
+        still raise; a successful lookup never skips either recency update.
+        """
+        try:
+            value = OrderedDict.__getitem__(self, key)
+        except KeyError:
+            return missing
+        OrderedDict.move_to_end(self, key)
+        self.namespace_order[key[0]].move_to_end(key)
+        return value
+
     def pop_namespace(self, namespace, last=True):
         order = self.namespace_order.get(namespace)
         if not order:
@@ -98,6 +112,11 @@ class _CacheView:
 
     def __getitem__(self, key):
         return self.shared[(self.namespace, key)]
+
+    def _get_and_touch(self, key, missing):
+        # One qualified key and one shared-cache lookup for a hit. This private
+        # protocol is consumed only by the prefix cache, never by row caches.
+        return self.shared._get_and_touch((self.namespace, key), missing)
 
     def __setitem__(self, key, value):
         pair = self.namespace, key

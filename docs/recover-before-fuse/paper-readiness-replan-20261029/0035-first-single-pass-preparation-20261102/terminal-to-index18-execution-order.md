@@ -1,0 +1,12 @@
+# 0035实际终态后的已授权收口顺序
+
+当前0035仍在运行；本文件不增加合格计数。所有计算、SHA、源码和索引检查在112执行，Mac只调度、传输和保存。原17/46索引不变。
+
+1. 确认容器ddc60b7d…真实Status=exited、ExitCode=0、启动时间2026-11-01T20:49:04.37120412Z。Running状态的ExitCode占位值0不算成功。失败则保留，不能自动重试。
+2. 使用collect0035_outputs_via112_once.py完成原终态、小产物完整读回及保存后SHA。原numeric launch receipt、start observation和原收集器来源绑定不变，输出到外置teacher1337-first0035-terminal-collection-20261102。完整数值预期117事件、2119因子，标签数从原冻结报告读取。
+3. 使用run_join0035_canonical_source_receipt_once.py，以原注册rank1及7文件完整归档/成员SHA、原独立数值与因素报告、实际容器终态和保存后SHA完成完整来源汇合，生成0035-canonical-final-join-20261102。source-only、存储或运行状态均不替代这一步。
+4. 使用control_index18_after_final_join_once.py。只有第3步实际保存后SHA收据存在才进入：新建工作镜像命名空间，不改旧镜像目录；调用未改动的原checked_prior重新核验17序列；仅将已验canonical0035收据分派给原joined_index计数逻辑。然后在另一个新进程中用原checked_prior读取新18索引并检查旧17行逐字段不变。全部新文件再流回Mac并在112回核保存后SHA。
+5. 完整读回通过后，保存新18索引的规范副本并在112回核该副本SHA，随后才更新当前运营索引与合格计数。预期18/46、2345事件、56746因子行；标签仅使用完整实际报告值。完整46序列及priority_training_admitted仍为False。
+6. 重新核验112资源，再按各自授权和前驱条件接续0087控制、0010来源核验、0022修正版、0050等；不因准备完成重复投递，不将一个授权转用于其他科学尝试。失败结果和原数据全部保留。
+
+新接入器24项合成控制通过；控制器9项边界/源码编译检查通过；真实Linux挂载与原checked_prior的17序列预检通过，且没有写新索引或执行oracle。这些是准备证据，非0035数值合格。

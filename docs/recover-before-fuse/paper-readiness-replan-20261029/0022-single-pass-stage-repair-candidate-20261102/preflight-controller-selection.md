@@ -1,0 +1,7 @@
+# 0022后续控制器选择纠正
+
+0022暂存采用7844d613…修正版；原预检和数值次数继续沿用既有授权。
+
+后续应直接调用teacher1337-series17-remote-SHA-candidates-20261031/sequence0022/control_first0022_once.py，来源SHA34bb1f71386ce699d13fac062cbc4b6bd1953cb412d82141e8117a178ad086b1。此既有版本本来已经把SHA计算交给112，无需新增包装器。授权为同目录derived-existing-series-authorization.json，SHA e5b510701ee3789161b933dee12dea0aa1406554562e4c7ac846e390b4232859。
+
+本轮误选更早rank1目录控制器做软件包装检查，被原源码SHA断言拦住，未执行预检或数值。保留original-controller-remote-SHA-wrapper-controls.json和control_original_preflight_numeric_remote_SHA.py作为未合格准备证据，不执行该包装器；不修改原授权SHA、原冻结数值源码或门槛。

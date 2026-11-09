@@ -493,6 +493,18 @@ def write_native(frames, directory, prediction):
             f.writelines(rows)
 
 
+def original_native_sum(values, start=0):
+    """Preserve the pinned evaluator's CPython 3.7 float accumulation order.
+
+    Its repeated track means are compared directly to sampled thresholds.
+    CPython 3.12's compensated builtin sum changes membership at equal scores.
+    """
+    result = start
+    for value in values:
+        result = result + value
+    return result
+
+
 def load_native(source):
     """Load exact source modules in a dedicated subprocess, no fallback imports.
 
@@ -500,7 +512,8 @@ def load_native(source):
     original roty AST is loaded, with its original numba @jit decorator intact.
     NUMBA_DISABLE_JIT=1 executes that original NumPy body: modern nopython mode
     cannot compile the upstream mixed integer/float nested-list array literal.
-    No numerical function body, evaluator threshold or match rule is changed.
+    The evaluator's sum resolves to its original CPython 3.7 accumulation
+    semantics. No numerical function body, threshold or match rule is changed.
     """
     source_evidence(source)
     source = Path(source)
@@ -534,6 +547,7 @@ def load_native(source):
         module = importlib.util.module_from_spec(spec)
         sys.modules[name] = module
         spec.loader.exec_module(module)
+    module.sum = original_native_sum
     return module
 
 
@@ -602,7 +616,7 @@ def evaluate(manifest, manifest_sha256, source, output):
               'routing': 'explicit_evaluate_v2v4real_true_not_result_name',
               'backend_label_alias': {'vehicle': 'Car'}, 'native_source_modified': False,
               'runtime_jit_disabled': True,
-              'runtime_adapter': 'source_AST_roty_only; NUMBA_DISABLE_JIT=1; numerical_bodies_unmodified',
+              'runtime_adapter': 'source_AST_roty_only; NUMBA_DISABLE_JIT=1; original_CPythonsum_float_accumulation; numerical_bodies_unmodified',
               'world_state_or_corner_conversion_implemented': True,
               'conversion_receipt_independently_accepted': False,
               'full_rbf_native_path_accepted': False, 'paper_performance_complete': False,

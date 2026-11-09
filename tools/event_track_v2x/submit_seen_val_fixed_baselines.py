@@ -159,7 +159,7 @@ def dispatch(args, Task, api, base):
     def save():
         now=datetime.datetime.now(datetime.timezone.utc)
         value=dict(kind='rbf_seen_val_fixed_K1_K4_GPU_dispatch_v1',checked_at_utc=now.isoformat(),jobs=jobs+[job],
-            source_freeze_sha256=freeze_sha,GPU_model_restriction=False,
+            source_freeze_sha256=freeze_sha,GPU_model_restriction=True,allowed_multi_GPU_model="A100",
             L40S_CPU_only=True,TF32_enabled=False,actual_memory_utilization_admitted=False,
             full_seen_val_baseline_admission=False,same_resource_performance_accepted=False,paper_performance_complete=False)
         atomic(JOURNAL,value)
@@ -176,7 +176,7 @@ def dispatch(args, Task, api, base):
             '-e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_TF32_OVERRIDE=0 '
             '-e TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0 -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1')
         task.set_parameters(dict(plan=canonical(plan).decode(),recipe_sha256=job['recipe_sha256'],semantic_baseline_identity=identity,
-            seed=args.seed,K=args.K,world_size=plan['world_size'],GPU_model_restriction=False,TF32_enabled=False,
+            seed=args.seed,K=args.K,world_size=plan['world_size'],GPU_model_restriction=True,allowed_multi_GPU_model="A100",TF32_enabled=False,
             memory_target_percent='75-80',artificial_memory_padding=False,full_seen_val_baseline_admission=False,
             ETA='unknown_until_actual_transfer_or_forest_event_progress',paper_performance_complete=False))
         task.add_tags(['Recover-Before-Fuse','SPD-seen-val-exploratory','all-class-top64',f'fixed-K{args.K}',

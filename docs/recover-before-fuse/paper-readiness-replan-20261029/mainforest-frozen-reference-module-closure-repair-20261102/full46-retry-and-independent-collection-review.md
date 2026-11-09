@@ -1,0 +1,33 @@
+# 主森林2027：引用模块修复后的单次完整验收及独立收集计划
+
+此计划仍待具体授权。6291旧尝试已经failed，全部结果保留；不停止、重启或修改teacher和其他活任务。原完整目标是46序列、7,445事件、225,177因子行，复用原合格6序列、其余40独立重算，语义ATOL/RTOL=1e-8、因子1e-4，原输入/模型/预算不变。
+
+## 必须先完成
+
+1. 6291原35,727,575,040字节失败归档完整保存和234成员SHA核验：原专门传输请求仍独立有效，未获批或未通过时不启动新验收。
+2. 新1,791,462字节原引用别名包发布及全SHA读回：包SHA da312c03a7bab0619d15e2fbe504399cd17bdd2e9000ed134ff4f97b6d599b4f；单独源码包发布请求未通过前不启动。
+3. 原容器、A100四卡实际UUID、最新worker/八卡物理交集、空队列、CPU≥32、可用RAM≥64GiB、原根盘teacher保留量474,870,010,671字节及大盘资源准入。不抢占、不用低利用率作为停止理由。
+
+## 具体待批准执行范围
+
+原ClearML API http://10.100.35.118:8008 发布生产入口21,899字节（SHA545dcf3b1c785f3dd41d8499a20e31e1b816a827e3b0032d4df33fe3dca5f768）并仅启动一次完整验收；绑定同一冻结镜像与原资产。缺失的frozen_cpu_reference.py为原oracle逐字节副本。新入口先用后续子进程同一Python加载真实依赖，再下载大输入；112实际同镜像导入和篡改拒绝已通过，但A100实际计算仍待这次运行。
+
+生产终态后，空闲且物理不重叠的合格A100四卡worker，通过同一API发布独立收集入口100,391字节（SHAc4527852983c7481dd5ac596f1799777b75870df69eeeb7d507441d2fedab20c）并只执行一次。该入口嵌入六份已核SHA的源码/原发布收据，重新建立原32696文件命名空间；完整读回注册产物及归档全部成员，用新进程执行原完整来源/语义/数值收据核验。收集器不重放模型或GPU数值计算，不把生产进程内存或平台completed当独立合格。
+
+独立收集仍保留原全部注册资产总大小+5GiB门槛、元数据另加5GiB检查；外层启动前还计入原命名空间传输与选中元数据空间。112现有10GB磁盘不作大归档收集盘，不降低原门槛。采样/容器准入不冒充资源实际合格。
+
+独立收集报告和日志上传到既有 http://10.100.34.118:8081，再在112完整核验注册SHA与最终收据链、流式/字节传输到Mac外置盘并反向SHA读回。Mac只编排及传输存储；不计算SHA、解包或执行数值。不重新上传已在来源Task保留的大归档，不删除任何来源。
+
+## 入口与证据
+
+- 生产投递控制dispatch_reference_alias_full46_once.py当前SHA7dad98fa68bd94be1da38f6c57105cdef6e55b294616c9f83ffbc3408a10e356。
+- 独立收集投递控制dispatch_terminal_collection_once.py当前SHA0690b4ffadd7dcacc92eb6dffb90bb10ba79fe63333b10fa84a5114bc1a263e7。
+- 独立完整验证器SHA5cd0b54b8e834ef31a6b5da88cb35b1ada8ba5bf17b8d6c9f34c8236747f0234；Linux收集器SHAa1995175711a516ee6199950b24b72216a3be7f1978c1d9b23afd35e430847d6。
+- 报告读回器read_collection_reports_remote.py SHA5d43313704db32c14a1c72d67898ce973b52c65948c05493bc62f6f90eda9432，Mac编排器SHA1889aae5b2f49552bdbfd07992c4b5039113c44ca90672d02fe6c1b83b8fd141。
+- 112当前完成：36项收集入口来源/准入控制、50项生产/收集投递授权及边界检查、24项最终报告来源/计数/容差/完整SHA链检查。均为软件和来源准备；没有新Task、没有实际全集重算或独立收集。早期失败无归档时仍保留小注册资产，零文件不冒充整包SHA通过。
+
+## 授权和终态
+
+授权scope mainforest2027_reference_alias_dependency_first_full46_retry_once，previous_failed_task=6291e52825e245a08c9a113fd80d1707，精确绑定上述bootstrap/包SHA；terminal_collection_approved=true、collection_entry_SHA256=c4527852983c7481dd5ac596f1799777b75870df69eeeb7d507441d2fedab20c；maximum_attempts与collection_maximum_attempts各1，automatic_retry=false。必须明确允许上述两份Task入口源码到原API以及收集报告到原FILES的发布和完整读回。
+
+生产与独立收集每项只尝试一次，新失败保留且不自动重试。通过完整独立收集及保存后字节核验才可推进该seed2027 train cohort合格计数；五项语义标准不等于40新序列五个旧oracle函数全部原封执行（fresh_state为独立CPU/GPU配对优化路线）。不称A–K全部完成或论文正式指标完成。

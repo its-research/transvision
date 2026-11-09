@@ -1,0 +1,11 @@
+# 0033 terminal collection route, prepared only
+
+Original collector SHA0d697f4d8004cd031e3d7d732a088374f5d04812ad2e39d8e80eaa24193d8610 was inspected before use. It would compute SHA on Mac and hardcode replay-rank4, whereas the original immutable contract binds replay-rank7. It was not executed. Existing original numerical job remains unchanged.
+
+New Linux-only collector prepared on112: 8,331 bytes, SHAbdab1a8dde10ea4c980cc0b332d42e61b7704430f8d6e348cdf5a924bd156f3c. Original six-oracle report assertion block is literally unchanged and frozen postcondition helper SHA retained; original artifact name is read from c[artifact]. All original seven-source SHA requirements remain mandatory via a separate complete streaming receipt, bound to the successful actual numeric CID, original source_preparation SHA and all seven original expected path/size/SHA tuples. This route does not rerun events or models and does not replace full source proof with a prior declaration.
+
+Original seven files total10,381,284,865 bytes. Prepared Linux stdin verifier3,655 bytes SHA45082b366aafd7d65d170f6f2315f01bdcd46022138f0a9bfd1802b548ce2f43; source_preparation SHA73a69779c07322464fc2e5fcb60b9a445dd001c33c868e1147bf91075dbe95dd. It requires original numeric successful exit0, zero restart, original image/entry, explicit one-transfer grant and precise EOF; hashes sequential incoming bytes, never saves original payload, persists only progress/receipt or failure. Transport client only reads opaque bytes and file metadata onMac. Thirteen grant controls passed on112; no real grant or transfer fabricated.
+
+Specific reverse-transfer request was presented. Until an actual reply and original successful terminal/resource checks, do not execute the source stream or final collector. Original series numerical/collection approval is preserved and not requested again; this additional gate is only for the specifically sized internal reverse transfer. No new caps, GPU disabling, source deletion, task restart or numerical threshold changes.
+
+Bounded same-PID observation14:12:17–14:12:57: CPU+40.0seconds over40.0085wallseconds, stateR and same start ticks; latest coarse log125/189 unchanged. This confirms CPU activity, not a new completed-event claim. No failure or terminal state inferred from missing finer progress.

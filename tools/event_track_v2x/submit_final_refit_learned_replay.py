@@ -147,7 +147,7 @@ def dispatch(args, Task, api, base):
     def save():
         now = datetime.datetime.now(datetime.timezone.utc)
         value = dict(kind='rbf_final_refit_learned_priority_GPU_dispatch_v1', jobs=jobs+[job], checked_at_utc=now.isoformat(),
-            source_freeze_sha256=sha(Path(__file__).resolve().parent/'source-freeze.json'), GPU_model_restriction=False,
+            source_freeze_sha256=sha(Path(__file__).resolve().parent/'source-freeze.json'), GPU_model_restriction=True,allowed_multi_GPU_model="A100",
             L40S_CPU_only=True, TF32_enabled=False, actual_memory_utilization_admitted=False,
             learned_replay_accepted=False, same_resource_performance_accepted=False, paper_performance_complete=False)
         atomic(JOURNAL, value)
@@ -164,7 +164,7 @@ def dispatch(args, Task, api, base):
             '-e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_TF32_OVERRIDE=0 '
             '-e TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0 -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1')
         task.set_parameters(dict(plan=canonical(plan).decode(), recipe_sha256=recipe, semantic_learned_identity=identity,
-            seed=args.seed, world_size=choice['world_size'], GPU_model_restriction=False, TF32_enabled=False,
+            seed=args.seed, world_size=choice['world_size'], GPU_model_restriction=True,allowed_multi_GPU_model="A100", TF32_enabled=False,
             memory_target_percent='75-80', artificial_memory_padding=False,
             learned_replay_accepted=False, ETA='unknown_until_actual_task_progress', paper_performance_complete=False))
         task.add_tags(['Recover-Before-Fuse', 'final-refit-full-train', 'all-class-top64',

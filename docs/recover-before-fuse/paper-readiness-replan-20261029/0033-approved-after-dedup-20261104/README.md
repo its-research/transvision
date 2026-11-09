@@ -1,0 +1,11 @@
+# 0033已授权首次验收：去重后准入接续
+
+已有teacher1337系列首次授权及11月4日明确接续指令。使用10月30日当前unused-own-decoded目录的同一槽入口，controller SHA88ef6774102e295d9cc2939470b164e8d6ce4e485acb23d50c5aa67103408858、manifest SHAadbcf5143760512cf5bfd6ebb21d9ad1f794f6b46ed3523245ae8dd1c32cab92，原19文件517620767字节，原189事件/3679因子行及1e-8/1e-4。
+
+112于去重后原resources模式实测：空闲12303130624字节，门槛11307353119字节，MemAvailable28910927872字节，观测affinity0–15，无活容器；原namespace存在。未新增CPU/RAM/线程/GPU限制。首次根目录尚不存在，未重复任务。
+
+Mac只使用stream_0033_opaque_once.py做运营元数据/不透明字节传输；原controller REMOTE源码在112由严格SHA绑定的原文件提取和执行，所有SHA、语法、实际来源预检及数值工作均在Linux。先做只读源字节SHA准备，不保存大副本；通过后只stage一次，原preflight通过后只numeric一次。失败保留、不自动重试，不改现有任务。
+
+实际结果：只读源传输09:26:53–09:35:00正常完成，19文件SHA全过；第二次为唯一正式暂存，全部原19文件517620767字节SHA通过。原preflight容器09:43:10.969–09:43:20.441正常exit0，原输入文件32692全SHA、全schedule顺序通过且numeric_oracle_called=false。09:43:21.233数值容器rbf-original1337-first0033-cache-numeric-20261030-numeric首次启动。
+
+09:45:04真实容器running、PID869013，进程CPU1:44/墙钟1:43，最后阶段independent_witness_readback11000行；不是事件完成数或完整数值合格。初始生产观察2021字节SHA14a566a60992412742f89fd3844ce58174ec188652ab8795d8e861496088158e，Mac保存后由112反向完整SHA通过。目标仍189事件、六项独立检查及3679因子，终态后仍须原收集/全SHA/源模型汇合，未提前宣布合格。

@@ -1,0 +1,36 @@
+# teacher2027 前提组合交接
+
+## 17:08 最新覆盖
+
+16:43完整组合前提元数据已通过，1355字节收据SHA1f5ed65aee37202b95dbde9a9274e275b9ff911069dc870acd01d0ac0ad72e10，使用现有ClearML接受登记，不改历史ledger。下文“完整binding/登记来源未通过”为早期状态。
+
+112后续准备目录：`/home/lbin/rbf-teacher2027-runtime-input-preparation-20261106`。已从原completed teacher1337 Taskda292c8e4a084b689f8b1daedbc42cbd读取63308字节原bootstrap，SHAc847e3bef79402d7f8cf755530091f3a25601e07e7295c910f8aaefab8c01359。新teacher2027接口候选64925字节、SHAec7a9f244e9ca88a8c08032548f1762a21f2b054d548b4b2c8ae41569217ef57，仅teacher_admission变更，其他模块/回放/数值补丁AST保持；23项引用拒绝及原live main/input/config/witness元数据尾部检查通过，但fetch使用严格本地夹具，不冒充云发布准入。
+
+新模型引用5617字节、SHAa2a0770abc5e0d459b76f6f4851623bec2ce3c719a560a93f880f86977d9a69e，含当前seed2027最终模型、checkpoint、46来源、父组合收据和现有登记SHA。两文件合计70542字节，发布器SHA9a9482a763c6e61b53490e4b22bd8ffa17eee2c8001b4b77f4225eda34951786，13项授权拒绝通过；仅发布与全SHA读回的具体请求待用户回复。未上传、未建发布Task，也不包含teacher执行授权。
+
+纯计划构造器SHA8b69485a87deef7caa9e366ac408ead8552190e0ec2d757534af95a9b20b12e7，4/8分片两个正例保持原输入与预算，18项拒绝通过。测试使用合成发布占位，没有真实生产计划、资源准入或teacherTask。
+
+完整生产新增具体缺口：原10项输入下载合计3101741771字节，但这不是峰值空间。原main使用相对工作目录，所有rank原库等待spawn全部结束后再压缩，原库与压缩归档共存；还需计入解压输入、缓存、上传失败保留。原454.5GB历史余量和39GiB硬件门槛不是实测本次峰值。完整生产需新鲜A100原生盘/CPU/RAM/UUID准入和完整保存容量或合格有界存储方案；当前不放行，不抢占、不删除来源、不以软件通过称目标通过。
+
+2026-11-06 15:57 北京时间。计算和SHA均在112执行；本机仅文本记录。
+
+当前producer为bb9fb313fca94978973795cb3fd327e0。原历史登记仍保持不变，不能将其任务身份替换为历史4e9019afec67453ba5a83e8401949991。
+
+112证据目录：`/home/lbin/rbf-teacher2027-full-binding-extra-metadata-20261106-once`。
+
+- `rerun-identity-adapter-controls-20261106.json`：实时completed身份、完整注册plan、配方和bootstrap检查通过，12项篡改拒绝通过。
+- `composed-byte-local-predicates-result-20261106.json`：显式未登记候选类型；其余原本地输出谓词保留。46序列、7445事件、225177因子行及10项实时注册产物身份匹配。结果SHA为5db536e8ba72eb1edda9dbcf8d0c33e531d96f1424b56250aaf785ef5a2e51a4。
+- `original-source-config-CPU-predicates-result-20261106.json`：原来源冻结、source_replacements、原canonical配置摘要及86事件CPU证明谓词通过；没有新增CPU重放。
+- `source-preserving-prerequisite-evidence-assembly-prepared-20261106.json`：8归档、322成员的既有字节证明索引；保留6个five_frozen与40个four_frozen_plus_independently_paired_optimized_fresh来源区别。未重新下载大归档。
+
+上述为组合前提的分项证据，不是完整准入。仍须独立验证新类型完整组合接口、严格绑定所有分项报告和原源文件、执行失败/篡改拒绝控制，并完成合法的接受登记。未执行完整binding.validate，未修改账本，未启动teacher2027。
+
+0040在15:51核验时容器仍running，轨迹125/193，最后事件记录15:34:41，本次墙钟5小时48分17秒。此为历史定位，后续必须刷新；完成后按既有条件授权执行原7文件流式SHA、完整收集和资格汇合，再接0094。
+
+V2V单元7来源预检已通过；科学提交被自动审批拒绝，等待明确的221事件生产及六项独立验收各一次授权。没有创建科学Task或消耗执行次数，不将目标续行视为授权。
+
+## 后续资源设置静态边界复核
+
+112重新核对待发布bootstrap源码SHA仍为ec7a9f244e9ca88a8c08032548f1762a21f2b054d548b4b2c8ae41569217ef57。该源码未出现CUDA_VISIBLE_DEVICES、OMP_NUM_THREADS、OPENBLAS_NUM_THREADS、MKL_NUM_THREADS、RLIMIT_AS、setaffinity、--cpus或--memory设置；没有在该文件新增显式GPU屏蔽或宿主配额。
+
+这只是该源码的静态核对，不证明实际容器/worker没有继承环境或配额，也不替代CPU/RAM/native磁盘、实际UUID、完整原输入及生产容量准入。不得将该结果写成已启动、GPU优化已合格或资源合同通过。两文件发布仍待具体批准，未发布或启动teacher。

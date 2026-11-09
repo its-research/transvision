@@ -1,0 +1,10 @@
+{
+  "user_instruction": "后续所有本机实验内容放外置空间",
+  "external_root": "/Volumes/Data/test/recover-before-fuse",
+  "workspace": "/Volumes/Data/test/recover-before-fuse/local-workspace/transvision",
+  "clearml_cache": "/Volumes/Data/test/recover-before-fuse/clearml-cache",
+  "temporary_directory": "/Volumes/Data/test/recover-before-fuse/monitor-tmp",
+  "require_external_volume_mounted": true,
+  "fallback_to_internal_disk": false,
+  "remote_running_jobs_unchanged": true
+}

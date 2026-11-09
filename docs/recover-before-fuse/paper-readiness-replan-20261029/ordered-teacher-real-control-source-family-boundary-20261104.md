@@ -1,0 +1,33 @@
+# 真实候选并行对照必须区分来源谱系
+
+本次仅检查既有合同/收据/源码，没有读取数据库正文、重算数值或创建对照任务。
+
+## 当前候选的已锁定版本
+
+候选池固定numeric SHA`2aecc66e8c6667b8cf3dc1b6b70eda596049d9eab5cfc2a63ab29e9d5298eef5`；父适配器固定trajectory SHA`37ddf0a7437064d41f6df36a0879eb67b19a430e306c2fb1c8d6e48827c894a9`。已通过的11项结构控制及原镜像来源导入/函数绑定，仅覆盖这一版本对，不是所有teacher来源的资格。
+
+## 3407原生单遍0087不能直接替代
+
+112既有完整资格收据：`/home/lbin/rbf-approved-V2V-unit6-control-preparation-20261101/teacher-native0087-final-preserved-source-join-20261103/actual-preserved-qualification-join.json`。
+
+它记录20事件、17307标签、442因子行，原Task832a23d19dec4ddab3aa07963e5f6b27；原DB104509440字节、SHA`6fa8f386718155f26b7f5e1605633bd9f62cd7cd851285bbdc90830921ec04f9`。其已合格单遍入口使用numeric SHA`686e72bf8180d90405da8070525a1bcb294871fb636fa6165d5fbc7d10ca8f78`和trajectory SHA`6586c45b3256852774aa0929c885ead43ee6225904a4a388d356bbb97ba6711b`，另有guarded single pass、RootTree jumps及逐请求/结果流的独立协议。
+
+完整源码SHA不同不等于已经证明数值函数不同；但也不能省略逐函数/传递来源核对、严格绑定和真实对照就宣称兼容。当前候选没有取得该版本对的资格，不能把3407的17307标签旧结果作当前候选的黄金数目，也不能据此恢复已停止3090任务。
+
+21:19的112静态比较已进一步缩小差异：原两文件全文SHA分别重新核对，未导入模块或运行数据。oracle.py的canonical、close、decision、load_module、mass、operation_result、path_choices、residual_bound、sha、snapshot、transition_weight、verify_candidate等12个顶层定义AST完全一致；verify_database不同。trajectory.py的activate、derive_partition、eligible、promote、proposal五定义一致，verify_database不同。模块级差异还包括TEACHER_SCHEMA从raw_probe_witness_v1变为shared_probe_witness_v2，以及TREE/ACTION/NUMERIC路径与SHA绑定。结果在112 `/home/lbin/rbf-ordered-teacher-worker-loader-preparation-20261104/source-family-static-AST-comparison.json`。这不是数值等价、完整父流程兼容或性能资格；任何闭合来源版本适配都须保留各自外层原断言、序列/模型/存储合同和真实完整结果对照，不能仅换全文件SHA后直接上线。
+
+## 1337同版本控制的来源线索
+
+112原19索引SHA`58473f65491fa6a1af71439b5a70c31073a2467277da923a2f8db33be20d6819`中的1337/0087为20事件、15160模型改进标签、436因子行；原DB311898112字节、SHA`64a24631d844df9cdc192328f37a0625894be405455d053a1c5bec6c2b9c8eeb`，原六项结果SHA`4fd60625dc1e9c6027b90c72e222f8c84eb250a46d98a5729175b7ccfd30eac5`。既有合同路径：`/home/lbin/rbf-teacher1337-sequence0087-original-raw-prepared-20261028T0130/sequence0087-original-raw-numeric-contract.json`，SHA`34a9f75d4f3246dca1401bb628e9262b327d665084f2d90aa90e585fa45c61fe`。
+
+这些是准备线索，不是新控制的输入准入或数值执行授权。实际对照前仍须完整源码/模型/输入/原收据绑定及新鲜资源；当前19份资格不因准备失效，也不得重复旧科学验收来增加完成计数。
+
+## 对照不能选择更弱基线
+
+当前准备已锁成`ordered-teacher-1337-0087-control-input-lock-candidate-20261104.json`。112元数据确认1337原输入根目录仍有既有合同引用，但两个已知只读命名空间内未发现通用compact写入器及原独立raw/compact比较工具。没有运行转换或读取DB正文。为覆盖目标存储路径，新准备`verify_original_compact_pair_storage_current_reader.py`：保留原完整见证、typed表、schema/顺序及SHA检查，仅显式改为已准入99e985当前读取器绑定并加Linux限定，原f153版本不动。该候选尚未在112暂存、编译或验证，不能作为已有存储资格。后续须在新源暂存及实际控制范围获准后完整验证；不因为原raw已合格就略过compact来源/内容证据。
+
+- 1337与3407分别锁定完整来源，不移植模型、标签数或冻结函数SHA。
+- 候选必须与适用的当前已合格读取器/缓存/单遍优化比较；不能只与更慢的旧双遍或无优化基线比较后宣称优于当前任务。
+- 若原控制输入是raw SQLite，而目标运行使用compact编码，真实对照须覆盖目标存储/来源路径；不能把raw路径收益直接当作compact全集收益。
+- 保留原全部父断言和完整原请求/结果流，独立重算及原1e-8/1e-4不变。记录启动、读回、解码、IPC、核验及最终收集的端到端开销。
+- 新的真实对照入口、收集器和范围具体准备后，再遵守实际数据计算及来源暂存/发布授权；现阶段不执行真实数值，不改0072/V2V，不使用3090。

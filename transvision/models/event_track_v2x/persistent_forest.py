@@ -23,6 +23,9 @@ from .recoverable_states import _state
 from .tracking_v2 import ci, propagate
 
 
+_PREFIX_CACHE_MISS = object()
+
+
 @dataclass(frozen=True)
 class PersistentForestConfig:
     state: ForestTrackingConfig = ForestTrackingConfig()
@@ -218,6 +221,13 @@ class PersistentForestTracker:
         return self.row_cache[index]
 
     def _prefix(self, handle):
+        # Only the shared cache opts in to this private lookup-and-touch
+        # protocol. Plain OrderedDict and the complete miss path stay intact.
+        lookup = getattr(self.cache, '_get_and_touch', None)
+        if lookup is not None:
+            cached = lookup(handle, _PREFIX_CACHE_MISS)
+            if cached is not _PREFIX_CACHE_MISS:
+                return cached
         if handle not in self.cache:
             row = self.db.execute('SELECT * FROM prefixes WHERE h=?', (handle, )).fetchone()
             if row is None:
@@ -234,6 +244,16 @@ class PersistentForestTracker:
             raise ValueError('invalid ancestor depth')
         gap = prefix.depth - depth
         bit = 0
+        # The first jump reads the same prefix fetched above. No cache access
+        # occurs between these reads, so repeating its LRU touch is a no-op.
+        # Reuse that immutable value; later jumps keep their original accesses.
+        while gap and not (gap & 1):
+            gap >>= 1
+            bit += 1
+        if gap:
+            handle = prefix.jumps[bit]
+            gap >>= 1
+            bit += 1
         while gap:
             if gap & 1:
                 handle = self._prefix(handle).jumps[bit]
