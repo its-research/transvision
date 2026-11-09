@@ -1,5 +1,17 @@
 # 0008隔离失败后的限定接续
 
+## 最新终态：2026-11-09 15:02北京时间
+
+用户批准 `call_8faea28e90134e55a71ed904af768ebd/0` 后，封版源码再次全SHA核对，调度门槛确认A100 GPU4–7空闲，单次Task `74ec08a914bf4ec3aafdb60667e5ef73` 已执行并failed。原次数已使用，没有自动重试。
+
+容器实测Seccomp=0、AppArmor=unconfined，有效能力位保持 `00000000a80425fb`，证明本次两项容器参数生效。失败位置为 `unshare: write failed /proc/self/uid_map: Operation not permitted`。这与首轮在unshare调用阶段被拒绝不同，但尚未证明UID映射拒绝的具体策略或内核原因。不能据此宣布需要额外某个capability，也不继续叠加权限。
+
+平台运行15:01:58.763至15:02:39.488，约40.7秒（包含初始化及收尾）；探针阶段15:02:22.472469至15:02:22.962935，约0.49秒。未进入子进程小文件只读/断网测试，未读取数据库/模型或运行数值。
+
+全部三份注册产物HTTP完整读回及保存后SHA通过：报告2,318字节 `40d2c7d99f6270639acd129a773a9fef407f99ed991cdab7277ba3d208ebc849`，stderr66字节 `6b50086233b9e3c0f8f5ac5e8094da06d7a05f1c3be0b88baf49578943392a94`，stdout为空且SHA匹配。外置盘记录在0008目录 `optimized-deployment/relaxed-terminal-readback-once/`。
+
+下一步只准备UID映射与运行路线的审查，不凭此失败停止或重启现有任务，不启动0008、不重启0094。任何新执行或权限变化仍需对应范围授权；本次许可不覆盖真实数值任务。以下待批文字为历史，已由本次授权和终态替代。
+
 ## 待授权候选：仅一次诊断容器放宽两项策略
 
 入口6,836字节，SHA256 `2700256fc1c5ea6c3f77a813ed9582d2d82413e6e41bee8b270de4547fb20fe3`；投递器、收集器已在112准备，语法及授权15项/报告13项拒绝检查通过。证明在0008目录 `optimized-deployment/relaxed-preparation-controls.json`。未创建Task、未执行实际探针，没有实际人类授权。
